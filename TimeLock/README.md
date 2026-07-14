@@ -36,8 +36,11 @@
 - [x] SPM 패키지 추가됨 — firebase-ios-sdk(FirebaseAuth, FirebaseFirestore), GoogleSignIn-iOS
 - [x] Google 로그인 제공업체 활성화 + `CLIENT_ID` 포함 plist로 교체
 - [x] `REVERSED_CLIENT_ID` URL Scheme 등록 (Info.plist) + 콜백 처리(`onOpenURL`)
-- [ ] Firebase 콘솔 > Authentication에서 **이메일/비밀번호, Apple** 제공업체 활성화
-- [ ] Signing & Capabilities에 **Sign in with Apple** capability 추가
+- [x] Firebase 콘솔 > Authentication에서 **이메일/비밀번호, Google, Apple** 제공업체 활성화
+- [ ] Signing & Capabilities에 **Sign in with Apple** capability 추가 (유료 개발자 계정 필요 — 출시 전 필수)
+
+참고 — 인증 콜백 핸들러 URL (웹/Android에서 Apple 로그인 시 Apple 콘솔에 등록, iOS 전용인 현재는 불필요):
+`https://timelock-eba85.firebaseapp.com/__/auth/handler`
       (App Store 심사 규정 4.8 — Google 등 서드파티 로그인을 제공하면 Apple 로그인 제공이 **필수**)
 - [ ] Firestore 보안 규칙 배포 (본인 문서만 접근 — 콘솔 > Firestore > 규칙)
 
