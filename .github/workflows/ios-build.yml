@@ -24,7 +24,7 @@ jobs:
           for attempt in 1 2 3; do
             if xcodebuild -resolvePackageDependencies \
                  -project TimeLock/TimeLock.xcodeproj \
-                 -target TimeLock; then
+                 -scheme TimeLock; then
               exit 0
             fi
             echo "패키지 해석 실패 — ${attempt}회차, 15초 후 재시도"
@@ -32,13 +32,15 @@ jobs:
           done
           exit 1
 
+      # 공유 스킴 + DerivedData 빌드 — 레거시 -target 빌드는 SPM 체크아웃 안의
+      # 'build' 파일과 경로가 충돌한다 (nanopb 등)
       - name: iOS 시뮬레이터용 빌드
         run: |
           set -o pipefail
           xcodebuild \
             -project TimeLock/TimeLock.xcodeproj \
-            -target TimeLock \
-            -sdk iphonesimulator \
+            -scheme TimeLock \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             build
