@@ -1,0 +1,30 @@
+name: iOS Build
+
+# 푸시/PR마다 macOS 러너에서 iOS 시뮬레이터용 빌드를 수행해
+# 컴파일 오류를 즉시 잡아낸다. (서명 불필요 — CODE_SIGNING_ALLOWED=NO)
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+jobs:
+  build:
+    name: Xcode 빌드 검증
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 버전 확인
+        run: xcodebuild -version
+
+      - name: iOS 시뮬레이터용 빌드
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project TimeLock/TimeLock.xcodeproj \
+            -target TimeLock \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build
