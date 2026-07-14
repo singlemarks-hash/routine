@@ -18,6 +18,20 @@ jobs:
       - name: Xcode 버전 확인
         run: xcodebuild -version
 
+      # 바이너리 아티팩트(dl.google.com) 다운로드가 간헐적으로 끊기므로 3회 재시도
+      - name: 패키지 의존성 해석 (재시도 포함)
+        run: |
+          for attempt in 1 2 3; do
+            if xcodebuild -resolvePackageDependencies \
+                 -project TimeLock/TimeLock.xcodeproj \
+                 -target TimeLock; then
+              exit 0
+            fi
+            echo "패키지 해석 실패 — ${attempt}회차, 15초 후 재시도"
+            sleep 15
+          done
+          exit 1
+
       - name: iOS 시뮬레이터용 빌드
         run: |
           set -o pipefail
