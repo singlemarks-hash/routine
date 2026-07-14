@@ -1,0 +1,157 @@
+//
+//  ExportAndSubscription.swift
+//  TimeLock
+//
+//  1) WatermarkExporter — 공유/내보내기 시 기본 워터마크 삽입.
+//     구독(타임락 프로) 상태에서만 워터마크 제거 토글이 동작한다.
+//  2) SubscriptionManager — StoreKit 2 자동갱신 구독 관리.
+//
+
+import Foundation
+import AVFoundation
+import UIKit
+import StoreKit
+
+// MARK: - 워터마크 내보내기
+
+enum WatermarkExporter {
+
+    enum ExportError: Error { case noVideoTrack, exportFailed }
+
+    /// 워터마크 유무를 선택해 임시 파일로 내보낸다. (공유 시트에 전달)
+    static func export(videoURL: URL, watermarked: Bool) async throws -> URL {
+        let asset = AVURLAsset(url: videoURL)
+        guard let track = try await asset.loadTracks(withMediaType: .video).first else {
+            throw ExportError.noVideoTrack
+        }
+
+        let composition = AVMutableComposition()
+        guard let compTrack = composition.addMutableTrack(withMediaType: .video,
+                                                          preferredTrackID: kCMPersistentTrackID_Invalid) else {
+            throw ExportError.exportFailed
+        }
+        let duration = try await asset.load(.duration)
+        try compTrack.insertTimeRange(CMTimeRange(start: .zero, duration: duration), of: track, at: .zero)
+        compTrack.preferredTransform = try await track.load(.preferredTransform)
+
+        let naturalSize = try await track.load(.naturalSize)
+        let renderSize = naturalSize
+
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.renderSize = renderSize
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compTrack)
+        instruction.layerInstructions = [layerInstruction]
+        videoComposition.instructions = [instruction]
+
+        if watermarked {
+            let parentLayer = CALayer()
+            let videoLayer = CALayer()
+            parentLayer.frame = CGRect(origin: .zero, size: renderSize)
+            videoLayer.frame = parentLayer.frame
+            parentLayer.addSublayer(videoLayer)
+
+            let text = CATextLayer()
+            text.string = "TIMELOCK ● REC"
+            text.font = UIFont.systemFont(ofSize: 10, weight: .heavy)
+            text.fontSize = max(22, renderSize.width * 0.038)
+            text.foregroundColor = UIColor(white: 1, alpha: 0.85).cgColor
+            text.alignmentMode = .right
+            text.contentsScale = UIScreen.main.scale
+            let height = text.fontSize * 1.5
+            text.frame = CGRect(x: 0, y: 24, width: renderSize.width - 24, height: height)
+            parentLayer.addSublayer(text)
+
+            videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
+                postProcessingAsVideoLayer: videoLayer, in: parentLayer)
+        }
+
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("timelock-export-\(UUID().uuidString).mp4")
+        guard let exporter = AVAssetExportSession(asset: composition,
+                                                  presetName: AVAssetExportPresetHEVCHighestQuality) else {
+            throw ExportError.exportFailed
+        }
+        exporter.outputURL = outURL
+        exporter.outputFileType = .mp4
+        exporter.videoComposition = videoComposition
+        await exporter.export()
+        guard exporter.status == .completed else { throw ExportError.exportFailed }
+        return outURL
+    }
+}
+
+// MARK: - 구독 (타임락 프로)
+
+@MainActor
+final class SubscriptionManager: ObservableObject {
+    static let shared = SubscriptionManager()
+
+    static let productID = "com.timelock.pro.monthly"
+
+    @Published var isPro = false
+    @Published var product: Product?
+
+    private var updatesTask: Task<Void, Never>?
+
+    init() {
+        updatesTask = Task { await listenForTransactions() }
+        Task {
+            await loadProduct()
+            await refreshEntitlement()
+        }
+    }
+
+    func loadProduct() async {
+        do {
+            product = try await Product.products(for: [Self.productID]).first
+        } catch { product = nil }
+    }
+
+    func refreshEntitlement() async {
+        var pro = false
+        for await result in Transaction.currentEntitlements {
+            if case .verified(let transaction) = result,
+               transaction.productID == Self.productID,
+               transaction.revocationDate == nil {
+                pro = true
+            }
+        }
+        isPro = pro
+    }
+
+    func purchase() async throws -> Bool {
+        guard let product else { return false }
+        let result = try await product.purchase()
+        switch result {
+        case .success(let verification):
+            if case .verified(let transaction) = verification {
+                await transaction.finish()
+                await refreshEntitlement()
+                return true
+            }
+            return false
+        case .userCancelled, .pending:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
+    func restore() async {
+        try? await AppStore.sync()
+        await refreshEntitlement()
+    }
+
+    private func listenForTransactions() async {
+        for await result in Transaction.updates {
+            if case .verified(let transaction) = result {
+                await transaction.finish()
+                await refreshEntitlement()
+            }
+        }
+    }
+}
