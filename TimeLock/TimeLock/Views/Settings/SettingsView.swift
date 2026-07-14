@@ -2,8 +2,8 @@
 //  SettingsView.swift
 //  TimeLock
 //
-//  강도 변경(상향 즉시/하향 다음날 0시, 미친 매운맛 해금), 프라이버시 정책과 영상 삭제,
-//  점수 원장 내역, 구독 관리.
+//  계정(로그인/로그아웃, 내 상점·벌점), 강도 변경(상향 즉시/하향 다음날 0시, 미친 매운맛 해금),
+//  프라이버시 정책과 기록 삭제, 점수 원장 내역, 구독 관리.
 //
 
 import SwiftUI
@@ -11,18 +11,30 @@ import SwiftData
 
 struct SettingsView: View {
     @EnvironmentObject private var app: AppState
+    @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var subscription: SubscriptionManager
     @Environment(\.modelContext) private var context
-    @Query(sort: \ScoreEvent.timestamp, order: .reverse) private var events: [ScoreEvent]
-    @Query private var sessions: [FocusSession]
+    @Query(sort: \ScoreEvent.timestamp, order: .reverse) private var everyEvent: [ScoreEvent]
+    @Query private var everySession: [FocusSession]
 
     @State private var showPaywall = false
+    @State private var showAuth = false
     @State private var showDeleteAllConfirm = false
+    @State private var showSignOutConfirm = false
+
+    /// 현재 계정의 기록만
+    private var events: [ScoreEvent] {
+        everyEvent.filter { $0.ownerUserID == account.currentUserID }
+    }
+    private var sessions: [FocusSession] {
+        everySession.filter { $0.ownerUserID == account.currentUserID }
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    accountSection
                     intensitySection
                     subscriptionSection
                     privacySection
@@ -35,7 +47,81 @@ struct SettingsView: View {
             .background(TL.ink)
             .navigationTitle("설정")
             .sheet(isPresented: $showPaywall) { PaywallView() }
+            .sheet(isPresented: $showAuth) { AuthView() }
         }
+    }
+
+    // MARK: 계정
+
+    private var accountSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TLEyebrow(text: "계정")
+            if let user = account.currentUser, user.provider != .guest {
+                TLCard(raised: true) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(TL.rec.opacity(0.2))
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    Text(String((user.displayName ?? user.email ?? "?").prefix(1)).uppercased())
+                                        .font(.tlTitle(18))
+                                        .foregroundStyle(TL.rec)
+                                )
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(user.displayName ?? user.email ?? "회원")
+                                    .font(.tlTitle(16)).foregroundStyle(TL.paper)
+                                if let email = user.email {
+                                    Text(email).font(.system(size: 12)).foregroundStyle(TL.muted)
+                                }
+                            }
+                            Spacer()
+                            TagChip(name: user.provider.title)
+                        }
+
+                        Divider().overlay(TL.hairline)
+
+                        HStack(spacing: 0) {
+                            scoreStat(value: "+\(myReward)", label: "내 상점", tint: TL.jade)
+                            scoreStat(value: "\(myPenalty)", label: "내 벌점", tint: TL.rec)
+                            scoreStat(value: "\(myReward + myPenalty)", label: "총점",
+                                      tint: myReward + myPenalty >= 0 ? TL.paper : TL.rec)
+                        }
+
+                        Button("로그아웃") { showSignOutConfirm = true }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TL.muted)
+                    }
+                }
+            } else {
+                TLCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("게스트 모드")
+                            .font(.tlTitle(16)).foregroundStyle(TL.paper)
+                        Text("상점·벌점이 이 기기에만 저장됩니다. 로그인하면 지금까지의 기록이 계정으로 옮겨지고, 기기를 바꿔도 유지됩니다.")
+                            .font(.system(size: 13)).foregroundStyle(TL.muted)
+                        Button("계정 만들기 · 로그인") { showAuth = true }
+                            .buttonStyle(TLPrimaryButtonStyle())
+                    }
+                }
+            }
+        }
+        .confirmationDialog("로그아웃할까요?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
+            Button("로그아웃", role: .destructive) { account.signOut() }
+        } message: {
+            Text("기록은 계정에 남아 있고, 다시 로그인하면 그대로 보입니다.")
+        }
+    }
+
+    private var myReward: Int { events.filter { $0.points > 0 }.reduce(0) { $0 + $1.points } }
+    private var myPenalty: Int { events.filter { $0.points < 0 }.reduce(0) { $0 + $1.points } }
+
+    private func scoreStat(value: String, label: String, tint: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.tlTimer(18)).foregroundStyle(tint)
+            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(TL.muted)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: 강도
@@ -83,8 +169,8 @@ struct SettingsView: View {
                             Text(subscription.isPro ? "타임락 프로 사용 중" : "타임락 프로")
                                 .font(.tlTitle(17)).foregroundStyle(TL.paper)
                             Text(subscription.isPro
-                                 ? "공유 영상의 워터마크를 제거할 수 있습니다."
-                                 : "공유/내보내기 영상의 워터마크를 제거합니다.")
+                                 ? "저장하는 타임랩스의 워터마크를 제거할 수 있습니다."
+                                 : "타임랩스 저장 시 워터마크를 제거합니다.")
                                 .font(.system(size: 13)).foregroundStyle(TL.muted)
                         }
                         Spacer()
@@ -113,25 +199,25 @@ struct SettingsView: View {
             TLEyebrow(text: "프라이버시")
             TLCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    privacyRow(icon: "lock.fill", text: "모든 영상은 기본 비공개 — 이 기기에만 저장되고 본인만 접근합니다.")
+                    privacyRow(icon: "arrow.down.circle.fill", text: "촬영본은 세션 종료 화면에서 사진 앱으로 저장하지 않으면 즉시 삭제됩니다. 서버로 전송되지 않습니다.")
                     privacyRow(icon: "eye.fill", text: "촬영 중에는 화면에 REC 표시와 프리뷰가 항상 보입니다.")
-                    privacyRow(icon: "key.fill", text: "영상 파일은 iOS 파일 보호(완전 암호화)로 저장됩니다.")
-                    privacyRow(icon: "trash.fill", text: "삭제하면 영상·썸네일이 기기에서 완전히 제거됩니다.")
+                    privacyRow(icon: "key.fill", text: "촬영 중 파일은 iOS 파일 보호(완전 암호화)로 저장됩니다.")
+                    privacyRow(icon: "trash.fill", text: "기록 썸네일은 아래에서 언제든 완전히 삭제할 수 있습니다.")
                     Divider().overlay(TL.hairline)
                     Toggle(isOn: $app.dimModeEnabled) {
                         Text("세션 중 밝기 자동 감소").font(.tlBody).foregroundStyle(TL.paper)
                     }
                     .tint(TL.rec)
-                    Button("모든 영상 삭제") { showDeleteAllConfirm = true }
+                    Button("기록 썸네일 전체 삭제") { showDeleteAllConfirm = true }
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(TL.rec)
                 }
             }
         }
-        .confirmationDialog("모든 타임랩스 영상을 삭제할까요?", isPresented: $showDeleteAllConfirm, titleVisibility: .visible) {
-            Button("영상 전체 삭제 (기록·점수는 유지)", role: .destructive) { deleteAllVideos() }
+        .confirmationDialog("모든 기록 썸네일을 삭제할까요?", isPresented: $showDeleteAllConfirm, titleVisibility: .visible) {
+            Button("전체 삭제 (기록·점수는 유지)", role: .destructive) { deleteAllVideos() }
         } message: {
-            Text("삭제한 영상은 복구할 수 없습니다. 세션 기록과 점수 원장은 유지됩니다.")
+            Text("삭제한 썸네일은 복구할 수 없습니다. 세션 기록과 점수 원장은 유지됩니다.")
         }
     }
 
@@ -226,8 +312,8 @@ struct PaywallView: View {
                     .padding(.top, 6)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    benefit("공유/내보내기 영상 워터마크 제거")
-                    benefit("완주 영상 원본 화질 내보내기")
+                    benefit("타임랩스 저장 시 워터마크 제거")
+                    benefit("완주 영상 원본 화질 저장")
                     benefit("앞으로 추가되는 프로 기능 전부")
                 }
                 .padding(.top, 28)

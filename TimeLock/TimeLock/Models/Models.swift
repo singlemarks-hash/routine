@@ -9,6 +9,17 @@
 import Foundation
 import SwiftData
 
+// MARK: - 시간 정책 (알람 창 · 재촬영 창)
+
+enum TimePolicy {
+    /// 알람 후 촬영을 시작해야 하는 창. 넘기면 노쇼 탈락.
+    static let startWindowSeconds: TimeInterval = 600
+    static var startWindowMinutes: Int { Int(startWindowSeconds) / 60 }
+    /// 긴급 용무로 촬영을 중단한 뒤 재촬영을 시작해야 하는 창. 넘기면 벌점.
+    static let resumeWindowSeconds: TimeInterval = 600
+    static var resumeWindowMinutes: Int { Int(resumeWindowSeconds) / 60 }
+}
+
 // MARK: - 강도 (앱 전역 단일 값)
 
 enum Intensity: String, Codable, CaseIterable, Identifiable {
@@ -19,7 +30,7 @@ enum Intensity: String, Codable, CaseIterable, Identifiable {
     var title: String { self == .spicy ? "매운맛" : "미친 매운맛" }
     var subtitle: String {
         self == .spicy
-        ? "이탈하면 경고 후 10초 유예. 복귀하지 못하면 실패."
+        ? "긴급 용무로 중단해도 10분 안에 재촬영하면 벌점 없음."
         : "유예도 사유도 없다. 이탈 즉시 실패, 벌점 2배."
     }
     var emoji: String { self == .spicy ? "🌶️" : "🔥" }
@@ -36,6 +47,8 @@ enum ActivityTag {
 @Model
 final class Reservation {
     @Attribute(.unique) var id: UUID
+    /// 이 예약의 소유 계정 (AccountStore.currentUserID). 게스트는 "guest".
+    var ownerUserID: String = ""
     var name: String
     var tag: String
     /// 하루 중 시작 시각(자정 기준 분). 일회성은 date와 조합.
@@ -50,8 +63,9 @@ final class Reservation {
     var isActive: Bool
 
     init(name: String, tag: String, startMinute: Int, durationMinutes: Int,
-         repeatWeekdays: [Int] = [], oneOffDate: Date? = nil) {
+         repeatWeekdays: [Int] = [], oneOffDate: Date? = nil, ownerUserID: String = "") {
         self.id = UUID()
+        self.ownerUserID = ownerUserID
         self.name = name
         self.tag = tag
         self.startMinute = startMinute
@@ -99,8 +113,8 @@ final class Reservation {
 
 enum SessionOutcome: String, Codable {
     case completed      // 완주 (자동 종료 도달)
-    case exitFailed     // 이탈 실패
-    case noShow         // 5분 미시작 탈락
+    case exitFailed     // 이탈 실패 (재촬영 창 초과 포함)
+    case noShow         // 10분 미시작 탈락
     case emergency      // 긴급 종료
     case safetyEnded    // 안전 종료 (배터리/저장공간/크래시/통화 불능)
 
@@ -121,6 +135,8 @@ enum SessionOutcome: String, Codable {
 @Model
 final class FocusSession {
     @Attribute(.unique) var id: UUID
+    /// 이 세션의 소유 계정. 게스트는 "guest".
+    var ownerUserID: String = ""
     var activityName: String
     var tag: String
     var intensityRaw: String
@@ -136,8 +152,10 @@ final class FocusSession {
     var reservationID: UUID?
 
     init(activityName: String, tag: String, intensity: Intensity,
-         scheduledAt: Date?, targetSeconds: Int, reservationID: UUID? = nil) {
+         scheduledAt: Date?, targetSeconds: Int, reservationID: UUID? = nil,
+         ownerUserID: String = "") {
         self.id = UUID()
+        self.ownerUserID = ownerUserID
         self.activityName = activityName
         self.tag = tag
         self.intensityRaw = intensity.rawValue
@@ -201,6 +219,8 @@ enum ScoreEventType: String, Codable, CaseIterable {
 @Model
 final class ScoreEvent {
     @Attribute(.unique) var id: UUID
+    /// 이 점수의 소유 계정. 게스트는 "guest".
+    var ownerUserID: String = ""
     var typeRaw: String
     var points: Int
     var sessionID: UUID?
@@ -209,8 +229,9 @@ final class ScoreEvent {
     var note: String?
 
     init(type: ScoreEventType, points: Int, sessionID: UUID?,
-         intensity: Intensity, note: String? = nil) {
+         intensity: Intensity, note: String? = nil, ownerUserID: String = "") {
         self.id = UUID()
+        self.ownerUserID = ownerUserID
         self.typeRaw = type.rawValue
         self.points = points
         self.sessionID = sessionID

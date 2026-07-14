@@ -10,9 +10,15 @@ import SwiftData
 
 struct HomeView: View {
     @EnvironmentObject private var app: AppState
+    @EnvironmentObject private var account: AccountStore
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
-    private var reservations: [Reservation]
+    private var allActiveReservations: [Reservation]
+
+    /// 현재 계정의 예약만
+    private var reservations: [Reservation] {
+        allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
+    }
 
     @State private var now = Date()
     @State private var showEditor = false
@@ -98,7 +104,7 @@ struct HomeView: View {
                     }
                     HStack(spacing: 6) {
                         Image(systemName: "bell.fill").font(.system(size: 11))
-                        Text("\(TLFormat.clock(next.fire)) · \(TLFormat.durationLabel(next.reservation.durationMinutes)) · 5분 내 촬영 시작")
+                        Text("\(TLFormat.clock(next.fire)) · \(TLFormat.durationLabel(next.reservation.durationMinutes)) · \(TimePolicy.startWindowMinutes)분 내 촬영 시작")
                     }
                     .font(.system(size: 13))
                     .foregroundStyle(TL.muted)

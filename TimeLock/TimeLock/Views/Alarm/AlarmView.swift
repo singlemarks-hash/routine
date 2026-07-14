@@ -3,7 +3,7 @@
 //  TimeLock
 //
 //  알람 화면 최소화 규칙:
-//  활동명 · 5분 경고 · [촬영 시작] · [긴급] — 그 외 동선 없음. 스누즈 없음.
+//  활동명 · 10분 경고 · [촬영 시작] · [긴급] — 그 외 동선 없음. 스누즈 없음.
 //  알람 오디오는 촬영 시작 시점에만 멈춘다.
 //
 
@@ -18,9 +18,9 @@ struct AlarmView: View {
     @State private var showEmergencyConfirm = false
     private let clock = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
-    private var deadline: Date { fireDate.addingTimeInterval(300) }
+    private var deadline: Date { fireDate.addingTimeInterval(TimePolicy.startWindowSeconds) }
     private var remaining: Int { max(0, Int(deadline.timeIntervalSince(now))) }
-    private var progress: Double { Double(remaining) / 300.0 }
+    private var progress: Double { Double(remaining) / TimePolicy.startWindowSeconds }
 
     var body: some View {
         ZStack {
@@ -46,7 +46,7 @@ struct AlarmView: View {
 
                 Spacer()
 
-                // 시그니처 REC 링 = 남은 5분
+                // 시그니처 REC 링 = 남은 시작 창(10분)
                 RECRingDial(progress: progress, live: true, tint: remaining <= 60 ? TL.rec : TL.amber) {
                     VStack(spacing: 4) {
                         Text(TLFormat.hms(remaining))
@@ -85,7 +85,7 @@ struct AlarmView: View {
         .onReceive(clock) { time in
             now = time
             if remaining == 0 {
-                // 5분 경과 → 알람 자동 종료, 노쇼는 스위퍼가 벌점과 함께 기록
+                // 10분 경과 → 알람 자동 종료, 노쇼는 스위퍼가 벌점과 함께 기록
                 AlarmScheduler.shared.stopAlarmSound()
                 app.sweepNoShows()
                 app.route = .none
@@ -99,7 +99,7 @@ struct AlarmView: View {
             }
             Button("계속 진행", role: .cancel) { }
         } message: {
-            Text("긴급 종료해도 이 예약은 5분 규칙에 따라 탈락으로 기록됩니다.")
+            Text("긴급 종료해도 이 예약은 \(TimePolicy.startWindowMinutes)분 규칙에 따라 탈락으로 기록됩니다.")
         }
     }
 }

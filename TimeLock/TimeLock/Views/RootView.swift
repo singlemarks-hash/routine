@@ -8,14 +8,17 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var engine: SessionEngine
+    @EnvironmentObject private var account: AccountStore
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
-            if app.onboarded {
-                MainTabView()
-            } else {
+            if !app.onboarded {
                 OnboardingFlow()
+            } else if !account.isSignedIn {
+                AuthView()   // 상점·벌점은 계정 단위 — 로그인(또는 게스트) 후 입장
+            } else {
+                MainTabView()
             }
         }
         .background(TL.ink)

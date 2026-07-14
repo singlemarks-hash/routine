@@ -15,9 +15,15 @@ struct ReservationEditView: View {
     let reservation: Reservation?   // nil = 생성
 
     @EnvironmentObject private var app: AppState
+    @EnvironmentObject private var account: AccountStore
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allReservations: [Reservation]
+    @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allActiveReservations: [Reservation]
+
+    /// 겹침 검사는 현재 계정의 예약끼리만
+    private var allReservations: [Reservation] {
+        allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
+    }
 
     @State private var name = ""
     @State private var tag = ActivityTag.presets[0]
@@ -267,7 +273,8 @@ struct ReservationEditView: View {
             let r = Reservation(name: trimmedName, tag: finalTag,
                                 startMinute: startMinute, durationMinutes: durationMinutes,
                                 repeatWeekdays: isRepeating ? Array(weekdays) : [],
-                                oneOffDate: isRepeating ? nil : Calendar.current.startOfDay(for: oneOffDate))
+                                oneOffDate: isRepeating ? nil : Calendar.current.startOfDay(for: oneOffDate),
+                                ownerUserID: account.currentUserID)
             context.insert(r)
         }
         try? context.save()
@@ -284,8 +291,7 @@ struct ReservationEditView: View {
     }
 
     private func rescheduleAlarms() {
-        let active = (try? context.fetch(FetchDescriptor<Reservation>(predicate: #Predicate { $0.isActive }))) ?? []
-        AlarmScheduler.shared.rescheduleAll(reservations: active)
+        app.rescheduleAlarmsForCurrentUser()
     }
 
     private func clockDate(_ minute: Int) -> Date {

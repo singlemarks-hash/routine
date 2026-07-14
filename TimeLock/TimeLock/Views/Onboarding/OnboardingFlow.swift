@@ -54,7 +54,7 @@ private struct ConceptStep: View {
                     .font(.tlTitle(26))
                     .foregroundStyle(TL.paper)
                     .multilineTextAlignment(.center)
-                Text("예약한 시각에 알람이 울리면 5분 안에\n전면 카메라 타임랩스를 시작해야 합니다.\n촬영이 곧 잠금이 되어 끝까지 지켜봅니다.")
+                Text("예약한 시각에 알람이 울리면 10분 안에\n전면 카메라 타임랩스를 시작해야 합니다.\n촬영이 곧 잠금이 되어 끝까지 지켜봅니다.")
                     .font(.tlBody)
                     .foregroundStyle(TL.muted)
                     .multilineTextAlignment(.center)

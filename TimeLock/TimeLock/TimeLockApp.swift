@@ -30,6 +30,7 @@ struct TimeLockApp: App {
             RootView()
                 .environmentObject(app)
                 .environmentObject(app.engine)
+                .environmentObject(AccountStore.shared)
                 .environmentObject(SubscriptionManager.shared)
                 .environmentObject(AlarmScheduler.shared)
                 .preferredColorScheme(.dark)
@@ -48,6 +49,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        MainActor.assumeIsolated {
+            AccountStore.shared.configureBackendIfAvailable()
+        }
         return true
     }
 
@@ -168,12 +172,18 @@ final class AppState: ObservableObject {
     func bind(context: ModelContext) {
         guard modelContext == nil else { return }
         modelContext = context
+        AccountStore.shared.bind(context: context)
+        AccountStore.shared.onUserChanged = { [weak self] in
+            self?.handleUserChanged()
+        }
         engine.bind(context: context)
         engine.recoverOrphanIfNeeded()
+        purgeUnsavedVideos()
         refreshDerived()
         applyPendingDowngradeIfDue()
         sweepNoShows()
         checkDueAlarm()
+        rescheduleAlarmsForCurrentUser()
         Task { await AlarmScheduler.shared.refreshAuthorizationStatus() }
 
         sweepTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
@@ -204,19 +214,48 @@ final class AppState: ObservableObject {
         guard let context = modelContext else { return }
         let spicyRaw = Intensity.spicy.rawValue
         let completedRaw = SessionOutcome.completed.rawValue
+        let owner = AccountStore.shared.currentUserID
         let descriptor = FetchDescriptor<FocusSession>(
-            predicate: #Predicate { $0.intensityRaw == spicyRaw && $0.outcomeRaw == completedRaw })
+            predicate: #Predicate { $0.intensityRaw == spicyRaw && $0.outcomeRaw == completedRaw && $0.ownerUserID == owner })
         spicyCompletions = (try? context.fetchCount(descriptor)) ?? 0
+    }
+
+    // MARK: 계정 전환
+
+    private func handleUserChanged() {
+        refreshDerived()
+        rescheduleAlarmsForCurrentUser()
+        sweepNoShows()
+        checkDueAlarm()
+    }
+
+    func rescheduleAlarmsForCurrentUser() {
+        AlarmScheduler.shared.rescheduleAll(reservations: activeReservations())
+    }
+
+    /// 결과 화면에서 저장하지 않고 남은 촬영본 정리 (정책: 다운로드하지 않으면 자동 삭제)
+    private func purgeUnsavedVideos() {
+        guard let context = modelContext else { return }
+        let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
+            predicate: #Predicate { $0.videoFileName != nil && $0.outcomeRaw != nil }))) ?? []
+        guard !sessions.isEmpty else { return }
+        for session in sessions {
+            if let url = session.videoURL { try? FileManager.default.removeItem(at: url) }
+            session.videoFileName = nil
+        }
+        try? context.save()
     }
 
     // MARK: 알람 라우팅
 
     private func activeReservations() -> [Reservation] {
         guard let context = modelContext else { return [] }
-        return (try? context.fetch(FetchDescriptor<Reservation>(predicate: #Predicate { $0.isActive }))) ?? []
+        let owner = AccountStore.shared.currentUserID
+        return (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.isActive && $0.ownerUserID == owner }))) ?? []
     }
 
-    /// 지금 알람 창(발생~+5분)에 들어와 있고 아직 시작 안 된 예약이 있으면 알람 화면 표시
+    /// 지금 알람 창(발생~+10분)에 들어와 있고 아직 시작 안 된 예약이 있으면 알람 화면 표시
     func checkDueAlarm() {
         guard route == .none, engine.session == nil else { return }
         let now = Date()
@@ -225,7 +264,7 @@ final class AppState: ObservableObject {
             for offset in [-1, 0] {
                 guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
                       let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
-                let window = fire...fire.addingTimeInterval(300)
+                let window = fire...fire.addingTimeInterval(TimePolicy.startWindowSeconds)
                 guard window.contains(now) else { continue }
                 guard !sessionExists(reservationID: reservation.id, scheduledAt: fire) else { continue }
                 route = .alarm(reservationID: reservation.id, fireDate: fire)
@@ -279,7 +318,8 @@ final class AppState: ObservableObject {
                                    intensity: intensity,
                                    scheduledAt: pending.scheduledAt,
                                    targetSeconds: pending.targetSeconds,
-                                   reservationID: pending.reservationID)
+                                   reservationID: pending.reservationID,
+                                   ownerUserID: AccountStore.shared.currentUserID)
         engine.start(session: session)
         route = .session
     }
@@ -296,6 +336,12 @@ final class AppState: ObservableObject {
     }
 
     func dismissResult() {
+        // 정책: 결과 화면에서 저장하지 않은 촬영본은 여기서 삭제된다
+        if let session = engine.lastFinishedSession, session.videoFileName != nil {
+            if let url = session.videoURL { try? FileManager.default.removeItem(at: url) }
+            session.videoFileName = nil
+            try? modelContext?.save()
+        }
         engine.reset()
         route = .none
     }

@@ -137,6 +137,7 @@ final class CameraRecorder: NSObject, ObservableObject {
             self.outputURL = url
             self.thumbnailImage = nil
             self.lastCaptureAt = 0
+            self.frameCountInternal = 0   // 미초기화 시 두 번째 세션이 즉시 완주 처리되는 버그 방지
             self.isPaused = false
             self.isRecording = true
         }

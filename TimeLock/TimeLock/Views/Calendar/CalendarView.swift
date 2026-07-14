@@ -3,22 +3,32 @@
 //  TimeLock
 //
 //  월간 성공캘린더: 날짜에 실패/노쇼가 하나라도 있으면 빨강, 모두 완주면 초록.
-//  날짜 상세: 세션별 타임랩스 재생, 점수 내역, 태그별 시간.
+//  날짜 상세: 세션 기록(썸네일)·점수 내역·태그별 시간.
 //  누적 대시보드: 총점, 완주율/노쇼율, 태그 분포, 스트릭.
+//  정책: 타임랩스 원본은 세션 종료 화면에서 저장하지 않으면 삭제되므로
+//  캘린더에는 재생·공유가 없고 기록만 남는다. 모든 데이터는 현재 계정 것만 보인다.
 //
 
 import SwiftUI
 import SwiftData
-import AVKit
 
 struct CalendarView: View {
-    @Query private var allSessions: [FocusSession]
-    @Query private var scoreEvents: [ScoreEvent]
+    @EnvironmentObject private var account: AccountStore
+    @Query private var everySession: [FocusSession]
+    @Query private var everyScoreEvent: [ScoreEvent]
 
     @State private var monthAnchor = Date()
     @State private var selectedDay: Date?
 
     private var calendar: Calendar { Calendar.current }
+
+    /// 현재 계정의 기록만
+    private var allSessions: [FocusSession] {
+        everySession.filter { $0.ownerUserID == account.currentUserID }
+    }
+    private var scoreEvents: [ScoreEvent] {
+        everyScoreEvent.filter { $0.ownerUserID == account.currentUserID }
+    }
 
     var body: some View {
         NavigationStack {
@@ -154,13 +164,7 @@ struct DayDetailView: View {
     let sessions: [FocusSession]
     let scoreEvents: [ScoreEvent]
 
-    @EnvironmentObject private var subscription: SubscriptionManager
     @Environment(\.dismiss) private var dismiss
-    @State private var playingURL: URL?
-    @State private var exporting = false
-    @State private var shareURL: URL?
-    @State private var removeWatermark = false
-    @State private var showPaywall = false
 
     var body: some View {
         NavigationStack {
@@ -181,24 +185,8 @@ struct DayDetailView: View {
                     Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
                 }
             }
-            .sheet(item: Binding(get: { playingURL.map(URLBox.init) },
-                                 set: { playingURL = $0?.url })) { box in
-                VideoPlayer(player: AVPlayer(url: box.url))
-                    .ignoresSafeArea()
-                    .background(.black)
-            }
-            .sheet(item: Binding(get: { shareURL.map(URLBox.init) },
-                                 set: { shareURL = $0?.url })) { box in
-                ShareSheet(items: [box.url])
-            }
-            .sheet(isPresented: $showPaywall) { PaywallView() }
         }
         .preferredColorScheme(.dark)
-    }
-
-    private struct URLBox: Identifiable {
-        let url: URL
-        var id: URL { url }
     }
 
     private var tagSummary: some View {
@@ -250,58 +238,17 @@ struct DayDetailView: View {
 
                 if let thumbURL = session.thumbnailURL,
                    let image = UIImage(contentsOfFile: thumbURL.path) {
-                    Button {
-                        playingURL = session.videoURL
-                    } label: {
-                        ZStack {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 150)
-                                .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
-                            Image(systemName: "play.circle.fill")
-                                .font(.system(size: 42))
-                                .foregroundStyle(TL.paper.opacity(0.92))
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 150)
+                        .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+                        .overlay(alignment: .bottomLeading) {
+                            Text("기록 썸네일 · 원본은 세션 종료 시 저장/삭제됨")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(TL.paper.opacity(0.85))
+                                .padding(6)
                         }
-                    }
-
-                    // 공유/내보내기 — 기본 워터마크, 구독 시 제거 토글 노출
-                    VStack(spacing: 10) {
-                        if subscription.isPro {
-                            Toggle(isOn: $removeWatermark) {
-                                Text("워터마크 제거 (타임락 프로)")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(TL.paper)
-                            }
-                            .tint(TL.jade)
-                        }
-                        HStack(spacing: 10) {
-                            Button {
-                                export(session: session)
-                            } label: {
-                                Label(exporting ? "내보내는 중…" : "영상 공유", systemImage: "square.and.arrow.up")
-                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 11)
-                                    .foregroundStyle(TL.ink)
-                                    .background(TL.paper, in: RoundedRectangle(cornerRadius: TL.cornerM))
-                            }
-                            .disabled(exporting)
-                            if !subscription.isPro {
-                                Button {
-                                    showPaywall = true
-                                } label: {
-                                    Label("워터마크 제거", systemImage: "sparkles")
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 11)
-                                        .foregroundStyle(TL.jade)
-                                        .background(RoundedRectangle(cornerRadius: TL.cornerM)
-                                            .strokeBorder(TL.jade.opacity(0.5)))
-                                }
-                            }
-                        }
-                    }
                 }
 
                 Text("순수 촬영 \(TLFormat.hms(session.recordedSeconds)) / 목표 \(TLFormat.hms(session.targetSeconds))")
@@ -309,26 +256,6 @@ struct DayDetailView: View {
             }
         }
     }
-
-    private func export(session: FocusSession) {
-        guard let url = session.videoURL else { return }
-        exporting = true
-        let watermarked = !(subscription.isPro && removeWatermark)
-        Task {
-            defer { exporting = false }
-            if let out = try? await WatermarkExporter.export(videoURL: url, watermarked: watermarked) {
-                shareURL = out
-            }
-        }
-    }
-}
-
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) { }
 }
 
 // MARK: - 누적 대시보드

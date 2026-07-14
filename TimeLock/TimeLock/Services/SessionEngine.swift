@@ -4,9 +4,12 @@
 //
 //  세션 상태머신.
 //  이벤트 소스: 백그라운드 전환·화면 잠금·앱 강제 종료·촬영 중단·통화 수신·배터리/저장공간.
-//  강도 규칙: 매운맛 = 경고 + 10초 유예 / 미친 매운맛 = 즉시 실패 + 벌점 2배.
-//  완주 판정: '순수 촬영 시간'이 목표에 도달하면 자동 종료 (통화 일시정지 시간은 제외 →
-//  통화 시간만큼 종료가 자연히 뒤로 밀린다).
+//  강도 규칙:
+//    매운맛     = 긴급 용무 중단(버튼 또는 앱 이탈) 시 10분 재촬영 창.
+//                 창 안에 재촬영 시작 = 벌점 없음 / 창 초과 또는 계속 이탈 = 벌점.
+//    미친 매운맛 = 유예 없음. 이탈 즉시 실패 + 벌점 2배.
+//  완주 판정: '순수 촬영 시간'이 목표에 도달하면 자동 종료 (통화·중단 시간은 제외 →
+//  멈춘 시간만큼 종료가 자연히 뒤로 밀린다).
 //
 
 import Foundation
@@ -22,7 +25,7 @@ final class SessionEngine: NSObject, ObservableObject {
         case idle
         case recording
         case pausedForCall
-        case graceWarning(deadline: Date)   // 매운맛: 앱 안에서의 촬영 중단 경고
+        case pausedForBreak(deadline: Date)   // 긴급 용무 중단 — 데드라인 안에 재촬영 시작
         case finished(SessionOutcome)
     }
 
@@ -34,18 +37,16 @@ final class SessionEngine: NSObject, ObservableObject {
     private(set) var session: FocusSession?
     private var modelContext: ModelContext?
     private var tick: Timer?
-    private var graceTimer: Timer?
     private var callObserver: CXCallObserver?
     private var isCallActive = false
     private var safetyCheckCounter = 0
 
-    private let graceSeconds = 10
     private let defaults = UserDefaults.standard
 
     // 킬/크래시 판별용 영속 플래그
     private enum Key {
         static let activeSessionID = "engine.activeSessionID"
-        static let backgroundedAt  = "engine.backgroundedAt"   // 이탈로 백그라운드 간 시각
+        static let breakDeadline   = "engine.breakDeadline"   // 재촬영 창 마감 시각 (epoch)
         static let callActive      = "engine.callActive"
     }
 
@@ -88,7 +89,7 @@ final class SessionEngine: NSObject, ObservableObject {
         safetyCheckCounter = 0
 
         defaults.set(session.id.uuidString, forKey: Key.activeSessionID)
-        defaults.removeObject(forKey: Key.backgroundedAt)
+        defaults.removeObject(forKey: Key.breakDeadline)
 
         startCallObserver()
         startTick()
@@ -111,7 +112,13 @@ final class SessionEngine: NSObject, ObservableObject {
     }
 
     private func onTick() {
-        guard let s = session, phase == .recording else { return }
+        guard let s = session else { return }
+        // 중단 중 — 재촬영 창이 닫히면 실패 확정
+        if case .pausedForBreak(let deadline) = phase {
+            if Date() >= deadline { failBreakExpired(session: s) }
+            return
+        }
+        guard phase == .recording else { return }
         recordedSeconds = CameraRecorder.shared.frameCount   // 프레임 수 ≈ 순수 촬영 초
 
         // 종료 1분 전 예고
@@ -140,22 +147,58 @@ final class SessionEngine: NSObject, ObservableObject {
         finalize(session: s, outcome: .completed, note: nil)
     }
 
+    // MARK: 긴급 용무 중단 — 10분 재촬영 창 (매운맛)
+
+    /// 촬영을 잠시 중단한다. 데드라인 안에 재촬영을 시작하면 벌점이 없다.
+    /// 세션 화면의 '긴급 용무' 버튼과 앱 이탈(백그라운드/화면 잠금)이 공통으로 사용한다.
+    func startBreak() {
+        guard let s = session, phase == .recording, s.intensity == .spicy else { return }
+        let deadline = Date().addingTimeInterval(TimePolicy.resumeWindowSeconds)
+        CameraRecorder.shared.pause()
+        phase = .pausedForBreak(deadline: deadline)
+        defaults.set(deadline.timeIntervalSince1970, forKey: Key.breakDeadline)
+        AlarmScheduler.shared.scheduleBreakNotifications(deadline: deadline)
+    }
+
+    /// 재촬영 시작 — 창 안이면 벌점 없이 촬영이 이어진다
+    func resumeFromBreak() {
+        guard case .pausedForBreak(let deadline) = phase, let s = session else { return }
+        guard Date() < deadline else {
+            failBreakExpired(session: s)
+            return
+        }
+        CameraRecorder.shared.resume()
+        phase = .recording
+        defaults.removeObject(forKey: Key.breakDeadline)
+        AlarmScheduler.shared.cancelBreakNotifications()
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    /// 재촬영 창 초과 — 벌점과 함께 실패 확정
+    private func failBreakExpired(session s: FocusSession) {
+        phase = .finished(.exitFailed)
+        AlarmScheduler.shared.cancelBreakNotifications()
+        Task {
+            let result = await CameraRecorder.shared.stopPreservingFootage()
+            self.applyRecording(result, to: s)
+            self.finalize(session: s, outcome: .exitFailed,
+                          note: "\(TimePolicy.resumeWindowMinutes)분 내 재촬영 없음")
+        }
+    }
+
     // MARK: 이탈 이벤트 (백그라운드 / 화면 잠금)
 
     /// ScenePhase.background 또는 화면 잠금(protectedData) 시 호출
     func handleExitEvent() {
-        guard let s = session, phase == .recording || phaseIsGrace else { return }
+        guard let s = session else { return }
         guard !isCallActive else { return }   // 통화 중 백그라운드는 이탈이 아님
 
         switch s.intensity {
         case .spicy:
-            // 유예 판정은 복귀 시각으로 한다. 지금은 시각만 기록 + 경고 알림.
-            if defaults.object(forKey: Key.backgroundedAt) == nil {
-                defaults.set(Date().timeIntervalSince1970, forKey: Key.backgroundedAt)
-                AlarmScheduler.shared.sendGraceNotification(seconds: graceSeconds)
-                CameraRecorder.shared.pause()
-            }
+            // 이탈 = 긴급 용무 중단과 동일 취급. 이미 중단 중이면 데드라인 유지.
+            if phase == .recording { startBreak() }
         case .insane:
+            guard phase == .recording else { return }
             // 즉시 실패 확정 — 되돌릴 수 없음
             phase = .finished(.exitFailed)
             Task {
@@ -166,39 +209,25 @@ final class SessionEngine: NSObject, ObservableObject {
         }
     }
 
-    /// 포그라운드 복귀 시 호출 — 매운맛 유예 판정
+    /// 포그라운드 복귀 시 호출 — 창이 이미 닫혔으면 실패 확정,
+    /// 아직 열려 있으면 세션 화면의 재촬영 오버레이가 이어받는다.
     func handleReturnEvent() {
         guard let s = session else { return }
-        guard let exitTS = defaults.object(forKey: Key.backgroundedAt) as? Double else { return }
-        defaults.removeObject(forKey: Key.backgroundedAt)
-        let away = Date().timeIntervalSince1970 - exitTS
-
-        if s.intensity == .spicy, phase == .recording {
-            if away <= Double(graceSeconds) {
-                // 무벌점 복귀
-                CameraRecorder.shared.resume()
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-            } else {
-                phase = .finished(.exitFailed)
-                Task {
-                    let result = await CameraRecorder.shared.stopPreservingFootage()
-                    self.applyRecording(result, to: s)
-                    self.finalize(session: s, outcome: .exitFailed,
-                                  note: "유예 \(graceSeconds)초 초과 (\(Int(away))초)")
-                }
-            }
+        if case .pausedForBreak(let deadline) = phase, Date() >= deadline {
+            failBreakExpired(session: s)
         }
     }
 
-    private var phaseIsGrace: Bool {
-        if case .graceWarning = phase { return true }
+    private var phaseIsBreak: Bool {
+        if case .pausedForBreak = phase { return true }
         return false
     }
 
-    // MARK: 긴급 종료
+    // MARK: 긴급 종료 (세션 포기 — 벌점)
 
     func emergencyEnd(reason: String?) {
-        guard let s = session, phase == .recording || phase == .pausedForCall else { return }
+        guard let s = session, phase == .recording || phase == .pausedForCall || phaseIsBreak else { return }
+        AlarmScheduler.shared.cancelBreakNotifications()
         phase = .finished(.emergency)
         s.emergencyReason = reason
         Task {
@@ -226,7 +255,7 @@ final class SessionEngine: NSObject, ObservableObject {
     }
 
     func safetyEnd(note: String) {
-        guard let s = session, phase == .recording || phase == .pausedForCall else { return }
+        guard let s = session, phase == .recording || phase == .pausedForCall || phaseIsBreak else { return }
         phase = .finished(.safetyEnded)
         Task {
             let result = await CameraRecorder.shared.stopPreservingFootage()
@@ -279,8 +308,11 @@ final class SessionEngine: NSObject, ObservableObject {
         if s.modelContext == nil { context.insert(s) }
 
         if let (type, points) = ScoreRules.points(for: outcome, intensity: s.intensity) {
-            context.insert(ScoreEvent(type: type, points: points,
-                                      sessionID: s.id, intensity: s.intensity, note: note))
+            let event = ScoreEvent(type: type, points: points,
+                                   sessionID: s.id, intensity: s.intensity, note: note,
+                                   ownerUserID: s.ownerUserID)
+            context.insert(event)
+            AccountStore.shared.mirror(event: event)
         }
         try? context.save()
 
@@ -291,11 +323,10 @@ final class SessionEngine: NSObject, ObservableObject {
 
     private func cleanupRuntime() {
         tick?.invalidate(); tick = nil
-        graceTimer?.invalidate(); graceTimer = nil
         callObserver = nil
         isCallActive = false
         defaults.removeObject(forKey: Key.activeSessionID)
-        defaults.removeObject(forKey: Key.backgroundedAt)
+        defaults.removeObject(forKey: Key.breakDeadline)
         defaults.removeObject(forKey: Key.callActive)
         UIApplication.shared.isIdleTimerDisabled = false
         session = nil
@@ -310,7 +341,8 @@ final class SessionEngine: NSObject, ObservableObject {
     // MARK: 노쇼 스위퍼 & 고아 세션 복구
 
     /// 지난 발생 중 시작되지 않은 예약을 탈락 처리한다. (앱 포그라운드/주기 호출)
-    func sweepNoShows(reservations: [Reservation], intensity: Intensity, graceWindow: TimeInterval = 300) {
+    func sweepNoShows(reservations: [Reservation], intensity: Intensity,
+                      graceWindow: TimeInterval = TimePolicy.startWindowSeconds) {
         guard let context = modelContext else { return }
         let calendar = Calendar.current
         let now = Date()
@@ -328,7 +360,7 @@ final class SessionEngine: NSObject, ObservableObject {
             for offset in [-1, 0] {   // 어제~오늘 발생분 점검
                 guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
                       let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
-                guard fire.addingTimeInterval(graceWindow) < now else { continue }   // 5분 창이 끝났고
+                guard fire.addingTimeInterval(graceWindow) < now else { continue }   // 10분 창이 끝났고
                 guard fire > now.addingTimeInterval(-86_400 * 2) else { continue }
                 let key = "\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))"
                 guard !existing.contains(key) else { continue }
@@ -336,14 +368,18 @@ final class SessionEngine: NSObject, ObservableObject {
                 let noShow = FocusSession(activityName: reservation.name, tag: reservation.tag,
                                           intensity: intensity, scheduledAt: fire,
                                           targetSeconds: reservation.durationMinutes * 60,
-                                          reservationID: reservation.id)
+                                          reservationID: reservation.id,
+                                          ownerUserID: reservation.ownerUserID)
                 noShow.outcome = .noShow
                 noShow.endedAt = fire.addingTimeInterval(graceWindow)
                 context.insert(noShow)
                 if let (type, points) = ScoreRules.points(for: .noShow, intensity: intensity) {
-                    context.insert(ScoreEvent(type: type, points: points,
-                                              sessionID: noShow.id, intensity: intensity,
-                                              note: "5분 내 미시작"))
+                    let event = ScoreEvent(type: type, points: points,
+                                           sessionID: noShow.id, intensity: intensity,
+                                           note: "\(TimePolicy.startWindowMinutes)분 내 미시작",
+                                           ownerUserID: reservation.ownerUserID)
+                    context.insert(event)
+                    AccountStore.shared.mirror(event: event)
                 }
                 existing.insert(key)
             }
@@ -364,20 +400,24 @@ final class SessionEngine: NSObject, ObservableObject {
             defaults.removeObject(forKey: Key.activeSessionID)
             return
         }
-        let wasBackgrounded = defaults.object(forKey: Key.backgroundedAt) != nil
+        let wasOnBreak = defaults.object(forKey: Key.breakDeadline) != nil
         let wasInCall = defaults.bool(forKey: Key.callActive)
-        let outcome: SessionOutcome = (wasBackgrounded && !wasInCall) ? .exitFailed : .safetyEnded
+        let outcome: SessionOutcome = (wasOnBreak && !wasInCall) ? .exitFailed : .safetyEnded
         orphan.outcome = outcome
         orphan.endedAt = .now
         if let (type, points) = ScoreRules.points(for: outcome, intensity: orphan.intensity) {
-            context.insert(ScoreEvent(type: type, points: points, sessionID: orphan.id,
-                                      intensity: orphan.intensity,
-                                      note: outcome == .exitFailed ? "앱 강제 종료" : "비정상 종료 복구"))
+            let event = ScoreEvent(type: type, points: points, sessionID: orphan.id,
+                                   intensity: orphan.intensity,
+                                   note: outcome == .exitFailed ? "이탈 후 앱 종료" : "비정상 종료 복구",
+                                   ownerUserID: orphan.ownerUserID)
+            context.insert(event)
+            AccountStore.shared.mirror(event: event)
         }
         try? context.save()
         defaults.removeObject(forKey: Key.activeSessionID)
-        defaults.removeObject(forKey: Key.backgroundedAt)
+        defaults.removeObject(forKey: Key.breakDeadline)
         defaults.removeObject(forKey: Key.callActive)
+        AlarmScheduler.shared.cancelBreakNotifications()
     }
 }
 

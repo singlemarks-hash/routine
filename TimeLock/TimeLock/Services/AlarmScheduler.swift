@@ -68,7 +68,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
     private func scheduleAlarm(for reservation: Reservation, at fire: Date) {
         let content = UNMutableNotificationContent()
         content.title = "\(reservation.name) 시작"
-        content.body = "알람을 끄는 방법은 하나뿐입니다 — 5분 안에 촬영을 시작하세요."
+        content.body = "알람을 끄는 방법은 하나뿐입니다 — \(TimePolicy.startWindowMinutes)분 안에 촬영을 시작하세요."
         content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
         content.interruptionLevel = .timeSensitive
         content.userInfo = ["reservationID": reservation.id.uuidString,
@@ -83,13 +83,13 @@ final class AlarmScheduler: NSObject, ObservableObject {
             content: content, trigger: trigger)
         center.add(request)
 
-        // 알람 무시 대비 30초 간격 재알림 4회 (5분 창 내)
+        // 알람 무시 대비 2분 간격 재알림 4회 (10분 창 내)
         for repeatIndex in 1...4 {
-            guard let repeatFire = Calendar.current.date(byAdding: .second, value: repeatIndex * 45, to: fire) else { continue }
+            guard let repeatFire = Calendar.current.date(byAdding: .second, value: repeatIndex * 120, to: fire) else { continue }
             let rComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: repeatFire)
             let rTrigger = UNCalendarNotificationTrigger(dateMatching: rComps, repeats: false)
             let rContent = content.mutableCopy() as! UNMutableNotificationContent
-            rContent.body = "아직 시작하지 않았습니다. 5분이 지나면 탈락 처리됩니다."
+            rContent.body = "아직 시작하지 않았습니다. \(TimePolicy.startWindowMinutes)분이 지나면 탈락 처리됩니다."
             let rRequest = UNNotificationRequest(
                 identifier: "alarm-r\(repeatIndex)-\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))",
                 content: rContent, trigger: rTrigger)
@@ -112,17 +112,50 @@ final class AlarmScheduler: NSObject, ObservableObject {
         center.add(request)
     }
 
-    /// 이탈 유예 안내 알림 (매운맛, 즉시 발송)
-    func sendGraceNotification(seconds: Int) {
-        let content = UNMutableNotificationContent()
-        content.title = "세션 이탈 감지"
-        content.body = "\(seconds)초 안에 돌아오지 않으면 실패 처리됩니다."
-        content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
-        content.interruptionLevel = .timeSensitive
-        let request = UNNotificationRequest(identifier: "grace-\(UUID().uuidString)",
-                                            content: content,
-                                            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false))
-        center.add(request)
+    // MARK: 재촬영 창 알림 (긴급 용무 중단 · 매운맛)
+
+    private static let breakNotificationIDs = ["break-open", "break-warn", "break-fail"]
+
+    /// 중단 시점에 3건 예약: 즉시 안내 / 마감 2분 전 경고 / 마감 시 벌점 확정 안내
+    func scheduleBreakNotifications(deadline: Date) {
+        cancelBreakNotifications()
+
+        let open = UNMutableNotificationContent()
+        open.title = "촬영 일시중단"
+        open.body = "\(TimePolicy.resumeWindowMinutes)분 안에 돌아와 재촬영을 시작하면 벌점이 없습니다."
+        open.sound = .default
+        open.interruptionLevel = .timeSensitive
+        center.add(UNNotificationRequest(
+            identifier: "break-open", content: open,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)))
+
+        let warnAt = deadline.addingTimeInterval(-120)
+        if warnAt > .now {
+            let warn = UNMutableNotificationContent()
+            warn.title = "재촬영까지 2분"
+            warn.body = "지금 돌아와 재촬영을 시작하세요. 시간이 지나면 벌점이 부과됩니다."
+            warn.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
+            warn.interruptionLevel = .timeSensitive
+            center.add(UNNotificationRequest(
+                identifier: "break-warn", content: warn,
+                trigger: UNTimeIntervalNotificationTrigger(
+                    timeInterval: max(1, warnAt.timeIntervalSinceNow), repeats: false)))
+        }
+
+        let fail = UNMutableNotificationContent()
+        fail.title = "벌점 부과"
+        fail.body = "\(TimePolicy.resumeWindowMinutes)분 안에 재촬영을 시작하지 않아 세션이 실패로 기록되었습니다."
+        fail.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
+        fail.interruptionLevel = .timeSensitive
+        center.add(UNNotificationRequest(
+            identifier: "break-fail", content: fail,
+            trigger: UNTimeIntervalNotificationTrigger(
+                timeInterval: max(1, deadline.timeIntervalSinceNow), repeats: false)))
+    }
+
+    func cancelBreakNotifications() {
+        center.removePendingNotificationRequests(withIdentifiers: Self.breakNotificationIDs)
+        center.removeDeliveredNotifications(withIdentifiers: Self.breakNotificationIDs)
     }
 
     // MARK: 앱 실행 중 알람 오디오 (스누즈 없음, 촬영 시작 시점에만 정지)
