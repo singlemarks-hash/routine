@@ -34,10 +34,9 @@
 
 - [x] `GoogleService-Info.plist` 추가됨 (프로젝트 `timelock-eba85`)
 - [x] SPM 패키지 추가됨 — firebase-ios-sdk(FirebaseAuth, FirebaseFirestore), GoogleSignIn-iOS
-- [ ] Firebase 콘솔 > Authentication > 로그인 방법에서 **이메일/비밀번호, Google, Apple** 활성화
-- [ ] **Google 활성화 후 `GoogleService-Info.plist`를 다시 내려받아 교체** —
-      Google 로그인을 켜야 plist에 `CLIENT_ID`/`REVERSED_CLIENT_ID`가 포함된다
-- [ ] 교체한 plist의 `REVERSED_CLIENT_ID`를 Info > URL Types에 URL Scheme으로 추가
+- [x] Google 로그인 제공업체 활성화 + `CLIENT_ID` 포함 plist로 교체
+- [x] `REVERSED_CLIENT_ID` URL Scheme 등록 (Info.plist) + 콜백 처리(`onOpenURL`)
+- [ ] Firebase 콘솔 > Authentication에서 **이메일/비밀번호, Apple** 제공업체 활성화
 - [ ] Signing & Capabilities에 **Sign in with Apple** capability 추가
       (App Store 심사 규정 4.8 — Google 등 서드파티 로그인을 제공하면 Apple 로그인 제공이 **필수**)
 - [ ] Firestore 보안 규칙 배포 (본인 문서만 접근 — 콘솔 > Firestore > 규칙)

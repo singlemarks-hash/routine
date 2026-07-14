@@ -8,6 +8,9 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+#if canImport(GoogleSignIn)
+import GoogleSignIn
+#endif
 
 @main
 struct TimeLockApp: App {
@@ -37,6 +40,12 @@ struct TimeLockApp: App {
                 .tint(TL.rec)
                 .onAppear {
                     app.bind(context: container.mainContext)
+                }
+                .onOpenURL { url in
+                    // Google 로그인 콜백 (Info.plist의 REVERSED_CLIENT_ID 스킴)
+                    #if canImport(GoogleSignIn)
+                    GIDSignIn.sharedInstance.handle(url)
+                    #endif
                 }
         }
         .modelContainer(container)
