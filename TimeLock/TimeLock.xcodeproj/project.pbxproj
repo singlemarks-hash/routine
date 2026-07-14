@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A100000100000000000000E1 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A100000100000000000000D1 /* FirebaseAuth */; };
+		A100000100000000000000E2 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A100000100000000000000D2 /* FirebaseFirestore */; };
+		A100000100000000000000E3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A100000100000000000000D3 /* GoogleSignIn */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		A1000001000000000000000A /* Exceptions for "TimeLock" folder in "TimeLock" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -36,6 +42,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A100000100000000000000E1 /* FirebaseAuth in Frameworks */,
+				A100000100000000000000E2 /* FirebaseFirestore in Frameworks */,
+				A100000100000000000000E3 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +87,9 @@
 			);
 			name = TimeLock;
 			packageProductDependencies = (
+				A100000100000000000000D1 /* FirebaseAuth */,
+				A100000100000000000000D2 /* FirebaseFirestore */,
+				A100000100000000000000D3 /* GoogleSignIn */,
 			);
 			productName = TimeLock;
 			productReference = A100000100000000000000PR /* TimeLock.app */;
@@ -108,6 +120,10 @@
 			);
 			mainGroup = A100000100000000000000G0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A100000100000000000000K1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				A100000100000000000000K2 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A100000100000000000000P1 /* Products */;
 			projectDirPath = "";
@@ -343,6 +359,43 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A100000100000000000000K1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+		A100000100000000000000K2 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A100000100000000000000D1 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A100000100000000000000K1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		A100000100000000000000D2 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A100000100000000000000K1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		A100000100000000000000D3 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A100000100000000000000K2 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A100000100000000000000PJ /* Project object */;
 }

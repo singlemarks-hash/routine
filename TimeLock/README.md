@@ -30,17 +30,17 @@
 모든 Firebase 코드는 `#if canImport(...)` 뒤에 격리되어 있어 **패키지를 추가하지 않아도 빌드·실행됩니다**
 (이 경우 '기기 내 계정' 오프라인 폴백으로 동작 — 개발/시뮬레이터 테스트용).
 
-활성화 절차:
+현재 연동 상태:
 
-1. [Firebase 콘솔](https://console.firebase.google.com)에서 프로젝트 생성 → iOS 앱 등록 (번들 ID `com.timelock.app`)
-2. `GoogleService-Info.plist`를 내려받아 `TimeLock/TimeLock/` 폴더에 추가
-3. Xcode > File > Add Package Dependencies:
-   - `https://github.com/firebase/firebase-ios-sdk` → **FirebaseAuth**, **FirebaseFirestore** 선택
-   - `https://github.com/google/GoogleSignIn-iOS` → **GoogleSignIn** 선택
-4. Firebase 콘솔 > Authentication > 로그인 방법에서 **이메일/비밀번호, Google, Apple** 활성화
-5. Google 로그인용 URL Scheme: Info > URL Types에 `GoogleService-Info.plist`의 `REVERSED_CLIENT_ID` 추가
-6. Signing & Capabilities에 **Sign in with Apple** capability 추가
-   (App Store 심사 규정 4.8 — Google 등 서드파티 로그인을 제공하면 Apple 로그인 제공이 **필수**)
+- [x] `GoogleService-Info.plist` 추가됨 (프로젝트 `timelock-eba85`)
+- [x] SPM 패키지 추가됨 — firebase-ios-sdk(FirebaseAuth, FirebaseFirestore), GoogleSignIn-iOS
+- [ ] Firebase 콘솔 > Authentication > 로그인 방법에서 **이메일/비밀번호, Google, Apple** 활성화
+- [ ] **Google 활성화 후 `GoogleService-Info.plist`를 다시 내려받아 교체** —
+      Google 로그인을 켜야 plist에 `CLIENT_ID`/`REVERSED_CLIENT_ID`가 포함된다
+- [ ] 교체한 plist의 `REVERSED_CLIENT_ID`를 Info > URL Types에 URL Scheme으로 추가
+- [ ] Signing & Capabilities에 **Sign in with Apple** capability 추가
+      (App Store 심사 규정 4.8 — Google 등 서드파티 로그인을 제공하면 Apple 로그인 제공이 **필수**)
+- [ ] Firestore 보안 규칙 배포 (본인 문서만 접근 — 콘솔 > Firestore > 규칙)
 
 패키지가 링크되고 plist가 존재하면 `AccountStore`가 자동으로 Firebase 모드로 전환됩니다.
 점수 원장(상점·벌점)은 로컬 SwiftData가 원본이고, 로그인 계정은 `users/{uid}/scoreEvents`로
