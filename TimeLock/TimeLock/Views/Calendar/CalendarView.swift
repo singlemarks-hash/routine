@@ -263,43 +263,44 @@ struct DayDetailView: View {
         let points = pts(session)
 
         return VStack(spacing: 0) {
-            Button {
-                withAnimation(TLMotion.snappy) {
-                    if isOpen { expanded.remove(session.id) } else { expanded.insert(session.id) }
+            HStack(spacing: 12) {
+                // 성취 원 — 성공 초록 / 실패 빨강 / 그 외(긴급·안전) 앰버
+                Circle()
+                    .fill(circleColor(outcome))
+                    .frame(width: 16, height: 16)
+                    .overlay(Circle().strokeBorder(circleColor(outcome).opacity(0.35), lineWidth: 3))
+                Text(TLFormat.clock(session.anchorDate))
+                    .font(.tlTimer(14)).foregroundStyle(TL.paper)
+                    .frame(width: 70, alignment: .leading)
+                Text(session.activityName)
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.paper)
+                    .lineLimit(1)
+                Spacer()
+                if let points {
+                    Text(points > 0 ? "+\(points)" : "\(points)")
+                        .font(.tlTimer(14))
+                        .foregroundStyle(points > 0 ? TL.jade : TL.rec)
                 }
-            } label: {
-                HStack(spacing: 12) {
-                    // 성취 원 — 성공 초록 / 실패 빨강 / 그 외(긴급·안전) 앰버
-                    Circle()
-                        .fill(circleColor(outcome))
-                        .frame(width: 16, height: 16)
-                        .overlay(Circle().strokeBorder(circleColor(outcome).opacity(0.35), lineWidth: 3))
-                    Text(TLFormat.clock(session.anchorDate))
-                        .font(.tlTimer(14)).foregroundStyle(TL.paper)
-                        .frame(width: 70, alignment: .leading)
-                    Text(session.activityName)
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.paper)
-                        .lineLimit(1)
-                    Spacer()
-                    if let points {
-                        Text(points > 0 ? "+\(points)" : "\(points)")
-                            .font(.tlTimer(14))
-                            .foregroundStyle(points > 0 ? TL.jade : TL.rec)
-                    }
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(TL.faint)
-                        .rotationEffect(.degrees(isOpen ? 180 : 0))
-                }
-                .padding(.vertical, 13)
-                .contentShape(Rectangle())
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(TL.faint)
+                    .rotationEffect(.degrees(isOpen ? 180 : 0))
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+            .onTapGesture { toggle(session.id) }
 
             if isOpen {
                 detail(session, outcome: outcome)
                     .padding(.bottom, 13)
             }
+        }
+    }
+
+    /// 탭 시점의 현재 상태를 직접 읽어 토글 — 캡처된 값에 의존하지 않는다
+    private func toggle(_ id: UUID) {
+        withAnimation(TLMotion.snappy) {
+            if expanded.contains(id) { expanded.remove(id) } else { expanded.insert(id) }
         }
     }
 
