@@ -18,7 +18,7 @@
 ## 빌드 & 실행
 
 1. `TimeLock.xcodeproj`를 Xcode로 엽니다.
-2. **Signing & Capabilities**에서 팀을 선택하고 번들 ID(`com.timelock.app`)를 필요 시 변경합니다.
+2. **Signing & Capabilities**에서 팀을 선택하고 번들 ID(`com.singlemarks.timelock`)를 필요 시 변경합니다.
 3. 실기기를 선택하고 Run.
 
 프로젝트는 **폴더 동기화 그룹**(objectVersion 77)을 사용하므로, `TimeLock/` 아래에 파일을
