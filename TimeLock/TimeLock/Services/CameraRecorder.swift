@@ -2,8 +2,9 @@
 //  CameraRecorder.swift
 //  TimeLock
 //
-//  전면 카메라에서 1fps로 프레임을 뽑아 온디바이스 HEVC 타임랩스로 인코딩한다.
-//  촬영 프레임 1장 = 재생 1/30초 → 1시간 세션이 2분 영상이 된다.
+//  전면 카메라에서 프레임을 뽑아 온디바이스 HEVC 타임랩스로 인코딩한다.
+//  캡처 간격은 세션 길이에 맞춰 시작 시 동적으로 정한다(아이폰 기본 타임랩스처럼
+//  결과 길이를 20~40초로 수렴). 10분→20초, 1시간→~30초, 5시간→40초.
 //  파일은 Documents/Sessions/에 완전 보호(FileProtection.complete)로 저장한다.
 //
 //  방향 처리: 카메라 버퍼는 항상 네이티브 가로(1280×720)로 받고, 세로 영상은
@@ -44,10 +45,41 @@ final class CameraRecorder: NSObject, ObservableObject {
     private var thumbnailImage: UIImage?
     private var pixelSize: CGSize = .zero
 
-    /// 타임랩스 밀도: 1초에 1프레임
-    private let captureInterval: TimeInterval = 1.0
+    /// 타임랩스 캡처 간격 — 세션 길이에 맞춰 startRecording에서 동적으로 정한다.
+    /// (짧은 세션은 촘촘히, 긴 세션은 성기게 캡처해 결과 길이를 20~40초로 수렴)
+    private var captureInterval: TimeInterval = 1.0
     /// 재생 프레임레이트
     private let playbackFPS: Int32 = 30
+
+    // MARK: 타임랩스 길이 설계 (아이폰 기본 타임랩스 감성)
+    /// 최종 타임랩스 길이를 이 범위 안으로 수렴시킨다.
+    private let outputMinSeconds: Double = 20     // 아주 짧은 세션의 결과 길이
+    private let outputMaxSeconds: Double = 40     // 아주 긴 세션의 결과 길이(상한)
+    /// 로그 곡선 앵커 — 이 구간에서 20→40초로 부드럽게 증가
+    private let curveLoSeconds: Double = 10 * 60  // 10분
+    private let curveHiSeconds: Double = 5 * 60 * 60  // 5시간
+
+    /// 순수 촬영 시간(초) ≈ 캡처한 프레임 수 × 캡처 간격.
+    /// 일시정지 중엔 프레임을 버리므로 자연히 촬영 시간에서 제외된다.
+    var capturedSeconds: Int { Int((Double(frameCount) * captureInterval).rounded()) }
+
+    /// 세션 길이(초)에 맞는 최종 타임랩스 목표 길이(초)를 로그 곡선으로 산출.
+    /// 10분→20초, 1시간→~30초, 2시간→~35초, 5시간 이상→40초.
+    private func targetOutputSeconds(forPlanned planned: Double) -> Double {
+        let clamped = min(max(planned, curveLoSeconds), curveHiSeconds)
+        let t = (log(clamped) - log(curveLoSeconds)) / (log(curveHiSeconds) - log(curveLoSeconds))
+        return outputMinSeconds + (outputMaxSeconds - outputMinSeconds) * t
+    }
+
+    /// 세션 시작 시 캡처 간격을 계산한다.
+    /// 결과 프레임 수 = 목표길이 × 재생fps, 캡처 간격 = 실제 촬영시간 ÷ 결과 프레임 수.
+    private func recomputeCaptureInterval(plannedSeconds planned: Double) {
+        let planned = max(planned, 1)
+        let outSeconds = targetOutputSeconds(forPlanned: planned)
+        let targetFrames = max(1, outSeconds * Double(playbackFPS))
+        // 카메라가 초당 30프레임을 주므로 그보다 촘촘히는 못 캡처한다(하한 1/30초).
+        captureInterval = max(1.0 / Double(playbackFPS), planned / targetFrames)
+    }
 
     // MARK: 권한 & 세션 구성
 
@@ -173,10 +205,12 @@ final class CameraRecorder: NSObject, ObservableObject {
 
     /// 촬영 시작. writer는 첫 프레임에서 실제 버퍼 크기를 보고 생성한다(지연 생성).
     /// → 기기가 세로/가로 어느 크기로 버퍼를 주든 규격이 정확히 일치, 늘어남·오차 없음.
-    func startRecording(sessionID: UUID, orientation: SessionOrientation) throws {
+    func startRecording(sessionID: UUID, orientation: SessionOrientation,
+                        plannedSeconds: Double) throws {
         configureSessionIfNeeded()
         sessionOrientation = orientation
         applyConnectionSettings()
+        recomputeCaptureInterval(plannedSeconds: plannedSeconds)
 
         let fileName = "\(sessionID.uuidString).mov"
         let url = SessionStorage.directory.appendingPathComponent(fileName)
@@ -239,6 +273,8 @@ final class CameraRecorder: NSObject, ObservableObject {
         let videoFileName: String
         let thumbnailFileName: String?
         let frames: Int
+        /// 순수 촬영 시간(초) = 프레임 수 × 캡처 간격
+        let recordedSeconds: Int
     }
 
     enum RecorderError: Error { case writerSetupFailed, notRecording }
@@ -276,7 +312,8 @@ final class CameraRecorder: NSObject, ObservableObject {
         }
         return RecordingResult(videoFileName: url.lastPathComponent,
                                thumbnailFileName: thumbName,
-                               frames: frames)
+                               frames: frames,
+                               recordedSeconds: Int((Double(frames) * captureInterval).rounded()))
     }
 
     /// 세션을 폐기하지 않고 현재까지 촬영분을 보존한 채 중단 (이탈/긴급/안전 종료 공통)

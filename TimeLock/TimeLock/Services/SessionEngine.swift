@@ -81,7 +81,8 @@ final class SessionEngine: NSObject, ObservableObject {
         try? context.save()
 
         do {
-            try CameraRecorder.shared.startRecording(sessionID: session.id, orientation: orientation)
+            try CameraRecorder.shared.startRecording(sessionID: session.id, orientation: orientation,
+                                                     plannedSeconds: Double(session.targetSeconds))
         } catch {
             // 카메라 개시 실패 → 안전 종료로 기록
             finalize(session: session, outcome: .safetyEnded, note: "카메라 시작 실패")
@@ -130,7 +131,7 @@ final class SessionEngine: NSObject, ObservableObject {
             return
         }
         guard phase == .recording else { return }
-        recordedSeconds = CameraRecorder.shared.frameCount   // 프레임 수 ≈ 순수 촬영 초
+        recordedSeconds = CameraRecorder.shared.capturedSeconds   // 프레임 수 × 캡처 간격 = 순수 촬영 초
 
         // 종료 1분 전 예고
         if !oneMinuteWarningFired, remainingSeconds <= 60, remainingSeconds > 0 {
@@ -309,7 +310,7 @@ final class SessionEngine: NSObject, ObservableObject {
         if let r = result {
             session.videoFileName = r.videoFileName
             session.thumbnailFileName = r.thumbnailFileName
-            session.recordedSeconds = r.frames
+            session.recordedSeconds = r.recordedSeconds
         } else {
             session.recordedSeconds = recordedSeconds
         }
