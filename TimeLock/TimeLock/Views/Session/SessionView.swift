@@ -424,15 +424,17 @@ struct SessionResultView: View {
                 }
             }
 
-            // 자동 반복 재생 미리보기 + 우측 상단 작은 저장 버튼
+            // 미리보기 = 촬영 결과물과 동일 비율(세로 9:16 / 가로 16:9), 잘림 없음.
+            // 카드 프레임을 영상 비율에 맞추고 resizeAspect로 그려 "잘린 데 없이" 확인 가능.
             TimelapsePreview(url: url)
-                .frame(maxWidth: .infinity)
-                .frame(height: previewHeight(for: session))
+                .aspectRatio(previewAspect(for: session), contentMode: .fit)
+                .frame(maxHeight: previewMaxHeight(for: session))
                 .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
                         .strokeBorder(TL.hairline, lineWidth: 1))
                 .overlay(alignment: .topTrailing) { saveButton(session: session).padding(10) }
+                .frame(maxWidth: .infinity)   // 카드 안에서 가로 중앙 정렬
 
             Text(saved
                  ? "저장 완료 · 원본은 기기에서 삭제되었습니다."
@@ -448,9 +450,15 @@ struct SessionResultView: View {
         .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
     }
 
-    /// 세로 영상은 높게, 가로 영상은 낮게 — 한 화면에 들어오도록
-    private func previewHeight(for session: FocusSession) -> CGFloat {
-        app.sessionOrientation == .landscape ? 180 : 300
+    /// 촬영 결과물의 가로세로 비율 (세로 1080×1920 = 9:16, 가로 1920×1080 = 16:9)
+    private func previewAspect(for session: FocusSession) -> CGFloat {
+        app.sessionOrientation == .landscape ? 16.0 / 9.0 : 9.0 / 16.0
+    }
+
+    /// 비율을 유지하되 한 화면에 들어오도록 높이 상한만 둔다
+    /// (세로는 높이가, 가로는 카드 너비가 실제 크기를 결정)
+    private func previewMaxHeight(for session: FocusSession) -> CGFloat {
+        app.sessionOrientation == .landscape ? 240 : 360
     }
 
     /// 저장 완료 후 확인 카드 (원본 삭제되어 미리보기는 사라짐)
@@ -583,7 +591,7 @@ private struct PlayerLayerView: UIViewRepresentable {
     func makeUIView(context: Context) -> PlayerUIView {
         let view = PlayerUIView()
         view.playerLayer.player = player
-        view.playerLayer.videoGravity = .resizeAspectFill
+        view.playerLayer.videoGravity = .resizeAspect   // 잘림 없이 전체 프레임 표시
         return view
     }
 
