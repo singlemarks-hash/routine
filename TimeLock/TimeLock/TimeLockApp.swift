@@ -129,6 +129,9 @@ final class AppState: ObservableObject {
         didSet { updateOrientationLock() }
     }
 
+    /// 세션 화면 진입 후 카운트다운 '시작!'에 녹화를 개시할 대기 세션.
+    private var armedPending: PendingSession?
+
     struct PendingSession: Equatable {
         var activityName: String
         var tag: String
@@ -366,18 +369,27 @@ final class AppState: ObservableObject {
         route = .mountGuide(pending: pending)
     }
 
-    /// 거치 가이드 → 촬영 시작 (이 순간 알람 정지 = 알람 해제)
+    /// 거치 가이드 → 세션 화면 진입 (이 순간 알람 정지 = 알람 해제).
+    /// 실제 녹화는 카운트다운 '시작!' 시점(commitRecording)에 개시하고,
+    /// 그동안엔 라이브 프리뷰만 예열해 정지화면 없이 카운트다운을 보여준다.
     func beginRecording(pending: PendingSession) {
         AlarmScheduler.shared.stopAlarmSound()
+        armedPending = pending
+        route = .session
+        CameraRecorder.shared.startPreview()   // 카운트다운 동안 프리뷰 예열(라이브)
+    }
+
+    /// 시작 카운트다운이 끝나는 순간 — 실제 녹화 개시.
+    func commitRecording() {
+        guard let pending = armedPending else { return }
+        armedPending = nil
         let session = FocusSession(activityName: pending.activityName, tag: pending.tag,
                                    intensity: intensity,
                                    scheduledAt: pending.scheduledAt,
                                    targetSeconds: pending.targetSeconds,
                                    reservationID: pending.reservationID,
                                    ownerUserID: AccountStore.shared.currentUserID)
-        // 카메라 시작이 실패하면 engine이 즉시 finalize → onFinalized가 .result로 덮어쓰므로
-        // 라우팅을 먼저 .session으로 두어야 순서가 꼬이지 않는다.
-        route = .session
+        // 카메라 시작이 실패하면 engine이 즉시 finalize → onFinalized가 .result로 덮어쓴다.
         engine.start(session: session, orientation: sessionOrientation)
     }
 
