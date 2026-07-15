@@ -113,6 +113,10 @@ struct MountGuideView: View {
     @StateObject private var recorder = CameraRecorder.shared
     @State private var checkedMount = false
     @State private var checkedFrame = false
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    /// 가로 거치 시 구도 가이드도 가로 프레임으로
+    private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
         ZStack {
@@ -136,10 +140,10 @@ struct MountGuideView: View {
 
                 Spacer()
 
-                // 구도 프레임 가이드
+                // 구도 프레임 가이드 (거치 방향에 맞춰 가로/세로)
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(TL.paper.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
-                    .frame(width: 240, height: 320)
+                    .frame(width: isLandscape ? 300 : 240, height: isLandscape ? 180 : 320)
                     .overlay(
                         Text("얼굴과 책상이 프레임 안에")
                             .font(.system(size: 12, weight: .semibold))

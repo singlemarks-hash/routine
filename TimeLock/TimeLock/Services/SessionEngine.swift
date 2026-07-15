@@ -339,6 +339,7 @@ final class SessionEngine: NSObject, ObservableObject {
         callObserver = nil
         isCallActive = false
         isFinalizing = false
+        AlarmScheduler.shared.muteAllNotifications = false   // 세션 종료 시 알림차단 해제
         defaults.removeObject(forKey: Key.activeSessionID)
         defaults.removeObject(forKey: Key.breakDeadline)
         defaults.removeObject(forKey: Key.callActive)

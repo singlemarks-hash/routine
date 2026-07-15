@@ -55,6 +55,10 @@ struct TimeLockApp: App {
 // MARK: - 알림 딜리게이트 (알람 탭 → 알람 화면 라우팅)
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+
+    /// 화면 회전 정책 — 평소에는 세로 고정, 세션 관련 화면에서만 가로 허용 (AppState가 갱신)
+    static var orientationLock: UIInterfaceOrientationMask = .portrait
+
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
@@ -62,6 +66,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             AccountStore.shared.configureBackendIfAvailable()
         }
         return true
+    }
+
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.orientationLock
     }
 
     // 포그라운드에서도 알람 알림을 표시
@@ -75,6 +84,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
         if kind == "break" {
             // 앱이 화면에 떠 있으면 중단 오버레이가 이미 안내 중 — 배너 생략
+            return []
+        }
+        // 세션 중 '알림차단'이 켜져 있으면 화면에 뜨는 모든 배너를 숨긴다
+        if await AlarmScheduler.shared.muteAllNotifications {
             return []
         }
         return [.banner, .sound]
@@ -107,7 +120,9 @@ final class AppState: ObservableObject {
         case session
         case result
     }
-    @Published var route: Route = .none
+    @Published var route: Route = .none {
+        didSet { updateOrientationLock() }
+    }
 
     struct PendingSession: Equatable {
         var activityName: String
@@ -234,6 +249,28 @@ final class AppState: ObservableObject {
         let descriptor = FetchDescriptor<FocusSession>(
             predicate: #Predicate { $0.intensityRaw == spicyRaw && $0.outcomeRaw == completedRaw && $0.ownerUserID == owner })
         spicyCompletions = (try? context.fetchCount(descriptor)) ?? 0
+    }
+
+    // MARK: 화면 회전 정책
+
+    /// 거치 가이드·세션·결과 화면에서만 가로 회전 허용 (가로 거치 촬영 지원).
+    /// 나머지 화면은 세로 고정.
+    private func updateOrientationLock() {
+        let mask: UIInterfaceOrientationMask
+        switch route {
+        case .mountGuide, .session, .result:
+            mask = .allButUpsideDown
+        default:
+            mask = .portrait
+        }
+        guard AppDelegate.orientationLock != mask else { return }
+        AppDelegate.orientationLock = mask
+
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
+            scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        }
     }
 
     // MARK: 계정 전환

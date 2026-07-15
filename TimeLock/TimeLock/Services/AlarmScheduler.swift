@@ -18,6 +18,10 @@ final class AlarmScheduler: NSObject, ObservableObject {
 
     @Published var notificationsAuthorized = false
 
+    /// 세션 중 '알림차단' — 앱이 화면에 떠 있는 동안 모든 알림 배너를 숨긴다.
+    /// (iOS 정책상 다른 앱/시스템 알림까지 끄는 것은 불가능 — 방해금지 모드는 사용자만 켤 수 있다)
+    @Published var muteAllNotifications = false
+
     private let center = UNUserNotificationCenter.current()
     private var alarmPlayer: AVAudioPlayer?
 
