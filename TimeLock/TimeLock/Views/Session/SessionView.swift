@@ -67,7 +67,8 @@ struct SessionView: View {
 
             Spacer()
 
-            selfieCard(width: 168, height: 224)
+            // 영상 비율(9:16)과 동일 → 잘림 없이 촬영 그대로 보임
+            selfieCard(width: 162, height: 288)
 
             Spacer()
 
@@ -101,7 +102,8 @@ struct SessionView: View {
                     breakButton
                 }
                 Spacer()
-                selfieCard(width: 216, height: 148)
+                // 영상 비율(16:9)과 동일 → 잘림 없이 촬영 그대로 보임
+                selfieCard(width: 256, height: 144)
                 Spacer()
             }
             .padding(.vertical, 16)

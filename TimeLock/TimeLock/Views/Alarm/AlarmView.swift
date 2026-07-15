@@ -312,7 +312,10 @@ struct MountGuideView: View {
 
     var body: some View {
         ZStack {
-            CameraPreviewView(session: recorder.captureSession, orientation: app.sessionOrientation)
+            TL.ink.ignoresSafeArea()
+            // 구도 화면은 '촬영되는 그대로'(잘림 없음) 보여준다 — 위치 잡기 정확
+            CameraPreviewView(session: recorder.captureSession,
+                              orientation: app.sessionOrientation, fill: false)
                 .ignoresSafeArea()
             LinearGradient(colors: [TL.ink.opacity(0.85), .clear, TL.ink.opacity(0.9)],
                            startPoint: .top, endPoint: .bottom)
@@ -339,10 +342,10 @@ struct MountGuideView: View {
 
                 Spacer()
 
-                // 구도 프레임 가이드 (선택한 방향에 맞춰 가로/세로)
+                // 구도 프레임 가이드 — 실제 영상 비율(9:16 / 16:9)과 동일
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(TL.paper.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
-                    .frame(width: isLandscape ? 300 : 220, height: isLandscape ? 168 : 300)
+                    .frame(width: isLandscape ? 320 : 180, height: isLandscape ? 180 : 320)
                     .overlay(
                         Text("얼굴과 책상이 프레임 안에")
                             .font(.system(size: 12, weight: .semibold))

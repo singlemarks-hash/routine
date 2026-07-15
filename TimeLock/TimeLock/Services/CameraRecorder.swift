@@ -67,7 +67,9 @@ final class CameraRecorder: NSObject, ObservableObject {
     func configureSessionIfNeeded() {
         guard captureSession.inputs.isEmpty else { return }
         captureSession.beginConfiguration()
-        captureSession.sessionPreset = .hd1280x720
+        // FHD 고정 — 세로 1080×1920 / 가로 1920×1080. 720p 대비 화각도 넓다(x1에 가까움).
+        captureSession.sessionPreset = captureSession.canSetSessionPreset(.hd1920x1080)
+            ? .hd1920x1080 : .hd1280x720
 
         guard let input = makeInput(position: position),
               captureSession.canAddInput(input) else {
@@ -180,7 +182,7 @@ final class CameraRecorder: NSObject, ObservableObject {
                 AVVideoWidthKey: width,
                 AVVideoHeightKey: height,
                 AVVideoCompressionPropertiesKey: [
-                    AVVideoAverageBitRateKey: 4_000_000,
+                    AVVideoAverageBitRateKey: 8_000_000,   // FHD 기준
                     AVVideoExpectedSourceFrameRateKey: playbackFPS
                 ]
             ]
@@ -335,6 +337,8 @@ struct CameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
     /// 세션 방향과 동일하게 고정 (구도 단계에서 토글하면 갱신됨)
     var orientation: SessionOrientation = .portrait
+    /// true = 화면 꽉 채움(살짝 잘릴 수 있음), false = 촬영되는 그대로(잘림 없음, 구도용)
+    var fill: Bool = true
 
     /// 세로 프리뷰는 90°, 가로는 0°. 인터페이스가 이 방향으로 잠겨 있으므로 요동치지 않는다.
     private var rotationAngle: CGFloat { orientation == .portrait ? 90 : 0 }
@@ -362,7 +366,7 @@ struct CameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> PreviewUIView {
         let view = PreviewUIView()
         view.previewLayer.session = session
-        view.previewLayer.videoGravity = .resizeAspectFill
+        view.previewLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
         // 프리뷰는 전면 카메라를 자연스러운 셀피처럼 좌우 반전 (저장본은 반전 안 함)
         view.previewLayer.connection?.automaticallyAdjustsVideoMirroring = true
         view.angle = rotationAngle
@@ -370,6 +374,7 @@ struct CameraPreviewView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PreviewUIView, context: Context) {
+        uiView.previewLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
         uiView.angle = rotationAngle
     }
 }
