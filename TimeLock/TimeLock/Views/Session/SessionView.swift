@@ -42,7 +42,14 @@ struct SessionView: View {
             if case .pausedForBreak(let deadline) = engine.phase {
                 BreakOverlay(deadline: deadline)
             }
+
+            // 카메라 워밍업 오버레이 — 촬영 시작 직후 첫 프레임이 들어오기 전까지.
+            // 이 구간엔 다이얼이 아직 움직이지 않으므로 '준비 중' 표시로 멈춘 느낌을 없앤다.
+            if isWarmingUp {
+                warmingUpOverlay.transition(.opacity)
+            }
         }
+        .animation(TLMotion.smooth, value: isWarmingUp)
         .interactiveDismissDisabled()
         .onDisappear { alarm.muteAllNotifications = false }
         .sheet(isPresented: $showEmergency) { insaneEmergencySheet }
@@ -207,6 +214,29 @@ struct SessionView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TL.ink.opacity(0.96).ignoresSafeArea())
+    }
+
+    // MARK: 카메라 워밍업 오버레이
+
+    /// 촬영은 시작됐지만 카메라가 첫 프레임을 아직 내보내지 않은 구간.
+    /// 이때 다이얼은 프레임 수 기반이라 아직 0에서 멈춰 있으므로 '준비 중'을 알린다.
+    private var isWarmingUp: Bool {
+        engine.phase == .recording && recorder.frameCount == 0
+    }
+
+    private var warmingUpOverlay: some View {
+        VStack(spacing: 18) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(TL.rec)
+                .scaleEffect(1.4)
+            VStack(spacing: 6) {
+                Text("카메라 준비 중…").font(.tlTitle(18)).foregroundStyle(TL.paper)
+                Text("곧 촬영이 시작됩니다").font(.system(size: 13)).foregroundStyle(TL.muted)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TL.ink.opacity(0.94).ignoresSafeArea())
     }
 
     // MARK: 긴급 시트 (미친 매운맛 전용 — 되돌릴 수 없어 확인을 거친다)
