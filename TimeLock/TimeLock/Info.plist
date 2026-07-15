@@ -36,7 +36,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<!-- Google 로그인 콜백 (GoogleService-Info.plist의 REVERSED_CLIENT_ID) -->
-				<string>com.googleusercontent.apps.282729232995-o9t94ou1t6t3nr41gbmsq9jimvcdokuc</string>
+				<string>com.googleusercontent.apps.282729232995-2jrlus4u7sm83vlkd7b5stn3ir0vl1hq</string>
 			</array>
 		</dict>
 	</array>

@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>282729232995-o9t94ou1t6t3nr41gbmsq9jimvcdokuc.apps.googleusercontent.com</string>
+	<string>282729232995-2jrlus4u7sm83vlkd7b5stn3ir0vl1hq.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.282729232995-o9t94ou1t6t3nr41gbmsq9jimvcdokuc</string>
+	<string>com.googleusercontent.apps.282729232995-2jrlus4u7sm83vlkd7b5stn3ir0vl1hq</string>
 	<key>API_KEY</key>
 	<string>AIzaSyAw6RRla1rb2zBpFwlUdKVifojWGYy09mI</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.timelock.app</string>
+	<string>com.singlemarks.timelock</string>
 	<key>PROJECT_ID</key>
 	<string>timelock-eba85</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:282729232995:ios:44d3db2c0ef2af8fa49656</string>
+	<string>1:282729232995:ios:178a77bd23c7a275a49656</string>
 </dict>
 </plist>
