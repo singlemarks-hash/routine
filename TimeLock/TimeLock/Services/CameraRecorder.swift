@@ -4,7 +4,7 @@
 //
 //  전면 카메라에서 프레임을 뽑아 온디바이스 HEVC 타임랩스로 인코딩한다.
 //  캡처 간격은 세션 길이에 맞춰 시작 시 동적으로 정한다(아이폰 기본 타임랩스처럼
-//  결과 길이를 20~60초로 수렴). 10분→20초, 1시간→~39초, 8시간→60초.
+//  결과 길이 앵커: 10분→10초, 2시간→40초, 4시간→50초, 8시간→60초.
 //  파일은 Documents/Sessions/에 완전 보호(FileProtection.complete)로 저장한다.
 //
 //  방향 처리: 카메라 버퍼는 항상 네이티브 가로(1280×720)로 받고, 세로 영상은
@@ -51,25 +51,32 @@ final class CameraRecorder: NSObject, ObservableObject {
     /// 재생 프레임레이트
     private let playbackFPS: Int32 = 30
 
-    // MARK: 타임랩스 길이 설계 (아이폰 기본 타임랩스 감성)
-    /// 최종 타임랩스 길이를 이 범위 안으로 수렴시킨다.
-    private let outputMinSeconds: Double = 20     // 최소 옵션(10분)의 결과 길이
-    private let outputMaxSeconds: Double = 60     // 최대 옵션(8시간)의 결과 길이(상한 1분)
-    /// 로그 곡선 앵커 — 예약 드롭다운의 최소(10분)~최대(8시간)에 맞춘다.
-    /// 이 구간에서 20→40초로 부드럽게 증가하므로 14개 옵션이 전부 고유한 길이를 갖는다.
-    private let curveLoSeconds: Double = 10 * 60      // 10분 (최소 옵션)
-    private let curveHiSeconds: Double = 8 * 60 * 60  // 8시간 (최대 옵션)
+    // MARK: 타임랩스 길이 설계 (예약 시간별 결과 길이 앵커)
+    /// (촬영 분, 결과 초) 앵커 — 이 점들을 정확히 통과하고 사이는 선형 보간.
+    /// 10분→10초, 2시간→40초, 4시간→50초, 8시간→60초.
+    private let lengthAnchors: [(minutes: Double, output: Double)] = [
+        (10, 10), (120, 40), (240, 50), (480, 60)
+    ]
 
     /// 순수 촬영 시간(초) ≈ 캡처한 프레임 수 × 캡처 간격.
     /// 일시정지 중엔 프레임을 버리므로 자연히 촬영 시간에서 제외된다.
     var capturedSeconds: Int { Int((Double(frameCount) * captureInterval).rounded()) }
 
-    /// 세션 길이(초)에 맞는 최종 타임랩스 목표 길이(초)를 로그 곡선으로 산출.
-    /// 10분→20초, 1시간→~39초, 3시간→~50초, 8시간→60초. (각 옵션이 고유 길이)
+    /// 세션 길이(초)에 맞는 최종 타임랩스 목표 길이(초)를 앵커 구간 선형 보간으로 산출.
+    /// 앵커를 정확히 통과하고, 그 사이는 부드러운 직선으로 이어 각 옵션이 고유 길이를 갖는다.
     private func targetOutputSeconds(forPlanned planned: Double) -> Double {
-        let clamped = min(max(planned, curveLoSeconds), curveHiSeconds)
-        let t = (log(clamped) - log(curveLoSeconds)) / (log(curveHiSeconds) - log(curveLoSeconds))
-        return outputMinSeconds + (outputMaxSeconds - outputMinSeconds) * t
+        let minutes = planned / 60
+        guard let first = lengthAnchors.first, let last = lengthAnchors.last else { return 30 }
+        if minutes <= first.minutes { return first.output }
+        if minutes >= last.minutes { return last.output }
+        for i in 1..<lengthAnchors.count {
+            let a = lengthAnchors[i - 1], b = lengthAnchors[i]
+            if minutes <= b.minutes {
+                let t = (minutes - a.minutes) / (b.minutes - a.minutes)
+                return a.output + (b.output - a.output) * t
+            }
+        }
+        return last.output
     }
 
     /// 세션 시작 시 캡처 간격을 계산한다.
