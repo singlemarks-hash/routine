@@ -2,9 +2,10 @@
 //  AlarmView.swift
 //  TimeLock
 //
-//  알람 화면 최소화 규칙:
-//  활동명 · 10분 경고 · [촬영 시작] · [긴급] — 그 외 동선 없음. 스누즈 없음.
-//  알람 오디오는 촬영 시작 시점에만 멈춘다.
+//  알람 화면:
+//  활동명 · 10분 카운트다운 · 큰 [촬영 준비] · [밀어서 일정 취소] — 스누즈 없음.
+//  촬영 준비 = 알람 즉시 정지 → 집중 모드 안내 → 구도 잡기 (10분 내 미시작은 노쇼)
+//  일정 취소 = 알람 즉시 정지 → 사유 선택(4종) → 벌점과 함께 기록
 //
 
 import SwiftUI
@@ -15,7 +16,8 @@ struct AlarmView: View {
 
     @EnvironmentObject private var app: AppState
     @State private var now = Date()
-    @State private var showEmergencyConfirm = false
+    @State private var showFocusGuide = false
+    @State private var showCancelSheet = false
     private let clock = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
     private var deadline: Date { fireDate.addingTimeInterval(TimePolicy.startWindowSeconds) }
@@ -66,16 +68,33 @@ struct AlarmView: View {
 
                 Spacer()
 
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
+                    // 큰 '촬영준비' — 누르는 즉시 알람이 꺼지고 집중 모드 안내 → 구도 잡기
                     Button {
-                        app.proceedToMountGuide(reservation: reservation, fireDate: fireDate)
+                        AlarmScheduler.shared.stopAlarmSound()
+                        AlarmScheduler.shared.cancelAlarmNotifications(
+                            reservationID: reservation.id, fireDate: fireDate)
+                        showFocusGuide = true
                     } label: {
-                        Label("촬영 시작", systemImage: "record.circle.fill")
+                        VStack(spacing: 3) {
+                            Label("촬영 준비", systemImage: "record.circle.fill")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                            Text("\(TimePolicy.startWindowMinutes)분 안에 촬영을 시작하세요")
+                                .font(.system(size: 11, weight: .semibold))
+                                .opacity(0.75)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
 
-                    Button("긴급") { showEmergencyConfirm = true }
-                        .buttonStyle(TLGhostButtonStyle(tint: TL.muted))
+                    // 밀어서 일정 취소 — 밀자마자 알람이 꺼지고 사유 입력 + 벌점 확인
+                    SlideToCancelButton(title: "밀어서 일정 취소") {
+                        AlarmScheduler.shared.stopAlarmSound()
+                        AlarmScheduler.shared.cancelAlarmNotifications(
+                            reservationID: reservation.id, fireDate: fireDate)
+                        showCancelSheet = true
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
@@ -92,14 +111,187 @@ struct AlarmView: View {
             }
         }
         .onAppear { AlarmScheduler.shared.startAlarmSound() }
-        .confirmationDialog("긴급 상황인가요?", isPresented: $showEmergencyConfirm, titleVisibility: .visible) {
-            Button("알람 종료 (탈락으로 기록됨)", role: .destructive) {
-                app.emergencyDismissAlarm()
-                app.sweepNoShows()
+        .sheet(isPresented: $showFocusGuide) {
+            FocusModeGuideSheet(confirmTitle: "확인 — 구도 잡으러 가기") {
+                showFocusGuide = false
+                app.proceedToMountGuide(reservation: reservation, fireDate: fireDate)
             }
-            Button("계속 진행", role: .cancel) { }
-        } message: {
-            Text("긴급 종료해도 이 예약은 \(TimePolicy.startWindowMinutes)분 규칙에 따라 탈락으로 기록됩니다.")
+        }
+        .sheet(isPresented: $showCancelSheet) {
+            CancelReasonSheet(
+                penaltyPoints: ScoreRules.points(for: .emergency, intensity: app.intensity)?.1 ?? -5,
+                onConfirm: { reason in
+                    showCancelSheet = false
+                    app.cancelSchedule(reservation: reservation, fireDate: fireDate, reason: reason)
+                },
+                onResume: {
+                    showCancelSheet = false
+                    AlarmScheduler.shared.startAlarmSound()   // 마음이 바뀌면 알람 재개
+                }
+            )
+        }
+    }
+}
+
+// MARK: - 밀어서 일정 취소 (슬라이드 버튼)
+
+private struct SlideToCancelButton: View {
+    let title: String
+    var onComplete: () -> Void
+
+    @State private var offset: CGFloat = 0
+    @GestureState private var isDragging = false
+
+    private let height: CGFloat = 56
+    private let knobSize: CGFloat = 48
+
+    var body: some View {
+        GeometryReader { geo in
+            let maxOffset = geo.size.width - knobSize - 8
+            ZStack(alignment: .leading) {
+                // 트랙
+                Capsule()
+                    .fill(TL.surface)
+                    .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
+
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TL.muted)
+                    .frame(maxWidth: .infinity)
+                    .opacity(1 - Double(offset / max(1, maxOffset)) * 1.6)
+
+                // 노브
+                Circle()
+                    .fill(TL.rec)
+                    .frame(width: knobSize, height: knobSize)
+                    .overlay(
+                        Image(systemName: "chevron.right.2")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(TL.ink)
+                    )
+                    .offset(x: 4 + offset)
+                    .gesture(
+                        DragGesture()
+                            .updating($isDragging) { _, state, _ in state = true }
+                            .onChanged { value in
+                                offset = min(max(0, value.translation.width), maxOffset)
+                            }
+                            .onEnded { _ in
+                                if offset >= maxOffset * 0.85 {
+                                    offset = maxOffset
+                                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                                    onComplete()
+                                    // 시트가 닫히고 돌아올 때를 위해 원위치
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                        withAnimation(.spring(duration: 0.3)) { offset = 0 }
+                                    }
+                                } else {
+                                    withAnimation(.spring(duration: 0.3)) { offset = 0 }
+                                }
+                            }
+                    )
+            }
+        }
+        .frame(height: height)
+    }
+}
+
+// MARK: - 일정 취소 사유 + 벌점 확인
+
+private struct CancelReasonSheet: View {
+    let penaltyPoints: Int
+    var onConfirm: (String) -> Void
+    var onResume: () -> Void
+
+    @State private var selected: String?
+    @State private var customReason = ""
+    @FocusState private var customFocused: Bool
+
+    private let presets = ["급한 일이 생겼어요", "몸이 좋지 않아요", "오늘은 쉬고싶어요"]
+    private static let etc = "기타"
+
+    /// 확정 가능한 최종 사유 (기타는 직접 입력 필수)
+    private var finalReason: String? {
+        guard let selected else { return nil }
+        if selected == Self.etc {
+            let trimmed = customReason.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return selected
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("취소 사유를 선택해주세요")
+                .font(.tlTitle(20))
+                .foregroundStyle(TL.paper)
+                .padding(.top, 24)
+
+            VStack(spacing: 8) {
+                ForEach(presets + [Self.etc], id: \.self) { reason in
+                    reasonRow(reason)
+                }
+                if selected == Self.etc {
+                    TextField("사유를 입력하세요", text: $customReason)
+                        .font(.tlBody)
+                        .foregroundStyle(TL.paper)
+                        .focused($customFocused)
+                        .padding(13)
+                        .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
+                        .overlay(RoundedRectangle(cornerRadius: TL.cornerM)
+                            .strokeBorder(TL.amber.opacity(0.6), lineWidth: 1))
+                }
+            }
+            .padding(.top, 16)
+
+            Label("취소하면 벌점 \(penaltyPoints)점이 사유와 함께 기록됩니다.",
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(TL.rec)
+                .padding(.top, 16)
+
+            Spacer()
+
+            VStack(spacing: 10) {
+                Button("벌점 확인 · 일정 취소") {
+                    if let reason = finalReason { onConfirm(reason) }
+                }
+                .buttonStyle(TLPrimaryButtonStyle())
+                .disabled(finalReason == nil)
+                .opacity(finalReason == nil ? 0.45 : 1)
+
+                Button("돌아가기 — 알람 다시 울리기") { onResume() }
+                    .buttonStyle(TLGhostButtonStyle(tint: TL.muted))
+            }
+            .padding(.bottom, 20)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TL.ink)
+        .presentationDetents([.height(520)])
+        .interactiveDismissDisabled()
+        .preferredColorScheme(.dark)
+    }
+
+    private func reasonRow(_ reason: String) -> some View {
+        Button {
+            selected = reason
+            if reason == Self.etc { customFocused = true }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: selected == reason ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(selected == reason ? TL.rec : TL.faint)
+                Text(reason)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TL.paper)
+                Spacer()
+            }
+            .padding(13)
+            .background(
+                RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                    .fill(selected == reason ? TL.raised : TL.surface)
+            )
         }
     }
 }
@@ -113,6 +305,11 @@ struct MountGuideView: View {
     @StateObject private var recorder = CameraRecorder.shared
     @State private var checkedMount = false
     @State private var checkedFrame = false
+    @State private var showFocusGuide = false
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    /// 가로 거치 시 구도 가이드도 가로 프레임으로
+    private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
         ZStack {
@@ -128,7 +325,7 @@ struct MountGuideView: View {
                     Text(pending.activityName)
                         .font(.tlTitle(22))
                         .foregroundStyle(TL.paper)
-                    Text("알람은 촬영을 시작해야 멈춥니다")
+                    Text("\(TimePolicy.startWindowMinutes)분 안에 시작하지 않으면 노쇼 처리됩니다")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(TL.rec)
                 }
@@ -136,10 +333,10 @@ struct MountGuideView: View {
 
                 Spacer()
 
-                // 구도 프레임 가이드
+                // 구도 프레임 가이드 (거치 방향에 맞춰 가로/세로)
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(TL.paper.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
-                    .frame(width: 240, height: 320)
+                    .frame(width: isLandscape ? 300 : 240, height: isLandscape ? 180 : 320)
                     .overlay(
                         Text("얼굴과 책상이 프레임 안에")
                             .font(.system(size: 12, weight: .semibold))
@@ -153,7 +350,13 @@ struct MountGuideView: View {
                     checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
 
                     Button {
-                        app.beginRecording(pending: pending)
+                        // 예약 세션은 알람 화면에서 이미 집중 모드 안내를 봤으므로 바로 시작.
+                        // 즉시 세션(지금 바로 시작)은 여기서 안내를 거친다.
+                        if pending.scheduledAt == nil {
+                            showFocusGuide = true
+                        } else {
+                            app.beginRecording(pending: pending)
+                        }
                     } label: {
                         Label("촬영 시작 · 알람 해제", systemImage: "record.circle.fill")
                     }
@@ -168,6 +371,12 @@ struct MountGuideView: View {
         .interactiveDismissDisabled()
         .onAppear { recorder.startPreview() }
         .task { _ = await recorder.requestAuthorization() }
+        .sheet(isPresented: $showFocusGuide) {
+            FocusModeGuideSheet {
+                showFocusGuide = false
+                app.beginRecording(pending: pending)
+            }
+        }
     }
 
     private func checkRow(_ title: String, isOn: Binding<Bool>) -> some View {
@@ -183,6 +392,75 @@ struct MountGuideView: View {
             }
             .padding(14)
             .background(TL.surface.opacity(0.85), in: RoundedRectangle(cornerRadius: TL.cornerM))
+        }
+    }
+}
+
+// MARK: - 집중 모드 안내 (촬영 시작 직전)
+//  iOS 정책상 앱이 시스템 알림을 대신 끌 수 없으므로,
+//  사용자가 직접 집중 모드를 켜도록 안내한 뒤 '확인'으로 촬영을 시작한다.
+
+struct FocusModeGuideSheet: View {
+    var confirmTitle: String = "확인 — 촬영 시작"
+    /// '확인' 버튼 동작
+    var onConfirm: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "moon.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(TL.amber)
+                Text("시작 전, 집중 모드를 켜서\n알림을 차단해보세요")
+                    .font(.tlTitle(19))
+                    .foregroundStyle(TL.paper)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 24)
+
+            VStack(alignment: .leading, spacing: 14) {
+                guideStep(number: 1, text: "화면 오른쪽 위 모서리에서 아래로 쓸어내려 제어 센터를 엽니다")
+                guideStep(number: 2, text: "🌙 집중 모드 버튼을 누르고 '방해금지'를 선택합니다")
+                guideStep(number: 3, text: "세션이 끝나면 같은 방법으로 해제하면 됩니다")
+            }
+            .padding(16)
+            .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
+            .padding(.top, 20)
+
+            Text("앱 화면 위 배너는 촬영이 시작되면 '알림차단'이 자동으로 켜져 막아줍니다. 이탈 시 재촬영 알림은 집중 모드를 뚫고 전달됩니다.")
+                .font(.system(size: 12))
+                .foregroundStyle(TL.faint)
+                .padding(.top, 12)
+
+            Spacer()
+
+            Button {
+                onConfirm()
+            } label: {
+                Label(confirmTitle, systemImage: "record.circle.fill")
+            }
+            .buttonStyle(TLPrimaryButtonStyle())
+            .padding(.bottom, 20)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TL.ink)
+        .presentationDetents([.height(430)])
+        .interactiveDismissDisabled()
+        .preferredColorScheme(.dark)
+    }
+
+    private func guideStep(number: Int, text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .foregroundStyle(TL.ink)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(TL.amber))
+            Text(text)
+                .font(.system(size: 14))
+                .foregroundStyle(TL.paper)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

@@ -55,6 +55,10 @@ struct TimeLockApp: App {
 // MARK: - 알림 딜리게이트 (알람 탭 → 알람 화면 라우팅)
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+
+    /// 화면 회전 정책 — 평소에는 세로 고정, 세션 관련 화면에서만 가로 허용 (AppState가 갱신)
+    static var orientationLock: UIInterfaceOrientationMask = .portrait
+
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
@@ -64,6 +68,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.orientationLock
+    }
+
     // 포그라운드에서도 알람 알림을 표시
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
@@ -71,6 +80,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         if kind == "alarm" {
             // 앱이 떠 있으면 배너 대신 알람 화면을 직접 띄운다
             await MainActor.run { AppState.shared.checkDueAlarm() }
+            return []
+        }
+        if kind == "break" {
+            // 앱이 화면에 떠 있으면 중단 오버레이가 이미 안내 중 — 배너 생략
+            return []
+        }
+        // 세션 중 '알림차단'이 켜져 있으면 화면에 뜨는 모든 배너를 숨긴다
+        if await AlarmScheduler.shared.muteAllNotifications {
             return []
         }
         return [.banner, .sound]
@@ -103,7 +120,9 @@ final class AppState: ObservableObject {
         case session
         case result
     }
-    @Published var route: Route = .none
+    @Published var route: Route = .none {
+        didSet { updateOrientationLock() }
+    }
 
     struct PendingSession: Equatable {
         var activityName: String
@@ -186,6 +205,9 @@ final class AppState: ObservableObject {
             self?.handleUserChanged()
         }
         engine.bind(context: context)
+        engine.onFinalized = { [weak self] in
+            self?.sessionFinished()
+        }
         engine.recoverOrphanIfNeeded()
         purgeUnsavedVideos()
         refreshDerived()
@@ -227,6 +249,28 @@ final class AppState: ObservableObject {
         let descriptor = FetchDescriptor<FocusSession>(
             predicate: #Predicate { $0.intensityRaw == spicyRaw && $0.outcomeRaw == completedRaw && $0.ownerUserID == owner })
         spicyCompletions = (try? context.fetchCount(descriptor)) ?? 0
+    }
+
+    // MARK: 화면 회전 정책
+
+    /// 거치 가이드·세션·결과 화면에서만 가로 회전 허용 (가로 거치 촬영 지원).
+    /// 나머지 화면은 세로 고정.
+    private func updateOrientationLock() {
+        let mask: UIInterfaceOrientationMask
+        switch route {
+        case .mountGuide, .session, .result:
+            mask = .allButUpsideDown
+        default:
+            mask = .portrait
+        }
+        guard AppDelegate.orientationLock != mask else { return }
+        AppDelegate.orientationLock = mask
+
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
+            scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        }
     }
 
     // MARK: 계정 전환
@@ -329,13 +373,44 @@ final class AppState: ObservableObject {
                                    targetSeconds: pending.targetSeconds,
                                    reservationID: pending.reservationID,
                                    ownerUserID: AccountStore.shared.currentUserID)
-        engine.start(session: session)
+        // 카메라 시작이 실패하면 engine이 즉시 finalize → onFinalized가 .result로 덮어쓰므로
+        // 라우팅을 먼저 .session으로 두어야 순서가 꼬이지 않는다.
         route = .session
+        engine.start(session: session)
     }
 
     /// 알람 화면의 긴급 버튼 — 세션 없이 알람만 종료, 노쇼는 스위퍼가 기록
     func emergencyDismissAlarm() {
         AlarmScheduler.shared.stopAlarmSound()
+        route = .none
+    }
+
+    /// 알람 화면의 '일정 취소' — 사유와 함께 벌점을 기록하고 홈으로.
+    /// 세션 기록이 남으므로 노쇼 스위퍼가 같은 발생 건을 중복 처리하지 않는다.
+    func cancelSchedule(reservation: Reservation, fireDate: Date, reason: String) {
+        guard let context = modelContext else { return }
+        AlarmScheduler.shared.stopAlarmSound()
+        AlarmScheduler.shared.cancelAlarmNotifications(reservationID: reservation.id, fireDate: fireDate)
+
+        let session = FocusSession(activityName: reservation.name, tag: reservation.tag,
+                                   intensity: intensity, scheduledAt: fireDate,
+                                   targetSeconds: reservation.durationMinutes * 60,
+                                   reservationID: reservation.id,
+                                   ownerUserID: AccountStore.shared.currentUserID)
+        session.outcome = .emergency
+        session.emergencyReason = reason
+        session.endedAt = .now
+        context.insert(session)
+
+        if let (type, points) = ScoreRules.points(for: .emergency, intensity: intensity) {
+            let event = ScoreEvent(type: type, points: points, sessionID: session.id,
+                                   intensity: intensity, note: reason,
+                                   ownerUserID: AccountStore.shared.currentUserID)
+            context.insert(event)
+            AccountStore.shared.mirror(event: event)   // 사유+벌점 클라우드 백업
+        }
+        try? context.save()
+        refreshDerived()
         route = .none
     }
 

@@ -135,6 +135,65 @@ struct RECRingDial<Center: View>: View {
     }
 }
 
+// MARK: - 세션 다이얼: 교실 벽시계 (아날로그)
+
+/// 부채꼴 (파이 조각) — 남은 시간 영역 표현용
+struct PieSlice: Shape {
+    var startAngle: Angle
+    var endAngle: Angle
+
+    var animatableData: Double {
+        get { startAngle.degrees }
+        set { startAngle = .degrees(newValue) }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        path.move(to: center)
+        path.addArc(center: center,
+                    radius: min(rect.width, rect.height) / 2,
+                    startAngle: startAngle, endAngle: endAngle, clockwise: false)
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// 세션 진행 화면의 미니멀 시계판 (피그마 시안).
+/// 흰 판 위에 12시부터 시계 방향으로 '남은 시간'만큼의 빨간 부채꼴이 그려지고,
+/// 시간이 흐르면 부채꼴이 12시를 향해 줄어든다. 중심에는 검은 점 하나.
+struct FocusDial: View {
+    /// 남은 비율 0~1
+    var remaining: Double
+    var tint: Color = TL.rec
+
+    private var clamped: Double { min(1, max(0, remaining)) }
+
+    var body: some View {
+        GeometryReader { geo in
+            let size = min(geo.size.width, geo.size.height)
+            ZStack {
+                // 흰 시계판
+                Circle().fill(Color.white)
+
+                // 남은 시간 부채꼴 (12시 → 시계 방향)
+                PieSlice(startAngle: .degrees(-90),
+                         endAngle: .degrees(-90 + 360 * clamped))
+                    .fill(tint)
+                    .animation(.linear(duration: 0.4), value: clamped)
+
+                // 중심점
+                Circle()
+                    .fill(TL.ink)
+                    .frame(width: size * 0.075, height: size * 0.075)
+            }
+            .compositingGroup()
+            .clipShape(Circle())
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+}
+
 // MARK: - 버튼 스타일
 
 struct TLPrimaryButtonStyle: ButtonStyle {

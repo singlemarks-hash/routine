@@ -14,23 +14,25 @@ import SwiftData
 struct SessionView: View {
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var engine: SessionEngine
+    @EnvironmentObject private var alarm: AlarmScheduler
     @StateObject private var recorder = CameraRecorder.shared
 
     @State private var dimmed = false
     @State private var dimTask: Task<Void, Never>?
     @State private var showEmergency = false
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    /// 가로 거치(landscape) 여부 — 레이아웃을 좌우 2단으로 전환
+    private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
         ZStack {
             TL.ink.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                header
-                Spacer()
-                dial
-                Spacer()
-                previewStrip
-                footer
+            if isLandscape {
+                landscapeLayout
+            } else {
+                portraitLayout
             }
 
             // 통화 일시정지 오버레이
@@ -65,106 +67,171 @@ struct SessionView: View {
         .interactiveDismissDisabled()
         .statusBarHidden(dimmed)
         .onAppear { scheduleDim() }
-        .onDisappear { dimTask?.cancel() }
+        .onDisappear {
+            dimTask?.cancel()
+            alarm.muteAllNotifications = false
+        }
         .onTapGesture { wake() }
-        .sheet(isPresented: $showEmergency) { emergencySheet }
+        .sheet(isPresented: $showEmergency) { insaneEmergencySheet }
     }
 
-    // MARK: 상단
+    // MARK: 세로 레이아웃 (피그마: Title → 시계 → 시간 → selfie → 버튼 2개)
 
-    private var header: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 8) {
-                Circle().fill(TL.rec).frame(width: 8, height: 8)
-                TLEyebrow(text: "REC · 촬영 중", color: TL.rec)
+    private var portraitLayout: some View {
+        VStack(spacing: 0) {
+            titleHeader
+                .padding(.top, 24)
+
+            Spacer()
+
+            FocusDial(remaining: 1 - engine.progress,
+                      tint: engine.remainingSeconds <= 60 ? TL.jade : TL.rec)
+                .frame(width: 230, height: 230)
+
+            Text(TLFormat.hms(engine.remainingSeconds))
+                .font(.tlTimer(36))
+                .foregroundStyle(TL.paper)
+                .padding(.top, 14)
+
+            Spacer()
+
+            selfieCard(width: 168, height: 224)
+
+            Spacer()
+
+            HStack(spacing: 14) {
+                muteButton
+                breakButton
             }
+            .padding(.bottom, 24)
+        }
+        .padding(.horizontal, 24)
+    }
+
+    // MARK: 가로 레이아웃 (피그마: 좌측 시계+시간 / 우측 상단 버튼, selfie)
+
+    private var landscapeLayout: some View {
+        HStack(spacing: 32) {
+            VStack(spacing: 10) {
+                titleHeader
+                FocusDial(remaining: 1 - engine.progress,
+                          tint: engine.remainingSeconds <= 60 ? TL.jade : TL.rec)
+                    .frame(maxHeight: .infinity)
+                Text(TLFormat.hms(engine.remainingSeconds))
+                    .font(.tlTimer(28))
+                    .foregroundStyle(TL.paper)
+            }
+            .padding(.vertical, 16)
+
+            VStack(alignment: .trailing, spacing: 16) {
+                HStack(spacing: 12) {
+                    muteButton
+                    breakButton
+                }
+                Spacer()
+                selfieCard(width: 216, height: 148)
+                Spacer()
+            }
+            .padding(.vertical, 16)
+        }
+        .padding(.horizontal, 28)
+    }
+
+    // MARK: 구성 요소
+
+    private var titleHeader: some View {
+        VStack(spacing: 4) {
             Text(engine.session?.activityName ?? "")
                 .font(.tlTitle(22))
                 .foregroundStyle(TL.paper)
+                .lineLimit(1)
             if engine.oneMinuteWarningFired {
                 Text("1분 뒤 자동 종료됩니다")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.jade)
             }
         }
-        .padding(.top, 28)
     }
 
-    // MARK: 다이얼
-
-    private var dial: some View {
-        RECRingDial(progress: engine.progress, live: true,
-                    tint: engine.remainingSeconds <= 60 ? TL.jade : TL.rec) {
-            VStack(spacing: 4) {
-                Text(TLFormat.hms(engine.remainingSeconds))
-                    .font(.tlTimer(56))
-                    .foregroundStyle(TL.paper)
-                Text("남음 · 순수 촬영 시간 기준")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(TL.muted)
+    /// selfie 영역 — 프리뷰 + REC 표시 + 우측 하단 전/후면 전환 버튼
+    private func selfieCard(width: CGFloat, height: CGFloat) -> some View {
+        CameraPreviewView(session: recorder.captureSession)
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                    .strokeBorder(TL.hairline, lineWidth: 1)
+            )
+            .overlay(alignment: .topLeading) {
+                HStack(spacing: 5) {
+                    Circle().fill(TL.rec).frame(width: 7, height: 7)
+                    Text("REC")
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .foregroundStyle(TL.paper)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(Capsule().fill(TL.ink.opacity(0.55)))
+                .padding(8)
             }
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    recorder.switchCamera()
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(TL.paper)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(TL.ink.opacity(0.65)))
+                }
+                .padding(8)
+            }
+    }
+
+    /// 알림차단 — 앱이 화면에 떠 있는 동안 모든 알림 배너를 숨긴다.
+    /// 촬영 시작과 함께 자동으로 켜지며, 켜진 동안 '차단 중'으로 표시된다.
+    private var muteButton: some View {
+        squareButton(
+            title: alarm.muteAllNotifications ? "차단 중" : "알림차단",
+            symbol: alarm.muteAllNotifications ? "bell.slash.fill" : "bell.slash",
+            active: alarm.muteAllNotifications
+        ) {
+            alarm.muteAllNotifications.toggle()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
-        .frame(width: 270, height: 270)
     }
 
-    // MARK: 프리뷰 (자기감시)
-
-    private var previewStrip: some View {
-        HStack(spacing: 12) {
-            CameraPreviewView(session: recorder.captureSession)
-                .frame(width: 84, height: 112)
-                .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
-                        .strokeBorder(TL.rec, lineWidth: 1.5)
-                )
-            VStack(alignment: .leading, spacing: 5) {
-                Label("카메라 사용 중 · 촬영본은 종료 시 저장/삭제 선택", systemImage: "lock.shield.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(TL.muted)
-                Label(engine.session?.intensity == .insane
-                      ? "앱을 벗어나면 즉시 실패 · 벌점 2배"
-                      : "중단해도 \(TimePolicy.resumeWindowMinutes)분 안에 재촬영하면 벌점 없음",
-                      systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(TL.amber)
-                Label("전화가 오면 벌점 없이 일시정지", systemImage: "phone.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(TL.muted)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 16)
-    }
-
-    // MARK: 하단
-
-    private var footer: some View {
-        HStack(spacing: 12) {
-            Button {
-                withAnimation { dimmed = true }
-            } label: {
-                Label("화면 어둡게", systemImage: "moon.fill")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(TL.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(RoundedRectangle(cornerRadius: TL.cornerM).strokeBorder(TL.hairline))
-            }
-            Button {
+    /// 긴급중단 — 매운맛: 즉시 중단 + 10분 재촬영 창 / 미친 매운맛: 확인 후 즉시 종료
+    private var breakButton: some View {
+        squareButton(title: "긴급중단", symbol: "light.beacon.max.fill", active: false) {
+            if engine.session?.intensity == .insane {
                 showEmergency = true
-            } label: {
-                Label(engine.session?.intensity == .insane ? "긴급" : "긴급 용무", systemImage: "cross.circle.fill")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(TL.rec)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(RoundedRectangle(cornerRadius: TL.cornerM).strokeBorder(TL.rec.opacity(0.5)))
+            } else {
+                engine.startBreak()
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 20)
+    }
+
+    private func squareButton(title: String, symbol: String, active: Bool,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(active ? TL.ink : TL.paper)
+                Text(title)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(active ? TL.ink : TL.muted)
+            }
+            .frame(width: 64, height: 64)
+            .background(
+                RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                    .fill(active ? TL.paper : TL.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                    .strokeBorder(TL.hairline, lineWidth: active ? 0 : 1)
+            )
+        }
     }
 
     private var pauseOverlay: some View {
@@ -179,35 +246,20 @@ struct SessionView: View {
         .background(TL.ink.opacity(0.96).ignoresSafeArea())
     }
 
-    // MARK: 긴급 시트 (강도별 정책)
-    //  매운맛: 촬영 중단 → 10분 재촬영 창 (창 안에 재촬영하면 벌점 없음)
-    //  미친 매운맛: 사유 없는 즉시 종료 · 벌점
+    // MARK: 긴급 시트 (미친 매운맛 전용 — 되돌릴 수 없어 확인을 거친다)
 
-    private var emergencySheet: some View {
-        let intensity = engine.session?.intensity ?? .spicy
-        return NavigationStack {
+    private var insaneEmergencySheet: some View {
+        NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
-                if intensity == .spicy {
-                    Text("촬영이 멈추고 \(TimePolicy.resumeWindowMinutes)분의 재촬영 창이 열립니다. 창 안에 재촬영을 시작하면 벌점이 없습니다. 시작하지 않으면 벌점과 함께 세션이 종료됩니다.")
-                        .font(.tlBody)
-                        .foregroundStyle(TL.muted)
+                Text("미친 매운맛은 사유 없이 즉시 종료되며 '긴급'으로 구분 표시되고 벌점이 부과됩니다.")
+                    .font(.tlBody)
+                    .foregroundStyle(TL.muted)
 
-                    Button("촬영 중단 — \(TimePolicy.resumeWindowMinutes)분 창 열기") {
-                        showEmergency = false
-                        engine.startBreak()
-                    }
-                    .buttonStyle(TLPrimaryButtonStyle(tint: TL.amber))
-                } else {
-                    Text("미친 매운맛은 사유 없이 즉시 종료되며 '긴급'으로 구분 표시되고 벌점이 부과됩니다.")
-                        .font(.tlBody)
-                        .foregroundStyle(TL.muted)
-
-                    Button("긴급 종료") {
-                        showEmergency = false
-                        engine.emergencyEnd(reason: nil)
-                    }
-                    .buttonStyle(TLPrimaryButtonStyle())
+                Button("긴급 종료") {
+                    showEmergency = false
+                    engine.emergencyEnd(reason: nil)
                 }
+                .buttonStyle(TLPrimaryButtonStyle())
 
                 Button("계속 진행") { showEmergency = false }
                     .buttonStyle(TLGhostButtonStyle())
@@ -216,10 +268,10 @@ struct SessionView: View {
             }
             .padding(20)
             .background(TL.ink)
-            .navigationTitle(intensity == .spicy ? "긴급 용무" : "긴급 종료")
+            .navigationTitle("긴급 종료")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.height(320)])
+        .presentationDetents([.height(280)])
         .preferredColorScheme(.dark)
     }
 
@@ -249,10 +301,12 @@ private struct BreakOverlay: View {
 
     @EnvironmentObject private var engine: SessionEngine
     @State private var now = Date()
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     private let clock = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
     private var remaining: Int { max(0, Int(deadline.timeIntervalSince(now))) }
     private var progress: Double { Double(remaining) / TimePolicy.resumeWindowSeconds }
+    private var compact: Bool { verticalSizeClass == .compact }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -260,30 +314,30 @@ private struct BreakOverlay: View {
 
             TLEyebrow(text: "촬영 일시중단", color: TL.amber)
             Text("긴급 용무 중")
-                .font(.tlTitle(24))
+                .font(.tlTitle(compact ? 18 : 24))
                 .foregroundStyle(TL.paper)
-                .padding(.top, 8)
+                .padding(.top, 6)
 
             RECRingDial(progress: progress, live: false,
                         tint: remaining <= 60 ? TL.rec : TL.amber) {
-                VStack(spacing: 4) {
+                VStack(spacing: 2) {
                     Text(TLFormat.hms(remaining))
-                        .font(.tlTimer(48))
+                        .font(.tlTimer(compact ? 30 : 48))
                         .foregroundStyle(TL.paper)
                     Text("안에 재촬영을 시작하세요")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: compact ? 10 : 13, weight: .semibold))
                         .foregroundStyle(TL.muted)
                 }
             }
-            .frame(width: 230, height: 230)
-            .padding(.top, 28)
+            .frame(width: compact ? 130 : 230, height: compact ? 130 : 230)
+            .padding(.top, compact ? 10 : 28)
 
             Text("창 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.")
-                .font(.system(size: 14))
+                .font(.system(size: compact ? 12 : 14))
                 .foregroundStyle(TL.muted)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
-                .padding(.top, 22)
+                .padding(.top, compact ? 8 : 22)
 
             Spacer()
 
@@ -390,7 +444,7 @@ struct SessionResultView: View {
                             .padding(.horizontal, 24)
                     }
 
-                    Button(outcome.isSuccess ? "성공캘린더에서 보기" : "확인") {
+                    Button("종료") {
                         app.dismissResult()
                     }
                     .buttonStyle(TLPrimaryButtonStyle(tint: outcome.isSuccess ? TL.jade : TL.rec))

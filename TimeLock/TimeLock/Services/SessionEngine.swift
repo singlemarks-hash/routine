@@ -34,6 +34,13 @@ final class SessionEngine: NSObject, ObservableObject {
     @Published var oneMinuteWarningFired = false
     @Published var lastFinishedSession: FocusSession?
 
+    /// finalize 완료 직후 호출 — 결과 화면 라우팅은 이 콜백이 보장한다.
+    /// (phase 변화 관찰에만 의존하면 finalize 전 선(先)설정과 겹쳐 전환이 누락될 수 있다)
+    var onFinalized: (() -> Void)?
+
+    /// 종료 처리 진행 중 재진입 방지. phase는 finalize에서 단 한 번만 .finished로 바뀐다.
+    private var isFinalizing = false
+
     private(set) var session: FocusSession?
     private var modelContext: ModelContext?
     private var tick: Timer?
@@ -86,10 +93,14 @@ final class SessionEngine: NSObject, ObservableObject {
         oneMinuteWarningFired = false
         phase = .recording
         isCallActive = false
+        isFinalizing = false
         safetyCheckCounter = 0
 
         defaults.set(session.id.uuidString, forKey: Key.activeSessionID)
         defaults.removeObject(forKey: Key.breakDeadline)
+
+        // 촬영 시작과 함께 '알림차단' 기본 활성화 (세션 화면 버튼으로 해제 가능)
+        AlarmScheduler.shared.muteAllNotifications = true
 
         startCallObserver()
         startTick()
@@ -112,7 +123,7 @@ final class SessionEngine: NSObject, ObservableObject {
     }
 
     private func onTick() {
-        guard let s = session else { return }
+        guard let s = session, !isFinalizing else { return }
         // 중단 중 — 재촬영 창이 닫히면 실패 확정
         if case .pausedForBreak(let deadline) = phase {
             if Date() >= deadline { failBreakExpired(session: s) }
@@ -140,8 +151,8 @@ final class SessionEngine: NSObject, ObservableObject {
     // MARK: 완주
 
     private func finishCompleted() async {
-        guard let s = session, phase == .recording else { return }
-        phase = .finished(.completed)
+        guard let s = session, phase == .recording, !isFinalizing else { return }
+        isFinalizing = true
         let result = await CameraRecorder.shared.stopRecording()
         applyRecording(result, to: s)
         finalize(session: s, outcome: .completed, note: nil)
@@ -162,7 +173,7 @@ final class SessionEngine: NSObject, ObservableObject {
 
     /// 재촬영 시작 — 창 안이면 벌점 없이 촬영이 이어진다
     func resumeFromBreak() {
-        guard case .pausedForBreak(let deadline) = phase, let s = session else { return }
+        guard case .pausedForBreak(let deadline) = phase, let s = session, !isFinalizing else { return }
         guard Date() < deadline else {
             failBreakExpired(session: s)
             return
@@ -176,7 +187,8 @@ final class SessionEngine: NSObject, ObservableObject {
 
     /// 재촬영 창 초과 — 벌점과 함께 실패 확정
     private func failBreakExpired(session s: FocusSession) {
-        phase = .finished(.exitFailed)
+        guard !isFinalizing else { return }
+        isFinalizing = true
         AlarmScheduler.shared.cancelBreakNotifications()
         Task {
             let result = await CameraRecorder.shared.stopPreservingFootage()
@@ -190,7 +202,7 @@ final class SessionEngine: NSObject, ObservableObject {
 
     /// ScenePhase.background 또는 화면 잠금(protectedData) 시 호출
     func handleExitEvent() {
-        guard let s = session else { return }
+        guard let s = session, !isFinalizing else { return }
         guard !isCallActive else { return }   // 통화 중 백그라운드는 이탈이 아님
 
         switch s.intensity {
@@ -200,7 +212,7 @@ final class SessionEngine: NSObject, ObservableObject {
         case .insane:
             guard phase == .recording else { return }
             // 즉시 실패 확정 — 되돌릴 수 없음
-            phase = .finished(.exitFailed)
+            isFinalizing = true
             Task {
                 let result = await CameraRecorder.shared.stopPreservingFootage()
                 self.applyRecording(result, to: s)
@@ -226,9 +238,10 @@ final class SessionEngine: NSObject, ObservableObject {
     // MARK: 긴급 종료 (세션 포기 — 벌점)
 
     func emergencyEnd(reason: String?) {
-        guard let s = session, phase == .recording || phase == .pausedForCall || phaseIsBreak else { return }
+        guard let s = session, !isFinalizing,
+              phase == .recording || phase == .pausedForCall || phaseIsBreak else { return }
+        isFinalizing = true
         AlarmScheduler.shared.cancelBreakNotifications()
-        phase = .finished(.emergency)
         s.emergencyReason = reason
         Task {
             let result = await CameraRecorder.shared.stopPreservingFootage()
@@ -255,8 +268,9 @@ final class SessionEngine: NSObject, ObservableObject {
     }
 
     func safetyEnd(note: String) {
-        guard let s = session, phase == .recording || phase == .pausedForCall || phaseIsBreak else { return }
-        phase = .finished(.safetyEnded)
+        guard let s = session, !isFinalizing,
+              phase == .recording || phase == .pausedForCall || phaseIsBreak else { return }
+        isFinalizing = true
         Task {
             let result = await CameraRecorder.shared.stopPreservingFootage()
             self.applyRecording(result, to: s)
@@ -316,15 +330,19 @@ final class SessionEngine: NSObject, ObservableObject {
         }
         try? context.save()
 
+        // 결과 데이터를 모두 준비한 뒤에 딱 한 번 phase를 바꾸고, 라우팅 콜백을 쏜다.
         lastFinishedSession = s
         phase = .finished(outcome)
         cleanupRuntime()
+        onFinalized?()
     }
 
     private func cleanupRuntime() {
         tick?.invalidate(); tick = nil
         callObserver = nil
         isCallActive = false
+        isFinalizing = false
+        AlarmScheduler.shared.muteAllNotifications = false   // 세션 종료 시 알림차단 해제
         defaults.removeObject(forKey: Key.activeSessionID)
         defaults.removeObject(forKey: Key.breakDeadline)
         defaults.removeObject(forKey: Key.callActive)

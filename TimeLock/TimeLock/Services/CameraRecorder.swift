@@ -16,9 +16,14 @@ final class CameraRecorder: NSObject, ObservableObject {
 
     @Published var isAuthorized = false
     @Published private(set) var frameCount: Int = 0
+    /// 현재 카메라 (기본 전면 — selfie 카드의 전환 버튼으로 변경)
+    @Published private(set) var position: AVCaptureDevice.Position = .front
 
     let captureSession = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
+    private var currentInput: AVCaptureDeviceInput?
+    /// 촬영 시작 시점의 기기 방향으로 고정되는 영상 회전각 (가로 거치 = 가로 영상)
+    private var recordingRotationAngle: CGFloat = 90
     private let processingQueue = DispatchQueue(label: "timelock.camera.frames")
 
     private var writer: AVAssetWriter?
@@ -59,13 +64,13 @@ final class CameraRecorder: NSObject, ObservableObject {
         captureSession.beginConfiguration()
         captureSession.sessionPreset = .hd1280x720
 
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
-              let input = try? AVCaptureDeviceInput(device: device),
+        guard let input = makeInput(position: position),
               captureSession.canAddInput(input) else {
             captureSession.commitConfiguration()
             return
         }
         captureSession.addInput(input)
+        currentInput = input
 
         videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
         videoOutput.alwaysDiscardsLateVideoFrames = true
@@ -73,14 +78,61 @@ final class CameraRecorder: NSObject, ObservableObject {
         if captureSession.canAddOutput(videoOutput) {
             captureSession.addOutput(videoOutput)
         }
-        if let connection = videoOutput.connection(with: .video) {
-            connection.videoRotationAngle = 90   // 세로 고정
-            if connection.isVideoMirroringSupported {
-                connection.automaticallyAdjustsVideoMirroring = false
-                connection.isVideoMirrored = true
-            }
+        captureSession.commitConfiguration()
+        applyConnectionSettings()
+    }
+
+    private func makeInput(position: AVCaptureDevice.Position) -> AVCaptureDeviceInput? {
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) else {
+            return nil
+        }
+        return try? AVCaptureDeviceInput(device: device)
+    }
+
+    /// 출력 연결의 회전각·미러링을 현재 상태에 맞춰 재적용 (카메라 전환·녹화 시작 시)
+    private func applyConnectionSettings() {
+        guard let connection = videoOutput.connection(with: .video) else { return }
+        if connection.isVideoRotationAngleSupported(recordingRotationAngle) {
+            connection.videoRotationAngle = recordingRotationAngle
+        }
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = (position == .front)   // 셀피만 미러링
+        }
+    }
+
+    /// 전/후면 카메라 전환 — 촬영 중에도 가능하며 영상 방향·해상도는 유지된다
+    func switchCamera() {
+        configureSessionIfNeeded()
+        let newPosition: AVCaptureDevice.Position = (position == .front) ? .back : .front
+        guard let newInput = makeInput(position: newPosition) else { return }
+
+        captureSession.beginConfiguration()
+        if let current = currentInput { captureSession.removeInput(current) }
+        if captureSession.canAddInput(newInput) {
+            captureSession.addInput(newInput)
+            currentInput = newInput
+            position = newPosition
+        } else if let current = currentInput, captureSession.canAddInput(current) {
+            captureSession.addInput(current)   // 실패 시 원복
         }
         captureSession.commitConfiguration()
+        applyConnectionSettings()
+    }
+
+    /// 현재 화면 방향 → 영상 회전각 (촬영 시작 시점에 한 번 고정)
+    private static func interfaceRotationAngle() -> CGFloat {
+        MainActor.assumeIsolated {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            let orientation = scenes.first { $0.activationState == .foregroundActive }?
+                .interfaceOrientation ?? .portrait
+            switch orientation {
+            case .landscapeRight:      return 0
+            case .landscapeLeft:       return 180
+            case .portraitUpsideDown:  return 270
+            default:                   return 90
+            }
+        }
     }
 
     func startPreview() {
@@ -101,16 +153,24 @@ final class CameraRecorder: NSObject, ObservableObject {
     // MARK: 녹화 제어
 
     func startRecording(sessionID: UUID) throws {
+        configureSessionIfNeeded()
+
+        // 촬영 시작 시점의 거치 방향으로 영상 방향 확정 (가로 거치 = 가로 타임랩스)
+        recordingRotationAngle = Self.interfaceRotationAngle()
+        applyConnectionSettings()
+        let isPortraitVideo = recordingRotationAngle == 90 || recordingRotationAngle == 270
+        let videoWidth = isPortraitVideo ? 720 : 1280
+        let videoHeight = isPortraitVideo ? 1280 : 720
+
         let fileName = "\(sessionID.uuidString).mov"
         let url = SessionStorage.directory.appendingPathComponent(fileName)
         try? FileManager.default.removeItem(at: url)
 
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
-        // 입력 해상도는 첫 프레임에서 확정하므로, 720p 세로 기준으로 초기화
         let settings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.hevc,
-            AVVideoWidthKey: 720,
-            AVVideoHeightKey: 1280,
+            AVVideoWidthKey: videoWidth,
+            AVVideoHeightKey: videoHeight,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: 4_000_000,
                 AVVideoExpectedSourceFrameRateKey: playbackFPS
@@ -122,8 +182,8 @@ final class CameraRecorder: NSObject, ObservableObject {
             assetWriterInput: input,
             sourcePixelBufferAttributes: [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                kCVPixelBufferWidthKey as String: 720,
-                kCVPixelBufferHeightKey as String: 1280
+                kCVPixelBufferWidthKey as String: videoWidth,
+                kCVPixelBufferHeightKey as String: videoHeight
             ])
         guard writer.canAdd(input) else { throw RecorderError.writerSetupFailed }
         writer.add(input)
@@ -247,6 +307,27 @@ struct CameraPreviewView: UIViewRepresentable {
     final class PreviewUIView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+
+        // 화면 회전 시(레이아웃 변경 시) 프리뷰 방향을 함께 갱신
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            updatePreviewRotation()
+        }
+
+        private func updatePreviewRotation() {
+            guard let connection = previewLayer.connection else { return }
+            let orientation = window?.windowScene?.interfaceOrientation ?? .portrait
+            let angle: CGFloat
+            switch orientation {
+            case .landscapeRight:      angle = 0
+            case .landscapeLeft:       angle = 180
+            case .portraitUpsideDown:  angle = 270
+            default:                   angle = 90
+            }
+            if connection.isVideoRotationAngleSupported(angle) {
+                connection.videoRotationAngle = angle
+            }
+        }
     }
 
     func makeUIView(context: Context) -> PreviewUIView {
