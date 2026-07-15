@@ -204,10 +204,6 @@ struct SettingsView: View {
                     privacyRow(icon: "key.fill", text: "촬영 중 파일은 iOS 파일 보호(완전 암호화)로 저장됩니다.")
                     privacyRow(icon: "trash.fill", text: "기록 썸네일은 아래에서 언제든 완전히 삭제할 수 있습니다.")
                     Divider().overlay(TL.hairline)
-                    Toggle(isOn: $app.dimModeEnabled) {
-                        Text("세션 중 밝기 자동 감소").font(.tlBody).foregroundStyle(TL.paper)
-                    }
-                    .tint(TL.rec)
                     Button("기록 썸네일 전체 삭제") { showDeleteAllConfirm = true }
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(TL.rec)

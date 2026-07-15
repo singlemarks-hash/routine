@@ -2,10 +2,10 @@
 //  SessionView.swift
 //  TimeLock
 //
-//  세션 진행 화면: 남은 시간 REC 링, 촬영 중 프리뷰(PiP), 활동명.
-//  화면 자동 꺼짐 방지 + 밝기 자동 감소(탭 시 복원).
-//  통화 수신 시 벌점 없이 일시정지.
+//  세션 진행 화면: 남은 시간 시계판, 촬영 중 셀피 프리뷰, 활동명.
+//  화면 자동 꺼짐 방지. 통화 수신 시 벌점 없이 일시정지.
 //  긴급 용무(매운맛): 촬영을 중단하고 10분 재촬영 창 — 창 안에 재촬영하면 벌점 없음.
+//  방향: 구도 단계에서 고른 세로/가로로 잠긴 채 유지된다 (촬영 중 변경 불가).
 //
 
 import SwiftUI
@@ -17,13 +17,10 @@ struct SessionView: View {
     @EnvironmentObject private var alarm: AlarmScheduler
     @StateObject private var recorder = CameraRecorder.shared
 
-    @State private var dimmed = false
-    @State private var dimTask: Task<Void, Never>?
     @State private var showEmergency = false
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
-    /// 가로 거치(landscape) 여부 — 레이아웃을 좌우 2단으로 전환
-    private var isLandscape: Bool { verticalSizeClass == .compact }
+    /// 세션 방향은 구도 단계에서 확정 — 촬영 내내 고정
+    private var isLandscape: Bool { app.sessionOrientation == .landscape }
 
     var body: some View {
         ZStack {
@@ -44,34 +41,9 @@ struct SessionView: View {
             if case .pausedForBreak(let deadline) = engine.phase {
                 BreakOverlay(deadline: deadline)
             }
-
-            // 밝기 감소 커튼 (탭 시 복원)
-            if dimmed {
-                Color.black.opacity(0.92)
-                    .ignoresSafeArea()
-                    .overlay(
-                        VStack(spacing: 10) {
-                            Circle().fill(TL.rec).frame(width: 10, height: 10)
-                            Text(TLFormat.hms(engine.remainingSeconds))
-                                .font(.tlTimer(34))
-                                .foregroundStyle(TL.paper.opacity(0.5))
-                            Text("탭하여 화면 켜기")
-                                .font(.system(size: 12))
-                                .foregroundStyle(TL.faint)
-                        }
-                    )
-                    .onTapGesture { wake() }
-                    .transition(.opacity)
-            }
         }
         .interactiveDismissDisabled()
-        .statusBarHidden(dimmed)
-        .onAppear { scheduleDim() }
-        .onDisappear {
-            dimTask?.cancel()
-            alarm.muteAllNotifications = false
-        }
-        .onTapGesture { wake() }
+        .onDisappear { alarm.muteAllNotifications = false }
         .sheet(isPresented: $showEmergency) { insaneEmergencySheet }
     }
 
@@ -153,9 +125,9 @@ struct SessionView: View {
         }
     }
 
-    /// selfie 영역 — 프리뷰 + REC 표시 + 우측 하단 전/후면 전환 버튼
+    /// selfie 영역 — 프리뷰 + REC 표시 (촬영 중이므로 카메라 전환은 없음)
     private func selfieCard(width: CGFloat, height: CGFloat) -> some View {
-        CameraPreviewView(session: recorder.captureSession)
+        CameraPreviewView(session: recorder.captureSession, orientation: app.sessionOrientation)
             .frame(width: width, height: height)
             .clipShape(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
             .overlay(
@@ -171,18 +143,6 @@ struct SessionView: View {
                 }
                 .padding(.horizontal, 8).padding(.vertical, 5)
                 .background(Capsule().fill(TL.ink.opacity(0.55)))
-                .padding(8)
-            }
-            .overlay(alignment: .bottomTrailing) {
-                Button {
-                    recorder.switchCamera()
-                } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(TL.paper)
-                        .frame(width: 34, height: 34)
-                        .background(Circle().fill(TL.ink.opacity(0.65)))
-                }
                 .padding(8)
             }
     }
@@ -273,24 +233,6 @@ struct SessionView: View {
         }
         .presentationDetents([.height(280)])
         .preferredColorScheme(.dark)
-    }
-
-    // MARK: 밝기 감소
-
-    private func scheduleDim() {
-        guard app.dimModeEnabled else { return }
-        dimTask?.cancel()
-        dimTask = Task {
-            try? await Task.sleep(nanoseconds: 45_000_000_000)
-            if !Task.isCancelled {
-                await MainActor.run { withAnimation { dimmed = true } }
-            }
-        }
-    }
-
-    private func wake() {
-        if dimmed { withAnimation { dimmed = false } }
-        scheduleDim()
     }
 }
 

@@ -8,6 +8,36 @@
 
 import Foundation
 import SwiftData
+import UIKit
+import CoreGraphics
+
+// MARK: - 세션 촬영 방향 (구도 단계에서 선택 → 촬영 내내 고정)
+
+enum SessionOrientation: String, Codable, CaseIterable {
+    case portrait   // 세로 거치
+    case landscape  // 가로 거치
+
+    var title: String { self == .portrait ? "세로" : "가로" }
+    var icon: String { self == .portrait ? "iphone" : "iphone.landscape" }
+
+    /// 세션 화면을 이 방향으로 '잠그는' 인터페이스 마스크.
+    /// 단일 방향만 허용하므로 촬영 중 기기를 돌려도 UI가 요동치지 않는다.
+    var interfaceMask: UIInterfaceOrientationMask {
+        self == .portrait ? .portrait : .landscapeRight
+    }
+
+    /// 저장 영상에 적용할 회전 변환.
+    /// 카메라는 항상 네이티브 가로 버퍼(1280×720)를 내보내고, 세로 영상은
+    /// 픽셀을 회전시키는 대신 이 transform 메타데이터로 바로 세운다 → 크기 불일치·늘어남 없음.
+    var videoTransform: CGAffineTransform {
+        self == .portrait ? CGAffineTransform(rotationAngle: .pi / 2) : .identity
+    }
+
+    /// 네이티브 가로 버퍼로 만든 썸네일을 올바로 세우기 위한 방향
+    var thumbnailOrientation: UIImage.Orientation {
+        self == .portrait ? .right : .up
+    }
+}
 
 // MARK: - 시간 정책 (알람 창 · 재촬영 창)
 

@@ -124,6 +124,11 @@ final class AppState: ObservableObject {
         didSet { updateOrientationLock() }
     }
 
+    /// 구도 단계에서 선택하는 촬영 방향. 세션 화면은 이 방향으로 잠긴다.
+    @Published var sessionOrientation: SessionOrientation = .portrait {
+        didSet { updateOrientationLock() }
+    }
+
     struct PendingSession: Equatable {
         var activityName: String
         var tag: String
@@ -147,9 +152,6 @@ final class AppState: ObservableObject {
     @Published private var downgradeEffectiveDay: Double {
         didSet { UserDefaults.standard.set(downgradeEffectiveDay, forKey: "downgradeEffectiveDay") }
     }
-    @Published var dimModeEnabled: Bool {
-        didSet { UserDefaults.standard.set(dimModeEnabled, forKey: "dimModeEnabled") }
-    }
 
     private init() {
         let d = UserDefaults.standard
@@ -157,7 +159,6 @@ final class AppState: ObservableObject {
         intensityRaw = d.string(forKey: "intensity") ?? Intensity.spicy.rawValue
         pendingDowngrade = d.bool(forKey: "pendingDowngrade")
         downgradeEffectiveDay = d.double(forKey: "downgradeEffectiveDay")
-        dimModeEnabled = d.object(forKey: "dimModeEnabled") as? Bool ?? true
     }
 
     private var modelContext: ModelContext?
@@ -253,15 +254,16 @@ final class AppState: ObservableObject {
 
     // MARK: 화면 회전 정책
 
-    /// 거치 가이드·세션·결과 화면에서만 가로 회전 허용 (가로 거치 촬영 지원).
-    /// 나머지 화면은 세로 고정.
+    /// 구도·세션·결과 화면은 '선택한 방향 하나로만' 잠근다.
+    /// 단일 방향만 허용하므로 촬영 중 기기를 돌려도 UI가 요동치지 않고,
+    /// 구도 단계에서 세로/가로를 고르면 그 방향으로 부드럽게 회전한다.
     private func updateOrientationLock() {
         let mask: UIInterfaceOrientationMask
         switch route {
-        case .mountGuide, .session, .result:
-            mask = .allButUpsideDown
+        case .mountGuide, .session:
+            mask = sessionOrientation.interfaceMask   // 촬영은 선택한 방향으로 잠금
         default:
-            mask = .portrait
+            mask = .portrait   // 결과·홈 등 일반 화면은 세로 고정
         }
         guard AppDelegate.orientationLock != mask else { return }
         AppDelegate.orientationLock = mask
@@ -376,7 +378,7 @@ final class AppState: ObservableObject {
         // 카메라 시작이 실패하면 engine이 즉시 finalize → onFinalized가 .result로 덮어쓰므로
         // 라우팅을 먼저 .session으로 두어야 순서가 꼬이지 않는다.
         route = .session
-        engine.start(session: session)
+        engine.start(session: session, orientation: sessionOrientation)
     }
 
     /// 알람 화면의 긴급 버튼 — 세션 없이 알람만 종료, 노쇼는 스위퍼가 기록

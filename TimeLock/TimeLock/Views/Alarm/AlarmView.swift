@@ -306,14 +306,13 @@ struct MountGuideView: View {
     @State private var checkedMount = false
     @State private var checkedFrame = false
     @State private var showFocusGuide = false
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
-    /// 가로 거치 시 구도 가이드도 가로 프레임으로
-    private var isLandscape: Bool { verticalSizeClass == .compact }
+    /// 방향은 사용자가 이 화면에서 고른다 (세션 시작 후엔 고정)
+    private var isLandscape: Bool { app.sessionOrientation == .landscape }
 
     var body: some View {
         ZStack {
-            CameraPreviewView(session: recorder.captureSession)
+            CameraPreviewView(session: recorder.captureSession, orientation: app.sessionOrientation)
                 .ignoresSafeArea()
             LinearGradient(colors: [TL.ink.opacity(0.85), .clear, TL.ink.opacity(0.9)],
                            startPoint: .top, endPoint: .bottom)
@@ -331,17 +330,25 @@ struct MountGuideView: View {
                 }
                 .padding(.top, 24)
 
+                // 세로/가로 방향 선택 + 전/후면 전환
+                HStack(spacing: 10) {
+                    orientationToggle
+                    cameraSwitchButton
+                }
+                .padding(.top, 14)
+
                 Spacer()
 
-                // 구도 프레임 가이드 (거치 방향에 맞춰 가로/세로)
+                // 구도 프레임 가이드 (선택한 방향에 맞춰 가로/세로)
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(TL.paper.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
-                    .frame(width: isLandscape ? 300 : 240, height: isLandscape ? 180 : 320)
+                    .frame(width: isLandscape ? 300 : 220, height: isLandscape ? 168 : 300)
                     .overlay(
                         Text("얼굴과 책상이 프레임 안에")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(TL.paper.opacity(0.85))
                             .padding(.top, 8), alignment: .top)
+                    .animation(.easeInOut(duration: 0.25), value: isLandscape)
 
                 Spacer()
 
@@ -376,6 +383,40 @@ struct MountGuideView: View {
                 showFocusGuide = false
                 app.beginRecording(pending: pending)
             }
+        }
+    }
+
+    /// 세로 ↔ 가로 방향 토글 (누르면 화면이 그 방향으로 부드럽게 회전)
+    private var orientationToggle: some View {
+        HStack(spacing: 0) {
+            ForEach(SessionOrientation.allCases, id: \.self) { orientation in
+                let selected = app.sessionOrientation == orientation
+                Button {
+                    withAnimation { app.sessionOrientation = orientation }
+                } label: {
+                    Label(orientation.title, systemImage: orientation.icon)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(selected ? TL.ink : TL.paper)
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        .background(Capsule().fill(selected ? TL.paper : .clear))
+                }
+            }
+        }
+        .padding(3)
+        .background(Capsule().fill(TL.ink.opacity(0.6)))
+        .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
+    }
+
+    private var cameraSwitchButton: some View {
+        Button {
+            recorder.switchCamera()
+        } label: {
+            Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(TL.paper)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(TL.ink.opacity(0.6)))
+                .overlay(Circle().strokeBorder(TL.hairline, lineWidth: 1))
         }
     }
 

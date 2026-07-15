@@ -72,7 +72,7 @@ final class SessionEngine: NSObject, ObservableObject {
 
     // MARK: 세션 시작 (알람 해제 = 촬영 시작)
 
-    func start(session: FocusSession) {
+    func start(session: FocusSession, orientation: SessionOrientation) {
         guard phase == .idle || isFinished else { return }
         guard let context = modelContext else { return }
 
@@ -81,7 +81,7 @@ final class SessionEngine: NSObject, ObservableObject {
         try? context.save()
 
         do {
-            try CameraRecorder.shared.startRecording(sessionID: session.id)
+            try CameraRecorder.shared.startRecording(sessionID: session.id, orientation: orientation)
         } catch {
             // 카메라 개시 실패 → 안전 종료로 기록
             finalize(session: session, outcome: .safetyEnded, note: "카메라 시작 실패")
