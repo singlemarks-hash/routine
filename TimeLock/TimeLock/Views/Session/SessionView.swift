@@ -10,6 +10,7 @@
 
 import SwiftUI
 import SwiftData
+import AVFoundation
 
 struct SessionView: View {
     @EnvironmentObject private var app: AppState
@@ -330,115 +331,157 @@ struct SessionResultView: View {
     var body: some View {
         let session = engine.lastFinishedSession
         let outcome = session?.outcome ?? .completed
+        let tint = outcome.isSuccess ? TL.jade : (outcome.isFailure ? TL.rec : TL.amber)
 
         ZStack {
             TL.ink.ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 0) {
-                    RECRingDial(progress: 1, live: false,
-                                tint: outcome.isSuccess ? TL.jade : (outcome.isFailure ? TL.rec : TL.amber)) {
-                        Image(systemName: symbol(for: outcome))
-                            .font(.system(size: 52, weight: .bold))
-                            .foregroundStyle(outcome.isSuccess ? TL.jade : (outcome.isFailure ? TL.rec : TL.amber))
-                    }
-                    .frame(width: 180, height: 180)
-                    .padding(.top, 46)
+            VStack(spacing: 0) {
+                header(session: session, outcome: outcome, tint: tint)
+                    .padding(.top, 20)
 
-                    Text(title(for: outcome))
-                        .font(.tlTitle(28))
-                        .foregroundStyle(TL.paper)
-                        .padding(.top, 24)
-
-                    if let s = session {
-                        VStack(spacing: 8) {
-                            Text(s.activityName)
-                                .font(.tlBody).foregroundStyle(TL.muted)
-                            Text("순수 촬영 \(TLFormat.hms(s.recordedSeconds)) / 목표 \(TLFormat.hms(s.targetSeconds))")
-                                .font(.tlTimer(17)).foregroundStyle(TL.paper)
-                            if let (_, points) = ScoreRules.points(for: outcome, intensity: s.intensity) {
-                                Text(points > 0 ? "+\(points)점 적립" : "\(points)점 벌점")
-                                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                                    .foregroundStyle(points > 0 ? TL.jade : TL.rec)
-                                    .padding(.horizontal, 14).padding(.vertical, 7)
-                                    .background(Capsule().fill(TL.surface))
-                                if points < 0 {
-                                    Text("내 누적 벌점 \(penaltyCount)회")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(TL.rec)
-                                }
-                            } else {
-                                Text("벌점 없음")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(TL.amber)
-                            }
-                        }
-                        .padding(.top, 12)
-                    }
-
-                    Text(subtitle(for: outcome))
-                        .font(.system(size: 14))
-                        .foregroundStyle(TL.muted)
-                        .multilineTextAlignment(.center)
+                if let s = session, s.videoFileName != nil, let url = s.videoURL {
+                    previewCard(session: s, url: url)
                         .padding(.top, 16)
-                        .padding(.horizontal, 40)
-
-                    if let s = session, s.videoFileName != nil {
-                        downloadSection(session: s)
-                            .padding(.top, 24)
-                            .padding(.horizontal, 24)
-                    }
-
-                    Button("종료") {
-                        app.dismissResult()
-                    }
-                    .buttonStyle(TLPrimaryButtonStyle(tint: outcome.isSuccess ? TL.jade : TL.rec))
-                    .padding(.horizontal, 24)
-                    .padding(.top, 28)
-                    .padding(.bottom, 24)
+                        .padding(.horizontal, 20)
+                } else if saved {
+                    savedCard
+                        .padding(.top, 16)
+                        .padding(.horizontal, 20)
                 }
+
+                Spacer(minLength: 12)
+
+                Button("종료") { app.dismissResult() }
+                    .buttonStyle(TLPrimaryButtonStyle(tint: tint))
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
             }
         }
         .interactiveDismissDisabled()
     }
 
-    // MARK: 타임랩스 다운로드 — 지금 저장하지 않으면 자동 삭제
+    // MARK: 상단 결과 요약 (컴팩트 — 원 아이콘 축소)
 
-    private func downloadSection(session: FocusSession) -> some View {
-        TLCard {
-            VStack(alignment: .leading, spacing: 12) {
-                TLEyebrow(text: "타임랩스")
+    private func header(session: FocusSession?, outcome: SessionOutcome, tint: Color) -> some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle().strokeBorder(tint, lineWidth: 5).frame(width: 76, height: 76)
+                Image(systemName: symbol(for: outcome))
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(tint)
+            }
 
-                if subscription.isPro {
-                    Toggle(isOn: $removeWatermark) {
-                        Text("워터마크 제거 (타임락 프로)")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(TL.paper)
+            Text(title(for: outcome))
+                .font(.tlTitle(22))
+                .foregroundStyle(TL.paper)
+                .padding(.top, 8)
+
+            if let s = session {
+                Text(s.activityName)
+                    .font(.system(size: 13)).foregroundStyle(TL.muted)
+                Text("순수 촬영 \(TLFormat.hms(s.recordedSeconds)) / 목표 \(TLFormat.hms(s.targetSeconds))")
+                    .font(.tlTimer(15)).foregroundStyle(TL.paper)
+
+                if let (_, points) = ScoreRules.points(for: outcome, intensity: s.intensity) {
+                    HStack(spacing: 8) {
+                        Text(points > 0 ? "+\(points)점 적립" : "\(points)점 벌점")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(points > 0 ? TL.jade : TL.rec)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Capsule().fill(TL.surface))
+                        if points < 0 {
+                            Text("누적 벌점 \(penaltyCount)회")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(TL.rec)
+                        }
                     }
-                    .tint(TL.jade)
+                    .padding(.top, 4)
+                } else {
+                    Text("벌점 없음")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TL.amber)
+                        .padding(.top, 4)
                 }
-
-                Button {
-                    save(session: session)
-                } label: {
-                    Label(saved ? "사진 앱에 저장됨" : (saving ? "저장 중…" : "타임랩스 저장"),
-                          systemImage: saved ? "checkmark.circle.fill" : "arrow.down.circle.fill")
-                }
-                .buttonStyle(TLPrimaryButtonStyle(tint: saved ? TL.jade : TL.paper))
-                .disabled(saving || saved)
-
-                if let saveError {
-                    Text(saveError)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(TL.rec)
-                }
-
-                Text(saved
-                     ? "저장이 끝나 원본은 기기에서 삭제되었습니다."
-                     : "지금 저장하지 않으면 이 화면을 닫을 때 촬영본이 삭제됩니다. 기록과 점수는 유지됩니다.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(TL.faint)
             }
         }
+    }
+
+    // MARK: 타임랩스 미리보기 + 저장 (지금 저장 안 하면 닫을 때 삭제)
+
+    private func previewCard(session: FocusSession, url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                TLEyebrow(text: "타임랩스 미리보기")
+                Spacer()
+                if subscription.isPro {
+                    Toggle(isOn: $removeWatermark) {
+                        Text("워터마크 제거").font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(TL.muted)
+                    }
+                    .labelsHidden()
+                    .tint(TL.jade)
+                    .scaleEffect(0.8)
+                }
+            }
+
+            // 자동 반복 재생 미리보기 + 우측 상단 작은 저장 버튼
+            TimelapsePreview(url: url)
+                .frame(maxWidth: .infinity)
+                .frame(height: previewHeight(for: session))
+                .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                        .strokeBorder(TL.hairline, lineWidth: 1))
+                .overlay(alignment: .topTrailing) { saveButton(session: session).padding(10) }
+
+            Text(saved
+                 ? "저장 완료 · 원본은 기기에서 삭제되었습니다."
+                 : "저장하지 않으면 닫을 때 삭제됩니다. 기록·점수는 유지됩니다.")
+                .font(.system(size: 11))
+                .foregroundStyle(TL.faint)
+
+            if let saveError {
+                Text(saveError).font(.system(size: 11, weight: .semibold)).foregroundStyle(TL.rec)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
+    }
+
+    /// 세로 영상은 높게, 가로 영상은 낮게 — 한 화면에 들어오도록
+    private func previewHeight(for session: FocusSession) -> CGFloat {
+        app.sessionOrientation == .landscape ? 180 : 300
+    }
+
+    /// 저장 완료 후 확인 카드 (원본 삭제되어 미리보기는 사라짐)
+    private var savedCard: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 22)).foregroundStyle(TL.jade)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("타임랩스가 사진 앱에 저장되었습니다")
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.paper)
+                Text("기록·점수는 유지됩니다.")
+                    .font(.system(size: 12)).foregroundStyle(TL.faint)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
+    }
+
+    private func saveButton(session: FocusSession) -> some View {
+        Button {
+            save(session: session)
+        } label: {
+            Image(systemName: saved ? "checkmark" : (saving ? "arrow.down" : "arrow.down.to.line"))
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(saved ? TL.ink : TL.ink)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(saved ? TL.jade : TL.paper))
+                .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+        }
+        .disabled(saving || saved)
     }
 
     private func save(session: FocusSession) {
@@ -479,13 +522,45 @@ struct SessionResultView: View {
         case .safetyEnded: return "안전 종료됨"
         }
     }
-    private func subtitle(for outcome: SessionOutcome) -> String {
-        switch outcome {
-        case .completed:   return "완주가 성공캘린더에 기록되었습니다.\n내일도 같은 시간에 봅시다."
-        case .exitFailed:  return "이탈로 세션이 실패했습니다.\n기록은 성공캘린더에서 확인할 수 있습니다."
-        case .noShow:      return "알람 후 \(TimePolicy.startWindowMinutes)분 안에 시작하지 않았습니다."
-        case .emergency:   return "긴급 상황으로 종료되었습니다."
-        case .safetyEnded: return "배터리·저장 공간 등 안전 문제로 벌점 없이 종료되었습니다."
+}
+
+// MARK: - 타임랩스 미리보기 (무음 자동 반복 재생)
+
+struct TimelapsePreview: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> PlayerUIView {
+        PlayerUIView(url: url)
+    }
+
+    func updateUIView(_ uiView: PlayerUIView, context: Context) { }
+
+    static func dismantleUIView(_ uiView: PlayerUIView, coordinator: ()) {
+        uiView.stop()
+    }
+
+    final class PlayerUIView: UIView {
+        override class var layerClass: AnyClass { AVPlayerLayer.self }
+        private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+        private var looper: AVPlayerLooper?
+        private let queue = AVQueuePlayer()
+
+        init(url: URL) {
+            super.init(frame: .zero)
+            let item = AVPlayerItem(url: url)
+            looper = AVPlayerLooper(player: queue, templateItem: item)   // 끊김 없는 반복
+            queue.isMuted = true
+            playerLayer.player = queue
+            playerLayer.videoGravity = .resizeAspectFill
+            queue.play()
+        }
+
+        required init?(coder: NSCoder) { fatalError() }
+
+        func stop() {
+            queue.pause()
+            looper = nil
+            playerLayer.player = nil
         }
     }
 }
