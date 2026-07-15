@@ -159,9 +159,10 @@ struct PieSlice: Shape {
     }
 }
 
-/// 세션 진행 화면의 미니멀 시계판 (피그마 시안).
+/// 세션 진행 화면의 미니멀 시계판 (피그마 시안 + 뽀모도로 눈금).
 /// 흰 판 위에 12시부터 시계 방향으로 '남은 시간'만큼의 빨간 부채꼴이 그려지고,
 /// 시간이 흐르면 부채꼴이 12시를 향해 줄어든다. 중심에는 검은 점 하나.
+/// 바깥 베젤에 5분(짧은 선)·15분(살짝 긴 선) 눈금을 조용히 둘러 시간 감각을 준다.
 struct FocusDial: View {
     /// 남은 비율 0~1
     var remaining: Double
@@ -172,23 +173,39 @@ struct FocusDial: View {
     var body: some View {
         GeometryReader { geo in
             let size = min(geo.size.width, geo.size.height)
+            let longLen = size * 0.05      // 15분 눈금
+            let shortLen = size * 0.03     // 5분 눈금
+            let tickW = max(1.5, size * 0.009)
+            let outerTip = size / 2 - size * 0.006   // 눈금 바깥 끝(프레임 가장자리 근처)
+            let dialInset = longLen + size * 0.04    // 흰 판이 눈금 자리를 비워둠
+
             ZStack {
-                // 흰 시계판
-                Circle().fill(Color.white)
+                // 뽀모도로 눈금 — 60분 시계 기준 5분마다(12개), 15분마다는 살짝 길게
+                ForEach(0..<12) { i in
+                    let isQuarter = i % 3 == 0
+                    let len = isQuarter ? longLen : shortLen
+                    Capsule()
+                        .fill(isQuarter ? TL.muted : TL.faint)
+                        .frame(width: tickW, height: len)
+                        .offset(y: -(outerTip - len / 2))
+                        .rotationEffect(.degrees(Double(i) * 30))
+                }
+
+                // 흰 시계판 (눈금 안쪽)
+                Circle().fill(Color.white).padding(dialInset)
 
                 // 남은 시간 부채꼴 (12시 → 시계 방향)
                 PieSlice(startAngle: .degrees(-90),
                          endAngle: .degrees(-90 + 360 * clamped))
                     .fill(tint)
+                    .padding(dialInset)
                     .animation(.linear(duration: 0.4), value: clamped)
 
                 // 중심점
                 Circle()
                     .fill(TL.ink)
-                    .frame(width: size * 0.075, height: size * 0.075)
+                    .frame(width: size * 0.07, height: size * 0.07)
             }
-            .compositingGroup()
-            .clipShape(Circle())
         }
         .aspectRatio(1, contentMode: .fit)
     }

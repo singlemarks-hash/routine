@@ -429,7 +429,7 @@ struct MountGuideView: View {
                 app.beginRecording(pending: pending)
             }
         } label: {
-            Label("촬영 시작 · 알람 해제", systemImage: "record.circle.fill")
+            Label("촬영 시작", systemImage: "record.circle.fill")
         }
         .buttonStyle(TLPrimaryButtonStyle())
         .disabled(!(checkedMount && checkedFrame))
