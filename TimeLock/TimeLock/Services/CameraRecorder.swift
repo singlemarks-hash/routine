@@ -4,7 +4,7 @@
 //
 //  전면 카메라에서 프레임을 뽑아 온디바이스 HEVC 타임랩스로 인코딩한다.
 //  캡처 간격은 세션 길이에 맞춰 시작 시 동적으로 정한다(아이폰 기본 타임랩스처럼
-//  결과 길이를 20~40초로 수렴). 10분→20초, 1시간→~30초, 5시간→40초.
+//  결과 길이를 20~40초로 수렴). 10분→20초, 1시간→~29초, 8시간→40초.
 //  파일은 Documents/Sessions/에 완전 보호(FileProtection.complete)로 저장한다.
 //
 //  방향 처리: 카메라 버퍼는 항상 네이티브 가로(1280×720)로 받고, 세로 영상은
@@ -55,16 +55,17 @@ final class CameraRecorder: NSObject, ObservableObject {
     /// 최종 타임랩스 길이를 이 범위 안으로 수렴시킨다.
     private let outputMinSeconds: Double = 20     // 아주 짧은 세션의 결과 길이
     private let outputMaxSeconds: Double = 40     // 아주 긴 세션의 결과 길이(상한)
-    /// 로그 곡선 앵커 — 이 구간에서 20→40초로 부드럽게 증가
-    private let curveLoSeconds: Double = 10 * 60  // 10분
-    private let curveHiSeconds: Double = 5 * 60 * 60  // 5시간
+    /// 로그 곡선 앵커 — 예약 드롭다운의 최소(10분)~최대(8시간)에 맞춘다.
+    /// 이 구간에서 20→40초로 부드럽게 증가하므로 14개 옵션이 전부 고유한 길이를 갖는다.
+    private let curveLoSeconds: Double = 10 * 60      // 10분 (최소 옵션)
+    private let curveHiSeconds: Double = 8 * 60 * 60  // 8시간 (최대 옵션)
 
     /// 순수 촬영 시간(초) ≈ 캡처한 프레임 수 × 캡처 간격.
     /// 일시정지 중엔 프레임을 버리므로 자연히 촬영 시간에서 제외된다.
     var capturedSeconds: Int { Int((Double(frameCount) * captureInterval).rounded()) }
 
     /// 세션 길이(초)에 맞는 최종 타임랩스 목표 길이(초)를 로그 곡선으로 산출.
-    /// 10분→20초, 1시간→~30초, 2시간→~35초, 5시간 이상→40초.
+    /// 10분→20초, 1시간→~29초, 3시간→~35초, 8시간→40초. (각 옵션이 고유 길이)
     private func targetOutputSeconds(forPlanned planned: Double) -> Double {
         let clamped = min(max(planned, curveLoSeconds), curveHiSeconds)
         let t = (log(clamped) - log(curveLoSeconds)) / (log(curveHiSeconds) - log(curveLoSeconds))
