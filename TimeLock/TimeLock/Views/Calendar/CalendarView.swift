@@ -165,14 +165,28 @@ struct DayDetailView: View {
     let scoreEvents: [ScoreEvent]
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @State private var deletedIDs: Set<UUID> = []
+    @State private var pendingDelete: FocusSession?
+
+    private var visibleSessions: [FocusSession] {
+        sessions.filter { !deletedIDs.contains($0.id) }
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    tagSummary
-                    ForEach(sessions, id: \.id) { session in
-                        sessionCard(session)
+                    if visibleSessions.isEmpty {
+                        TLCard {
+                            Text("이 날의 기록이 모두 삭제되었습니다.")
+                                .font(.system(size: 14)).foregroundStyle(TL.muted)
+                        }
+                    } else {
+                        tagSummary
+                        ForEach(visibleSessions, id: \.id) { session in
+                            sessionCard(session)
+                        }
                     }
                 }
                 .padding(20)
@@ -185,8 +199,31 @@ struct DayDetailView: View {
                     Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
                 }
             }
+            .confirmationDialog("이 기록을 삭제할까요?",
+                                isPresented: Binding(get: { pendingDelete != nil },
+                                                     set: { if !$0 { pendingDelete = nil } }),
+                                titleVisibility: .visible) {
+                Button("삭제 (점수도 함께 제거)", role: .destructive) {
+                    if let session = pendingDelete { delete(session) }
+                    pendingDelete = nil
+                }
+                Button("취소", role: .cancel) { pendingDelete = nil }
+            } message: {
+                Text("이 세션 기록과 관련 상점·벌점, 저장된 썸네일이 함께 삭제됩니다. 되돌릴 수 없습니다.")
+            }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// 세션 + 관련 점수 이벤트 + 영상/썸네일 파일을 함께 삭제
+    private func delete(_ session: FocusSession) {
+        SessionStorage.deleteFiles(of: session)
+        for event in scoreEvents where event.sessionID == session.id {
+            context.delete(event)
+        }
+        context.delete(session)
+        try? context.save()
+        withAnimation { _ = deletedIDs.insert(session.id) }
     }
 
     private var tagSummary: some View {
@@ -251,8 +288,18 @@ struct DayDetailView: View {
                         }
                 }
 
-                Text("순수 촬영 \(TLFormat.hms(session.recordedSeconds)) / 목표 \(TLFormat.hms(session.targetSeconds))")
-                    .font(.system(size: 12)).foregroundStyle(TL.muted)
+                HStack {
+                    Text("순수 촬영 \(TLFormat.hms(session.recordedSeconds)) / 목표 \(TLFormat.hms(session.targetSeconds))")
+                        .font(.system(size: 12)).foregroundStyle(TL.muted)
+                    Spacer()
+                    Button {
+                        pendingDelete = session
+                    } label: {
+                        Label("삭제", systemImage: "trash")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(TL.rec)
+                    }
+                }
             }
         }
     }

@@ -340,8 +340,9 @@ struct CameraPreviewView: UIViewRepresentable {
     /// true = 화면 꽉 채움(살짝 잘릴 수 있음), false = 촬영되는 그대로(잘림 없음, 구도용)
     var fill: Bool = true
 
-    /// 세로 프리뷰는 90°, 가로는 0°. 인터페이스가 이 방향으로 잠겨 있으므로 요동치지 않는다.
-    private var rotationAngle: CGFloat { orientation == .portrait ? 90 : 0 }
+    /// 프리뷰 회전각 — 녹화 파이프라인과 동일하게 맞춘다.
+    /// 네이티브 버퍼가 세로·정립이므로 세로 모드는 회전 0, 가로 모드는 90° 돌려 가로로.
+    private var rotationAngle: CGFloat { orientation == .portrait ? 0 : 90 }
 
     final class PreviewUIView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
