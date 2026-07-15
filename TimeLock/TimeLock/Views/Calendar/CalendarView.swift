@@ -214,7 +214,7 @@ struct DayDetailView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     if !ordered.isEmpty {
                         Button(allOpen ? "모두 접기" : "모두 펼치기") {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(TLMotion.snappy) {
                                 expanded = allOpen ? [] : Set(ordered.map(\.id))
                             }
                         }
@@ -260,7 +260,7 @@ struct DayDetailView: View {
 
         return VStack(spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(TLMotion.snappy) {
                     if isOpen { expanded.remove(session.id) } else { expanded.insert(session.id) }
                 }
             } label: {

@@ -199,7 +199,7 @@ struct FocusDial: View {
                          endAngle: .degrees(-90 + 360 * clamped))
                     .fill(tint)
                     .padding(dialInset)
-                    .animation(.linear(duration: 0.4), value: clamped)
+                    .animation(TLMotion.progress, value: clamped)
 
                 // 중심점
                 Circle()
@@ -224,7 +224,7 @@ struct TLPrimaryButtonStyle: ButtonStyle {
             .background(tint, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
             .opacity(configuration.isPressed ? 0.82 : 1)
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(TLMotion.press, value: configuration.isPressed)
     }
 }
 

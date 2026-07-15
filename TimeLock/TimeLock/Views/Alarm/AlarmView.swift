@@ -454,7 +454,7 @@ struct MountGuideView: View {
             ForEach(SessionOrientation.allCases, id: \.self) { orientation in
                 let selected = app.sessionOrientation == orientation
                 Button {
-                    withAnimation { app.sessionOrientation = orientation }
+                    withAnimation(TLMotion.smooth) { app.sessionOrientation = orientation }
                 } label: {
                     Label(orientation.title, systemImage: orientation.icon)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
