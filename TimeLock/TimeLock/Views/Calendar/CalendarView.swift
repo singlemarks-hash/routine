@@ -68,7 +68,9 @@ struct CalendarView: View {
             HStack {
                 Button { shiftMonth(-1) } label: {
                     Image(systemName: "chevron.left").foregroundStyle(TL.muted)
+                        .frame(width: 32, height: 32)
                 }
+                .pressableStyle()
                 Spacer()
                 Text(monthTitle)
                     .font(.tlTitle(18))
@@ -76,7 +78,9 @@ struct CalendarView: View {
                 Spacer()
                 Button { shiftMonth(1) } label: {
                     Image(systemName: "chevron.right").foregroundStyle(TL.muted)
+                        .frame(width: 32, height: 32)
                 }
+                .pressableStyle()
             }
             .padding(.horizontal, 4)
 

@@ -481,6 +481,7 @@ struct SessionResultView: View {
                 .background(Circle().fill(saved ? TL.jade : TL.paper))
                 .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
         }
+        .pressableStyle()
         .disabled(saving || saved)
     }
 

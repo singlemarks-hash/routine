@@ -480,6 +480,7 @@ struct MountGuideView: View {
                 .background(Circle().fill(TL.ink.opacity(0.6)))
                 .overlay(Circle().strokeBorder(TL.hairline, lineWidth: 1))
         }
+        .pressableStyle()
     }
 
     private func checkRow(_ title: String, isOn: Binding<Bool>) -> some View {
