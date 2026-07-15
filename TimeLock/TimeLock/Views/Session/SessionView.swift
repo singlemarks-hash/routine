@@ -525,43 +525,74 @@ struct SessionResultView: View {
     }
 }
 
-// MARK: - 타임랩스 미리보기 (무음 자동 반복 재생)
+// MARK: - 타임랩스 미리보기 (재생 버튼으로 1회 재생, 끝나면 다시 버튼)
 
-struct TimelapsePreview: UIViewRepresentable {
+struct TimelapsePreview: View {
     let url: URL
 
-    func makeUIView(context: Context) -> PlayerUIView {
-        PlayerUIView(url: url)
+    @State private var player: AVPlayer
+    @State private var isPlaying = false
+
+    init(url: URL) {
+        self.url = url
+        let p = AVPlayer(url: url)
+        p.isMuted = true
+        _player = State(initialValue: p)
     }
 
-    func updateUIView(_ uiView: PlayerUIView, context: Context) { }
+    var body: some View {
+        ZStack {
+            PlayerLayerView(player: player)
 
-    static func dismantleUIView(_ uiView: PlayerUIView, coordinator: ()) {
-        uiView.stop()
+            // 대기 상태에서만 중앙 재생 버튼 (재생 중엔 숨김, 한 번 끝나면 다시 표시)
+            if !isPlaying {
+                Color.black.opacity(0.18)
+                Button {
+                    play()
+                } label: {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 56))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.35), radius: 6)
+                }
+                .pressableStyle()
+            }
+        }
+        .onAppear {
+            // 첫 프레임을 포스터로 노출
+            player.seek(to: .zero)
+        }
+        .onDisappear { player.pause() }
+        .onReceive(NotificationCenter.default.publisher(
+            for: .AVPlayerItemDidPlayToEndTime, object: player.currentItem)) { _ in
+            isPlaying = false   // 한 사이클 끝 → 재생 버튼 복귀
+        }
+    }
+
+    private func play() {
+        player.seek(to: .zero)
+        player.play()
+        isPlaying = true
+    }
+}
+
+/// AVPlayer를 그리는 얇은 레이어 뷰
+private struct PlayerLayerView: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> PlayerUIView {
+        let view = PlayerUIView()
+        view.playerLayer.player = player
+        view.playerLayer.videoGravity = .resizeAspectFill
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerUIView, context: Context) {
+        uiView.playerLayer.player = player
     }
 
     final class PlayerUIView: UIView {
         override class var layerClass: AnyClass { AVPlayerLayer.self }
-        private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
-        private var looper: AVPlayerLooper?
-        private let queue = AVQueuePlayer()
-
-        init(url: URL) {
-            super.init(frame: .zero)
-            let item = AVPlayerItem(url: url)
-            looper = AVPlayerLooper(player: queue, templateItem: item)   // 끊김 없는 반복
-            queue.isMuted = true
-            playerLayer.player = queue
-            playerLayer.videoGravity = .resizeAspectFill
-            queue.play()
-        }
-
-        required init?(coder: NSCoder) { fatalError() }
-
-        func stop() {
-            queue.pause()
-            looper = nil
-            playerLayer.player = nil
-        }
+        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     }
 }
