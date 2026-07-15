@@ -27,8 +27,11 @@ final class CameraRecorder: NSObject, ObservableObject {
     let captureSession = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
     private var currentInput: AVCaptureDeviceInput?
-    /// 촬영 시작 시 확정되는 세션 방향 (도중 변경 없음)
+    /// 촬영 시작 시 확정되는 세션 방향 (UI 잠금용)
     private var sessionOrientation: SessionOrientation = .portrait
+    /// 카메라·기기 방향에 맞는 회전각을 자동 산출 (전/후면 센서 차이까지 처리)
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var rotationObservation: NSKeyValueObservation?
     private let processingQueue = DispatchQueue(label: "timelock.camera.frames")
 
     private var writer: AVAssetWriter?
@@ -87,6 +90,7 @@ final class CameraRecorder: NSObject, ObservableObject {
         }
         captureSession.commitConfiguration()
         applyConnectionSettings()
+        updateRotationCoordinator()
     }
 
     private func makeInput(position: AVCaptureDevice.Position) -> AVCaptureDeviceInput? {
@@ -96,17 +100,37 @@ final class CameraRecorder: NSObject, ObservableObject {
         return try? AVCaptureDeviceInput(device: device)
     }
 
-    /// 데이터 출력 연결 설정. 버퍼는 회전하지 않고 네이티브 가로 그대로 받는다.
-    /// (회전은 저장 시 writer transform으로 처리 — 늘어남 방지)
+    /// 데이터 출력 연결의 미러링만 설정 (회전각은 RotationCoordinator가 담당).
     /// 저장 영상은 미러링하지 않는다(실제 방향 보존). 프리뷰는 레이어가 알아서 미러링.
     private func applyConnectionSettings() {
         guard let connection = videoOutput.connection(with: .video) else { return }
-        if connection.isVideoRotationAngleSupported(0) {
-            connection.videoRotationAngle = 0
-        }
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = false
+        }
+    }
+
+    /// 현재 카메라에 맞는 RotationCoordinator를 만들고, 산출된 회전각을 데이터 출력에 반영.
+    /// 전/후면 센서 방향 차이와 기기 방향을 Apple이 자동 처리 → 어느 카메라든 정립 촬영.
+    private func updateRotationCoordinator() {
+        guard let device = currentInput?.device else { return }
+        rotationObservation = nil
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+        rotationCoordinator = coordinator
+        applyCaptureRotation()
+        rotationObservation = coordinator.observe(
+            \.videoRotationAngleForHorizonLevelCapture, options: [.new]
+        ) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.applyCaptureRotation() }
+        }
+    }
+
+    private func applyCaptureRotation() {
+        guard let coordinator = rotationCoordinator,
+              let connection = videoOutput.connection(with: .video) else { return }
+        let angle = coordinator.videoRotationAngleForHorizonLevelCapture
+        if connection.isVideoRotationAngleSupported(angle) {
+            connection.videoRotationAngle = angle
         }
     }
 
@@ -127,6 +151,7 @@ final class CameraRecorder: NSObject, ObservableObject {
         }
         captureSession.commitConfiguration()
         applyConnectionSettings()
+        updateRotationCoordinator()   // 새 카메라 기준으로 회전각 재산출
     }
 
     func startPreview() {
@@ -207,30 +232,6 @@ final class CameraRecorder: NSObject, ObservableObject {
         } catch { }
     }
 
-    /// 네이티브 버퍼를 원하는 방향으로 세운다. 이미 맞으면 원본 그대로.
-    private func orientedBuffer(_ src: CVPixelBuffer, want portrait: Bool) -> CVPixelBuffer {
-        let w = CVPixelBufferGetWidth(src), h = CVPixelBufferGetHeight(src)
-        let isPortrait = h > w
-        guard isPortrait != portrait else { return src }   // 이미 원하는 방향
-        // 90° 회전 (CIImage .right = 시계방향). 필요 시 .left로 바꾸면 반대 방향.
-        let ci = CIImage(cvPixelBuffer: src).oriented(.right)
-        let outW = Int(ci.extent.width), outH = Int(ci.extent.height)
-        var out: CVPixelBuffer?
-        let attrs: [String: Any] = [
-            kCVPixelBufferIOSurfacePropertiesKey as String: [:],
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-        ]
-        CVPixelBufferCreate(kCFAllocatorDefault, outW, outH,
-                            kCVPixelFormatType_32BGRA, attrs as CFDictionary, &out)
-        guard let dst = out else { return src }
-        let normalized = ci.transformed(by: CGAffineTransform(translationX: -ci.extent.minX,
-                                                              y: -ci.extent.minY))
-        ciRenderContext.render(normalized, to: dst)
-        return dst
-    }
-
-    private let ciRenderContext = CIContext()
-
     func pause()  { processingQueue.async { self.isPaused = true } }
     func resume() { processingQueue.async { self.isPaused = false } }
 
@@ -299,10 +300,10 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
         guard now - lastCaptureAt >= captureInterval else { return }
         lastCaptureAt = now
 
-        // 원하는 방향으로 세운 버퍼 (필요할 때만 회전)
-        let buffer = orientedBuffer(source, want: sessionOrientation.wantsPortraitFrame)
+        // 버퍼는 연결(RotationCoordinator)이 이미 카메라별로 정립시켜 전달한다.
+        let buffer = source
 
-        // 첫 프레임에서 확정된 크기로 writer 생성
+        // 첫 프레임에서 확정된 크기로 writer 생성 (회전 결과에 정확히 맞춤 → 늘어남 없음)
         if writer == nil {
             setupWriter(width: CVPixelBufferGetWidth(buffer),
                         height: CVPixelBufferGetHeight(buffer))
@@ -315,7 +316,7 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
             frameCountInternal += 1
             let count = frameCountInternal
             if thumbnailImage == nil {
-                thumbnailImage = Self.image(from: buffer)   // 이미 올바로 세워진 버퍼
+                thumbnailImage = Self.image(from: buffer)   // 이미 정립된 버퍼
             }
             DispatchQueue.main.async { self.frameCount = count }
         }
@@ -335,29 +336,39 @@ import SwiftUI
 
 struct CameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
-    /// 세션 방향과 동일하게 고정 (구도 단계에서 토글하면 갱신됨)
+    /// 세션 방향 (레이아웃 참고용 — 실제 프리뷰 회전은 RotationCoordinator가 담당)
     var orientation: SessionOrientation = .portrait
     /// true = 화면 꽉 채움(살짝 잘릴 수 있음), false = 촬영되는 그대로(잘림 없음, 구도용)
     var fill: Bool = true
 
-    /// 프리뷰 회전각 — 녹화 파이프라인과 동일하게 맞춘다.
-    /// 네이티브 버퍼가 세로·정립이므로 세로 모드는 회전 0, 가로 모드는 90° 돌려 가로로.
-    private var rotationAngle: CGFloat { orientation == .portrait ? 0 : 90 }
-
+    /// 프리뷰 레이어. RotationCoordinator가 카메라·기기 방향에 맞는 각도를 실시간 반영.
     final class PreviewUIView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
-        var angle: CGFloat = 90 {
-            didSet { applyRotation() }
-        }
 
-        override func layoutSubviews() {
-            super.layoutSubviews()
+        private var coordinator: AVCaptureDevice.RotationCoordinator?
+        private var observation: NSKeyValueObservation?
+        private var trackedDevice: AVCaptureDevice?
+
+        /// 현재 입력 카메라가 바뀌면(전/후면 전환) 코디네이터를 다시 만든다.
+        func syncCoordinator(session: AVCaptureSession) {
+            let device = (session.inputs.compactMap { $0 as? AVCaptureDeviceInput }
+                .first { $0.device.hasMediaType(.video) })?.device
+            guard let device, device !== trackedDevice else { return }
+            trackedDevice = device
+            observation = nil
+            let coord = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
+            coordinator = coord
             applyRotation()
+            observation = coord.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.new]) {
+                [weak self] _, _ in
+                DispatchQueue.main.async { self?.applyRotation() }
+            }
         }
 
         private func applyRotation() {
-            guard let connection = previewLayer.connection else { return }
+            guard let coordinator, let connection = previewLayer.connection else { return }
+            let angle = coordinator.videoRotationAngleForHorizonLevelPreview
             if connection.isVideoRotationAngleSupported(angle) {
                 connection.videoRotationAngle = angle
             }
@@ -368,14 +379,14 @@ struct CameraPreviewView: UIViewRepresentable {
         let view = PreviewUIView()
         view.previewLayer.session = session
         view.previewLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
-        // 프리뷰는 전면 카메라를 자연스러운 셀피처럼 좌우 반전 (저장본은 반전 안 함)
+        // 전면 카메라는 자연스러운 셀피처럼 좌우 반전 (저장본은 반전 안 함)
         view.previewLayer.connection?.automaticallyAdjustsVideoMirroring = true
-        view.angle = rotationAngle
+        view.syncCoordinator(session: session)
         return view
     }
 
     func updateUIView(_ uiView: PreviewUIView, context: Context) {
         uiView.previewLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
-        uiView.angle = rotationAngle
+        uiView.syncCoordinator(session: session)   // 카메라 전환 반영
     }
 }

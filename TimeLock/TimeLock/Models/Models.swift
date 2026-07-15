@@ -24,9 +24,6 @@ enum SessionOrientation: String, Codable, CaseIterable {
     var interfaceMask: UIInterfaceOrientationMask {
         self == .portrait ? .portrait : .landscapeRight
     }
-
-    /// 최종 영상이 이 방향(세로=높이>너비)이어야 하는가
-    var wantsPortraitFrame: Bool { self == .portrait }
 }
 
 // MARK: - 시간 정책 (알람 창 · 재촬영 창)
