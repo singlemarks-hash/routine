@@ -9,7 +9,6 @@
 import Foundation
 import SwiftData
 import UIKit
-import CoreGraphics
 
 // MARK: - 세션 촬영 방향 (구도 단계에서 선택 → 촬영 내내 고정)
 
@@ -26,17 +25,8 @@ enum SessionOrientation: String, Codable, CaseIterable {
         self == .portrait ? .portrait : .landscapeRight
     }
 
-    /// 저장 영상에 적용할 회전 변환.
-    /// 카메라는 항상 네이티브 가로 버퍼(1280×720)를 내보내고, 세로 영상은
-    /// 픽셀을 회전시키는 대신 이 transform 메타데이터로 바로 세운다 → 크기 불일치·늘어남 없음.
-    var videoTransform: CGAffineTransform {
-        self == .portrait ? CGAffineTransform(rotationAngle: .pi / 2) : .identity
-    }
-
-    /// 네이티브 가로 버퍼로 만든 썸네일을 올바로 세우기 위한 방향
-    var thumbnailOrientation: UIImage.Orientation {
-        self == .portrait ? .right : .up
-    }
+    /// 최종 영상이 이 방향(세로=높이>너비)이어야 하는가
+    var wantsPortraitFrame: Bool { self == .portrait }
 }
 
 // MARK: - 시간 정책 (알람 창 · 재촬영 창)

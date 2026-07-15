@@ -144,60 +144,90 @@ final class CameraRecorder: NSObject, ObservableObject {
 
     // MARK: 녹화 제어
 
+    /// 촬영 시작. writer는 첫 프레임에서 실제 버퍼 크기를 보고 생성한다(지연 생성).
+    /// → 기기가 세로/가로 어느 크기로 버퍼를 주든 규격이 정확히 일치, 늘어남·오차 없음.
     func startRecording(sessionID: UUID, orientation: SessionOrientation) throws {
         configureSessionIfNeeded()
-
-        // 방향 확정 — 버퍼는 항상 네이티브 가로(1280×720), 세로는 transform으로 세운다
         sessionOrientation = orientation
         applyConnectionSettings()
-        let nativeWidth = 1280, nativeHeight = 720
 
         let fileName = "\(sessionID.uuidString).mov"
         let url = SessionStorage.directory.appendingPathComponent(fileName)
         try? FileManager.default.removeItem(at: url)
 
-        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
-        let settings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.hevc,
-            AVVideoWidthKey: nativeWidth,
-            AVVideoHeightKey: nativeHeight,
-            AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: 4_000_000,
-                AVVideoExpectedSourceFrameRateKey: playbackFPS
-            ]
-        ]
-        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
-        input.expectsMediaDataInRealTime = false
-        input.transform = orientation.videoTransform   // 세로면 90° 회전 메타데이터
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-            assetWriterInput: input,
-            sourcePixelBufferAttributes: [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                kCVPixelBufferWidthKey as String: nativeWidth,
-                kCVPixelBufferHeightKey as String: nativeHeight
-            ])
-        guard writer.canAdd(input) else { throw RecorderError.writerSetupFailed }
-        writer.add(input)
-        writer.startWriting()
-        writer.startSession(atSourceTime: .zero)
-
         processingQueue.sync {
-            self.writer = writer
-            self.writerInput = input
-            self.adaptor = adaptor
+            self.writer = nil            // 첫 프레임에서 생성
+            self.writerInput = nil
+            self.adaptor = nil
             self.outputURL = url
             self.thumbnailImage = nil
             self.lastCaptureAt = 0
-            self.frameCountInternal = 0   // 미초기화 시 두 번째 세션이 즉시 완주 처리되는 버그 방지
+            self.frameCountInternal = 0
             self.isPaused = false
             self.isRecording = true
         }
         DispatchQueue.main.async { self.frameCount = 0 }
-
-        try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
         startPreview()
     }
+
+    /// 첫 프레임의 확정된 크기로 writer를 생성 (processingQueue에서 호출)
+    private func setupWriter(width: Int, height: Int) {
+        guard let url = outputURL else { return }
+        do {
+            let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+            let settings: [String: Any] = [
+                AVVideoCodecKey: AVVideoCodecType.hevc,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 4_000_000,
+                    AVVideoExpectedSourceFrameRateKey: playbackFPS
+                ]
+            ]
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+            input.expectsMediaDataInRealTime = false
+            let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+                assetWriterInput: input,
+                sourcePixelBufferAttributes: [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                    kCVPixelBufferWidthKey as String: width,
+                    kCVPixelBufferHeightKey as String: height
+                ])
+            guard writer.canAdd(input) else { return }
+            writer.add(input)
+            writer.startWriting()
+            writer.startSession(atSourceTime: .zero)
+            self.writer = writer
+            self.writerInput = input
+            self.adaptor = adaptor
+            try? FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+        } catch { }
+    }
+
+    /// 네이티브 버퍼를 원하는 방향으로 세운다. 이미 맞으면 원본 그대로.
+    private func orientedBuffer(_ src: CVPixelBuffer, want portrait: Bool) -> CVPixelBuffer {
+        let w = CVPixelBufferGetWidth(src), h = CVPixelBufferGetHeight(src)
+        let isPortrait = h > w
+        guard isPortrait != portrait else { return src }   // 이미 원하는 방향
+        // 90° 회전 (CIImage .right = 시계방향). 필요 시 .left로 바꾸면 반대 방향.
+        let ci = CIImage(cvPixelBuffer: src).oriented(.right)
+        let outW = Int(ci.extent.width), outH = Int(ci.extent.height)
+        var out: CVPixelBuffer?
+        let attrs: [String: Any] = [
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:],
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+        ]
+        CVPixelBufferCreate(kCFAllocatorDefault, outW, outH,
+                            kCVPixelFormatType_32BGRA, attrs as CFDictionary, &out)
+        guard let dst = out else { return src }
+        let normalized = ci.transformed(by: CGAffineTransform(translationX: -ci.extent.minX,
+                                                              y: -ci.extent.minY))
+        ciRenderContext.render(normalized, to: dst)
+        return dst
+    }
+
+    private let ciRenderContext = CIContext()
 
     func pause()  { processingQueue.async { self.isPaused = true } }
     func resume() { processingQueue.async { self.isPaused = false } }
@@ -261,32 +291,39 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
                        didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
         guard isRecording, !isPaused,
-              let input = writerInput, let adaptor = adaptor,
-              input.isReadyForMoreMediaData,
-              let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+              let source = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
         let now = CACurrentMediaTime()
         guard now - lastCaptureAt >= captureInterval else { return }
         lastCaptureAt = now
 
+        // 원하는 방향으로 세운 버퍼 (필요할 때만 회전)
+        let buffer = orientedBuffer(source, want: sessionOrientation.wantsPortraitFrame)
+
+        // 첫 프레임에서 확정된 크기로 writer 생성
+        if writer == nil {
+            setupWriter(width: CVPixelBufferGetWidth(buffer),
+                        height: CVPixelBufferGetHeight(buffer))
+        }
+        guard let input = writerInput, let adaptor = adaptor,
+              input.isReadyForMoreMediaData else { return }
+
         let time = CMTime(value: CMTimeValue(frameCountInternal), timescale: playbackFPS)
-        if adaptor.append(pixelBuffer, withPresentationTime: time) {
+        if adaptor.append(buffer, withPresentationTime: time) {
             frameCountInternal += 1
             let count = frameCountInternal
             if thumbnailImage == nil {
-                // 네이티브 가로 버퍼를 세션 방향에 맞춰 세운 썸네일
-                thumbnailImage = Self.image(from: pixelBuffer, orientation: sessionOrientation.thumbnailOrientation)
+                thumbnailImage = Self.image(from: buffer)   // 이미 올바로 세워진 버퍼
             }
             DispatchQueue.main.async { self.frameCount = count }
         }
     }
 
-    private static func image(from pixelBuffer: CVPixelBuffer,
-                              orientation: UIImage.Orientation) -> UIImage? {
+    private static func image(from pixelBuffer: CVPixelBuffer) -> UIImage? {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         let context = CIContext()
         guard let cg = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
-        return UIImage(cgImage: cg, scale: 1, orientation: orientation)
+        return UIImage(cgImage: cg)
     }
 }
 
