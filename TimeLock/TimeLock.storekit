@@ -22,7 +22,7 @@
       "localizations" : [
 
       ],
-      "name" : "TimeLock Pro",
+      "name" : "AngryMoti Pro",
       "subscriptions" : [
         {
           "adHocOffers" : [
@@ -45,7 +45,7 @@
           ],
           "productID" : "com.timelock.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "TimeLock Pro Monthly",
+          "referenceName" : "AngryMoti Pro Monthly",
           "subscriptionGroupID" : "21000001",
           "type" : "RecurringSubscription"
         }

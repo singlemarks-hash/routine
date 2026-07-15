@@ -126,7 +126,7 @@ TimeLock/
 - [ ] Firebase 연동 (위 '계정 & 백엔드 연동' 절) — 미연동 시 이메일 가입이 기기 내 폴백으로만 동작
 - [ ] Sign in with Apple capability 추가 (Google 로그인 제공 시 심사 필수)
 - [ ] Time Sensitive Notifications capability 추가
-- [ ] App Store Connect에서 구독 상품 `com.timelock.pro.monthly` 생성 (월 ₩4,400 권장, 그룹: TimeLock Pro)
+- [ ] App Store Connect에서 구독 상품 `com.timelock.pro.monthly` 생성 (월 ₩4,400 권장, 그룹: AngryMoti Pro)
 - [ ] 개인정보 라벨: "데이터가 수집되지 않음" (온디바이스 저장만 함)
 - [ ] 심사 노트에 기재: 전면 카메라는 사용자가 명시적으로 시작하는 자기감시 타임랩스 용도이며, 모든 영상은 기기에만 저장됨. 알람은 사용자가 직접 예약한 활동에만 발생.
 - [ ] 스크린샷: 홈 타임라인 / 알람 화면 / 세션 REC 링 / 성공캘린더 / 페이월
