@@ -264,9 +264,6 @@ struct SessionView: View {
             .frame(height: 120)
             .animation(TLMotion.bouncy, value: countdownValue)
             .animation(TLMotion.bouncy, value: countdownFinished)
-
-            Text("자세 똑바로. 정면 본다.")
-                .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.muted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TL.ink.opacity(0.94).ignoresSafeArea())
