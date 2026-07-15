@@ -242,27 +242,31 @@ struct SessionView: View {
 
     private var startCountdownOverlay: some View {
         VStack(spacing: 22) {
-            TLEyebrow(text: "READY", color: TL.rec)
-            Text("이제부터 촬영을 시작합니다")
-                .font(.tlTitle(21)).foregroundStyle(TL.paper)
+            TLEyebrow(text: "촬영 개시", color: TL.rec)
+            Text("이제부터 촬영 시작한다")
+                .font(.tlTitle(23)).foregroundStyle(TL.paper)
 
             ZStack {
                 if !countdownFinished {
                     Text("\(countdownValue)")
-                        .font(.system(size: 104, weight: .heavy, design: .rounded))
+                        .font(.system(size: 108, weight: .heavy, design: .rounded))
                         .foregroundStyle(TL.rec)
                         .id(countdownValue)   // 숫자 교체 시 트랜지션
                         .transition(.scale(scale: 0.4).combined(with: .opacity))
                 } else {
-                    // 카운트다운이 끝났는데 카메라가 아직이면 잠깐 대기
-                    ProgressView().progressViewStyle(.circular).tint(TL.rec).scaleEffect(1.5)
+                    // 카운트다운이 끝나면 '시작!' 호령 — 프레임 도착 시 오버레이가 내려간다
+                    Text("시작!")
+                        .font(.system(size: 72, weight: .heavy, design: .rounded))
+                        .foregroundStyle(TL.rec)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
             .frame(height: 120)
             .animation(TLMotion.bouncy, value: countdownValue)
+            .animation(TLMotion.bouncy, value: countdownFinished)
 
-            Text("정면을 바라보고 자세를 잡아주세요")
-                .font(.system(size: 13)).foregroundStyle(TL.muted)
+            Text("자세 똑바로. 정면 본다.")
+                .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.muted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TL.ink.opacity(0.94).ignoresSafeArea())
