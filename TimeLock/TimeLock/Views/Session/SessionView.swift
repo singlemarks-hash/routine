@@ -390,7 +390,7 @@ struct SessionResultView: View {
                             .padding(.horizontal, 24)
                     }
 
-                    Button(outcome.isSuccess ? "성공캘린더에서 보기" : "확인") {
+                    Button("종료") {
                         app.dismissResult()
                     }
                     .buttonStyle(TLPrimaryButtonStyle(tint: outcome.isSuccess ? TL.jade : TL.rec))

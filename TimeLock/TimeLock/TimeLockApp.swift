@@ -73,6 +73,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             await MainActor.run { AppState.shared.checkDueAlarm() }
             return []
         }
+        if kind == "break" {
+            // 앱이 화면에 떠 있으면 중단 오버레이가 이미 안내 중 — 배너 생략
+            return []
+        }
         return [.banner, .sound]
     }
 
@@ -186,6 +190,9 @@ final class AppState: ObservableObject {
             self?.handleUserChanged()
         }
         engine.bind(context: context)
+        engine.onFinalized = { [weak self] in
+            self?.sessionFinished()
+        }
         engine.recoverOrphanIfNeeded()
         purgeUnsavedVideos()
         refreshDerived()
@@ -329,8 +336,10 @@ final class AppState: ObservableObject {
                                    targetSeconds: pending.targetSeconds,
                                    reservationID: pending.reservationID,
                                    ownerUserID: AccountStore.shared.currentUserID)
-        engine.start(session: session)
+        // 카메라 시작이 실패하면 engine이 즉시 finalize → onFinalized가 .result로 덮어쓰므로
+        // 라우팅을 먼저 .session으로 두어야 순서가 꼬이지 않는다.
         route = .session
+        engine.start(session: session)
     }
 
     /// 알람 화면의 긴급 버튼 — 세션 없이 알람만 종료, 노쇼는 스위퍼가 기록

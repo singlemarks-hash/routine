@@ -120,11 +120,13 @@ final class AlarmScheduler: NSObject, ObservableObject {
     func scheduleBreakNotifications(deadline: Date) {
         cancelBreakNotifications()
 
+        // kind=break — 앱이 화면에 떠 있을 때는 중단 오버레이가 이미 안내하므로 배너를 숨긴다
         let open = UNMutableNotificationContent()
         open.title = "촬영 일시중단"
         open.body = "\(TimePolicy.resumeWindowMinutes)분 안에 돌아와 재촬영을 시작하면 벌점이 없습니다."
         open.sound = .default
         open.interruptionLevel = .timeSensitive
+        open.userInfo = ["kind": "break"]
         center.add(UNNotificationRequest(
             identifier: "break-open", content: open,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)))
@@ -136,6 +138,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
             warn.body = "지금 돌아와 재촬영을 시작하세요. 시간이 지나면 벌점이 부과됩니다."
             warn.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
             warn.interruptionLevel = .timeSensitive
+            warn.userInfo = ["kind": "break"]
             center.add(UNNotificationRequest(
                 identifier: "break-warn", content: warn,
                 trigger: UNTimeIntervalNotificationTrigger(
@@ -147,6 +150,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
         fail.body = "\(TimePolicy.resumeWindowMinutes)분 안에 재촬영을 시작하지 않아 세션이 실패로 기록되었습니다."
         fail.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
         fail.interruptionLevel = .timeSensitive
+        fail.userInfo = ["kind": "break"]
         center.add(UNNotificationRequest(
             identifier: "break-fail", content: fail,
             trigger: UNTimeIntervalNotificationTrigger(
