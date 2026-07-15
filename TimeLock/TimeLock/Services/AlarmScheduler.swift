@@ -104,8 +104,8 @@ final class AlarmScheduler: NSObject, ObservableObject {
     private func schedulePreAlert(for reservation: Reservation, at fire: Date) {
         guard let pre = Calendar.current.date(byAdding: .minute, value: -10, to: fire), pre > .now else { return }
         let content = UNMutableNotificationContent()
-        content.title = "10분 뒤 \(reservation.name)"
-        content.body = "거치대를 준비하세요. \(TLFormat.clock(fire)) 정각에 알람이 울립니다."
+        content.title = "'\(reservation.name)' 시작 10분 전입니다"
+        content.body = "촬영을 준비해주세요. \(TLFormat.clock(fire)) 정각에 알람이 울립니다."
         content.sound = .default
         content.userInfo = ["reservationID": reservation.id.uuidString, "kind": "prealert"]
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: pre)
@@ -114,6 +114,17 @@ final class AlarmScheduler: NSObject, ObservableObject {
             identifier: "pre-\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))",
             content: content, trigger: trigger)
         center.add(request)
+    }
+
+    /// 특정 발생 건의 남은 알람(재알림 포함)을 모두 취소 — 촬영 준비/일정 취소 시
+    func cancelAlarmNotifications(reservationID: UUID, fireDate: Date) {
+        let ts = Int(fireDate.timeIntervalSince1970)
+        var ids = ["alarm-\(reservationID.uuidString)-\(ts)"]
+        for repeatIndex in 1...4 {
+            ids.append("alarm-r\(repeatIndex)-\(reservationID.uuidString)-\(ts)")
+        }
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        center.removeDeliveredNotifications(withIdentifiers: ids)
     }
 
     // MARK: 재촬영 창 알림 (긴급 용무 중단 · 매운맛)

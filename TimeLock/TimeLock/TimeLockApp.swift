@@ -385,6 +385,35 @@ final class AppState: ObservableObject {
         route = .none
     }
 
+    /// 알람 화면의 '일정 취소' — 사유와 함께 벌점을 기록하고 홈으로.
+    /// 세션 기록이 남으므로 노쇼 스위퍼가 같은 발생 건을 중복 처리하지 않는다.
+    func cancelSchedule(reservation: Reservation, fireDate: Date, reason: String) {
+        guard let context = modelContext else { return }
+        AlarmScheduler.shared.stopAlarmSound()
+        AlarmScheduler.shared.cancelAlarmNotifications(reservationID: reservation.id, fireDate: fireDate)
+
+        let session = FocusSession(activityName: reservation.name, tag: reservation.tag,
+                                   intensity: intensity, scheduledAt: fireDate,
+                                   targetSeconds: reservation.durationMinutes * 60,
+                                   reservationID: reservation.id,
+                                   ownerUserID: AccountStore.shared.currentUserID)
+        session.outcome = .emergency
+        session.emergencyReason = reason
+        session.endedAt = .now
+        context.insert(session)
+
+        if let (type, points) = ScoreRules.points(for: .emergency, intensity: intensity) {
+            let event = ScoreEvent(type: type, points: points, sessionID: session.id,
+                                   intensity: intensity, note: reason,
+                                   ownerUserID: AccountStore.shared.currentUserID)
+            context.insert(event)
+            AccountStore.shared.mirror(event: event)   // 사유+벌점 클라우드 백업
+        }
+        try? context.save()
+        refreshDerived()
+        route = .none
+    }
+
     func sessionFinished() {
         route = .result
         refreshDerived()
