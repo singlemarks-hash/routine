@@ -317,65 +317,11 @@ struct MountGuideView: View {
             CameraPreviewView(session: recorder.captureSession,
                               orientation: app.sessionOrientation, fill: false)
                 .ignoresSafeArea()
-            LinearGradient(colors: [TL.ink.opacity(0.85), .clear, TL.ink.opacity(0.9)],
-                           startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
 
-            VStack {
-                VStack(spacing: 6) {
-                    TLEyebrow(text: "거치 가이드", color: TL.amber)
-                    Text(pending.activityName)
-                        .font(.tlTitle(22))
-                        .foregroundStyle(TL.paper)
-                    Text("\(TimePolicy.startWindowMinutes)분 안에 시작하지 않으면 노쇼 처리됩니다")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(TL.rec)
-                }
-                .padding(.top, 24)
-
-                // 세로/가로 방향 선택 + 전/후면 전환
-                HStack(spacing: 10) {
-                    orientationToggle
-                    cameraSwitchButton
-                }
-                .padding(.top, 14)
-
-                Spacer()
-
-                // 구도 프레임 가이드 — 실제 영상 비율(9:16 / 16:9)과 동일
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(TL.paper.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
-                    .frame(width: isLandscape ? 320 : 180, height: isLandscape ? 180 : 320)
-                    .overlay(
-                        Text("얼굴과 책상이 프레임 안에")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(TL.paper.opacity(0.85))
-                            .padding(.top, 8), alignment: .top)
-                    .animation(.easeInOut(duration: 0.25), value: isLandscape)
-
-                Spacer()
-
-                VStack(spacing: 10) {
-                    checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount)
-                    checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
-
-                    Button {
-                        // 예약 세션은 알람 화면에서 이미 집중 모드 안내를 봤으므로 바로 시작.
-                        // 즉시 세션(지금 바로 시작)은 여기서 안내를 거친다.
-                        if pending.scheduledAt == nil {
-                            showFocusGuide = true
-                        } else {
-                            app.beginRecording(pending: pending)
-                        }
-                    } label: {
-                        Label("촬영 시작 · 알람 해제", systemImage: "record.circle.fill")
-                    }
-                    .buttonStyle(TLPrimaryButtonStyle())
-                    .disabled(!(checkedMount && checkedFrame))
-                    .opacity(checkedMount && checkedFrame ? 1 : 0.4)
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+            if isLandscape {
+                landscapeLayout
+            } else {
+                portraitLayout
             }
         }
         .interactiveDismissDisabled()
@@ -387,6 +333,119 @@ struct MountGuideView: View {
                 app.beginRecording(pending: pending)
             }
         }
+    }
+
+    // MARK: 세로 레이아웃 — 상단 헤더, 중앙 프레임, 하단 컨트롤
+
+    private var portraitLayout: some View {
+        ZStack {
+            LinearGradient(colors: [TL.ink.opacity(0.85), .clear, TL.ink.opacity(0.9)],
+                           startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+
+            VStack {
+                header
+                    .padding(.top, 24)
+                controlsBar
+                    .padding(.top, 14)
+
+                Spacer()
+                compositionFrame(width: 200, height: 356)   // 9:16
+                Spacer()
+
+                VStack(spacing: 10) {
+                    checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount)
+                    checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
+                    startButton
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+
+    // MARK: 가로 레이아웃 — 좌측은 구도 프레임, 우측은 별도 컨트롤 패널(중첩 없음)
+
+    private var landscapeLayout: some View {
+        HStack(spacing: 0) {
+            // 좌: 촬영 구도 영역 (프리뷰가 비치는 프레임)
+            ZStack {
+                LinearGradient(colors: [TL.ink.opacity(0.5), .clear],
+                               startPoint: .leading, endPoint: .trailing)
+                    .ignoresSafeArea()
+                compositionFrame(width: 300, height: 169)   // 16:9
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // 우: 불투명 컨트롤 패널 — 프레임과 확실히 분리
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    header
+                    controlsBar
+                    checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount)
+                    checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
+                    startButton
+                }
+                .padding(20)
+            }
+            .frame(width: 320)
+            .background(TL.ink.opacity(0.94).ignoresSafeArea())
+            .overlay(alignment: .leading) {
+                Rectangle().fill(TL.hairline).frame(width: 1).ignoresSafeArea()
+            }
+        }
+    }
+
+    // MARK: 공통 구성 요소
+
+    private var header: some View {
+        VStack(alignment: isLandscape ? .leading : .center, spacing: 6) {
+            TLEyebrow(text: "거치 가이드", color: TL.amber)
+            Text(pending.activityName)
+                .font(.tlTitle(isLandscape ? 18 : 22))
+                .foregroundStyle(TL.paper)
+            Text("\(TimePolicy.startWindowMinutes)분 안에 시작하지 않으면 노쇼 처리됩니다")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(TL.rec)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: isLandscape ? .infinity : nil, alignment: isLandscape ? .leading : .center)
+    }
+
+    private var controlsBar: some View {
+        HStack(spacing: 10) {
+            orientationToggle
+            cameraSwitchButton
+        }
+    }
+
+    private var startButton: some View {
+        Button {
+            // 예약 세션은 알람 화면에서 이미 집중 모드 안내를 봤으므로 바로 시작.
+            // 즉시 세션(지금 바로 시작)은 여기서 안내를 거친다.
+            if pending.scheduledAt == nil {
+                showFocusGuide = true
+            } else {
+                app.beginRecording(pending: pending)
+            }
+        } label: {
+            Label("촬영 시작 · 알람 해제", systemImage: "record.circle.fill")
+        }
+        .buttonStyle(TLPrimaryButtonStyle())
+        .disabled(!(checkedMount && checkedFrame))
+        .opacity(checkedMount && checkedFrame ? 1 : 0.4)
+    }
+
+    /// 구도 프레임 가이드 — 실제 영상 비율(9:16 / 16:9)과 동일
+    private func compositionFrame(width: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .strokeBorder(TL.paper.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
+            .frame(width: width, height: height)
+            .overlay(
+                Text("얼굴과 책상이 프레임 안에")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TL.paper.opacity(0.85))
+                    .padding(.top, 8), alignment: .top)
     }
 
     /// 세로 ↔ 가로 방향 토글 (누르면 화면이 그 방향으로 부드럽게 회전)
