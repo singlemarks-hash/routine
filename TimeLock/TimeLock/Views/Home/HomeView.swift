@@ -258,9 +258,9 @@ private struct QuickStartSheet: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    TLEyebrow(text: "지속 시간")
-                    Picker("지속 시간", selection: $minutes) {
-                        ForEach([15, 25, 30, 45, 60, 90, 120, 180, 240], id: \.self) {
+                    TLEyebrow(text: "활동 시간")
+                    Picker("활동 시간", selection: $minutes) {
+                        ForEach(TimePolicy.durationOptionsMinutes, id: \.self) {
                             Text(TLFormat.durationLabel($0)).tag($0)
                         }
                     }

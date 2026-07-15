@@ -35,6 +35,9 @@ enum TimePolicy {
     /// 긴급 용무로 촬영을 중단한 뒤 재촬영을 시작해야 하는 창. 넘기면 벌점.
     static let resumeWindowSeconds: TimeInterval = 600
     static var resumeWindowMinutes: Int { Int(resumeWindowSeconds) / 60 }
+
+    /// 활동 시간 선택 옵션(분). 예약·즉시 시작이 공용으로 사용해 서로 어긋나지 않게 한다.
+    static let durationOptionsMinutes = [10, 15, 25, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480]
 }
 
 // MARK: - 강도 (앱 전역 단일 값)

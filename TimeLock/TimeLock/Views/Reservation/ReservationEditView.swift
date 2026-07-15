@@ -3,7 +3,7 @@
 //  TimeLock
 //
 //  활동 예약 생성/조회/수정/삭제.
-//  - 활동명(필수)/태그/시작 시각/지속 시간(10분~8시간)/반복(요일·일회성)
+//  - 활동명(필수)/태그/시작 시각/활동 시간(10분~8시간)/반복(요일·일회성)
 //  - 겹치는 시간대 예약은 저장 차단 + 충돌 메시지
 //  - 시작 30분 전부터 수정/삭제 잠금
 //
@@ -37,7 +37,7 @@ struct ReservationEditView: View {
     @State private var showDeleteConfirm = false
 
     private let weekdaySymbols = [(1, "일"), (2, "월"), (3, "화"), (4, "수"), (5, "목"), (6, "금"), (7, "토")]
-    private let durations = [10, 15, 25, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480]
+    private let durations = TimePolicy.durationOptionsMinutes
 
     /// 시작 30분 전 편집 잠금
     private var isLocked: Bool {
@@ -142,14 +142,14 @@ struct ReservationEditView: View {
 
     private var timeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "시작 시각 · 지속 시간")
+            TLEyebrow(text: "시작 시각 · 활동 시간")
             TLCard {
                 VStack(spacing: 4) {
                     DatePicker("시작 시각", selection: $startTime, displayedComponents: .hourAndMinute)
                         .font(.tlBody).foregroundStyle(TL.paper)
                         .disabled(isLocked)
                     Divider().overlay(TL.hairline)
-                    Picker("지속 시간", selection: $durationMinutes) {
+                    Picker("활동 시간", selection: $durationMinutes) {
                         ForEach(durations, id: \.self) { Text(TLFormat.durationLabel($0)).tag($0) }
                     }
                     .pickerStyle(.menu)
