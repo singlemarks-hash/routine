@@ -16,6 +16,7 @@ struct AlarmView: View {
     @EnvironmentObject private var app: AppState
     @State private var now = Date()
     @State private var showEmergencyConfirm = false
+    @State private var showFocusGuide = false
     private let clock = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
     private var deadline: Date { fireDate.addingTimeInterval(TimePolicy.startWindowSeconds) }
@@ -68,7 +69,7 @@ struct AlarmView: View {
 
                 VStack(spacing: 12) {
                     Button {
-                        app.proceedToMountGuide(reservation: reservation, fireDate: fireDate)
+                        showFocusGuide = true   // 집중 모드 안내 → 확인 → 거치 가이드
                     } label: {
                         Label("촬영 시작", systemImage: "record.circle.fill")
                     }
@@ -92,6 +93,12 @@ struct AlarmView: View {
             }
         }
         .onAppear { AlarmScheduler.shared.startAlarmSound() }
+        .sheet(isPresented: $showFocusGuide) {
+            FocusModeGuideSheet(confirmTitle: "확인 — 구도 잡으러 가기") {
+                showFocusGuide = false
+                app.proceedToMountGuide(reservation: reservation, fireDate: fireDate)
+            }
+        }
         .confirmationDialog("긴급 상황인가요?", isPresented: $showEmergencyConfirm, titleVisibility: .visible) {
             Button("알람 종료 (탈락으로 기록됨)", role: .destructive) {
                 app.emergencyDismissAlarm()
@@ -158,7 +165,13 @@ struct MountGuideView: View {
                     checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
 
                     Button {
-                        showFocusGuide = true   // 촬영 전 집중 모드 안내 → '확인' 후 시작
+                        // 예약 세션은 알람 화면에서 이미 집중 모드 안내를 봤으므로 바로 시작.
+                        // 즉시 세션(지금 바로 시작)은 여기서 안내를 거친다.
+                        if pending.scheduledAt == nil {
+                            showFocusGuide = true
+                        } else {
+                            app.beginRecording(pending: pending)
+                        }
                     } label: {
                         Label("촬영 시작 · 알람 해제", systemImage: "record.circle.fill")
                     }
@@ -203,7 +216,8 @@ struct MountGuideView: View {
 //  사용자가 직접 집중 모드를 켜도록 안내한 뒤 '확인'으로 촬영을 시작한다.
 
 struct FocusModeGuideSheet: View {
-    /// '확인' — 촬영 시작
+    var confirmTitle: String = "확인 — 촬영 시작"
+    /// '확인' 버튼 동작
     var onConfirm: () -> Void
 
     var body: some View {
@@ -228,7 +242,7 @@ struct FocusModeGuideSheet: View {
             .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
             .padding(.top, 20)
 
-            Text("앱 화면 위로 뜨는 배너는 세션 화면의 '알림차단' 버튼이 막아줍니다.")
+            Text("앱 화면 위 배너는 촬영이 시작되면 '알림차단'이 자동으로 켜져 막아줍니다. 이탈 시 재촬영 알림은 집중 모드를 뚫고 전달됩니다.")
                 .font(.system(size: 12))
                 .foregroundStyle(TL.faint)
                 .padding(.top, 12)
@@ -238,7 +252,7 @@ struct FocusModeGuideSheet: View {
             Button {
                 onConfirm()
             } label: {
-                Label("확인 — 촬영 시작", systemImage: "record.circle.fill")
+                Label(confirmTitle, systemImage: "record.circle.fill")
             }
             .buttonStyle(TLPrimaryButtonStyle())
             .padding(.bottom, 20)

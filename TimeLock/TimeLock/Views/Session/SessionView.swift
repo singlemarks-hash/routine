@@ -187,10 +187,11 @@ struct SessionView: View {
             }
     }
 
-    /// 알림차단 — 앱이 화면에 떠 있는 동안 모든 알림 배너를 숨긴다
+    /// 알림차단 — 앱이 화면에 떠 있는 동안 모든 알림 배너를 숨긴다.
+    /// 촬영 시작과 함께 자동으로 켜지며, 켜진 동안 '차단 중'으로 표시된다.
     private var muteButton: some View {
         squareButton(
-            title: "알림차단",
+            title: alarm.muteAllNotifications ? "차단 중" : "알림차단",
             symbol: alarm.muteAllNotifications ? "bell.slash.fill" : "bell.slash",
             active: alarm.muteAllNotifications
         ) {

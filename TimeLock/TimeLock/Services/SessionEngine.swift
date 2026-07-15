@@ -99,6 +99,9 @@ final class SessionEngine: NSObject, ObservableObject {
         defaults.set(session.id.uuidString, forKey: Key.activeSessionID)
         defaults.removeObject(forKey: Key.breakDeadline)
 
+        // 촬영 시작과 함께 '알림차단' 기본 활성화 (세션 화면 버튼으로 해제 가능)
+        AlarmScheduler.shared.muteAllNotifications = true
+
         startCallObserver()
         startTick()
         UIApplication.shared.isIdleTimerDisabled = true   // 화면 자동 꺼짐 방지
