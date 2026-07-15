@@ -113,6 +113,7 @@ struct MountGuideView: View {
     @StateObject private var recorder = CameraRecorder.shared
     @State private var checkedMount = false
     @State private var checkedFrame = false
+    @State private var showFocusGuide = false
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     /// 가로 거치 시 구도 가이드도 가로 프레임으로
@@ -157,7 +158,7 @@ struct MountGuideView: View {
                     checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
 
                     Button {
-                        app.beginRecording(pending: pending)
+                        showFocusGuide = true   // 촬영 전 집중 모드 안내 → '확인' 후 시작
                     } label: {
                         Label("촬영 시작 · 알람 해제", systemImage: "record.circle.fill")
                     }
@@ -172,6 +173,12 @@ struct MountGuideView: View {
         .interactiveDismissDisabled()
         .onAppear { recorder.startPreview() }
         .task { _ = await recorder.requestAuthorization() }
+        .sheet(isPresented: $showFocusGuide) {
+            FocusModeGuideSheet {
+                showFocusGuide = false
+                app.beginRecording(pending: pending)
+            }
+        }
     }
 
     private func checkRow(_ title: String, isOn: Binding<Bool>) -> some View {
@@ -187,6 +194,74 @@ struct MountGuideView: View {
             }
             .padding(14)
             .background(TL.surface.opacity(0.85), in: RoundedRectangle(cornerRadius: TL.cornerM))
+        }
+    }
+}
+
+// MARK: - 집중 모드 안내 (촬영 시작 직전)
+//  iOS 정책상 앱이 시스템 알림을 대신 끌 수 없으므로,
+//  사용자가 직접 집중 모드를 켜도록 안내한 뒤 '확인'으로 촬영을 시작한다.
+
+struct FocusModeGuideSheet: View {
+    /// '확인' — 촬영 시작
+    var onConfirm: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "moon.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(TL.amber)
+                Text("시작 전, 집중 모드를 켜서\n알림을 차단해보세요")
+                    .font(.tlTitle(19))
+                    .foregroundStyle(TL.paper)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 24)
+
+            VStack(alignment: .leading, spacing: 14) {
+                guideStep(number: 1, text: "화면 오른쪽 위 모서리에서 아래로 쓸어내려 제어 센터를 엽니다")
+                guideStep(number: 2, text: "🌙 집중 모드 버튼을 누르고 '방해금지'를 선택합니다")
+                guideStep(number: 3, text: "세션이 끝나면 같은 방법으로 해제하면 됩니다")
+            }
+            .padding(16)
+            .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
+            .padding(.top, 20)
+
+            Text("앱 화면 위로 뜨는 배너는 세션 화면의 '알림차단' 버튼이 막아줍니다.")
+                .font(.system(size: 12))
+                .foregroundStyle(TL.faint)
+                .padding(.top, 12)
+
+            Spacer()
+
+            Button {
+                onConfirm()
+            } label: {
+                Label("확인 — 촬영 시작", systemImage: "record.circle.fill")
+            }
+            .buttonStyle(TLPrimaryButtonStyle())
+            .padding(.bottom, 20)
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TL.ink)
+        .presentationDetents([.height(430)])
+        .interactiveDismissDisabled()
+        .preferredColorScheme(.dark)
+    }
+
+    private func guideStep(number: Int, text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .foregroundStyle(TL.ink)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(TL.amber))
+            Text(text)
+                .font(.system(size: 14))
+                .foregroundStyle(TL.paper)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
