@@ -20,6 +20,10 @@ struct SessionView: View {
 
     @State private var showEmergency = false
 
+    /// 시작 카운트다운 (3 → 2 → 1). 끝나면 countdownFinished = true.
+    @State private var countdownValue = 3
+    @State private var countdownFinished = false
+
     /// 세션 방향은 구도 단계에서 확정 — 촬영 내내 고정
     private var isLandscape: Bool { app.sessionOrientation == .landscape }
 
@@ -43,14 +47,15 @@ struct SessionView: View {
                 BreakOverlay(deadline: deadline)
             }
 
-            // 카메라 워밍업 오버레이 — 촬영 시작 직후 첫 프레임이 들어오기 전까지.
-            // 이 구간엔 다이얼이 아직 움직이지 않으므로 '준비 중' 표시로 멈춘 느낌을 없앤다.
-            if isWarmingUp {
-                warmingUpOverlay.transition(.opacity)
+            // 시작 카운트다운 오버레이 — "이제부터 촬영을 시작합니다" + 3·2·1.
+            // 카메라가 첫 프레임을 낼 때까지(다이얼이 멈춰 보이는 구간) 함께 가려준다.
+            if showStartCountdown {
+                startCountdownOverlay.transition(.opacity)
             }
         }
-        .animation(TLMotion.smooth, value: isWarmingUp)
+        .animation(TLMotion.smooth, value: showStartCountdown)
         .interactiveDismissDisabled()
+        .task { await runStartCountdown() }
         .onDisappear { alarm.muteAllNotifications = false }
         .sheet(isPresented: $showEmergency) { insaneEmergencySheet }
     }
@@ -216,24 +221,48 @@ struct SessionView: View {
         .background(TL.ink.opacity(0.96).ignoresSafeArea())
     }
 
-    // MARK: 카메라 워밍업 오버레이
+    // MARK: 시작 카운트다운 오버레이
 
-    /// 촬영은 시작됐지만 카메라가 첫 프레임을 아직 내보내지 않은 구간.
-    /// 이때 다이얼은 프레임 수 기반이라 아직 0에서 멈춰 있으므로 '준비 중'을 알린다.
-    private var isWarmingUp: Bool {
-        engine.phase == .recording && recorder.frameCount == 0
+    /// 카운트다운이 끝나고 카메라 첫 프레임까지 도착해야 오버레이를 내린다.
+    /// (프레임 수 기반 다이얼이 멈춰 보이는 워밍업 구간을 카운트다운이 함께 가려줌)
+    private var showStartCountdown: Bool {
+        engine.phase == .recording && (!countdownFinished || recorder.frameCount == 0)
     }
 
-    private var warmingUpOverlay: some View {
-        VStack(spacing: 18) {
-            ProgressView()
-                .progressViewStyle(.circular)
-                .tint(TL.rec)
-                .scaleEffect(1.4)
-            VStack(spacing: 6) {
-                Text("카메라 준비 중…").font(.tlTitle(18)).foregroundStyle(TL.paper)
-                Text("곧 촬영이 시작됩니다").font(.system(size: 13)).foregroundStyle(TL.muted)
+    /// 3초 카운트다운을 진행하고, 이후 프레임이 올 때까지 대기 표시로 전환.
+    private func runStartCountdown() async {
+        for n in stride(from: 3, through: 1, by: -1) {
+            countdownValue = n
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+        countdownFinished = true
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    private var startCountdownOverlay: some View {
+        VStack(spacing: 22) {
+            TLEyebrow(text: "READY", color: TL.rec)
+            Text("이제부터 촬영을 시작합니다")
+                .font(.tlTitle(21)).foregroundStyle(TL.paper)
+
+            ZStack {
+                if !countdownFinished {
+                    Text("\(countdownValue)")
+                        .font(.system(size: 104, weight: .heavy, design: .rounded))
+                        .foregroundStyle(TL.rec)
+                        .id(countdownValue)   // 숫자 교체 시 트랜지션
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                } else {
+                    // 카운트다운이 끝났는데 카메라가 아직이면 잠깐 대기
+                    ProgressView().progressViewStyle(.circular).tint(TL.rec).scaleEffect(1.5)
+                }
             }
+            .frame(height: 120)
+            .animation(TLMotion.bouncy, value: countdownValue)
+
+            Text("정면을 바라보고 자세를 잡아주세요")
+                .font(.system(size: 13)).foregroundStyle(TL.muted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TL.ink.opacity(0.94).ignoresSafeArea())
