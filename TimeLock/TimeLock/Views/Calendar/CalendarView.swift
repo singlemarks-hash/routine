@@ -159,33 +159,49 @@ struct CalendarView: View {
 
 // MARK: - 날짜 상세
 
+// 성적표 스타일: 시간순 내역 리스트 + 항목별 토글로 상세(썸네일·사유·순수 촬영시간) 열람.
+// 상점·벌점은 운영자 평가 수단 — 회원이 삭제/수정할 수 없다(조회 전용).
 struct DayDetailView: View {
     let day: Date
     let sessions: [FocusSession]
     let scoreEvents: [ScoreEvent]
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
-    @State private var deletedIDs: Set<UUID> = []
-    @State private var pendingDelete: FocusSession?
+    @State private var expanded: Set<UUID> = []
 
-    private var visibleSessions: [FocusSession] {
-        sessions.filter { !deletedIDs.contains($0.id) }
+    /// 시간순 정렬
+    private var ordered: [FocusSession] {
+        sessions.sorted { $0.anchorDate < $1.anchorDate }
     }
+
+    private var dayReward: Int {
+        ordered.compactMap { pts($0) }.filter { $0 > 0 }.reduce(0, +)
+    }
+    private var dayPenalty: Int {
+        ordered.compactMap { pts($0) }.filter { $0 < 0 }.reduce(0, +)
+    }
+    private var allOpen: Bool { !ordered.isEmpty && expanded.count == ordered.count }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if visibleSessions.isEmpty {
+                    if ordered.isEmpty {
                         TLCard {
-                            Text("이 날의 기록이 모두 삭제되었습니다.")
+                            Text("이 날은 기록이 없습니다.")
                                 .font(.system(size: 14)).foregroundStyle(TL.muted)
                         }
                     } else {
-                        tagSummary
-                        ForEach(visibleSessions, id: \.id) { session in
-                            sessionCard(session)
+                        summaryHeader
+                        TLCard {
+                            VStack(spacing: 0) {
+                                ForEach(Array(ordered.enumerated()), id: \.element.id) { index, session in
+                                    reportRow(session)
+                                    if index < ordered.count - 1 {
+                                        Divider().overlay(TL.hairline.opacity(0.5))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -195,113 +211,144 @@ struct DayDetailView: View {
             .navigationTitle(TLFormat.dayTitle(day))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !ordered.isEmpty {
+                        Button(allOpen ? "모두 접기" : "모두 펼치기") {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                expanded = allOpen ? [] : Set(ordered.map(\.id))
+                            }
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(TL.muted)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
                 }
-            }
-            .confirmationDialog("이 기록을 삭제할까요?",
-                                isPresented: Binding(get: { pendingDelete != nil },
-                                                     set: { if !$0 { pendingDelete = nil } }),
-                                titleVisibility: .visible) {
-                Button("삭제 (점수도 함께 제거)", role: .destructive) {
-                    if let session = pendingDelete { delete(session) }
-                    pendingDelete = nil
-                }
-                Button("취소", role: .cancel) { pendingDelete = nil }
-            } message: {
-                Text("이 세션 기록과 관련 상점·벌점, 저장된 썸네일이 함께 삭제됩니다. 되돌릴 수 없습니다.")
             }
         }
         .preferredColorScheme(.dark)
     }
 
-    /// 세션 + 관련 점수 이벤트 + 영상/썸네일 파일을 함께 삭제
-    private func delete(_ session: FocusSession) {
-        SessionStorage.deleteFiles(of: session)
-        for event in scoreEvents where event.sessionID == session.id {
-            context.delete(event)
-        }
-        context.delete(session)
-        try? context.save()
-        withAnimation { _ = deletedIDs.insert(session.id) }
-    }
+    // MARK: 상단 합계 (성적표 헤더)
 
-    private var tagSummary: some View {
-        let byTag = Dictionary(grouping: sessions.filter { $0.outcome?.isSuccess == true }, by: \.tag)
-            .mapValues { $0.reduce(0) { $0 + $1.recordedSeconds } }
-            .sorted { $0.value > $1.value }
-        return Group {
-            if !byTag.isEmpty {
-                TLCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TLEyebrow(text: "태그별 누적")
-                        ForEach(byTag, id: \.key) { tag, seconds in
-                            HStack {
-                                TagChip(name: tag)
-                                Spacer()
-                                Text(TLFormat.hms(seconds)).font(.tlTimer(15)).foregroundStyle(TL.paper)
-                            }
-                        }
-                    }
-                }
-            }
+    private var summaryHeader: some View {
+        HStack(spacing: 10) {
+            summaryChip(value: "+\(dayReward)", label: "상점", tint: TL.jade)
+            summaryChip(value: "\(dayPenalty)", label: "벌점", tint: TL.rec)
+            summaryChip(value: "\(dayReward + dayPenalty)", label: "합계",
+                        tint: dayReward + dayPenalty >= 0 ? TL.paper : TL.rec)
         }
     }
 
-    private func sessionCard(_ session: FocusSession) -> some View {
+    private func summaryChip(value: String, label: String, tint: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(value).font(.tlTimer(20)).foregroundStyle(tint)
+            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(TL.muted)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous).fill(TL.surface))
+    }
+
+    // MARK: 내역 행 (접힘: 원·시간·활동·점수 / 펼침: 썸네일·사유·순수촬영)
+
+    private func reportRow(_ session: FocusSession) -> some View {
         let outcome = session.outcome ?? .completed
-        let points = ScoreRules.points(for: outcome, intensity: session.intensity)?.1
+        let isOpen = expanded.contains(session.id)
+        let points = pts(session)
 
-        return TLCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(session.activityName).font(.tlTitle(16)).foregroundStyle(TL.paper)
-                        Text("\(TLFormat.clock(session.anchorDate)) · \(session.intensity.title)\(session.outcome == .emergency ? " · 긴급" : "")")
-                            .font(.system(size: 12)).foregroundStyle(TL.muted)
-                    }
+        return VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if isOpen { expanded.remove(session.id) } else { expanded.insert(session.id) }
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    // 성취 원 — 성공 초록 / 실패 빨강 / 그 외(긴급·안전) 앰버
+                    Circle()
+                        .fill(circleColor(outcome))
+                        .frame(width: 16, height: 16)
+                        .overlay(Circle().strokeBorder(circleColor(outcome).opacity(0.35), lineWidth: 3))
+                    Text(TLFormat.clock(session.anchorDate))
+                        .font(.tlTimer(14)).foregroundStyle(TL.paper)
+                        .frame(width: 70, alignment: .leading)
+                    Text(session.activityName)
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.paper)
+                        .lineLimit(1)
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text(outcome.title)
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(outcome.isSuccess ? TL.jade : (outcome.isFailure ? TL.rec : TL.amber))
-                        if let points {
-                            Text(points > 0 ? "+\(points)" : "\(points)")
-                                .font(.tlTimer(14))
-                                .foregroundStyle(points > 0 ? TL.jade : TL.rec)
-                        }
+                    if let points {
+                        Text(points > 0 ? "+\(points)" : "\(points)")
+                            .font(.tlTimer(14))
+                            .foregroundStyle(points > 0 ? TL.jade : TL.rec)
                     }
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(TL.faint)
+                        .rotationEffect(.degrees(isOpen ? 180 : 0))
                 }
+                .padding(.vertical, 13)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
-                if let thumbURL = session.thumbnailURL,
-                   let image = UIImage(contentsOfFile: thumbURL.path) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 150)
-                        .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
-                        .overlay(alignment: .bottomLeading) {
-                            Text("기록 썸네일 · 원본은 세션 종료 시 저장/삭제됨")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(TL.paper.opacity(0.85))
-                                .padding(6)
-                        }
-                }
-
-                HStack {
-                    Text("순수 촬영 \(TLFormat.hms(session.recordedSeconds)) / 목표 \(TLFormat.hms(session.targetSeconds))")
-                        .font(.system(size: 12)).foregroundStyle(TL.muted)
-                    Spacer()
-                    Button {
-                        pendingDelete = session
-                    } label: {
-                        Label("삭제", systemImage: "trash")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(TL.rec)
-                    }
-                }
+            if isOpen {
+                detail(session, outcome: outcome)
+                    .padding(.bottom, 13)
             }
         }
+    }
+
+    @ViewBuilder
+    private func detail(_ session: FocusSession, outcome: SessionOutcome) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Text(outcome.title)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(outcome.isSuccess ? TL.jade : (outcome.isFailure ? TL.rec : TL.amber))
+                Text("· \(session.intensity.title)")
+                    .font(.system(size: 12)).foregroundStyle(TL.muted)
+            }
+
+            if let thumbURL = session.thumbnailURL,
+               let image = UIImage(contentsOfFile: thumbURL.path) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 150)
+                    .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+            }
+
+            if let reason = reason(for: session), !reason.isEmpty {
+                Label(reason, systemImage: "text.bubble")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TL.amber)
+            }
+
+            Text("순수 촬영 \(TLFormat.hms(session.recordedSeconds)) / 목표 \(TLFormat.hms(session.targetSeconds))")
+                .font(.system(size: 12)).foregroundStyle(TL.muted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 28)
+    }
+
+    // MARK: 보조
+
+    private func pts(_ session: FocusSession) -> Int? {
+        ScoreRules.points(for: session.outcome ?? .completed, intensity: session.intensity)?.1
+    }
+
+    private func circleColor(_ outcome: SessionOutcome) -> Color {
+        outcome.isSuccess ? TL.jade : (outcome.isFailure ? TL.rec : TL.amber)
+    }
+
+    /// 실패/긴급 사유 — 점수 원장의 note 우선, 없으면 세션의 긴급 사유
+    private func reason(for session: FocusSession) -> String? {
+        if let note = scoreEvents.first(where: { $0.sessionID == session.id })?.note, !note.isEmpty {
+            return note
+        }
+        return session.emergencyReason
     }
 }
 
