@@ -3,7 +3,7 @@
 //  TimeLock
 //
 //  1) WatermarkExporter — 내보내기 시 기본 워터마크 삽입.
-//     구독(타임락 프로) 상태에서만 워터마크 제거 토글이 동작한다.
+//     구독(앵그리모티 프로) 상태에서만 워터마크 제거 토글이 동작한다.
 //  2) VideoDownloader — 결과 화면의 '타임랩스 저장'. 정책상 촬영본은
 //     세션 종료 직후 사진 앱으로 저장하지 않으면 자동 삭제된다.
 //  3) SubscriptionManager — StoreKit 2 자동갱신 구독 관리.
@@ -58,7 +58,7 @@ enum WatermarkExporter {
             parentLayer.addSublayer(videoLayer)
 
             let text = CATextLayer()
-            text.string = "TIMELOCK ● REC"
+            text.string = "앵그리모티 ● REC"
             text.font = UIFont.systemFont(ofSize: 10, weight: .heavy)
             text.fontSize = max(22, renderSize.width * 0.038)
             text.foregroundColor = UIColor(white: 1, alpha: 0.85).cgColor
@@ -98,7 +98,7 @@ enum VideoDownloader {
         var errorDescription: String? {
             switch self {
             case .notAuthorized:
-                return "사진 추가 권한이 꺼져 있습니다 — iPhone 설정 › 타임락에서 허용하세요."
+                return "사진 추가 권한이 꺼져 있습니다 — iPhone 설정 › 앵그리모티에서 허용하세요."
             case .exportFailed:
                 return "영상을 준비하지 못했습니다. 다시 시도하세요."
             }
@@ -124,7 +124,7 @@ enum VideoDownloader {
     }
 }
 
-// MARK: - 구독 (타임락 프로)
+// MARK: - 구독 (앵그리모티 프로)
 
 @MainActor
 final class SubscriptionManager: ObservableObject {

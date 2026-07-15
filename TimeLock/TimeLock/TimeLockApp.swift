@@ -1,6 +1,6 @@
 //
 //  TimeLockApp.swift
-//  TimeLock — 타임락
+//  TimeLock — 앵그리모티
 //
 //  알람을 끄는 유일한 방법, 촬영 시작.
 //

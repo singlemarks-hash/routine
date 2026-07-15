@@ -38,7 +38,7 @@ private struct ConceptStep: View {
             RECRingDial(progress: appeared ? 1 : 0, live: true, tint: TL.rec) {
                 VStack(spacing: 6) {
                     TLEyebrow(text: "REC", color: TL.rec)
-                    Text("타임락")
+                    Text("앵그리모티")
                         .font(.tlTimer(44))
                         .foregroundStyle(TL.paper)
                 }
@@ -87,7 +87,7 @@ private struct PermissionStep: View {
                 .font(.tlTitle(28))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 8)
-            Text("타임락의 강제력은 카메라와 알람에서 나옵니다.")
+            Text("앵그리모티의 강제력은 카메라와 알람에서 나옵니다.")
                 .font(.tlBody)
                 .foregroundStyle(TL.muted)
                 .padding(.top, 6)
@@ -107,7 +107,7 @@ private struct PermissionStep: View {
             .padding(.top, 28)
 
             if cameraGranted == false || notifGranted == false {
-                Text("거부된 권한은 iPhone 설정 › 타임락에서 다시 켤 수 있습니다. 권한 없이는 알람 해제와 세션 기록이 동작하지 않습니다.")
+                Text("거부된 권한은 iPhone 설정 › 앵그리모티에서 다시 켤 수 있습니다. 권한 없이는 알람 해제와 세션 기록이 동작하지 않습니다.")
                     .font(.system(size: 13))
                     .foregroundStyle(TL.amber)
                     .padding(.top, 16)

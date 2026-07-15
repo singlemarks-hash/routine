@@ -166,7 +166,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(subscription.isPro ? "타임락 프로 사용 중" : "타임락 프로")
+                            Text(subscription.isPro ? "앵그리모티 프로 사용 중" : "앵그리모티 프로")
                                 .font(.tlTitle(17)).foregroundStyle(TL.paper)
                             Text(subscription.isPro
                                  ? "저장하는 타임랩스의 워터마크를 제거할 수 있습니다."
@@ -275,7 +275,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            TLEyebrow(text: "타임락")
+            TLEyebrow(text: "앵그리모티")
             Text("알람을 끄는 유일한 방법, 촬영 시작. · v1.0.0")
                 .font(.system(size: 12)).foregroundStyle(TL.faint)
         }
@@ -300,7 +300,7 @@ struct PaywallView: View {
                 }
                 .frame(width: 150, height: 150)
 
-                Text("타임락 프로")
+                Text("앵그리모티 프로")
                     .font(.tlTitle(26)).foregroundStyle(TL.paper)
                     .padding(.top, 24)
                 Text("내 완주 기록을 워터마크 없이 공유하세요.")

@@ -80,7 +80,7 @@ struct AuthView: View {
             .frame(width: 92, height: 92)
             .padding(.top, 48)
 
-            TLEyebrow(text: "타임락 출석부", color: TL.rec)
+            TLEyebrow(text: "앵그리모티 출석부", color: TL.rec)
                 .padding(.top, 20)
             Text("기록은 계정에 남습니다")
                 .font(.tlTitle(26))
