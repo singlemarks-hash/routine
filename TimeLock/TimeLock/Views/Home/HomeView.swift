@@ -425,7 +425,7 @@ private struct QuickStartSheet: View {
                     }
                     Picker("활동 시간", selection: $minutes) {
                         ForEach(TimePolicy.durationOptionsMinutes, id: \.self) {
-                            Text("\(TLFormat.durationLabel($0)) — \(ScoreRules.completionBase(forMinutes: $0))점").tag($0)
+                            Text(TLFormat.durationLabel($0)).tag($0)
                         }
                     }
                     .pickerStyle(.wheel)

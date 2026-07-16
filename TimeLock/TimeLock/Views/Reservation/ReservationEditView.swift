@@ -228,10 +228,7 @@ struct ReservationEditView: View {
                     Divider().overlay(TL.hairline)
                     HStack(spacing: 10) {
                         Picker("활동 시간", selection: $durationMinutes) {
-                            ForEach(durations, id: \.self) {
-                                Text("\(TLFormat.durationLabel($0)) — 완료 시 \(ScoreRules.completionBase(forMinutes: $0))점")
-                                    .tag($0)
-                            }
+                            ForEach(durations, id: \.self) { Text(TLFormat.durationLabel($0)).tag($0) }
                         }
                         .pickerStyle(.menu)
                         .tint(TL.paper)
