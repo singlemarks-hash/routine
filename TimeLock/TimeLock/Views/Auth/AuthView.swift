@@ -40,10 +40,17 @@ struct AuthView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     header
-                    modePicker
-                        .padding(.top, 28)
-                    fields
-                        .padding(.top, 16)
+
+                    if let pendingEmail = account.pendingVerificationEmail {
+                        verificationPanel(email: pendingEmail)
+                            .padding(.top, 28)
+                    } else {
+                        modePicker
+                            .padding(.top, 28)
+                        fields
+                            .padding(.top, 16)
+                    }
+
                     if let errorMessage, !errorMessage.isEmpty {
                         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                             .font(.system(size: 13, weight: .semibold))
@@ -51,13 +58,16 @@ struct AuthView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 12)
                     }
-                    primaryButton
-                        .padding(.top, 16)
-                    divider
-                        .padding(.vertical, 22)
-                    socialButtons
-                    guestButton
-                        .padding(.top, 26)
+
+                    if account.pendingVerificationEmail == nil {
+                        primaryButton
+                            .padding(.top, 16)
+                        divider
+                            .padding(.vertical, 22)
+                        socialButtons
+                        guestButton
+                            .padding(.top, 26)
+                    }
 
                     Text("계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주됩니다.")
                         .font(.system(size: 11)).foregroundStyle(TL.faint)
@@ -70,6 +80,7 @@ struct AuthView: View {
                 .padding(.horizontal, 24)
             }
             .scrollDismissesKeyboard(.interactively)
+            .animation(TLMotion.smooth, value: account.pendingVerificationEmail)
         }
         .preferredColorScheme(.dark)
         .onChange(of: account.currentUser) { _, user in
@@ -256,6 +267,52 @@ struct AuthView: View {
             }
         }
         .disabled(working)
+    }
+
+    // MARK: 이메일 인증 대기 패널 — 인증을 마쳐야 입장 가능
+
+    @ViewBuilder
+    private func verificationPanel(email: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "envelope.badge.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(TL.amber)
+
+            VStack(spacing: 6) {
+                Text("이메일 인증이 필요합니다")
+                    .font(.tlTitle(20)).foregroundStyle(TL.paper)
+                Text("\(email) 로 인증 메일을 보냈습니다.\n메일함에서 인증 링크를 누른 뒤 아래 버튼을 눌러주세요.")
+                    .font(.system(size: 13)).foregroundStyle(TL.muted)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+            }
+
+            Button {
+                run { try await account.confirmEmailVerified() }
+            } label: {
+                Text(working ? "확인 중…" : "인증 완료했어요")
+            }
+            .buttonStyle(TLPrimaryButtonStyle())
+            .disabled(working)
+
+            HStack(spacing: 18) {
+                Button("인증 메일 재발송") {
+                    run {
+                        try await account.resendVerificationEmail()
+                        await MainActor.run { errorMessage = "인증 메일을 다시 보냈습니다. 메일함(스팸함 포함)을 확인하세요." }
+                    }
+                }
+                Button("다른 계정으로") {
+                    errorMessage = nil
+                    account.cancelPendingVerification()
+                }
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(TL.muted)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
     }
 
     // MARK: 동작

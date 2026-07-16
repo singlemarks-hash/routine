@@ -99,6 +99,8 @@ final class AccountStore: ObservableObject {
     static let guestID = "guest"
 
     @Published private(set) var currentUser: UserAccount?
+    /// 이메일 인증 대기 중인 주소. 값이 있으면 인증을 마쳐야 앱에 입장할 수 있다.
+    @Published private(set) var pendingVerificationEmail: String?
     /// 계정 상태가 바뀔 때 AppState가 알람/파생값을 갱신하도록 훅
     var onUserChanged: (() -> Void)?
 
@@ -142,6 +144,11 @@ final class AccountStore: ObservableObject {
             let provider: UserAccount.Provider =
                 user.providerData.contains { $0.providerID == "google.com" } ? .google :
                 user.providerData.contains { $0.providerID == "apple.com" } ? .apple : .email
+            // 이메일 미인증 계정은 세션 복원에서도 입장 차단 (인증 대기로 홀드)
+            if provider == .email, !user.isEmailVerified {
+                pendingVerificationEmail = user.email
+                return
+            }
             setUser(UserAccount(id: user.uid, email: user.email,
                                 displayName: user.displayName, provider: provider),
                     adoptGuestData: false)
@@ -182,15 +189,15 @@ final class AccountStore: ObservableObject {
         if backendActive {
             do {
                 let result = try await Auth.auth().createUser(withEmail: email, password: password)
-                // 사용자 이름 저장 + 이메일 인증 메일 발송 (계정 신뢰 확보)
+                // 사용자 이름 저장 + 이메일 인증 메일 발송.
+                // 인증을 마쳐야 입장 가능 — setUser 대신 인증 대기 상태로 홀드한다.
                 if !name.isEmpty {
                     let change = result.user.createProfileChangeRequest()
                     change.displayName = name
                     try? await change.commitChanges()
                 }
                 try? await result.user.sendEmailVerification()
-                setUser(UserAccount(id: result.user.uid, email: email,
-                                    displayName: name.isEmpty ? nil : name, provider: .email))
+                pendingVerificationEmail = email
             } catch let error as NSError where error.code == AuthErrorCode.emailAlreadyInUse.rawValue {
                 throw AuthError.duplicateEmail
             } catch {
@@ -238,19 +245,51 @@ final class AccountStore: ObservableObject {
         #endif
     }
 
+    /// 인증 대기 화면의 '인증 완료했어요' — 서버에서 확인되면 그때 입장시킨다.
+    func confirmEmailVerified() async throws {
+        #if canImport(FirebaseAuth)
+        guard backendActive, let user = Auth.auth().currentUser else {
+            throw AuthError.providerUnavailable("네트워크 상태를 확인한 뒤 다시 시도하세요.")
+        }
+        try? await user.reload()
+        guard user.isEmailVerified else {
+            throw AuthError.unknown("아직 인증이 확인되지 않았습니다. 메일함에서 인증 링크를 누른 뒤 다시 시도하세요.")
+        }
+        pendingVerificationEmail = nil
+        setUser(UserAccount(id: user.uid, email: user.email,
+                            displayName: user.displayName, provider: .email))
+        #else
+        throw AuthError.providerUnavailable("이메일 인증은 Firebase 연동 후 사용할 수 있습니다.")
+        #endif
+    }
+
+    /// 인증 대기를 취소하고 다른 계정으로 시작 (Firebase 세션도 정리)
+    func cancelPendingVerification() {
+        #if canImport(FirebaseAuth)
+        if backendActive { try? Auth.auth().signOut() }
+        #endif
+        pendingVerificationEmail = nil
+    }
+
     func signIn(email: String, password: String) async throws {
         let email = email.trimmingCharacters(in: .whitespaces).lowercased()
         guard email.contains("@") else { throw AuthError.invalidEmail }
 
         #if canImport(FirebaseAuth)
         if backendActive {
+            let result: AuthDataResult
             do {
-                let result = try await Auth.auth().signIn(withEmail: email, password: password)
-                setUser(UserAccount(id: result.user.uid, email: email,
-                                    displayName: result.user.displayName, provider: .email))
+                result = try await Auth.auth().signIn(withEmail: email, password: password)
             } catch {
                 throw AuthError.wrongCredentials
             }
+            // 이메일 미인증 계정은 입장 차단 — 인증 대기 상태로 홀드
+            guard result.user.isEmailVerified else {
+                pendingVerificationEmail = email
+                return
+            }
+            setUser(UserAccount(id: result.user.uid, email: email,
+                                displayName: result.user.displayName, provider: .email))
             return
         }
         #endif
