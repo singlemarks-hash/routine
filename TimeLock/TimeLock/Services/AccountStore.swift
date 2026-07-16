@@ -140,6 +140,10 @@ final class AccountStore: ObservableObject {
         }
         #endif
         #if canImport(FirebaseAuth)
+        if backendActive {
+            // 인증·비밀번호 재설정 등 Firebase 발송 메일을 한국어 템플릿으로
+            Auth.auth().languageCode = "ko"
+        }
         if backendActive, let user = Auth.auth().currentUser {
             let provider: UserAccount.Provider =
                 user.providerData.contains { $0.providerID == "google.com" } ? .google :
