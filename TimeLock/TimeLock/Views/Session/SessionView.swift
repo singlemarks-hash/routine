@@ -230,12 +230,17 @@ struct SessionView: View {
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(TL.ink)
             VStack(alignment: .leading, spacing: 1) {
-                Text("자리비움 감지")
+                // 미친 매운맛은 1회로 즉시 실패라 카운트 표기가 무의미
+                Text(engine.session?.intensity == .insane
+                     ? "자리비움 감지"
+                     : "자리비움 감지 · \(min(engine.absenceEpisodeCount + 1, engine.absenceMaxEpisodes))/\(engine.absenceMaxEpisodes)")
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .foregroundStyle(TL.ink)
                 Text(engine.session?.intensity == .insane
                      ? "2분 안에 돌아오세요 — 초과 시 즉시 실패"
-                     : "2분 안에 돌아오세요 — 초과 시 자동 긴급 중단 (3회 반복이면 실패)")
+                     : engine.absenceEpisodeCount + 1 >= engine.absenceMaxEpisodes
+                       ? "2분 안에 돌아오세요 — 마지막 기회, 초과 시 즉시 실패"
+                       : "2분 안에 돌아오세요 — 초과 시 자동 긴급 중단 (3회 반복이면 실패)")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.ink.opacity(0.8))
             }

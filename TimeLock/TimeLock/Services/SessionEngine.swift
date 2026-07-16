@@ -45,9 +45,10 @@ final class SessionEngine: NSObject, ObservableObject {
     private var absencePenaltyApplied = false
     private let absenceWarnSeconds = 30
     private let absencePenaltySeconds = 120
-    /// 한 활동에서 2분 부재가 반복된 횟수 — 3번째는 봐주지 않고 자동 실패
-    private var absenceEpisodeCount = 0
-    private let absenceMaxEpisodes = 3
+    /// 한 활동에서 2분 부재가 반복된 횟수 — 3번째는 봐주지 않고 자동 실패.
+    /// 경고 배너가 "n/3" 카운트를 표시할 수 있도록 발행한다.
+    @Published private(set) var absenceEpisodeCount = 0
+    let absenceMaxEpisodes = 3
 
     /// finalize 완료 직후 호출 — 결과 화면 라우팅은 이 콜백이 보장한다.
     /// (phase 변화 관찰에만 의존하면 finalize 전 선(先)설정과 겹쳐 전환이 누락될 수 있다)
