@@ -20,12 +20,6 @@ struct SessionView: View {
 
     @State private var showEmergency = false
 
-    /// 시작 카운트다운 (3 → 2 → 1). 끝나면 countdownFinished = true.
-    @State private var countdownValue = 3
-    @State private var countdownFinished = false
-    /// 첫 실촬영 프레임이 들어와 프리롤이 끝났는지 (한 번 true면 유지 — 이후 일시정지에 재노출 안 됨)
-    @State private var recordingLaunched = false
-
     /// 세션 방향은 구도 단계에서 확정 — 촬영 내내 고정
     private var isLandscape: Bool { app.sessionOrientation == .landscape }
 
@@ -63,20 +57,9 @@ struct SessionView: View {
                 BreakOverlay(deadline: deadline)
             }
 
-            // 시작 프리롤 오버레이 — 라이브 카메라 위에 "3·2·1·시작!".
-            // 정지화면이 아니라 실제 프리뷰가 살아있고, '시작!'에서 녹화가 개시된다.
-            // 페이드 없이 즉시 교체 — 프리롤 프리뷰와 셀피 프리뷰가 한 프레임도 공존하지
-            // 않게 해 세션 연결 다툼(검은 화면)을 막는다.
-            if showStartCountdown {
-                startCountdownOverlay
-            }
         }
         .animation(TLMotion.smooth, value: engine.absenceWarning)
         .interactiveDismissDisabled()
-        .task { await runStartCountdown() }
-        .onChange(of: recorder.frameCount) { _, n in
-            if n > 0 { recordingLaunched = true }   // 첫 실촬영 프레임 → 프리롤 종료
-        }
         .onDisappear { alarm.muteAllNotifications = false }
         .sheet(isPresented: $showEmergency) { insaneEmergencySheet }
     }
@@ -274,63 +257,6 @@ struct SessionView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TL.ink.opacity(0.96).ignoresSafeArea())
-    }
-
-    // MARK: 시작 프리롤 오버레이 (라이브 카메라 + 3·2·1)
-
-    /// 첫 실촬영 프레임이 들어오기 전까지 프리롤을 유지. 한 번 내려가면 다시 뜨지 않는다.
-    private var showStartCountdown: Bool { !recordingLaunched }
-
-    /// 3·2·1을 세고 '시작!'에서 실제 녹화를 개시(commitRecording)한다.
-    /// 카운트다운 동안엔 프리뷰만 라이브로 돌아가므로 정지화면이 아니다.
-    private func runStartCountdown() async {
-        for n in stride(from: 3, through: 1, by: -1) {
-            countdownValue = n
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-        }
-        countdownFinished = true
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-        app.commitRecording()   // ← '시작!' 시점에 실제 녹화 개시
-    }
-
-    private var startCountdownOverlay: some View {
-        ZStack {
-            // 라이브 카메라 프리뷰 — 정지화면이 아니라 실제 구도가 살아있는 프리롤
-            CameraPreviewView(session: recorder.captureSession,
-                              orientation: app.sessionOrientation, fill: true)
-                .ignoresSafeArea()
-            // 숫자 가독성용 스크림
-            LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.25), .black.opacity(0.55)],
-                           startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                TLEyebrow(text: "촬영 개시", color: TL.rec)
-                Text("이제부터 촬영 시작한다")
-                    .font(.tlTitle(23)).foregroundStyle(.white)
-
-                ZStack {
-                    if !countdownFinished {
-                        Text("\(countdownValue)")
-                            .font(.system(size: 112, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
-                            .id(countdownValue)   // 숫자 교체 시 트랜지션
-                            .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    } else {
-                        // '시작!' 호령 — 첫 프레임 도착 시 프리롤이 내려간다
-                        Text("시작!")
-                            .font(.system(size: 80, weight: .heavy, design: .rounded))
-                            .foregroundStyle(TL.rec)
-                            .transition(.scale(scale: 0.6).combined(with: .opacity))
-                    }
-                }
-                .frame(height: 124)
-                .shadow(color: .black.opacity(0.45), radius: 8, y: 2)
-                .animation(TLMotion.bouncy, value: countdownValue)
-                .animation(TLMotion.bouncy, value: countdownFinished)
-            }
-        }
     }
 
     // MARK: 긴급 시트 (미친 매운맛 전용 — 되돌릴 수 없어 확인을 거친다)

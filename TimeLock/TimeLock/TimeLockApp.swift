@@ -369,17 +369,16 @@ final class AppState: ObservableObject {
         route = .mountGuide(pending: pending)
     }
 
-    /// 거치 가이드 → 세션 화면 진입 (이 순간 알람 정지 = 알람 해제).
-    /// 실제 녹화는 카운트다운 '시작!' 시점(commitRecording)에 개시하고,
-    /// 그동안엔 라이브 프리뷰만 예열해 정지화면 없이 카운트다운을 보여준다.
+    /// 거치 가이드 '촬영 시작' — 알람 정지 + 세션 무장.
+    /// 카운트다운(3·2·1)은 거치 가이드가 자기 라이브 프리뷰 위에서 진행한다
+    /// (프리뷰 레이어가 항상 1개라 화면 멈춤·검은 화면이 구조적으로 불가능).
     func beginRecording(pending: PendingSession) {
         AlarmScheduler.shared.stopAlarmSound()
         armedPending = pending
-        route = .session
-        CameraRecorder.shared.startPreview()   // 카운트다운 동안 프리뷰 예열(라이브)
     }
 
-    /// 시작 카운트다운이 끝나는 순간 — 실제 녹화 개시.
+    /// 카운트다운 '시작!' — 실제 녹화 개시와 동시에 세션 화면으로 전환.
+    /// 세션 화면은 녹화가 이미 도는 상태로 등장하므로 타이머가 즉시 움직인다.
     func commitRecording() {
         guard let pending = armedPending else { return }
         armedPending = nil
@@ -389,7 +388,9 @@ final class AppState: ObservableObject {
                                    targetSeconds: pending.targetSeconds,
                                    reservationID: pending.reservationID,
                                    ownerUserID: AccountStore.shared.currentUserID)
-        // 카메라 시작이 실패하면 engine이 즉시 finalize → onFinalized가 .result로 덮어쓴다.
+        // 카메라 시작이 실패하면 engine이 즉시 finalize → onFinalized가 .result로 덮어쓰므로
+        // 라우팅을 먼저 .session으로 두어야 순서가 꼬이지 않는다.
+        route = .session
         engine.start(session: session, orientation: sessionOrientation)
     }
 

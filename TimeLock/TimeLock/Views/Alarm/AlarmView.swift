@@ -307,6 +307,9 @@ struct MountGuideView: View {
     @State private var checkedFrame = false
     @State private var showFocusGuide = false
 
+    /// 시작 카운트다운 (nil = 대기, 3→2→1, 0 = '시작!')
+    @State private var countdown: Int?
+
     /// 방향은 사용자가 이 화면에서 고른다 (세션 시작 후엔 고정)
     private var isLandscape: Bool { app.sessionOrientation == .landscape }
 
@@ -323,6 +326,12 @@ struct MountGuideView: View {
             } else {
                 portraitLayout
             }
+
+            // 시작 카운트다운 — 이 화면의 라이브 프리뷰 위에서 진행 (프리뷰 레이어 1개 유지).
+            // '시작!'과 동시에 녹화가 개시되고 세션 화면으로 전환된다.
+            if let countdown {
+                countdownOverlay(value: countdown)
+            }
         }
         .interactiveDismissDisabled()
         .onAppear { recorder.startPreview() }
@@ -330,7 +339,57 @@ struct MountGuideView: View {
         .sheet(isPresented: $showFocusGuide) {
             FocusModeGuideSheet {
                 showFocusGuide = false
-                app.beginRecording(pending: pending)
+                app.beginRecording(pending: pending)   // 알람 정지 + 세션 무장
+                runCountdown()
+            }
+        }
+    }
+
+    // MARK: 시작 카운트다운
+
+    private func runCountdown() {
+        Task { @MainActor in
+            for n in stride(from: 3, through: 1, by: -1) {
+                withAnimation(TLMotion.bouncy) { countdown = n }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+            withAnimation(TLMotion.bouncy) { countdown = 0 }   // '시작!'
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            app.commitRecording()   // 녹화 개시 + 세션 화면 전환
+        }
+    }
+
+    private func countdownOverlay(value: Int) -> some View {
+        ZStack {
+            // 스크림 — 아래 컨트롤 터치 차단 + 숫자 가독성 (프리뷰는 계속 라이브로 비침)
+            LinearGradient(colors: [.black.opacity(0.6), .black.opacity(0.3), .black.opacity(0.6)],
+                           startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+
+            VStack(spacing: 18) {
+                TLEyebrow(text: "촬영 개시", color: TL.rec)
+                Text("이제부터 촬영 시작한다")
+                    .font(.tlTitle(23)).foregroundStyle(.white)
+
+                Group {
+                    if value > 0 {
+                        Text("\(value)")
+                            .font(.system(size: 112, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                            .id(value)
+                            .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    } else {
+                        Text("시작!")
+                            .font(.system(size: 80, weight: .heavy, design: .rounded))
+                            .foregroundStyle(TL.rec)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    }
+                }
+                .frame(height: 124)
+                .shadow(color: .black.opacity(0.45), radius: 8, y: 2)
             }
         }
     }

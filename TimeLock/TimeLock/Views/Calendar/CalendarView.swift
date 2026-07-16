@@ -222,13 +222,16 @@ struct DayDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if !ordered.isEmpty {
-                        Button(allOpen ? "모두 접기" : "모두 펼치기") {
-                            withAnimation(TLMotion.snappy) {
-                                expanded = allOpen ? [] : Set(ordered.map(\.id))
-                            }
+                        // 고정 폭 — '모두 접기'↔'모두 펼치기' 글자 수 차이로 버튼이 움직이지 않게.
+                        // 전체 전환은 애니메이션 없이 즉시 (개별 토글만 부드럽게).
+                        Button {
+                            expanded = allOpen ? [] : Set(ordered.map(\.id))
+                        } label: {
+                            Text(allOpen ? "모두 접기" : "모두 펼치기")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(TL.muted)
+                                .frame(width: 84, alignment: .leading)
                         }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(TL.muted)
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
