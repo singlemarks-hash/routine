@@ -35,6 +35,8 @@ final class SessionEngine: NSObject, ObservableObject {
     @Published var lastFinishedSession: FocusSession?
     /// 이번 완주로 슬롯이 확장됐을 때의 축하 정보 (연속일, 보너스 점수) — 결과 화면이 파티클로 표시
     @Published private(set) var lastSlotBonus: (days: Int, points: Int)?
+    /// 이번 완주로 미친 매운맛이 해제됐을 때의 보너스 점수 — 결과 화면이 배지+파티클로 표시
+    @Published private(set) var lastUnlockBonus: Int?
 
     // 자리비움 감지 정책: 30초 연속 부재 → 경고 배너, 2분 초과 → 벌점 1회(에피소드당)
     @Published private(set) var absenceWarning = false
@@ -392,6 +394,32 @@ final class SessionEngine: NSObject, ObservableObject {
         }
     }
 
+    /// 매운맛 완주 3회로 미친 매운맛이 '이번 완주로' 해제됐으면 보너스 상점 +5를 지급한다.
+    /// 해제는 되돌아가지 않으므로 계정별로 평생 1회만 지급한다.
+    private func awardUnlockBonusIfJustUnlocked(session s: FocusSession, context: ModelContext) {
+        guard s.intensity == .spicy else { return }   // 해제 조건은 '매운맛' 완주만 센다
+        let owner = s.ownerUserID
+        let key = "unlockBonus.awarded.\(owner)"
+        guard !defaults.bool(forKey: key) else { return }
+
+        let spicyRaw = Intensity.spicy.rawValue
+        let completedRaw = SessionOutcome.completed.rawValue
+        let count = (try? context.fetchCount(FetchDescriptor<FocusSession>(
+            predicate: #Predicate {
+                $0.ownerUserID == owner && $0.intensityRaw == spicyRaw && $0.outcomeRaw == completedRaw
+            }))) ?? 0
+        guard count >= 3 else { return }
+
+        let event = ScoreEvent(type: .unlockBonus, points: 5,
+                               sessionID: s.id, intensity: s.intensity,
+                               note: "매운맛 완주 3회 — 미친 매운맛 잠금 해제 보너스",
+                               ownerUserID: owner)
+        context.insert(event)
+        AccountStore.shared.mirror(event: event)
+        defaults.set(true, forKey: key)
+        lastUnlockBonus = 5
+    }
+
     /// 자리비움 벌점 — 세션은 계속 진행되고 원장에만 기록된다.
     private func recordAbsencePenalty(session s: FocusSession) {
         guard let context = modelContext else { return }
@@ -421,9 +449,12 @@ final class SessionEngine: NSObject, ObservableObject {
             AccountStore.shared.mirror(event: event)
         }
         // 이번 완주로 연속 달성일이 슬롯 확장 단계(3·5·7·10·30일)를 넘었으면 보너스 상점 +5
+        // 매운맛 완주 3회째라면 미친 매운맛 해제 보너스 +5 (평생 1회)
         lastSlotBonus = nil
+        lastUnlockBonus = nil
         if outcome == .completed {
             awardSlotBonusIfTierCrossed(session: s, context: context)
+            awardUnlockBonusIfJustUnlocked(session: s, context: context)
         }
         try? context.save()
 

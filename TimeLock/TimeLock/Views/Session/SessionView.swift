@@ -438,8 +438,8 @@ struct SessionResultView: View {
                         .shadow(color: TL.jade.opacity(successPop ? 0.35 : 0), radius: 16)
                 }
                 .overlay {
-                    // 슬롯 확장 순간의 축하 파티클 (해당자만 — 리플 위에 추가)
-                    if engine.lastSlotBonus != nil {
+                    // 슬롯 확장·미친맛 해제 순간의 축하 파티클 (해당자만 — 리플 위에 추가)
+                    if engine.lastSlotBonus != nil || engine.lastUnlockBonus != nil {
                         ConfettiBurst()
                     }
                 }
@@ -495,6 +495,18 @@ struct SessionResultView: View {
                             .padding(.horizontal, 14).padding(.vertical, 8)
                             .background(Capsule().fill(TL.amber))
                             .shadow(color: TL.amber.opacity(0.5), radius: 10)
+                            .padding(.top, 6)
+                    }
+
+                    // 미친 매운맛 잠금 해제 보너스 — 매운맛 완주 3회째 순간에만 (평생 1회)
+                    if let unlockPoints = engine.lastUnlockBonus {
+                        Label("미친 매운맛 잠금 해제! 보너스 상점 +\(unlockPoints)",
+                              systemImage: "flame.fill")
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundStyle(TL.paper)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(Capsule().fill(TL.rec))
+                            .shadow(color: TL.rec.opacity(0.5), radius: 10)
                             .padding(.top, 6)
                     }
                 } else {
