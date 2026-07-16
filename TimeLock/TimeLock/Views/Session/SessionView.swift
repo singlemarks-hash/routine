@@ -413,11 +413,22 @@ struct SessionResultView: View {
 
     private func header(session: FocusSession?, outcome: SessionOutcome, tint: Color) -> some View {
         VStack(spacing: 6) {
-            ZStack {
-                Circle().strokeBorder(tint, lineWidth: 5).frame(width: 76, height: 76)
-                Image(systemName: symbol(for: outcome))
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(tint)
+            // 결과 아이콘: 완주 = 스마일 캐릭터 / 실패·긴급 = 앵그리 캐릭터 / 그 외 = 기존 심볼
+            if outcome.isSuccess {
+                Image("MotiSmile")
+                    .resizable().scaledToFit()
+                    .frame(width: 84, height: 84)
+            } else if outcome.isFailure || outcome == .emergency {
+                Image("MotiAngry")
+                    .resizable().scaledToFit()
+                    .frame(width: 84, height: 84)
+            } else {
+                ZStack {
+                    Circle().strokeBorder(tint, lineWidth: 5).frame(width: 76, height: 76)
+                    Image(systemName: symbol(for: outcome))
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(tint)
+                }
             }
 
             Text(title(for: outcome))
