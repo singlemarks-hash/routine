@@ -16,6 +16,7 @@ struct ReservationEditView: View {
 
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var subscription: SubscriptionManager
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allActiveReservations: [Reservation]
@@ -34,7 +35,9 @@ struct ReservationEditView: View {
         SlotPolicy.currentStreak(sessions: allSessions.filter { $0.ownerUserID == account.currentUserID })
     }
     /// 현재 허용되는 최대 활동 수 (nil = 무제한)
-    private var allowedSlots: Int? { SlotPolicy.allowedSlots(forStreak: currentStreak) }
+    private var allowedSlots: Int? {
+        SlotPolicy.allowedSlots(forStreak: currentStreak, isMember: subscription.isPro)
+    }
 
     @State private var name = ""
     @State private var tag = ActivityTag.presets[0]
@@ -156,7 +159,8 @@ struct ReservationEditView: View {
                 Button("삭제", role: .destructive) { delete() }
             }
             .sheet(isPresented: $showSlotPolicy) {
-                SlotPolicySheet(currentStreak: currentStreak, usedSlots: allReservations.count)
+                SlotPolicySheet(currentStreak: currentStreak, usedSlots: allReservations.count,
+                                isMember: subscription.isPro)
                     .presentationDetents([.height(480)])
             }
             .onAppear(perform: load)
@@ -389,6 +393,7 @@ struct ReservationEditView: View {
 private struct SlotPolicySheet: View {
     let currentStreak: Int
     let usedSlots: Int
+    let isMember: Bool
     @Environment(\.dismiss) private var dismiss
 
     /// 표 행: (라벨, 연속일 하한, 슬롯 표기)
@@ -451,6 +456,13 @@ private struct SlotPolicySheet: View {
                 }
                 .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous).fill(TL.surface))
                 .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+
+                Label(isMember
+                      ? "멤버십 적용 중 — 연속일과 무관하게 최소 \(SlotPolicy.memberFloorSlots)개가 보장됩니다."
+                      : "멤버십에 가입하면 연속일과 무관하게 최소 \(SlotPolicy.memberFloorSlots)개부터 시작합니다.",
+                      systemImage: "crown.fill")
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.jade)
+                    .lineSpacing(2)
 
                 Label("연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 사라지지 않아요. 새로 추가하는 것만 제한됩니다.", systemImage: "shield.checkerboard")
                     .font(.system(size: 12)).foregroundStyle(TL.muted)

@@ -208,8 +208,8 @@ struct ProfileEditView: View {
                                     Text(subscription.isPro ? "앵그리모티 멤버십 사용 중" : "앵그리모티 멤버십")
                                         .font(.tlTitle(17)).foregroundStyle(TL.paper)
                                     Text(subscription.isPro
-                                         ? "저장하는 타임랩스의 워터마크를 제거할 수 있습니다."
-                                         : "타임랩스 저장 시 워터마크를 제거합니다.")
+                                         ? "멤버십 혜택 적용 중 — 슬롯 \(SlotPolicy.memberFloorSlots)개부터·광고 제거·워터마크 제거."
+                                         : "슬롯 \(SlotPolicy.memberFloorSlots)개부터 · 광고 제거 · 워터마크 제거 · 벌점 리셋.")
                                         .font(.system(size: 13)).foregroundStyle(TL.muted)
                                 }
                                 Spacer()
@@ -560,41 +560,51 @@ struct AppLanguageView: View {
 
 struct PaywallView: View {
     @EnvironmentObject private var subscription: SubscriptionManager
+    @EnvironmentObject private var account: AccountStore
+    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query private var allEvents: [ScoreEvent]
     @State private var purchasing = false
 
     var body: some View {
         NavigationStack {
+            ScrollView {
             VStack(spacing: 0) {
-                Spacer()
                 // 멤버십 캐릭터 (moti_member)
                 Image("MotiMember")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 150, height: 150)
+                    .frame(width: 140, height: 140)
+                    .padding(.top, 8)
 
                 Text("앵그리모티 멤버십")
                     .font(.tlTitle(26)).foregroundStyle(TL.paper)
-                    .padding(.top, 24)
-                Text("내 완주 기록을 워터마크 없이 공유하세요.")
+                    .padding(.top, 18)
+                Text("기본을 넘어, 자율까지.")
                     .font(.tlBody).foregroundStyle(TL.muted)
                     .padding(.top, 6)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    benefit("타임랩스 저장 시 워터마크 제거")
-                    benefit("완주 영상 원본 화질 저장")
-                    benefit("앞으로 추가되는 멤버십 기능 전부")
+                    benefit("활동 슬롯 최소 \(SlotPolicy.memberFloorSlots)개부터 시작 (무료는 2개)")
+                    benefit("앱 내 광고 제거")
+                    benefit("타임랩스 워터마크 제거")
+                    benefit("가입 즉시 누적 벌점 리셋")
+                    benefit("멤버들과 함께: 랭킹게임 (준비 중)")
+                    benefit("그 외 추가되는 멤버십 기능 모두 포함")
                 }
-                .padding(.top, 28)
+                .padding(.top, 24)
 
-                Spacer()
+                Spacer(minLength: 24)
 
                 if let product = subscription.product {
                     Button {
                         purchasing = true
                         Task {
                             defer { purchasing = false }
-                            if (try? await subscription.purchase()) == true { dismiss() }
+                            if (try? await subscription.purchase()) == true {
+                                resetPenalties()   // 가입 즉시 누적 벌점 리셋 (상쇄 이벤트)
+                                dismiss()
+                            }
                         }
                     } label: {
                         Text(purchasing ? "처리 중…" : "\(product.displayPrice) / 월 구독하기")
@@ -627,6 +637,7 @@ struct PaywallView: View {
                     .padding(.bottom, 16)
             }
             .padding(.horizontal, 24)
+            }   // ScrollView
             .background(TL.ink)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -635,6 +646,22 @@ struct PaywallView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// 가입 즉시 누적 벌점 리셋 — 원장은 불변이므로 삭제 대신 '상쇄 이벤트'를 기록한다.
+    private func resetPenalties() {
+        let uid = account.currentUserID
+        let penaltySum = allEvents
+            .filter { $0.ownerUserID == uid && $0.points < 0 }
+            .reduce(0) { $0 + $1.points }
+        guard penaltySum < 0 else { return }
+        let event = ScoreEvent(type: .penaltyReset, points: -penaltySum,
+                               sessionID: nil, intensity: .spicy,
+                               note: "멤버십 가입 — 누적 벌점 \(penaltySum)점 상쇄",
+                               ownerUserID: uid)
+        context.insert(event)
+        AccountStore.shared.mirror(event: event)
+        try? context.save()
     }
 
     private func benefit(_ text: String) -> some View {

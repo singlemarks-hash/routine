@@ -58,7 +58,7 @@ enum WatermarkExporter {
             parentLayer.addSublayer(videoLayer)
 
             let text = CATextLayer()
-            text.string = "AngryMoti ● REC"
+            text.string = "AngryMoti"
             text.font = UIFont.systemFont(ofSize: 10, weight: .heavy)
             text.fontSize = max(22, renderSize.width * 0.038)
             text.foregroundColor = UIColor(white: 1, alpha: 0.85).cgColor

@@ -53,13 +53,17 @@ enum SlotPolicy {
         (3, 3), (5, 4), (7, 5), (10, 10), (30, nil)
     ]
 
+    /// 멤버십 회원은 연속일과 무관하게 최소 10개 보장 (연속 30일 무제한은 동일 적용)
+    static let memberFloorSlots = 10
+
     /// 현재 연속 달성일로 허용되는 최대 활동 수 (nil = 무제한)
-    static func allowedSlots(forStreak streak: Int) -> Int? {
+    static func allowedSlots(forStreak streak: Int, isMember: Bool = false) -> Int? {
         var allowed: Int? = baseSlots
         for tier in tiers where streak >= tier.days {
             allowed = tier.slots
         }
-        return allowed
+        guard let ladder = allowed else { return nil }   // 무제한
+        return isMember ? max(memberFloorSlots, ladder) : ladder
     }
 
     /// 다음 단계 (없으면 이미 최고 단계)
@@ -277,15 +281,17 @@ enum ScoreEventType: String, Codable, CaseIterable {
     case emergency      // 긴급 벌점
     case unlockBonus    // 미친 매운맛 잠금 해제 보너스
     case absence        // 촬영 중 자리비움 벌점 (사람 부재 감지)
+    case penaltyReset   // 멤버십 가입 시 누적 벌점 리셋 (상쇄 이벤트 — 원장은 불변)
 
     var title: String {
         switch self {
-        case .complete:    return "완주 상점"
-        case .exitFail:    return "이탈 벌점"
-        case .noShow:      return "노쇼 벌점"
-        case .emergency:   return "긴급 종료"
-        case .unlockBonus: return "잠금 해제 보너스"
-        case .absence:     return "자리비움 벌점"
+        case .complete:     return "완주 상점"
+        case .exitFail:     return "이탈 벌점"
+        case .noShow:       return "노쇼 벌점"
+        case .emergency:    return "긴급 종료"
+        case .unlockBonus:  return "잠금 해제 보너스"
+        case .absence:      return "자리비움 벌점"
+        case .penaltyReset: return "멤버십 벌점 리셋"
         }
     }
 }
