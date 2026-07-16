@@ -424,11 +424,20 @@ private struct QuickStartSheet: View {
                 }
 
                 Button("촬영 준비하기") {
-                    dismiss()
                     let finalName = name.trimmingCharacters(in: .whitespaces)
-                    app.startImmediate(name: finalName.isEmpty ? tag : finalName, tag: tag, minutes: minutes)
+                    guard !finalName.isEmpty else { return }
+                    dismiss()
+                    app.startImmediate(name: finalName, tag: tag, minutes: minutes)
                 }
                 .buttonStyle(TLPrimaryButtonStyle())
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
+
+                if name.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text("활동명을 입력해야 시작할 수 있습니다.")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TL.amber)
+                }
             }
             .padding(20)
             .background(TL.ink)
