@@ -4,7 +4,7 @@
 //
 //  1. 컨셉 — 알람을 끄는 유일한 방법은 촬영 시작
 //  2. 권한 — 카메라 / 알림 (거부 시 제약 고지)
-//  3. 강도 — 매운맛 선택 (미친 매운맛은 완주 3회 후 해금)
+//  3. 강도 — 매운맛 선택 (미친 매운맛은 완주 3회 후 잠금 해제)
 //
 
 import SwiftUI
@@ -177,7 +177,7 @@ private struct IntensityStep: View {
             }
             .padding(.top, 28)
 
-            Text("미친 매운맛은 매운맛 완주 3회 후 해금됩니다.")
+            Text("미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다.")
                 .font(.system(size: 13))
                 .foregroundStyle(TL.faint)
                 .padding(.top, 14)
@@ -205,7 +205,7 @@ struct IntensityCard: View {
                     HStack(spacing: 8) {
                         Text(intensity.title).font(.tlTitle(17)).foregroundStyle(TL.paper)
                         if locked {
-                            Label("해금 전", systemImage: "lock.fill")
+                            Label("잠금 해제 전", systemImage: "lock.fill")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(TL.faint)
                         }

@@ -108,7 +108,7 @@ TimeLock/
 | 촬영본 저장 안 하면 자동 삭제 | `SessionResultView`(저장) + `AppState.dismissResult/purgeUnsavedVideos`(삭제) |
 | 회원별 상점·벌점 | 모든 모델의 `ownerUserID`, `AccountStore`(게스트 기록 자동 귀속, Firestore 백업) |
 | 강도 상향 즉시·하향 익일 0시 | `AppState.requestIntensityChange` |
-| 미친 매운맛 해금 (매운맛 완주 3회) | `AppState.insaneUnlocked` |
+| 미친 매운맛 잠금 해제 (매운맛 완주 3회) | `AppState.insaneUnlocked` |
 | 규칙 변경 시 재계산 | `ScoreEvent` 원장이 원본 이벤트 보존, `ScoreRules` 순수 함수 |
 
 ## 프라이버시

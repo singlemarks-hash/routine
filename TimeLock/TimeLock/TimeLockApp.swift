@@ -195,7 +195,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// 미친 매운맛 해금: 매운맛 완주 3회
+    /// 미친 매운맛 잠금 해제: 매운맛 완주 3회
     var insaneUnlocked: Bool { spicyCompletions >= 3 }
     @Published private(set) var spicyCompletions = 0
 

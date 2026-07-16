@@ -2,7 +2,7 @@
 //  SettingsView.swift
 //  TimeLock
 //
-//  계정(로그인/로그아웃, 내 상점·벌점), 강도 변경(상향 즉시/하향 다음날 0시, 미친 매운맛 해금),
+//  계정(로그인/로그아웃, 내 상점·벌점), 강도 변경(상향 즉시/하향 다음날 0시, 미친 매운맛 잠금 해제),
 //  프라이버시 정책과 기록 삭제, 점수 원장 내역, 구독 관리.
 //
 
@@ -204,7 +204,7 @@ struct SettingsView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(TL.amber)
             }
-            Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. 미친 매운맛은 매운맛 완주 3회 후 해금됩니다. (현재 \(min(app.spicyCompletions, 3))/3)")
+            Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. 미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다. (현재 \(min(app.spicyCompletions, 3))/3)")
                 .font(.system(size: 12))
                 .foregroundStyle(TL.faint)
         }
