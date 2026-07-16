@@ -391,27 +391,8 @@ struct DashboardSection: View {
         return Int(Double(noShows) / Double(finished.count) * 100)
     }
 
-    /// 스트릭: 오늘부터 거꾸로, 실패 없는 완주 일수
-    private var streak: Int {
-        let calendar = Calendar.current
-        var count = 0
-        var day = calendar.startOfDay(for: .now)
-        while true {
-            let daySessions = finished.filter { calendar.isDate($0.anchorDate, inSameDayAs: day) }
-            let success = daySessions.contains { $0.outcome?.isSuccess == true }
-            let failure = daySessions.contains { $0.outcome?.isFailure == true }
-            if success && !failure {
-                count += 1
-            } else if count == 0 && daySessions.isEmpty && calendar.isDateInToday(day) {
-                // 오늘 아직 기록 없음 → 어제부터 계산
-            } else {
-                break
-            }
-            guard let prev = calendar.date(byAdding: .day, value: -1, to: day) else { break }
-            day = prev
-        }
-        return count
-    }
+    /// 연속 달성일 — 슬롯 정책과 동일한 정의를 공유 (SlotPolicy)
+    private var streak: Int { SlotPolicy.currentStreak(sessions: sessions) }
 
     private var byTag: [(String, Int)] {
         Dictionary(grouping: finished.filter { $0.outcome?.isSuccess == true }, by: \.tag)

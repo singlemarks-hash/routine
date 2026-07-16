@@ -40,6 +40,58 @@ enum TimePolicy {
     static let durationOptionsMinutes = [10, 15, 25, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480]
 }
 
+// MARK: - 활동 슬롯 정책 (원띵 원칙)
+//
+// 슬롯은 언제나 '현재 연속 달성일'이 정한다 — 연속이 오르내리면 한도가 자동으로 따라간다.
+// 연속이 끊겨 한도가 내려가도 이미 만든 예약은 유지되고, 새 활동 추가만 제한된다.
+
+enum SlotPolicy {
+    static let baseSlots = 2
+
+    /// 연속 달성일 단계표: (필요 연속일, 최대 활동 수). slots nil = 무제한.
+    static let tiers: [(days: Int, slots: Int?)] = [
+        (3, 3), (5, 4), (7, 5), (10, 10), (30, nil)
+    ]
+
+    /// 현재 연속 달성일로 허용되는 최대 활동 수 (nil = 무제한)
+    static func allowedSlots(forStreak streak: Int) -> Int? {
+        var allowed: Int? = baseSlots
+        for tier in tiers where streak >= tier.days {
+            allowed = tier.slots
+        }
+        return allowed
+    }
+
+    /// 다음 단계 (없으면 이미 최고 단계)
+    static func nextTier(afterStreak streak: Int) -> (days: Int, slots: Int?)? {
+        tiers.first { $0.days > streak }
+    }
+
+    /// 오늘(기록 없으면 어제)부터 거꾸로 — 실패 없이 완주한 날의 연속 수.
+    /// 캘린더 대시보드의 '연속 달성일'과 동일한 정의를 공유한다.
+    static func currentStreak(sessions: [FocusSession]) -> Int {
+        let calendar = Calendar.current
+        let finished = sessions.filter { $0.outcome != nil }
+        var count = 0
+        var day = calendar.startOfDay(for: .now)
+        while true {
+            let daySessions = finished.filter { calendar.isDate($0.anchorDate, inSameDayAs: day) }
+            let success = daySessions.contains { $0.outcome?.isSuccess == true }
+            let failure = daySessions.contains { $0.outcome?.isFailure == true }
+            if success && !failure {
+                count += 1
+            } else if count == 0 && daySessions.isEmpty && calendar.isDateInToday(day) {
+                // 오늘 아직 기록 없음 → 어제부터 계산
+            } else {
+                break
+            }
+            guard let prev = calendar.date(byAdding: .day, value: -1, to: day) else { break }
+            day = prev
+        }
+        return count
+    }
+}
+
 // MARK: - 강도 (앱 전역 단일 값)
 
 enum Intensity: String, Codable, CaseIterable, Identifiable {

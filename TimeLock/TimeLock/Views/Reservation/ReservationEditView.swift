@@ -19,28 +19,22 @@ struct ReservationEditView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allActiveReservations: [Reservation]
-    @Query private var allScoreEvents: [ScoreEvent]
+    @Query private var allSessions: [FocusSession]
 
     /// 겹침 검사는 현재 계정의 예약끼리만
     private var allReservations: [Reservation] {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
     }
 
-    // MARK: 활동 슬롯 정책 (원띵 원칙)
-    // 기본 2개까지 자유. 누적 상점 30점마다 1개씩 추가 (3개=30점, 4개=60점, 5개=90점…).
-    // 기본을 지키는 사람에게만 자율권이 넓어진다.
+    // MARK: 활동 슬롯 정책 (원띵 원칙 — 연속 달성일 사다리)
+    // 3일→3개, 5일→4개, 7일→5개, 10일→10개, 30일→무제한.
+    // 연속이 끊기면 한도가 내려가지만 기존 예약은 유지 — 새 추가만 제한된다.
 
-    /// 누적 상점 (양수 포인트 합)
-    private var totalReward: Int {
-        allScoreEvents.filter { $0.ownerUserID == account.currentUserID && $0.points > 0 }
-            .reduce(0) { $0 + $1.points }
+    private var currentStreak: Int {
+        SlotPolicy.currentStreak(sessions: allSessions.filter { $0.ownerUserID == account.currentUserID })
     }
-    private static let baseSlots = 2
-    private static let pointsPerSlot = 30
-    /// 현재 허용되는 최대 활동 수
-    private var allowedSlots: Int { Self.baseSlots + totalReward / Self.pointsPerSlot }
-    /// 다음 슬롯을 열기 위해 필요한 누적 상점
-    private var nextSlotRequirement: Int { (allowedSlots - Self.baseSlots + 1) * Self.pointsPerSlot }
+    /// 현재 허용되는 최대 활동 수 (nil = 무제한)
+    private var allowedSlots: Int? { SlotPolicy.allowedSlots(forStreak: currentStreak) }
 
     @State private var name = ""
     @State private var tag = ActivityTag.presets[0]
@@ -65,19 +59,27 @@ struct ReservationEditView: View {
     /// 활동 슬롯 정책 안내 (원띵 — 신규 생성 화면에만 표시)
     private var slotPolicyNotice: some View {
         let used = allReservations.count
-        let full = used >= allowedSlots
+        let allowed = allowedSlots            // nil = 무제한 (연속 30일+)
+        let full = allowed.map { used >= $0 } ?? false
+        let slotLabel = allowed.map { "\(used)/\($0)" } ?? "\(used)/무제한"
+        let nextLine: String = {
+            guard let next = SlotPolicy.nextTier(afterStreak: currentStreak) else {
+                return "최고 단계입니다 — 활동을 무제한으로 만들 수 있어요."
+            }
+            let target = next.slots.map { "\($0)개" } ?? "무제한"
+            return "연속 \(next.days)일 달성 시 \(target)까지 열립니다. 연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 유지돼요."
+        }()
+
         return HStack(alignment: .top, spacing: 10) {
-            Image(systemName: full ? "lock.fill" : "checkmark.seal.fill")
+            Image(systemName: full ? "lock.fill" : "flame.fill")
                 .font(.system(size: 14))
                 .foregroundStyle(full ? TL.amber : TL.jade)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 3) {
-                Text("활동 슬롯 \(used)/\(allowedSlots)")
+                Text("활동 슬롯 \(slotLabel) · 연속 달성 \(currentStreak)일")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(TL.paper)
-                Text(full
-                     ? "하나에 집중하는 습관을 위해 활동은 기본 \(Self.baseSlots)개부터 시작합니다. 누적 상점 \(Self.pointsPerSlot)점마다 슬롯이 1개씩 늘어나요. (현재 \(totalReward)점 → 다음 슬롯 \(nextSlotRequirement)점)"
-                     : "누적 상점 \(Self.pointsPerSlot)점마다 슬롯이 1개씩 늘어납니다. (현재 상점 \(totalReward)점)")
+                Text("슬롯은 연속 달성일로 늘어납니다 — 3일 3개 · 5일 4개 · 7일 5개 · 10일 10개 · 30일 무제한. \(nextLine)")
                     .font(.system(size: 12))
                     .foregroundStyle(TL.muted)
                     .lineSpacing(2)
@@ -277,9 +279,14 @@ struct ReservationEditView: View {
         errorMessage = nil
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
 
-        // 검증: 활동 슬롯 정책 (신규 생성만) — 기본 2개, 누적 상점 30점마다 +1
-        if reservation == nil, allReservations.count >= allowedSlots {
-            errorMessage = "활동은 기본 \(Self.baseSlots)개까지 만들 수 있습니다. 누적 상점 \(Self.pointsPerSlot)점마다 1개씩 늘어나요. (현재 상점 \(totalReward)점 → 최대 \(allowedSlots)개, 다음 슬롯은 \(nextSlotRequirement)점) 지금의 활동부터 완주해 상점을 모아보세요."
+        // 검증: 활동 슬롯 정책 (신규 생성만) — 연속 달성일 사다리. 기존 예약은 영향 없음.
+        if reservation == nil, let allowed = allowedSlots, allReservations.count >= allowed {
+            var message = "활동 슬롯이 가득 찼습니다 (현재 연속 \(currentStreak)일 → 최대 \(allowed)개)."
+            if let next = SlotPolicy.nextTier(afterStreak: currentStreak) {
+                message += " 연속 \(next.days)일을 달성하면 \(next.slots.map { "\($0)개" } ?? "무제한")까지 열려요."
+            }
+            message += " 이미 만든 활동은 그대로 유지됩니다."
+            errorMessage = message
             return
         }
 
