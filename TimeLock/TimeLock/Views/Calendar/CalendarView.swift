@@ -427,7 +427,7 @@ struct DashboardSection: View {
             HStack(spacing: 10) {
                 statCard(value: "\(totalReward + totalPenalty)", label: "총점",
                          tint: totalReward + totalPenalty >= 0 ? TL.jade : TL.rec)
-                statCard(value: "\(streak)일", label: "스트릭", tint: TL.paper)
+                statCard(value: "\(streak)일", label: "연속 달성일", tint: TL.paper)
             }
             HStack(spacing: 10) {
                 statCard(value: "\(completionRate)%", label: "완주율", tint: TL.jade)

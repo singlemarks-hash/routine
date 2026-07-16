@@ -21,7 +21,7 @@ struct MyPageView: View {
             VStack(alignment: .leading, spacing: 24) {
                 // 아이콘 메뉴 그룹
                 VStack(spacing: 4) {
-                    iconRow(icon: "person.crop.circle.badge.checkmark", title: "프로필 편집") {
+                    iconRow(icon: "person.crop.circle.badge.checkmark", title: "프로필 및 구독 관리") {
                         ProfileEditView()
                     }
                     iconRow(icon: "headphones", title: "고객센터") {
@@ -36,9 +36,7 @@ struct MyPageView: View {
 
                 // 일반 메뉴 그룹
                 VStack(spacing: 4) {
-                    plainRow(title: "계정 관리") { AccountManageView() }
                     plainRow(title: "강도 설정") { IntensitySettingsView() }
-                    plainRow(title: "구독 관리") { SubscriptionSettingsView() }
                     plainRow(title: "프라이버시") { PrivacySettingsView() }
                     plainRow(title: "점수 원장") { LedgerView() }
                     plainRow(title: "앱 언어") { AppLanguageView() }
@@ -110,12 +108,19 @@ struct MyPageView: View {
     }
 }
 
-// MARK: - 프로필 편집 (뼈대 — 표시만, 편집 기능은 추후 연동)
+// MARK: - 프로필 및 구독 관리 (프로필·구독·계정 관리 통합)
 
 struct ProfileEditView: View {
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var subscription: SubscriptionManager
     @Query(sort: \ScoreEvent.timestamp, order: .reverse) private var everyEvent: [ScoreEvent]
+
     @State private var showAuth = false
+    @State private var showPaywall = false
+    @State private var showSignOutConfirm = false
+    @State private var showDeleteAccountConfirm = false
+    @State private var deletingAccount = false
+    @State private var deleteAccountError: String?
 
     private var events: [ScoreEvent] {
         everyEvent.filter { $0.ownerUserID == account.currentUserID }
@@ -127,6 +132,26 @@ struct ProfileEditView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let user = account.currentUser, user.provider != .guest {
+                    // 이메일 인증 대기 안내
+                    if !account.isEmailVerified {
+                        TLCard {
+                            HStack(spacing: 8) {
+                                Image(systemName: "envelope.badge")
+                                    .font(.system(size: 13)).foregroundStyle(TL.amber)
+                                Text("이메일 인증 대기 중 — 받은 편지함을 확인하세요")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(TL.amber)
+                                Spacer()
+                                Button("재발송") {
+                                    Task { try? await account.resendVerificationEmail() }
+                                }
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(TL.paper)
+                            }
+                        }
+                    }
+
+                    // 프로필 카드
                     TLCard(raised: true) {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 12) {
@@ -160,9 +185,61 @@ struct ProfileEditView: View {
                         }
                     }
 
+                    // 구독 카드
+                    TLEyebrow(text: "구독")
+                    TLCard(raised: subscription.isPro) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(subscription.isPro ? "앵그리모티 프로 사용 중" : "앵그리모티 프로")
+                                        .font(.tlTitle(17)).foregroundStyle(TL.paper)
+                                    Text(subscription.isPro
+                                         ? "저장하는 타임랩스의 워터마크를 제거할 수 있습니다."
+                                         : "타임랩스 저장 시 워터마크를 제거합니다.")
+                                        .font(.system(size: 13)).foregroundStyle(TL.muted)
+                                }
+                                Spacer()
+                                if subscription.isPro {
+                                    Image(systemName: "checkmark.seal.fill").foregroundStyle(TL.jade).font(.title3)
+                                }
+                            }
+                            if !subscription.isPro {
+                                Button("구독하기") { showPaywall = true }
+                                    .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
+                            }
+                            Button("구매 복원") {
+                                Task { await subscription.restore() }
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TL.muted)
+                        }
+                    }
+                    Text(Legal.subscriptionDisclosure)
+                        .font(.system(size: 11)).foregroundStyle(TL.faint)
+                    LegalLinksRow()
+
+                    // 계정 관리
+                    TLEyebrow(text: "계정")
+                        .padding(.top, 6)
                     TLCard {
-                        Text("이름·프로필 사진 편집 기능은 준비 중입니다.")
-                            .font(.system(size: 13)).foregroundStyle(TL.faint)
+                        HStack {
+                            Button("로그아웃") { showSignOutConfirm = true }
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(TL.muted)
+                            Spacer()
+                            Button {
+                                showDeleteAccountConfirm = true
+                            } label: {
+                                if deletingAccount {
+                                    ProgressView().tint(TL.rec)
+                                } else {
+                                    Text("계정 삭제")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(TL.rec)
+                                }
+                            }
+                            .disabled(deletingAccount)
+                        }
                     }
                 } else {
                     guestCard { showAuth = true }
@@ -171,9 +248,26 @@ struct ProfileEditView: View {
             .padding(20)
         }
         .background(TL.ink)
-        .navigationTitle("프로필 편집")
+        .navigationTitle("프로필 및 구독 관리")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await account.refreshEmailVerification() }
         .sheet(isPresented: $showAuth) { AuthView() }
+        .sheet(isPresented: $showPaywall) { PaywallView() }
+        .confirmationDialog("로그아웃할까요?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
+            Button("로그아웃", role: .destructive) { account.signOut() }
+        } message: {
+            Text("기록은 계정에 남아 있고, 다시 로그인하면 그대로 보입니다.")
+        }
+        .confirmationDialog("계정을 삭제할까요?", isPresented: $showDeleteAccountConfirm, titleVisibility: .visible) {
+            Button("계정 영구 삭제", role: .destructive) { deleteAccount() }
+        } message: {
+            Text("이 기기의 예약·세션·촬영본과 계정·서버 데이터가 즉시 완전 삭제되고 되돌릴 수 없습니다.")
+        }
+        .alert("계정 삭제", isPresented: .constant(deleteAccountError != nil)) {
+            Button("확인") { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "")
+        }
     }
 
     private func stat(value: String, label: String, tint: Color) -> some View {
@@ -182,6 +276,20 @@ struct ProfileEditView: View {
             Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(TL.muted)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func deleteAccount() {
+        deletingAccount = true
+        deleteAccountError = nil
+        Task {
+            defer { deletingAccount = false }
+            do {
+                try await account.deleteAccount()
+                // 성공 시 onUserChanged가 인증 화면으로 라우팅
+            } catch {
+                deleteAccountError = error.localizedDescription
+            }
+        }
     }
 }
 
@@ -253,118 +361,6 @@ struct CheerDeveloperView: View {
     }
 }
 
-// MARK: - 계정 관리 (로그아웃 · 계정 삭제 · 이메일 인증)
-
-struct AccountManageView: View {
-    @EnvironmentObject private var account: AccountStore
-    @State private var showAuth = false
-    @State private var showSignOutConfirm = false
-    @State private var showDeleteAccountConfirm = false
-    @State private var deletingAccount = false
-    @State private var deleteAccountError: String?
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if let user = account.currentUser, user.provider != .guest {
-                    // 이메일 인증 대기 안내
-                    if !account.isEmailVerified {
-                        TLCard {
-                            HStack(spacing: 8) {
-                                Image(systemName: "envelope.badge")
-                                    .font(.system(size: 13)).foregroundStyle(TL.amber)
-                                Text("이메일 인증 대기 중 — 받은 편지함을 확인하세요")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(TL.amber)
-                                Spacer()
-                                Button("재발송") {
-                                    Task { try? await account.resendVerificationEmail() }
-                                }
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(TL.paper)
-                            }
-                        }
-                    }
-
-                    TLCard {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(user.displayName ?? user.email ?? "회원")
-                                        .font(.tlTitle(16)).foregroundStyle(TL.paper)
-                                    if let email = user.email {
-                                        Text(email).font(.system(size: 12)).foregroundStyle(TL.muted)
-                                    }
-                                }
-                                Spacer()
-                                TagChip(name: user.provider.title)
-                            }
-
-                            Divider().overlay(TL.hairline)
-
-                            HStack {
-                                Button("로그아웃") { showSignOutConfirm = true }
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(TL.muted)
-                                Spacer()
-                                Button {
-                                    showDeleteAccountConfirm = true
-                                } label: {
-                                    if deletingAccount {
-                                        ProgressView().tint(TL.rec)
-                                    } else {
-                                        Text("계정 삭제")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundStyle(TL.rec)
-                                    }
-                                }
-                                .disabled(deletingAccount)
-                            }
-                        }
-                    }
-                } else {
-                    guestCard { showAuth = true }
-                }
-            }
-            .padding(20)
-        }
-        .background(TL.ink)
-        .navigationTitle("계정 관리")
-        .navigationBarTitleDisplayMode(.inline)
-        .task { await account.refreshEmailVerification() }
-        .sheet(isPresented: $showAuth) { AuthView() }
-        .confirmationDialog("로그아웃할까요?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
-            Button("로그아웃", role: .destructive) { account.signOut() }
-        } message: {
-            Text("기록은 계정에 남아 있고, 다시 로그인하면 그대로 보입니다.")
-        }
-        .confirmationDialog("계정을 삭제할까요?", isPresented: $showDeleteAccountConfirm, titleVisibility: .visible) {
-            Button("계정 영구 삭제", role: .destructive) { deleteAccount() }
-        } message: {
-            Text("이 기기의 예약·세션·촬영본과 계정·서버 데이터가 즉시 완전 삭제되고 되돌릴 수 없습니다.")
-        }
-        .alert("계정 삭제", isPresented: .constant(deleteAccountError != nil)) {
-            Button("확인") { deleteAccountError = nil }
-        } message: {
-            Text(deleteAccountError ?? "")
-        }
-    }
-
-    private func deleteAccount() {
-        deletingAccount = true
-        deleteAccountError = nil
-        Task {
-            defer { deletingAccount = false }
-            do {
-                try await account.deleteAccount()
-                // 성공 시 onUserChanged가 인증 화면으로 라우팅
-            } catch {
-                deleteAccountError = error.localizedDescription
-            }
-        }
-    }
-}
-
 // MARK: - 강도 설정
 
 struct IntensitySettingsView: View {
@@ -405,56 +401,6 @@ struct IntensitySettingsView: View {
             IntensityCard(intensity: target, selected: selected, locked: locked)
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - 구독 관리
-
-struct SubscriptionSettingsView: View {
-    @EnvironmentObject private var subscription: SubscriptionManager
-    @State private var showPaywall = false
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                TLCard(raised: subscription.isPro) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(subscription.isPro ? "앵그리모티 프로 사용 중" : "앵그리모티 프로")
-                                    .font(.tlTitle(17)).foregroundStyle(TL.paper)
-                                Text(subscription.isPro
-                                     ? "저장하는 타임랩스의 워터마크를 제거할 수 있습니다."
-                                     : "타임랩스 저장 시 워터마크를 제거합니다.")
-                                    .font(.system(size: 13)).foregroundStyle(TL.muted)
-                            }
-                            Spacer()
-                            if subscription.isPro {
-                                Image(systemName: "checkmark.seal.fill").foregroundStyle(TL.jade).font(.title3)
-                            }
-                        }
-                        if !subscription.isPro {
-                            Button("구독하기") { showPaywall = true }
-                                .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
-                        }
-                        Button("구매 복원") {
-                            Task { await subscription.restore() }
-                        }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(TL.muted)
-                    }
-                }
-
-                Text(Legal.subscriptionDisclosure)
-                    .font(.system(size: 11)).foregroundStyle(TL.faint)
-                LegalLinksRow()
-            }
-            .padding(20)
-        }
-        .background(TL.ink)
-        .navigationTitle("구독 관리")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showPaywall) { PaywallView() }
     }
 }
 
