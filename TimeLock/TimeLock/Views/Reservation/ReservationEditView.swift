@@ -161,7 +161,7 @@ struct ReservationEditView: View {
             .sheet(isPresented: $showSlotPolicy) {
                 SlotPolicySheet(currentStreak: currentStreak, usedSlots: allReservations.count,
                                 isMember: subscription.isPro)
-                    .presentationDetents([.height(480)])
+                    .presentationDetents([.medium, .large])
             }
             .onAppear(perform: load)
             }   // ScrollViewReader
@@ -415,6 +415,7 @@ private struct SlotPolicySheet: View {
 
     var body: some View {
         NavigationStack {
+            ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("하나에 집중하는 습관을 위해, 활동 슬롯은 연속 달성일로 늘어납니다.")
                     .font(.system(size: 14)).foregroundStyle(TL.muted)
@@ -468,9 +469,9 @@ private struct SlotPolicySheet: View {
                     .font(.system(size: 12)).foregroundStyle(TL.muted)
                     .lineSpacing(2)
 
-                Spacer()
             }
             .padding(20)
+            }
             .background(TL.ink)
             .navigationTitle("활동 슬롯 정책 · 연속 \(currentStreak)일")
             .navigationBarTitleDisplayMode(.inline)
