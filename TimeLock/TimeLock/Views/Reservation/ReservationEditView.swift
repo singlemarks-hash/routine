@@ -39,13 +39,21 @@ struct ReservationEditView: View {
     @State private var name = ""
     @State private var tag = ActivityTag.presets[0]
     @State private var customTag = ""
-    @State private var startTime = Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: .now) ?? .now
+    /// 기본 시작 시각 = (현재 + 2시간)의 정각.
+    /// 예: 9:39 → 11:00, 9:00 → 11:00, 8:59 → 10:00
+    @State private var startTime: Date = {
+        let cal = Calendar.current
+        let plus2h = Date().addingTimeInterval(2 * 3600)
+        let comps = cal.dateComponents([.year, .month, .day, .hour], from: plus2h)
+        return cal.date(from: comps) ?? plus2h
+    }()
     @State private var durationMinutes = 60
     @State private var isRepeating = false
     @State private var weekdays: Set<Int> = []
     @State private var oneOffDate = Date()
     @State private var errorMessage: String?
     @State private var showDeleteConfirm = false
+    @State private var showSlotPolicy = false
 
     private let weekdaySymbols = [(1, "일"), (2, "월"), (3, "화"), (4, "수"), (5, "목"), (6, "금"), (7, "토")]
     private let durations = TimePolicy.durationOptionsMinutes
@@ -56,39 +64,39 @@ struct ReservationEditView: View {
         return next.timeIntervalSinceNow <= 1800
     }
 
-    /// 활동 슬롯 정책 안내 (원띵 — 신규 생성 화면에만 표시)
+    /// 활동 슬롯 현황 (원띵 — 신규 생성 화면에만). 탭하면 정책 표 팝업.
     private var slotPolicyNotice: some View {
         let used = allReservations.count
         let allowed = allowedSlots            // nil = 무제한 (연속 30일+)
         let full = allowed.map { used >= $0 } ?? false
         let slotLabel = allowed.map { "\(used)/\($0)" } ?? "\(used)/무제한"
-        let nextLine: String = {
-            guard let next = SlotPolicy.nextTier(afterStreak: currentStreak) else {
-                return "최고 단계입니다 — 활동을 무제한으로 만들 수 있어요."
-            }
-            let target = next.slots.map { "\($0)개" } ?? "무제한"
-            return "연속 \(next.days)일 달성 시 \(target)까지 열립니다. 연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 유지돼요."
-        }()
 
-        return HStack(alignment: .top, spacing: 10) {
-            Image(systemName: full ? "lock.fill" : "flame.fill")
-                .font(.system(size: 14))
-                .foregroundStyle(full ? TL.amber : TL.jade)
-                .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("활동 슬롯 \(slotLabel) · 연속 달성 \(currentStreak)일")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(TL.paper)
-                Text("슬롯은 연속 달성일로 늘어납니다 — 3일 3개 · 5일 4개 · 7일 5개 · 10일 10개 · 30일 무제한. \(nextLine)")
-                    .font(.system(size: 12))
+        return Button {
+            showSlotPolicy = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: full ? "lock.fill" : "flame.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(full ? TL.amber : TL.jade)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("활동 슬롯 \(slotLabel) · 연속 달성 \(currentStreak)일")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(TL.paper)
+                    Text("터치하면 슬롯 정책을 볼 수 있어요")
+                        .font(.system(size: 11)).foregroundStyle(TL.faint)
+                }
+                Spacer()
+                Image(systemName: "info.circle")
+                    .font(.system(size: 15))
                     .foregroundStyle(TL.muted)
-                    .lineSpacing(2)
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                .fill((full ? TL.amber : TL.jade).opacity(0.10)))
+            .contentShape(Rectangle())
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
-            .fill((full ? TL.amber : TL.jade).opacity(0.10)))
+        .buttonStyle(.plain)
     }
 
     var body: some View {
@@ -146,6 +154,10 @@ struct ReservationEditView: View {
             }
             .confirmationDialog("이 예약을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("삭제", role: .destructive) { delete() }
+            }
+            .sheet(isPresented: $showSlotPolicy) {
+                SlotPolicySheet(currentStreak: currentStreak, usedSlots: allReservations.count)
+                    .presentationDetents([.height(480)])
             }
             .onAppear(perform: load)
             }   // ScrollViewReader
@@ -369,5 +381,93 @@ struct ReservationEditView: View {
     private func clockDate(_ minute: Int) -> Date {
         Calendar.current.date(byAdding: .minute, value: minute,
                               to: Calendar.current.startOfDay(for: .now)) ?? .now
+    }
+}
+
+// MARK: - 활동 슬롯 정책 팝업 (단계표)
+
+private struct SlotPolicySheet: View {
+    let currentStreak: Int
+    let usedSlots: Int
+    @Environment(\.dismiss) private var dismiss
+
+    /// 표 행: (라벨, 연속일 하한, 슬롯 표기)
+    private let rows: [(label: String, minDays: Int, slots: String)] = [
+        ("기본",       0,  "2개"),
+        ("연속 3일",   3,  "3개"),
+        ("연속 5일",   5,  "4개"),
+        ("연속 7일",   7,  "5개"),
+        ("연속 10일", 10,  "10개"),
+        ("연속 30일", 30,  "무제한")
+    ]
+
+    /// 현재 연속일이 속한 행 인덱스
+    private var currentRow: Int {
+        var index = 0
+        for (i, row) in rows.enumerated() where currentStreak >= row.minDays { index = i }
+        return index
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("하나에 집중하는 습관을 위해, 활동 슬롯은 연속 달성일로 늘어납니다.")
+                    .font(.system(size: 14)).foregroundStyle(TL.muted)
+                    .lineSpacing(3)
+
+                // 단계표
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("연속 달성일").font(.tlLabel).foregroundStyle(TL.faint)
+                        Spacer()
+                        Text("최대 활동").font(.tlLabel).foregroundStyle(TL.faint)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+
+                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                        let isCurrent = index == currentRow
+                        HStack {
+                            Text(row.label)
+                                .font(.system(size: 15, weight: isCurrent ? .bold : .medium, design: .rounded))
+                                .foregroundStyle(isCurrent ? TL.jade : TL.paper)
+                            if isCurrent {
+                                Text("현재")
+                                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(TL.ink)
+                                    .padding(.horizontal, 7).padding(.vertical, 2)
+                                    .background(Capsule().fill(TL.jade))
+                            }
+                            Spacer()
+                            Text(row.slots)
+                                .font(.tlTimer(15))
+                                .foregroundStyle(isCurrent ? TL.jade : TL.paper)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 11)
+                        .background(isCurrent ? TL.jade.opacity(0.10) : .clear)
+                        if index < rows.count - 1 {
+                            Divider().overlay(TL.hairline.opacity(0.5))
+                        }
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous).fill(TL.surface))
+                .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+
+                Label("연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 사라지지 않아요. 새로 추가하는 것만 제한됩니다.", systemImage: "shield.checkerboard")
+                    .font(.system(size: 12)).foregroundStyle(TL.muted)
+                    .lineSpacing(2)
+
+                Spacer()
+            }
+            .padding(20)
+            .background(TL.ink)
+            .navigationTitle("활동 슬롯 정책 · 연속 \(currentStreak)일")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }

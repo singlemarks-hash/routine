@@ -43,6 +43,13 @@ struct MyPageView: View {
                     linkRow(title: "이용약관", url: Legal.termsOfUseURL)
                     linkRow(title: "개인정보처리방침", url: Legal.privacyPolicyURL)
                 }
+
+                // 팀 시그니처 — 흐리고 작게
+                Text("Culture Design Corperation ‘      ‘")
+                    .font(.system(size: 11, weight: .medium, design: .serif))
+                    .foregroundStyle(TL.faint.opacity(0.75))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 10)
             }
             .padding(20)
             .padding(.bottom, 32)

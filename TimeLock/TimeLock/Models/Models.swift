@@ -103,7 +103,7 @@ enum Intensity: String, Codable, CaseIterable, Identifiable {
     var subtitle: String {
         self == .spicy
         ? "긴급 용무로 중단해도 10분 안에 재촬영하면 벌점 없음."
-        : "유예도 사유도 없다. 이탈 즉시 실패, 벌점 2배."
+        : "유예도 사유도 없다. 이탈 즉시 실패. 상점 2배, 벌점 2배."
     }
     var emoji: String { self == .spicy ? "🌶️" : "🔥" }
 }
@@ -321,18 +321,15 @@ final class ScoreEvent {
 // MARK: - 점수 규칙 엔진
 
 enum ScoreRules {
+    /// 미친 매운맛은 상점도 2배, 벌점도 2배 — 하이 리스크 하이 리턴.
     static func points(for outcome: SessionOutcome, intensity: Intensity) -> (ScoreEventType, Int)? {
+        let multiplier = intensity == .insane ? 2 : 1
         switch outcome {
-        case .completed:
-            return (.complete, intensity == .insane ? 15 : 10)
-        case .exitFailed:
-            return (.exitFail, intensity == .insane ? -20 : -10)   // 미친 매운맛 벌점 2배
-        case .noShow:
-            return (.noShow, -15)
-        case .emergency:
-            return (.emergency, intensity == .insane ? -10 : -5)
-        case .safetyEnded:
-            return nil  // 벌점 없음
+        case .completed:   return (.complete, 10 * multiplier)
+        case .exitFailed:  return (.exitFail, -10 * multiplier)
+        case .noShow:      return (.noShow, -15 * multiplier)
+        case .emergency:   return (.emergency, -5 * multiplier)
+        case .safetyEnded: return nil  // 벌점 없음
         }
     }
 }
