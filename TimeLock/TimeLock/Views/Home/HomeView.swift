@@ -32,8 +32,9 @@ struct HomeShellView: View {
     /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성 (1.5배 확대)
     private var bottomToggle: some View {
         HStack(spacing: 5) {
-            toggleSegment("활동", icon: "clock.fill", tab: .activity)
-            toggleSegment("일정", icon: "calendar", tab: .schedule)
+            // 활동 = REC 아이콘(촬영이 곧 활동 — 앱 시그니처), 일정 = 시계
+            toggleSegment("활동", icon: "record.circle", tab: .activity)
+            toggleSegment("일정", icon: "clock.fill", tab: .schedule)
         }
         .padding(7)
         .background(.ultraThinMaterial, in: Capsule())
@@ -129,8 +130,6 @@ struct HomeView: View {
 
                     quickStartRow
 
-                    nextCountdownCard
-
                     upcomingSection
                         .padding(.top, 8)
                 }
@@ -160,9 +159,7 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Spacer()
-
-            // 누적 총점 배지 — 양수 스마일 / 음수 앵그리. 누르면 '기록'(캘린더 점수판)으로.
+            // 누적 총점 배지 (좌측 정렬) — 양수 스마일 / 음수 앵그리. 탭 → 기록 캘린더.
             NavigationLink {
                 CalendarView()
             } label: {
@@ -179,6 +176,21 @@ struct HomeView: View {
                 .padding(.vertical, 9)
                 .background(Capsule().fill(TL.surface))
                 .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
+            }
+            .pressableStyle()
+
+            Spacer()
+
+            // 기록관리 — 점수 배지와 동일하게 기록 캘린더로 진입
+            NavigationLink {
+                CalendarView()
+            } label: {
+                Image(systemName: "calendar")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(TL.paper)
+                    .frame(width: 45, height: 45)
+                    .background(Circle().fill(TL.surface))
+                    .overlay(Circle().strokeBorder(TL.hairline, lineWidth: 1))
             }
             .pressableStyle()
 
@@ -260,43 +272,6 @@ struct HomeView: View {
         .pressableStyle()
     }
 
-    // MARK: 다음 활동 카운트다운 (컴팩트)
-
-    private var nextUpcoming: (reservation: Reservation, fire: Date)? {
-        upcoming.compactMap { item in item.fire.map { (item.reservation, $0) } }
-            .first { $0.1 > now }
-    }
-
-    @ViewBuilder
-    private var nextCountdownCard: some View {
-        if let next = nextUpcoming {
-            let remaining = Int(next.fire.timeIntervalSince(now))
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    TLEyebrow(text: "다음 활동까지", color: TL.muted)
-                    Text(next.reservation.name)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(TL.paper)
-                        .lineLimit(1)
-                }
-                Spacer()
-                Text(countdownText(remaining))
-                    .font(.tlTimer(24))
-                    .foregroundStyle(TL.amber)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 13)
-            .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
-            .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
-                .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
-        }
-    }
-
-    private func countdownText(_ seconds: Int) -> String {
-        if seconds >= 86_400 { return "\(seconds / 86_400)일 \((seconds % 86_400) / 3600)시간" }
-        return TLFormat.hms(seconds)
-    }
-
     // MARK: 예정된 활동
 
     @ViewBuilder
@@ -320,7 +295,10 @@ struct HomeView: View {
     }
 
     private func reservationCard(_ reservation: Reservation, fire: Date?) -> some View {
-        let isSoon = fire.map { $0.timeIntervalSince(now) <= 1800 && $0 > now } ?? false
+        // 12시간 이내로 들어온 활동만 남은 시간 타이머(앰버) 표시
+        let remaining = fire.map { Int($0.timeIntervalSince(now)) } ?? -1
+        let showsTimer = remaining > 0 && remaining <= 12 * 3600
+
         return Button {
             editing = reservation
             showEditor = true
@@ -333,7 +311,13 @@ struct HomeView: View {
                             .foregroundStyle(TL.paper)
                             .lineLimit(1)
                         Spacer()
-                        TagChip(name: reservation.tag)
+                        if showsTimer {
+                            Text(TLFormat.hms(remaining))
+                                .font(.tlTimer(18))
+                                .foregroundStyle(TL.amber)
+                        } else {
+                            TagChip(name: reservation.tag)
+                        }
                     }
                     HStack(spacing: 6) {
                         Image(systemName: "bell.fill").font(.system(size: 11))
@@ -343,10 +327,8 @@ struct HomeView: View {
                             Text(TLFormat.durationLabel(reservation.durationMinutes))
                         }
                         Spacer()
-                        if isSoon {
-                            Label("곧 시작", systemImage: "lock.fill")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(TL.amber)
+                        if showsTimer {
+                            TagChip(name: reservation.tag)
                         }
                     }
                     .font(.system(size: 13))

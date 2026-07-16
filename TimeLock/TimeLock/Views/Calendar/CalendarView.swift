@@ -420,36 +420,34 @@ struct DashboardSection: View {
             .map { ($0.key, $0.value) }
     }
 
+    // 컴팩트 레이아웃 — 3열×2줄 + 축소된 카드로 캘린더와 함께 한 화면에 들어온다
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             TLEyebrow(text: "누적 대시보드")
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 statCard(value: "\(totalReward + totalPenalty)", label: "총점",
                          tint: totalReward + totalPenalty >= 0 ? TL.jade : TL.rec)
                 statCard(value: "\(streak)일", label: "연속 달성일", tint: TL.paper)
-            }
-            HStack(spacing: 10) {
                 statCard(value: "\(completionRate)%", label: "완주율", tint: TL.jade)
-                statCard(value: "\(noShowRate)%", label: "노쇼율", tint: noShowRate > 0 ? TL.rec : TL.muted)
             }
-
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                statCard(value: "\(noShowRate)%", label: "노쇼율", tint: noShowRate > 0 ? TL.rec : TL.muted)
                 statCard(value: "+\(totalReward)", label: "총 상점", tint: TL.jade)
                 statCard(value: "\(totalPenalty)", label: "총 벌점", tint: TL.rec)
             }
 
             if !byTag.isEmpty {
                 TLCard {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 8) {
                         TLEyebrow(text: "태그별 시간 분포")
                         let maxSeconds = byTag.first?.1 ?? 1
                         ForEach(byTag, id: \.0) { tag, seconds in
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 3) {
                                 HStack {
-                                    Text(tag).font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.paper)
+                                    Text(tag).font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.paper)
                                     Spacer()
-                                    Text(TLFormat.hms(seconds)).font(.tlTimer(13)).foregroundStyle(TL.muted)
+                                    Text(TLFormat.hms(seconds)).font(.tlTimer(12)).foregroundStyle(TL.muted)
                                 }
                                 GeometryReader { geo in
                                     ZStack(alignment: .leading) {
@@ -458,7 +456,7 @@ struct DashboardSection: View {
                                             .frame(width: geo.size.width * CGFloat(seconds) / CGFloat(max(1, maxSeconds)))
                                     }
                                 }
-                                .frame(height: 6)
+                                .frame(height: 5)
                             }
                         }
                     }
@@ -468,12 +466,14 @@ struct DashboardSection: View {
     }
 
     private func statCard(value: String, label: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(value).font(.tlTimer(24)).foregroundStyle(tint)
-            Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value).font(.tlTimer(19)).foregroundStyle(tint)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(TL.muted)
+                .lineLimit(1).minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(10)
         .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous).fill(TL.surface))
     }
 }
