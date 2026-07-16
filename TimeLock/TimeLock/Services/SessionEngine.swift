@@ -38,11 +38,16 @@ final class SessionEngine: NSObject, ObservableObject {
     /// 이번 완주로 미친 매운맛이 해제됐을 때의 보너스 점수 — 결과 화면이 배지+파티클로 표시
     @Published private(set) var lastUnlockBonus: Int?
 
-    // 자리비움 감지 정책: 30초 연속 부재 → 경고 배너, 2분 초과 → 벌점 1회(에피소드당)
+    // 자리비움 감지 정책: 30초 연속 부재 → 경고 배너, 2분 연속 부재 확정 시 —
+    // 매운맛: 벌점 −5 + 자동 긴급 중단(남은 예산 창) / 미친 매운맛: 즉시 실패 /
+    // 한 활동에서 3번째 부재는 자동 실패
     @Published private(set) var absenceWarning = false
     private var absencePenaltyApplied = false
     private let absenceWarnSeconds = 30
     private let absencePenaltySeconds = 120
+    /// 한 활동에서 2분 부재가 반복된 횟수 — 3번째는 봐주지 않고 자동 실패
+    private var absenceEpisodeCount = 0
+    private let absenceMaxEpisodes = 3
 
     /// finalize 완료 직후 호출 — 결과 화면 라우팅은 이 콜백이 보장한다.
     /// (phase 변화 관찰에만 의존하면 finalize 전 선(先)설정과 겹쳐 전환이 누락될 수 있다)
@@ -104,6 +109,7 @@ final class SessionEngine: NSObject, ObservableObject {
         oneMinuteWarningFired = false
         absenceWarning = false
         absencePenaltyApplied = false
+        absenceEpisodeCount = 0
         breakBudgetRemaining = TimePolicy.resumeWindowSeconds   // 세션마다 긴급 예산 리필
         phase = .recording
         isCallActive = false
@@ -149,7 +155,7 @@ final class SessionEngine: NSObject, ObservableObject {
         // 간격 단위로 점프한다 — 통화/중단 동안은 틱이 멈추므로 순수 촬영 시간과 일치.
         recordedSeconds += 1
 
-        // 자리비움 감지 — 경고 후에도 계속 비어 있으면 벌점 (에피소드당 1회)
+        // 자리비움 감지 — 2분 안에 돌아오지 않으면 자동 긴급 중단(매운맛) / 즉시 실패(미친 매운맛)
         let absent = CameraRecorder.shared.absentSeconds
         if absent >= absenceWarnSeconds {
             if !absenceWarning {
@@ -159,7 +165,8 @@ final class SessionEngine: NSObject, ObservableObject {
             }
             if absent >= absencePenaltySeconds, !absencePenaltyApplied {
                 absencePenaltyApplied = true
-                recordAbsencePenalty(session: s)
+                handleAbsenceTimeout(session: s)
+                return
             }
         } else if absenceWarning {
             // 사람이 돌아옴 — 에피소드 종료, 다음 부재는 새로 판정
@@ -226,6 +233,9 @@ final class SessionEngine: NSObject, ObservableObject {
         }
         breakBudgetRemaining = max(0, deadline.timeIntervalSinceNow)
         CameraRecorder.shared.resume()
+        // 재촬영 시작은 새 에피소드 — 남아 있던 부재 판정 상태를 비운다
+        absenceWarning = false
+        absencePenaltyApplied = false
         phase = .recording
         defaults.removeObject(forKey: Key.breakDeadline)
         AlarmScheduler.shared.cancelBreakNotifications()
@@ -420,13 +430,44 @@ final class SessionEngine: NSObject, ObservableObject {
         lastUnlockBonus = 5
     }
 
-    /// 자리비움 벌점 — 세션은 계속 진행되고 원장에만 기록된다.
+    /// 2분 연속 부재 확정 — 갑작스러운 부재를 최대한 봐주는 처리.
+    /// 매운맛: 벌점 −5 후 긴급 용무 버튼을 누른 것과 동일하게 자동 중단(남은 예산만큼 재촬영 창).
+    /// 미친 매운맛: 긴급 용무가 없으므로 즉시 실패.
+    /// 단, 한 활동에서 3번째 부재는 더 봐주지 않고 자동 실패 처리한다.
+    private func handleAbsenceTimeout(session s: FocusSession) {
+        absenceEpisodeCount += 1
+
+        if s.intensity == .insane {
+            failFromAbsence(session: s, note: "자리비움 \(absencePenaltySeconds / 60)분 — 즉시 실패")
+            return
+        }
+        if absenceEpisodeCount >= absenceMaxEpisodes {
+            failFromAbsence(session: s, note: "자리비움 \(absenceMaxEpisodes)회 반복 — 자동 실패")
+            return
+        }
+
+        recordAbsencePenalty(session: s)
+        absenceWarning = false
+        startBreak()   // 자동 긴급 용무 — 남은 예산만큼 10분 창이 열린다
+    }
+
+    /// 부재로 인한 실패 확정 (미친 매운맛 즉시 / 매운맛 3회 반복)
+    private func failFromAbsence(session s: FocusSession, note: String) {
+        guard !isFinalizing else { return }
+        isFinalizing = true
+        Task {
+            let result = await CameraRecorder.shared.stopPreservingFootage()
+            self.applyRecording(result, to: s)
+            self.finalize(session: s, outcome: .exitFailed, note: note)
+        }
+    }
+
+    /// 자리비움 벌점 −5 (강도 무관 고정) — 원장에만 기록된다.
     private func recordAbsencePenalty(session s: FocusSession) {
         guard let context = modelContext else { return }
-        let points = s.intensity == .insane ? -10 : -5
-        let event = ScoreEvent(type: .absence, points: points,
+        let event = ScoreEvent(type: .absence, points: -5,
                                sessionID: s.id, intensity: s.intensity,
-                               note: "촬영 중 자리비움 \(absencePenaltySeconds / 60)분 초과",
+                               note: "촬영 중 자리비움 \(absencePenaltySeconds / 60)분 초과 — 자동 긴급 중단",
                                ownerUserID: s.ownerUserID)
         context.insert(event)
         AccountStore.shared.mirror(event: event)

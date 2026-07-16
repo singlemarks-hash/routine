@@ -289,7 +289,16 @@ final class CameraRecorder: NSObject, ObservableObject {
     }
 
     func pause()  { processingQueue.async { self.isPaused = true } }
-    func resume() { processingQueue.async { self.isPaused = false } }
+    func resume() {
+        // 중단 동안 감지가 멈추므로 부재 시간이 묵은 값으로 남아 있다 —
+        // 그대로 두면 재개 직후 2분 판정이 곧바로 다시 발동하므로 초기화한다.
+        processingQueue.async {
+            self.isPaused = false
+            self.absenceStartedAt = nil
+            self.lastPresenceCheckAt = 0
+        }
+        DispatchQueue.main.async { self.absentSeconds = 0 }
+    }
 
     struct RecordingResult {
         let videoFileName: String

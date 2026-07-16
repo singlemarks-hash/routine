@@ -36,7 +36,7 @@ struct SessionView: View {
                 portraitLayout
             }
 
-            // 자리비움 경고 배너 — 30초 연속 부재, 2분 초과 시 벌점
+            // 자리비움 경고 배너 — 30초 연속 부재부터 표시, 2분 확정 시 자동 긴급 중단/즉시 실패
             if engine.absenceWarning {
                 VStack {
                     absenceBanner
@@ -233,7 +233,9 @@ struct SessionView: View {
                 Text("자리비움 감지")
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .foregroundStyle(TL.ink)
-                Text("화면 앞으로 돌아오세요 — 2분 초과 시 벌점")
+                Text(engine.session?.intensity == .insane
+                     ? "2분 안에 돌아오세요 — 초과 시 즉시 실패"
+                     : "2분 안에 돌아오세요 — 초과 시 벌점과 함께 자동 긴급 중단 (3회 반복이면 실패)")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.ink.opacity(0.8))
             }
