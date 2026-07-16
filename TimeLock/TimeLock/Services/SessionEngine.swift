@@ -139,7 +139,10 @@ final class SessionEngine: NSObject, ObservableObject {
             return
         }
         guard phase == .recording else { return }
-        recordedSeconds = CameraRecorder.shared.capturedSeconds   // 프레임 수 × 캡처 간격 = 순수 촬영 초
+        // 표시·완주 판정용 촬영 시간은 틱(1초)으로 센다.
+        // 프레임 기반(프레임 수 × 캡처 간격)은 캡처 간격이 동적이라 표시가
+        // 간격 단위로 점프한다 — 통화/중단 동안은 틱이 멈추므로 순수 촬영 시간과 일치.
+        recordedSeconds += 1
 
         // 자리비움 감지 — 경고 후에도 계속 비어 있으면 벌점 (에피소드당 1회)
         let absent = CameraRecorder.shared.absentSeconds
