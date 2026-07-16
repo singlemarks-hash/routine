@@ -35,17 +35,15 @@ private struct ConceptStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-            RECRingDial(progress: appeared ? 1 : 0, live: true, tint: TL.rec) {
-                VStack(spacing: 6) {
-                    TLEyebrow(text: "REC", color: TL.rec)
-                    Text("앵그리모티")
-                        .font(.tlTimer(44))
-                        .foregroundStyle(TL.paper)
-                }
-            }
-            .frame(width: 220, height: 220)
-            .animation(.easeOut(duration: 1.2), value: appeared)
-            .onAppear { appeared = true }
+            // 캐릭터 이미지 — 기존 링(220) 대비 1/2 크기(110)
+            Image("OnboardingCharacter")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 110, height: 110)
+                .scaleEffect(appeared ? 1 : 0.8)
+                .opacity(appeared ? 1 : 0)
+                .animation(.spring(response: 0.6, dampingFraction: 0.7), value: appeared)
+                .onAppear { appeared = true }
 
             Spacer().frame(height: 48)
 
