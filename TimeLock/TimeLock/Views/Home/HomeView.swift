@@ -129,6 +129,8 @@ struct HomeView: View {
 
                     quickStartRow
 
+                    nextCountdownCard
+
                     upcomingSection
                         .padding(.top, 8)
                 }
@@ -160,9 +162,12 @@ struct HomeView: View {
         HStack(spacing: 10) {
             Spacer()
 
-            // 🔥 누적 총점 배지 (상점 우세 초록 / 벌점 우세 빨강)
-            HStack(spacing: 5) {
-                Text("🔥").font(.system(size: 15))
+            // 누적 총점 배지 — 양수 스마일 / 음수 앵그리 캐릭터
+            HStack(spacing: 6) {
+                Image(totalScore < 0 ? "MotiAngry" : "MotiSmile")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
                 Text(scoreLabel)
                     .font(.tlTimer(15))
                     .foregroundStyle(totalScoreTint)
@@ -248,6 +253,43 @@ struct HomeView: View {
                 .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
         }
         .pressableStyle()
+    }
+
+    // MARK: 다음 활동 카운트다운 (컴팩트)
+
+    private var nextUpcoming: (reservation: Reservation, fire: Date)? {
+        upcoming.compactMap { item in item.fire.map { (item.reservation, $0) } }
+            .first { $0.1 > now }
+    }
+
+    @ViewBuilder
+    private var nextCountdownCard: some View {
+        if let next = nextUpcoming {
+            let remaining = Int(next.fire.timeIntervalSince(now))
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    TLEyebrow(text: "다음 활동까지", color: TL.muted)
+                    Text(next.reservation.name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(TL.paper)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text(countdownText(remaining))
+                    .font(.tlTimer(24))
+                    .foregroundStyle(TL.amber)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
+            .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
+        }
+    }
+
+    private func countdownText(_ seconds: Int) -> String {
+        if seconds >= 86_400 { return "\(seconds / 86_400)일 \((seconds % 86_400) / 3600)시간" }
+        return TLFormat.hms(seconds)
     }
 
     // MARK: 예정된 활동

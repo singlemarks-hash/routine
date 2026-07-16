@@ -1,0 +1,9 @@
+{
+  "images" : [
+    {
+      "filename" : "moti_angry.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}
