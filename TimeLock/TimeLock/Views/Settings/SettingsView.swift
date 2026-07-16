@@ -208,8 +208,8 @@ struct ProfileEditView: View {
                                     Text(subscription.isPro ? "앵그리모티 멤버십 사용 중" : "앵그리모티 멤버십")
                                         .font(.tlTitle(17)).foregroundStyle(TL.paper)
                                     Text(subscription.isPro
-                                         ? "멤버십 혜택 적용 중 — 슬롯 \(SlotPolicy.memberFloorSlots)개부터·광고 제거·워터마크 제거."
-                                         : "슬롯 \(SlotPolicy.memberFloorSlots)개부터 · 광고 제거 · 워터마크 제거 · 벌점 리셋.")
+                                         ? "멤버십 혜택 적용 중 — 슬롯 \(SlotPolicy.memberFloorSlots)개부터·워터마크 제거."
+                                         : "슬롯 \(SlotPolicy.memberFloorSlots)개부터 · 워터마크 제거 · 벌점 리셋.")
                                         .font(.system(size: 13)).foregroundStyle(TL.muted)
                                 }
                                 Spacer()
@@ -586,7 +586,6 @@ struct PaywallView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     benefit("활동 슬롯 최소 \(SlotPolicy.memberFloorSlots)개부터 시작 (무료는 2개)")
-                    benefit("앱 내 광고 제거")
                     benefit("타임랩스 워터마크 제거")
                     benefit("가입 즉시 누적 벌점 리셋")
                     benefit("멤버들과 함께: 랭킹게임 (준비 중)")
