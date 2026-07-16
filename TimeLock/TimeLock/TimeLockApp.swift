@@ -377,9 +377,9 @@ final class AppState: ObservableObject {
         armedPending = pending
     }
 
-    /// 카운트다운 '시작!' — 실제 녹화 개시와 동시에 세션 화면으로 전환.
-    /// 세션 화면은 녹화가 이미 도는 상태로 등장하므로 타이머가 즉시 움직인다.
-    func commitRecording() {
+    /// 카운트다운 '3' 시점 — 녹화를 미리 개시해 준비 시간을 카운트다운이 흡수하게 한다.
+    /// (화면 전환은 아직 안 함 — '시작!'에서 enterSessionIfRecording이 담당)
+    func startArmedRecording() {
         guard let pending = armedPending else { return }
         armedPending = nil
         let session = FocusSession(activityName: pending.activityName, tag: pending.tag,
@@ -388,10 +388,14 @@ final class AppState: ObservableObject {
                                    targetSeconds: pending.targetSeconds,
                                    reservationID: pending.reservationID,
                                    ownerUserID: AccountStore.shared.currentUserID)
-        // 카메라 시작이 실패하면 engine이 즉시 finalize → onFinalized가 .result로 덮어쓰므로
-        // 라우팅을 먼저 .session으로 두어야 순서가 꼬이지 않는다.
-        route = .session
         engine.start(session: session, orientation: sessionOrientation)
+    }
+
+    /// 카운트다운 '시작!' — 녹화가 정상 개시됐으면 세션 화면으로 전환.
+    /// (카메라 시작 실패로 이미 finalize됐으면 결과 화면 라우팅을 존중해 건드리지 않는다)
+    func enterSessionIfRecording() {
+        if case .finished = engine.phase { return }
+        route = .session
     }
 
     /// 알람 화면의 긴급 버튼 — 세션 없이 알람만 종료, 노쇼는 스위퍼가 기록

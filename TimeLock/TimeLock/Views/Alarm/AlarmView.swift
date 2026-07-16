@@ -309,6 +309,8 @@ struct MountGuideView: View {
 
     /// 시작 카운트다운 (nil = 대기, 3→2→1, 0 = '시작!')
     @State private var countdown: Int?
+    /// '시작!' 후에도 카메라 준비가 안 끝난 드문 경우의 로딩 표시
+    @State private var preparing = false
 
     /// 방향은 사용자가 이 화면에서 고른다 (세션 시작 후엔 고정)
     private var isLandscape: Bool { app.sessionOrientation == .landscape }
@@ -349,6 +351,10 @@ struct MountGuideView: View {
 
     private func runCountdown() {
         Task { @MainActor in
+            // 카운트다운과 '동시에' 녹화를 개시 — 3초가 카메라·엔진 준비 시간을 흡수한다.
+            // ('시작!' 후에 준비를 시작하면 준비 시간만큼 화면이 멈춘 것처럼 보였음)
+            app.startArmedRecording()
+
             for n in stride(from: 3, through: 1, by: -1) {
                 withAnimation(TLMotion.bouncy) { countdown = n }
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -356,8 +362,19 @@ struct MountGuideView: View {
             }
             withAnimation(TLMotion.bouncy) { countdown = 0 }   // '시작!'
             UINotificationFeedbackGenerator().notificationOccurred(.success)
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            app.commitRecording()   // 녹화 개시 + 세션 화면 전환
+
+            // 첫 촬영 프레임이 들어올 때까지 대기 (보통 즉시 — 이미 3초간 준비됨).
+            // 드물게 오래 걸리면 '카메라 준비 중' 로딩을 정직하게 표시. 최대 8초 후엔 진행.
+            var waited: Double = 0
+            while CameraRecorder.shared.frameCount == 0, waited < 8 {
+                if case .finished = app.engine.phase { break }   // 시작 실패 → 결과 화면이 처리
+                if waited >= 0.4 { preparing = true }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                waited += 0.1
+            }
+            preparing = false
+            try? await Task.sleep(nanoseconds: 250_000_000)   // '시작!' 잔상 짧게
+            app.enterSessionIfRecording()
         }
     }
 
@@ -390,8 +407,20 @@ struct MountGuideView: View {
                 }
                 .frame(height: 124)
                 .shadow(color: .black.opacity(0.45), radius: 8, y: 2)
+
+                // 드물게 카메라 준비가 늦어질 때만 — 멈춘 게 아니라 준비 중임을 명시
+                if value == 0 && preparing {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(.white).scaleEffect(0.85)
+                        Text("카메라 준비 중…")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                    .transition(.opacity)
+                }
             }
         }
+        .animation(TLMotion.smooth, value: preparing)
     }
 
     // MARK: 세로 레이아웃 — 상단 헤더, 중앙 프레임, 하단 컨트롤
