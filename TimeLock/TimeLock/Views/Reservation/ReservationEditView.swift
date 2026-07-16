@@ -91,8 +91,24 @@ struct ReservationEditView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    // 오류는 최상단(저장 버튼 바로 아래)에 — 스크롤 없이 즉시 보이게
+                    if let errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TL.rec)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                                .fill(TL.rec.opacity(0.12)))
+                            .id("errorBanner")
+                            .onAppear { withAnimation(TLMotion.smooth) { proxy.scrollTo("errorBanner", anchor: .top) } }
+                            .onChange(of: errorMessage) {
+                                withAnimation(TLMotion.smooth) { proxy.scrollTo("errorBanner", anchor: .top) }
+                            }
+                    }
                     if isLocked {
                         lockNotice
                     }
@@ -103,11 +119,6 @@ struct ReservationEditView: View {
                     tagSection
                     timeSection
                     repeatSection
-                    if let errorMessage {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(TL.rec)
-                    }
                     if reservation != nil {
                         Button("예약 삭제") { showDeleteConfirm = true }
                             .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
@@ -135,6 +146,7 @@ struct ReservationEditView: View {
                 Button("삭제", role: .destructive) { delete() }
             }
             .onAppear(perform: load)
+            }   // ScrollViewReader
         }
         .preferredColorScheme(.dark)
     }
