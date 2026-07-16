@@ -325,14 +325,14 @@ private struct BreakOverlay: View {
             .frame(width: compact ? 130 : 230, height: compact ? 130 : 230)
             .padding(.top, compact ? 10 : 28)
 
-            Text("창 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.")
+            Text("총 \(TimePolicy.resumeWindowMinutes)분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.")
                 .font(.system(size: compact ? 12 : 14))
                 .foregroundStyle(TL.muted)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
                 .padding(.top, compact ? 8 : 22)
 
-            Text("긴급 용무 시간은 세션당 총 \(TimePolicy.resumeWindowMinutes)분입니다.\n재촬영을 시작해도 남은 시간은 리셋되지 않습니다.")
+            Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다")
                 .font(.system(size: compact ? 11 : 13, weight: .semibold))
                 .foregroundStyle(TL.amber)
                 .multilineTextAlignment(.center)
