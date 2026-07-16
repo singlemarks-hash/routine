@@ -193,7 +193,8 @@ final class SessionEngine: NSObject, ObservableObject {
 
     /// 세션당 긴급 용무 총 허용 시간(예산). 재촬영해도 리셋되지 않고 누적 차감된다.
     /// 예: 1분 쓰고 재촬영 → 다음 긴급 용무는 9분부터 시작.
-    private(set) var breakBudgetRemaining: TimeInterval = TimePolicy.resumeWindowSeconds
+    /// 소진되면 세션 화면이 긴급 버튼을 비활성화한다 (중단 중 00:00 도달은 틱이 자동 실패 처리).
+    @Published private(set) var breakBudgetRemaining: TimeInterval = TimePolicy.resumeWindowSeconds
 
     /// 촬영을 잠시 중단한다. 데드라인 안에 재촬영을 시작하면 벌점이 없다.
     /// 세션 화면의 '긴급 용무' 버튼과 앱 이탈(백그라운드/화면 잠금)이 공통으로 사용한다.

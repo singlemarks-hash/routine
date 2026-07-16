@@ -184,13 +184,19 @@ struct SessionView: View {
 
     /// 긴급중단 — 매운맛: 즉시 중단 + 10분 재촬영 창 / 미친 매운맛: 확인 후 즉시 종료
     private var breakButton: some View {
-        squareButton(title: "긴급중단", symbol: "light.beacon.max.fill", active: false) {
+        // 긴급 예산(세션당 10분)을 다 쓰면 버튼 자체를 비활성화 — 누를 일도 없게.
+        // (중단 중 00:00 도달은 엔진 틱이 자동으로 실패 처리한다)
+        let exhausted = engine.session?.intensity == .spicy && engine.breakBudgetRemaining < 1
+        return squareButton(title: exhausted ? "긴급 소진" : "긴급중단",
+                            symbol: "light.beacon.max.fill", active: false) {
             if engine.session?.intensity == .insane {
                 showEmergency = true
             } else {
                 engine.startBreak()
             }
         }
+        .disabled(exhausted)
+        .opacity(exhausted ? 0.4 : 1)
     }
 
     private func squareButton(title: String, symbol: String, active: Bool,
