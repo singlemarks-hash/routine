@@ -49,6 +49,7 @@ struct SettingsView: View {
             }
             .background(TL.ink)
             .navigationTitle("설정")
+            .task { await account.refreshEmailVerification() }   // 인증 완료 반영
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .sheet(isPresented: $showAuth) { AuthView() }
         }
@@ -80,6 +81,26 @@ struct SettingsView: View {
                             }
                             Spacer()
                             TagChip(name: user.provider.title)
+                        }
+
+                        // 이메일 가입 계정의 인증 대기 안내 (계정 신뢰 확보)
+                        if !account.isEmailVerified {
+                            HStack(spacing: 8) {
+                                Image(systemName: "envelope.badge")
+                                    .font(.system(size: 13)).foregroundStyle(TL.amber)
+                                Text("이메일 인증 대기 중 — 받은 편지함을 확인하세요")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(TL.amber)
+                                Spacer()
+                                Button("재발송") {
+                                    Task { try? await account.resendVerificationEmail() }
+                                }
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(TL.paper)
+                            }
+                            .padding(10)
+                            .background(RoundedRectangle(cornerRadius: TL.cornerS, style: .continuous)
+                                .fill(TL.amber.opacity(0.12)))
                         }
 
                         Divider().overlay(TL.hairline)

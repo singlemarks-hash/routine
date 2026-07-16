@@ -172,8 +172,9 @@ final class AccountStore: ObservableObject {
 
     // MARK: 이메일 회원가입 / 로그인
 
-    func signUp(email: String, password: String) async throws {
+    func signUp(email: String, password: String, displayName: String) async throws {
         let email = email.trimmingCharacters(in: .whitespaces).lowercased()
+        let name = displayName.trimmingCharacters(in: .whitespaces)
         guard email.contains("@"), email.contains(".") else { throw AuthError.invalidEmail }
         guard password.count >= 8 else { throw AuthError.weakPassword }
 
@@ -181,7 +182,15 @@ final class AccountStore: ObservableObject {
         if backendActive {
             do {
                 let result = try await Auth.auth().createUser(withEmail: email, password: password)
-                setUser(UserAccount(id: result.user.uid, email: email, displayName: nil, provider: .email))
+                // 사용자 이름 저장 + 이메일 인증 메일 발송 (계정 신뢰 확보)
+                if !name.isEmpty {
+                    let change = result.user.createProfileChangeRequest()
+                    change.displayName = name
+                    try? await change.commitChanges()
+                }
+                try? await result.user.sendEmailVerification()
+                setUser(UserAccount(id: result.user.uid, email: email,
+                                    displayName: name.isEmpty ? nil : name, provider: .email))
             } catch let error as NSError where error.code == AuthErrorCode.emailAlreadyInUse.rawValue {
                 throw AuthError.duplicateEmail
             } catch {
@@ -191,7 +200,42 @@ final class AccountStore: ObservableObject {
         }
         #endif
         let record = try LocalAccountVault.signUp(email: email, password: password)
-        setUser(UserAccount(id: record.id, email: email, displayName: nil, provider: .email))
+        setUser(UserAccount(id: record.id, email: email,
+                            displayName: name.isEmpty ? nil : name, provider: .email))
+    }
+
+    // MARK: 이메일 인증 상태
+
+    /// 이메일 가입 계정의 인증 완료 여부. (소셜·게스트·오프라인 폴백은 해당 없음 → true)
+    var isEmailVerified: Bool {
+        #if canImport(FirebaseAuth)
+        if backendActive, let user = Auth.auth().currentUser,
+           currentUser?.provider == .email {
+            return user.isEmailVerified
+        }
+        #endif
+        return true
+    }
+
+    /// 인증 메일 재발송
+    func resendVerificationEmail() async throws {
+        #if canImport(FirebaseAuth)
+        if backendActive, let user = Auth.auth().currentUser {
+            try await user.sendEmailVerification()
+            return
+        }
+        #endif
+        throw AuthError.providerUnavailable("이메일 인증은 Firebase 연동 후 사용할 수 있습니다.")
+    }
+
+    /// 서버에서 최신 인증 상태를 다시 읽는다 (사용자가 메일 인증을 마친 뒤 새로고침용)
+    func refreshEmailVerification() async {
+        #if canImport(FirebaseAuth)
+        if backendActive, let user = Auth.auth().currentUser {
+            try? await user.reload()
+            objectWillChange.send()
+        }
+        #endif
     }
 
     func signIn(email: String, password: String) async throws {

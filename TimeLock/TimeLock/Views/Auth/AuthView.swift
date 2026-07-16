@@ -21,12 +21,14 @@ struct AuthView: View {
     }
 
     @State private var mode: Mode = .signIn
+    @State private var name = ""
     @State private var email = ""
     @State private var password = ""
+    @State private var passwordConfirm = ""
     @State private var working = false
     @State private var errorMessage: String?
     @FocusState private var focusedField: Field?
-    private enum Field { case email, password }
+    private enum Field { case name, email, password, passwordConfirm }
 
     var body: some View {
         ZStack {
@@ -131,6 +133,15 @@ struct AuthView: View {
 
     private var fields: some View {
         VStack(spacing: 10) {
+            if mode == .signUp {
+                TextField("이름", text: $name)
+                    .textContentType(.name)
+                    .focused($focusedField, equals: .name)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .email }
+                    .authFieldStyle()
+            }
+
             TextField("이메일", text: $email)
                 .textContentType(.emailAddress)
                 .keyboardType(.emailAddress)
@@ -144,10 +155,37 @@ struct AuthView: View {
             SecureField(mode == .signUp ? "비밀번호 (8자 이상)" : "비밀번호", text: $password)
                 .textContentType(mode == .signUp ? .newPassword : .password)
                 .focused($focusedField, equals: .password)
-                .submitLabel(.go)
-                .onSubmit { submit() }
+                .submitLabel(mode == .signUp ? .next : .go)
+                .onSubmit { mode == .signUp ? (focusedField = .passwordConfirm) : submit() }
                 .authFieldStyle()
+
+            if mode == .signUp {
+                SecureField("비밀번호 확인", text: $passwordConfirm)
+                    .textContentType(.newPassword)
+                    .focused($focusedField, equals: .passwordConfirm)
+                    .submitLabel(.go)
+                    .onSubmit { submit() }
+                    .authFieldStyle()
+                if !passwordConfirm.isEmpty && password != passwordConfirm {
+                    Label("비밀번호가 서로 다릅니다", systemImage: "xmark.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TL.rec)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Text("가입하면 입력한 주소로 인증 메일이 발송됩니다.")
+                    .font(.system(size: 11)).foregroundStyle(TL.faint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
+    }
+
+    private var formReady: Bool {
+        if email.isEmpty || password.isEmpty { return false }
+        if mode == .signUp {
+            return !name.trimmingCharacters(in: .whitespaces).isEmpty
+                && password == passwordConfirm
+        }
+        return true
     }
 
     private var primaryButton: some View {
@@ -157,8 +195,8 @@ struct AuthView: View {
             Text(working ? "확인 중…" : (mode == .signIn ? "로그인" : "회원가입"))
         }
         .buttonStyle(TLPrimaryButtonStyle())
-        .disabled(working || email.isEmpty || password.isEmpty)
-        .opacity(email.isEmpty || password.isEmpty ? 0.5 : 1)
+        .disabled(working || !formReady)
+        .opacity(formReady ? 1 : 0.5)
     }
 
     private var divider: some View {
@@ -222,12 +260,12 @@ struct AuthView: View {
     // MARK: 동작
 
     private func submit() {
-        guard !email.isEmpty, !password.isEmpty else { return }
+        guard formReady else { return }
         run {
             if mode == .signIn {
                 try await account.signIn(email: email, password: password)
             } else {
-                try await account.signUp(email: email, password: password)
+                try await account.signUp(email: email, password: password, displayName: name)
             }
         }
     }

@@ -22,21 +22,11 @@ struct RootView: View {
             }
         }
         .background(TL.ink)
-        .fullScreenCover(isPresented: alarmBinding) {
-            if case let .alarm(id, fire) = app.route, let reservation = app.reservation(id: id) {
-                AlarmView(reservation: reservation, fireDate: fire)
-            }
-        }
-        .fullScreenCover(isPresented: mountBinding) {
-            if case let .mountGuide(pending) = app.route {
-                MountGuideView(pending: pending)
-            }
-        }
-        .fullScreenCover(isPresented: sessionBinding) {
-            SessionView()
-        }
-        .fullScreenCover(isPresented: resultBinding) {
-            SessionResultView()
+        // 알람→거치→세션→결과를 하나의 커버가 담당한다.
+        // 커버를 내렸다 다시 올리는 방식(화면당 커버 1개)은 전환마다 홈 화면이
+        // 몇 초씩 노출되는 갭을 만들었다 — 한 커버 안에서 내용만 즉시 교체하면 갭이 없다.
+        .fullScreenCover(isPresented: flowBinding) {
+            CaptureFlowCover()
         }
         .onChange(of: scenePhase) { _, newPhase in
             app.onScenePhase(newPhase)
@@ -53,21 +43,46 @@ struct RootView: View {
         }
     }
 
-    private var alarmBinding: Binding<Bool> {
-        Binding(get: { if case .alarm = app.route { return true }; return false },
-                set: { if !$0, case .alarm = app.route { app.route = .none } })
+    private var flowBinding: Binding<Bool> {
+        Binding(get: {
+            switch app.route {
+            case .alarm, .mountGuide, .session, .result: return true
+            case .none: return false
+            }
+        }, set: { shown in
+            guard !shown else { return }
+            switch app.route {
+            case .result: app.dismissResult()
+            case .alarm, .mountGuide: app.route = .none
+            default: break
+            }
+        })
     }
-    private var mountBinding: Binding<Bool> {
-        Binding(get: { if case .mountGuide = app.route { return true }; return false },
-                set: { if !$0, case .mountGuide = app.route { app.route = .none } })
-    }
-    private var sessionBinding: Binding<Bool> {
-        Binding(get: { app.route == .session },
-                set: { if !$0, app.route == .session { app.route = .none } })
-    }
-    private var resultBinding: Binding<Bool> {
-        Binding(get: { app.route == .result },
-                set: { if !$0, app.route == .result { app.dismissResult() } })
+}
+
+/// 알람→거치 가이드→세션→결과를 한 커버 안에서 즉시 전환하는 컨테이너.
+private struct CaptureFlowCover: View {
+    @EnvironmentObject private var app: AppState
+
+    var body: some View {
+        ZStack {
+            TL.ink.ignoresSafeArea()
+            switch app.route {
+            case .alarm(let id, let fire):
+                if let reservation = app.reservation(id: id) {
+                    AlarmView(reservation: reservation, fireDate: fire)
+                }
+            case .mountGuide(let pending):
+                MountGuideView(pending: pending)
+            case .session:
+                SessionView()
+            case .result:
+                SessionResultView()
+            case .none:
+                Color.clear
+            }
+        }
+        .animation(TLMotion.smooth, value: app.route)
     }
 }
 
