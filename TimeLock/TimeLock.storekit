@@ -22,7 +22,7 @@
       "localizations" : [
 
       ],
-      "name" : "AngryMoti Pro",
+      "name" : "AngryMoti Membership",
       "subscriptions" : [
         {
           "adHocOffers" : [
@@ -39,13 +39,13 @@
           "localizations" : [
             {
               "description" : "공유 영상 워터마크 제거",
-              "displayName" : "앵그리모티 프로",
+              "displayName" : "앵그리모티 멤버십",
               "locale" : "ko_KR"
             }
           ],
           "productID" : "com.timelock.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "AngryMoti Pro Monthly",
+          "referenceName" : "AngryMoti Membership Monthly",
           "subscriptionGroupID" : "21000001",
           "type" : "RecurringSubscription"
         }

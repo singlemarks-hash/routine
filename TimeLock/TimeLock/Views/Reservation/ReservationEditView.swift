@@ -159,7 +159,7 @@ struct ReservationEditView: View {
         TLCard {
             HStack(spacing: 10) {
                 Image(systemName: "lock.fill").foregroundStyle(TL.amber)
-                Text("시작 30분 전입니다. 자기계약을 지키기 위해 이 예약은 더 이상 수정하거나 삭제할 수 없습니다.")
+                Text("시작 30분 전입니다. 다짐을 지키기 위해 이 예약은 더 이상 수정하거나 삭제할 수 없습니다.")
                     .font(.system(size: 13))
                     .foregroundStyle(TL.paper)
             }

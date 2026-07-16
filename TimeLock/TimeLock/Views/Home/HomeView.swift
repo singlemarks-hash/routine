@@ -283,7 +283,7 @@ struct HomeView: View {
 
             if upcoming.isEmpty {
                 TLCard {
-                    Text("아직 예정된 활동이 없습니다. '활동 추가하기'로 첫 자기계약을 만들어 보세요.")
+                    Text("아직 예정된 활동이 없습니다. '활동 추가하기'로 첫 다짐을 만들어 보세요.")
                         .font(.system(size: 13)).foregroundStyle(TL.muted)
                 }
             } else {

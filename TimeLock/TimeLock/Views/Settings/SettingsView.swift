@@ -182,6 +182,13 @@ struct ProfileEditView: View {
                                 stat(value: "\(myReward + myPenalty)", label: "총점",
                                      tint: myReward + myPenalty >= 0 ? TL.paper : TL.rec)
                             }
+
+                            // 로그아웃 — 프로필 카드 안, 점수 아래 가운데 정렬
+                            Button("로그아웃") { showSignOutConfirm = true }
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(TL.muted)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 2)
                         }
                     }
 
@@ -191,7 +198,7 @@ struct ProfileEditView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(subscription.isPro ? "앵그리모티 프로 사용 중" : "앵그리모티 프로")
+                                    Text(subscription.isPro ? "앵그리모티 멤버십 사용 중" : "앵그리모티 멤버십")
                                         .font(.tlTitle(17)).foregroundStyle(TL.paper)
                                     Text(subscription.isPro
                                          ? "저장하는 타임랩스의 워터마크를 제거할 수 있습니다."
@@ -218,29 +225,26 @@ struct ProfileEditView: View {
                         .font(.system(size: 11)).foregroundStyle(TL.faint)
                     LegalLinksRow()
 
-                    // 계정 관리
-                    TLEyebrow(text: "계정")
-                        .padding(.top, 6)
-                    TLCard {
-                        HStack {
-                            Button("로그아웃") { showSignOutConfirm = true }
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(TL.muted)
-                            Spacer()
-                            Button {
-                                showDeleteAccountConfirm = true
-                            } label: {
-                                if deletingAccount {
-                                    ProgressView().tint(TL.rec)
-                                } else {
-                                    Text("계정 삭제")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(TL.rec)
-                                }
+                    // 계정 삭제 — 최하단 큰 버튼 (진한 회색, 가운데 정렬)
+                    Button {
+                        showDeleteAccountConfirm = true
+                    } label: {
+                        Group {
+                            if deletingAccount {
+                                ProgressView().tint(TL.rec)
+                            } else {
+                                Text("계정 삭제")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundStyle(TL.rec)
                             }
-                            .disabled(deletingAccount)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                            .fill(TL.raised))
                     }
+                    .disabled(deletingAccount)
+                    .padding(.top, 18)
                 } else {
                     guestCard { showAuth = true }
                 }
@@ -556,14 +560,13 @@ struct PaywallView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Spacer()
-                RECRingDial(progress: 1, live: false, tint: TL.jade) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 40, weight: .bold))
-                        .foregroundStyle(TL.jade)
-                }
-                .frame(width: 150, height: 150)
+                // 멤버십 캐릭터 (moti_member)
+                Image("MotiMember")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 150, height: 150)
 
-                Text("앵그리모티 프로")
+                Text("앵그리모티 멤버십")
                     .font(.tlTitle(26)).foregroundStyle(TL.paper)
                     .padding(.top, 24)
                 Text("내 완주 기록을 워터마크 없이 공유하세요.")
@@ -573,7 +576,7 @@ struct PaywallView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     benefit("타임랩스 저장 시 워터마크 제거")
                     benefit("완주 영상 원본 화질 저장")
-                    benefit("앞으로 추가되는 프로 기능 전부")
+                    benefit("앞으로 추가되는 멤버십 기능 전부")
                 }
                 .padding(.top, 28)
 

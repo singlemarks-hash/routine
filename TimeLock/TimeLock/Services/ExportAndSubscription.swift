@@ -3,7 +3,7 @@
 //  TimeLock
 //
 //  1) WatermarkExporter — 내보내기 시 기본 워터마크 삽입.
-//     구독(앵그리모티 프로) 상태에서만 워터마크 제거 토글이 동작한다.
+//     구독(앵그리모티 멤버십) 상태에서만 워터마크 제거 토글이 동작한다.
 //  2) VideoDownloader — 결과 화면의 '타임랩스 저장'. 정책상 촬영본은
 //     세션 종료 직후 사진 앱으로 저장하지 않으면 자동 삭제된다.
 //  3) SubscriptionManager — StoreKit 2 자동갱신 구독 관리.
@@ -126,7 +126,7 @@ enum VideoDownloader {
     }
 }
 
-// MARK: - 구독 (앵그리모티 프로)
+// MARK: - 구독 (앵그리모티 멤버십)
 
 @MainActor
 final class SubscriptionManager: ObservableObject {
