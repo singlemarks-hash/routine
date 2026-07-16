@@ -377,6 +377,9 @@ struct SessionResultView: View {
     @State private var saved = false
     @State private var saveError: String?
     @State private var removeWatermark = false
+    /// 완주 성공 연출 — 캐릭터 팝 + 옥색 리플
+    @State private var successPop = false
+    @State private var successRipple = false
 
     /// 이 계정의 누적 벌점 횟수
     private var penaltyCount: Int {
@@ -421,15 +424,29 @@ struct SessionResultView: View {
         VStack(spacing: 6) {
             // 결과 아이콘: 완주 = 스마일 캐릭터 / 실패·긴급 = 앵그리 캐릭터 / 그 외 = 기존 심볼
             if outcome.isSuccess {
-                Image("MotiSmile")
-                    .resizable().scaledToFit()
-                    .frame(width: 84, height: 84)
-                    .overlay {
-                        // 슬롯 확장 순간의 축하 파티클 (해당자만)
-                        if engine.lastSlotBonus != nil {
-                            ConfettiBurst()
-                        }
+                ZStack {
+                    // 성공 리플 — 옥색 링이 퍼지며 사라진다 (은은한 성공감)
+                    Circle()
+                        .stroke(TL.jade.opacity(successRipple ? 0 : 0.7), lineWidth: 3)
+                        .frame(width: 90, height: 90)
+                        .scaleEffect(successRipple ? 2.0 : 0.85)
+
+                    Image("MotiSmile")
+                        .resizable().scaledToFit()
+                        .frame(width: 84, height: 84)
+                        .scaleEffect(successPop ? 1 : 0.45)
+                        .shadow(color: TL.jade.opacity(successPop ? 0.35 : 0), radius: 16)
+                }
+                .overlay {
+                    // 슬롯 확장 순간의 축하 파티클 (해당자만 — 리플 위에 추가)
+                    if engine.lastSlotBonus != nil {
+                        ConfettiBurst()
                     }
+                }
+                .onAppear {
+                    withAnimation(TLMotion.bouncy) { successPop = true }
+                    withAnimation(.easeOut(duration: 0.9).delay(0.1)) { successRipple = true }
+                }
             } else if outcome.isFailure || outcome == .emergency {
                 Image("MotiAngry")
                     .resizable().scaledToFit()

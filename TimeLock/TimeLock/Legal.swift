@@ -11,16 +11,13 @@ import Foundation
 import SwiftUI
 
 enum Legal {
-    /// 이용약관(EULA). Apple 표준 EULA URL — 자체 약관을 쓰려면 이 URL만 교체하고
-    /// App Store Connect의 EULA도 동일하게 맞춘다. (표준 EULA는 별도 등록 불필요)
+    /// 이용약관 — 노션 공개 페이지 (App Store Connect의 EULA 필드에도 동일 주소 등록)
     static let termsOfUseURL = URL(string:
-        "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+        "https://singlemark.notion.site/39f41b10f64b8026ab19cab6bf66ade2")!
 
-    /// 개인정보처리방침. 저장소 루트 PRIVACY.md를 GitHub가 렌더링해 공개로 열람 가능.
-    /// ⚠️ 배포 전: 이 URL이 실제로 열리는지 확인하고, App Store Connect의
-    ///    '개인정보처리방침 URL'에도 동일한 주소를 등록할 것. (자체 도메인이 있으면 교체)
+    /// 개인정보처리방침 — 노션 공개 페이지 (App Store Connect '개인정보처리방침 URL'에 동일 등록)
     static let privacyPolicyURL = URL(string:
-        "https://github.com/singlemarks-hash/routine/blob/main/PRIVACY.md")!
+        "https://singlemark.notion.site/39f41b10f64b80d2acaffcb5815106a9")!
 
     /// 자동 갱신 구독 고지 (App Store 3.1.2 필수 문구).
     static let subscriptionDisclosure =
