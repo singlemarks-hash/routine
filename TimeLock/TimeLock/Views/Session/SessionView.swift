@@ -326,6 +326,13 @@ private struct BreakOverlay: View {
                 .lineSpacing(3)
                 .padding(.top, compact ? 8 : 22)
 
+            Text("긴급 용무 시간은 세션당 총 \(TimePolicy.resumeWindowMinutes)분입니다.\n재촬영을 시작해도 남은 시간은 리셋되지 않습니다.")
+                .font(.system(size: compact ? 11 : 13, weight: .semibold))
+                .foregroundStyle(TL.amber)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+                .padding(.top, compact ? 6 : 12)
+
             Spacer()
 
             VStack(spacing: 12) {

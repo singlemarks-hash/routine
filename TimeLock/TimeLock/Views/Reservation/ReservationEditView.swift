@@ -19,11 +19,28 @@ struct ReservationEditView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allActiveReservations: [Reservation]
+    @Query private var allScoreEvents: [ScoreEvent]
 
     /// 겹침 검사는 현재 계정의 예약끼리만
     private var allReservations: [Reservation] {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
     }
+
+    // MARK: 활동 슬롯 정책 (원띵 원칙)
+    // 기본 2개까지 자유. 누적 상점 30점마다 1개씩 추가 (3개=30점, 4개=60점, 5개=90점…).
+    // 기본을 지키는 사람에게만 자율권이 넓어진다.
+
+    /// 누적 상점 (양수 포인트 합)
+    private var totalReward: Int {
+        allScoreEvents.filter { $0.ownerUserID == account.currentUserID && $0.points > 0 }
+            .reduce(0) { $0 + $1.points }
+    }
+    private static let baseSlots = 2
+    private static let pointsPerSlot = 30
+    /// 현재 허용되는 최대 활동 수
+    private var allowedSlots: Int { Self.baseSlots + totalReward / Self.pointsPerSlot }
+    /// 다음 슬롯을 열기 위해 필요한 누적 상점
+    private var nextSlotRequirement: Int { (allowedSlots - Self.baseSlots + 1) * Self.pointsPerSlot }
 
     @State private var name = ""
     @State private var tag = ActivityTag.presets[0]
@@ -45,12 +62,42 @@ struct ReservationEditView: View {
         return next.timeIntervalSinceNow <= 1800
     }
 
+    /// 활동 슬롯 정책 안내 (원띵 — 신규 생성 화면에만 표시)
+    private var slotPolicyNotice: some View {
+        let used = allReservations.count
+        let full = used >= allowedSlots
+        return HStack(alignment: .top, spacing: 10) {
+            Image(systemName: full ? "lock.fill" : "checkmark.seal.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(full ? TL.amber : TL.jade)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("활동 슬롯 \(used)/\(allowedSlots)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(TL.paper)
+                Text(full
+                     ? "하나에 집중하는 습관을 위해 활동은 기본 \(Self.baseSlots)개부터 시작합니다. 누적 상점 \(Self.pointsPerSlot)점마다 슬롯이 1개씩 늘어나요. (현재 \(totalReward)점 → 다음 슬롯 \(nextSlotRequirement)점)"
+                     : "누적 상점 \(Self.pointsPerSlot)점마다 슬롯이 1개씩 늘어납니다. (현재 상점 \(totalReward)점)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(TL.muted)
+                    .lineSpacing(2)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+            .fill((full ? TL.amber : TL.jade).opacity(0.10)))
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     if isLocked {
                         lockNotice
+                    }
+                    if reservation == nil {
+                        slotPolicyNotice
                     }
                     nameSection
                     tagSection
@@ -217,6 +264,12 @@ struct ReservationEditView: View {
     private func save() {
         errorMessage = nil
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
+
+        // 검증: 활동 슬롯 정책 (신규 생성만) — 기본 2개, 누적 상점 30점마다 +1
+        if reservation == nil, allReservations.count >= allowedSlots {
+            errorMessage = "활동은 기본 \(Self.baseSlots)개까지 만들 수 있습니다. 누적 상점 \(Self.pointsPerSlot)점마다 1개씩 늘어나요. (현재 상점 \(totalReward)점 → 최대 \(allowedSlots)개, 다음 슬롯은 \(nextSlotRequirement)점) 지금의 활동부터 완주해 상점을 모아보세요."
+            return
+        }
 
         // 검증: 활동명 필수
         guard !trimmedName.isEmpty else {

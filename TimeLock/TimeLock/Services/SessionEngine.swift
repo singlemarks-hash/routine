@@ -100,6 +100,7 @@ final class SessionEngine: NSObject, ObservableObject {
         oneMinuteWarningFired = false
         absenceWarning = false
         absencePenaltyApplied = false
+        breakBudgetRemaining = TimePolicy.resumeWindowSeconds   // 세션마다 긴급 예산 리필
         phase = .recording
         isCallActive = false
         isFinalizing = false
@@ -190,24 +191,35 @@ final class SessionEngine: NSObject, ObservableObject {
 
     // MARK: 긴급 용무 중단 — 10분 재촬영 창 (매운맛)
 
+    /// 세션당 긴급 용무 총 허용 시간(예산). 재촬영해도 리셋되지 않고 누적 차감된다.
+    /// 예: 1분 쓰고 재촬영 → 다음 긴급 용무는 9분부터 시작.
+    private(set) var breakBudgetRemaining: TimeInterval = TimePolicy.resumeWindowSeconds
+
     /// 촬영을 잠시 중단한다. 데드라인 안에 재촬영을 시작하면 벌점이 없다.
     /// 세션 화면의 '긴급 용무' 버튼과 앱 이탈(백그라운드/화면 잠금)이 공통으로 사용한다.
     func startBreak() {
         guard let s = session, phase == .recording, s.intensity == .spicy else { return }
-        let deadline = Date().addingTimeInterval(TimePolicy.resumeWindowSeconds)
+        // 남은 예산만큼만 창을 연다 — 총 10분을 다 썼으면 즉시 실패 처리
+        guard breakBudgetRemaining >= 1 else {
+            failBreakExpired(session: s)
+            return
+        }
+        let deadline = Date().addingTimeInterval(breakBudgetRemaining)
         CameraRecorder.shared.pause()
         phase = .pausedForBreak(deadline: deadline)
         defaults.set(deadline.timeIntervalSince1970, forKey: Key.breakDeadline)
         AlarmScheduler.shared.scheduleBreakNotifications(deadline: deadline)
     }
 
-    /// 재촬영 시작 — 창 안이면 벌점 없이 촬영이 이어진다
+    /// 재촬영 시작 — 창 안이면 벌점 없이 촬영이 이어진다.
+    /// 사용한 만큼 예산에서 차감되어 다음 긴급 용무는 남은 시간부터 시작한다.
     func resumeFromBreak() {
         guard case .pausedForBreak(let deadline) = phase, let s = session, !isFinalizing else { return }
         guard Date() < deadline else {
             failBreakExpired(session: s)
             return
         }
+        breakBudgetRemaining = max(0, deadline.timeIntervalSinceNow)
         CameraRecorder.shared.resume()
         phase = .recording
         defaults.removeObject(forKey: Key.breakDeadline)
