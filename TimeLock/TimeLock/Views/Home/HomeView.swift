@@ -86,10 +86,14 @@ struct HomeView: View {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
     }
 
-    /// 누적 상점 (양수 포인트 합)
-    private var totalReward: Int {
-        allEvents.filter { $0.ownerUserID == account.currentUserID && $0.points > 0 }
+    /// 누적 총점 = 지금까지의 상점·벌점 전체 합
+    private var totalScore: Int {
+        allEvents.filter { $0.ownerUserID == account.currentUserID }
             .reduce(0) { $0 + $1.points }
+    }
+    /// 총점 색 — 상점 우세 초록, 벌점 우세 빨강, 0은 중립
+    private var totalScoreTint: Color {
+        totalScore > 0 ? TL.jade : (totalScore < 0 ? TL.rec : TL.paper)
     }
 
     @State private var now = Date()
@@ -156,12 +160,12 @@ struct HomeView: View {
         HStack(spacing: 10) {
             Spacer()
 
-            // 🔥 누적 상점 배지
+            // 🔥 누적 총점 배지 (상점 우세 초록 / 벌점 우세 빨강)
             HStack(spacing: 5) {
                 Text("🔥").font(.system(size: 15))
-                Text(rewardLabel)
+                Text(scoreLabel)
                     .font(.tlTimer(15))
-                    .foregroundStyle(TL.paper)
+                    .foregroundStyle(totalScoreTint)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
@@ -180,10 +184,14 @@ struct HomeView: View {
         }
     }
 
-    private var rewardLabel: String {
-        totalReward >= 1000
-            ? String(format: "%.1fK", Double(totalReward) / 1000).replacingOccurrences(of: ".0K", with: "K")
-            : "\(totalReward)"
+    private var scoreLabel: String {
+        let magnitude = abs(totalScore)
+        let body = magnitude >= 1000
+            ? String(format: "%.1fK", Double(magnitude) / 1000).replacingOccurrences(of: ".0K", with: "K")
+            : "\(magnitude)"
+        if totalScore > 0 { return "+\(body)" }
+        if totalScore < 0 { return "-\(body)" }
+        return "0"
     }
 
     // MARK: 다짐/목표 카드

@@ -106,9 +106,14 @@ struct CalendarView: View {
 
     private func dayCell(_ day: Date) -> some View {
         let daySessions = sessions(on: day).filter { $0.outcome != nil }
-        let hasFailure = daySessions.contains { $0.outcome?.isFailure == true }
-        let hasSuccess = daySessions.contains { $0.outcome?.isSuccess == true }
-        let state: Color? = daySessions.isEmpty ? nil : (hasFailure ? TL.rec : (hasSuccess ? TL.jade : TL.faint))
+        // 그날의 누적 상·벌점 합계로 원 색을 정한다 — 양수 초록 / 음수 빨강 / 0은 앰버
+        let dayScore = scoreEvents
+            .filter { calendar.isDate($0.timestamp, inSameDayAs: day) }
+            .reduce(0) { $0 + $1.points }
+        let hasRecords = !daySessions.isEmpty
+        let state: Color? = hasRecords
+            ? (dayScore > 0 ? TL.jade : (dayScore < 0 ? TL.rec : TL.amber))
+            : nil
         let isToday = calendar.isDateInToday(day)
 
         return Button {
@@ -122,7 +127,7 @@ struct CalendarView: View {
                 if let state {
                     Circle()
                         .strokeBorder(state, lineWidth: 2.5)
-                        .background(Circle().fill(state.opacity(hasFailure || hasSuccess ? 0.22 : 0.1)))
+                        .background(Circle().fill(state.opacity(0.22)))
                         .frame(width: 14, height: 14)
                 } else {
                     Circle().fill(TL.hairline.opacity(0.4)).frame(width: 4, height: 4).padding(5)
