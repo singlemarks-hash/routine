@@ -39,8 +39,8 @@ final class SessionEngine: NSObject, ObservableObject {
     @Published private(set) var lastUnlockBonus: Int?
 
     // 자리비움 감지 정책: 30초 연속 부재 → 경고 배너, 2분 연속 부재 확정 시 —
-    // 매운맛: 벌점 −5 + 자동 긴급 중단(남은 예산 창) / 미친 매운맛: 즉시 실패 /
-    // 한 활동에서 3번째 부재는 자동 실패
+    // 매운맛: 자동 긴급 중단(남은 예산 창, 부재 자체엔 벌점 없음) / 미친 매운맛: 즉시 실패 /
+    // 한 활동에서 3번째 부재는 자동 실패 (실패 시에만 이탈 벌점)
     @Published private(set) var absenceWarning = false
     private var absencePenaltyApplied = false
     private let absenceWarnSeconds = 30
@@ -430,9 +430,9 @@ final class SessionEngine: NSObject, ObservableObject {
         lastUnlockBonus = 5
     }
 
-    /// 2분 연속 부재 확정 — 갑작스러운 부재를 최대한 봐주는 처리.
-    /// 매운맛: 벌점 −5 후 긴급 용무 버튼을 누른 것과 동일하게 자동 중단(남은 예산만큼 재촬영 창).
-    /// 미친 매운맛: 긴급 용무가 없으므로 즉시 실패.
+    /// 2분 연속 부재 확정 — 갑작스러운 부재를 최대한 봐주는 처리 (부재 자체엔 벌점 없음).
+    /// 매운맛: 긴급 용무 버튼을 누른 것과 동일하게 자동 중단(남은 예산만큼 재촬영 창).
+    /// 미친 매운맛: 긴급 용무가 없으므로 즉시 실패(이탈 벌점).
     /// 단, 한 활동에서 3번째 부재는 더 봐주지 않고 자동 실패 처리한다.
     private func handleAbsenceTimeout(session s: FocusSession) {
         absenceEpisodeCount += 1
@@ -446,7 +446,8 @@ final class SessionEngine: NSObject, ObservableObject {
             return
         }
 
-        recordAbsencePenalty(session: s)
+        AlarmScheduler.shared.playChime()
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
         absenceWarning = false
         startBreak()   // 자동 긴급 용무 — 남은 예산만큼 10분 창이 열린다
     }
@@ -460,20 +461,6 @@ final class SessionEngine: NSObject, ObservableObject {
             self.applyRecording(result, to: s)
             self.finalize(session: s, outcome: .exitFailed, note: note)
         }
-    }
-
-    /// 자리비움 벌점 −5 (강도 무관 고정) — 원장에만 기록된다.
-    private func recordAbsencePenalty(session s: FocusSession) {
-        guard let context = modelContext else { return }
-        let event = ScoreEvent(type: .absence, points: -5,
-                               sessionID: s.id, intensity: s.intensity,
-                               note: "촬영 중 자리비움 \(absencePenaltySeconds / 60)분 초과 — 자동 긴급 중단",
-                               ownerUserID: s.ownerUserID)
-        context.insert(event)
-        AccountStore.shared.mirror(event: event)
-        try? context.save()
-        AlarmScheduler.shared.playChime()
-        UINotificationFeedbackGenerator().notificationOccurred(.error)
     }
 
     private func finalize(session s: FocusSession, outcome: SessionOutcome, note: String?) {

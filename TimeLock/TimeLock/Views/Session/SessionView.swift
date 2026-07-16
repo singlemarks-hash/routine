@@ -235,7 +235,7 @@ struct SessionView: View {
                     .foregroundStyle(TL.ink)
                 Text(engine.session?.intensity == .insane
                      ? "2분 안에 돌아오세요 — 초과 시 즉시 실패"
-                     : "2분 안에 돌아오세요 — 초과 시 벌점과 함께 자동 긴급 중단 (3회 반복이면 실패)")
+                     : "2분 안에 돌아오세요 — 초과 시 자동 긴급 중단 (3회 반복이면 실패)")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.ink.opacity(0.8))
             }
