@@ -148,16 +148,8 @@ struct SessionView: View {
 
     /// selfie 영역 — 프리뷰 + REC 표시 (촬영 중이므로 카메라 전환은 없음)
     private func selfieCard(width: CGFloat, height: CGFloat) -> some View {
-        Group {
-            // 프리롤(전체화면 프리뷰)이 떠 있는 동안엔 셀피 프리뷰를 만들지 않는다.
-            // 프리뷰 레이어 2개가 같은 세션 연결을 두고 다투면 하나가 검게 죽기 때문.
-            // 프리롤이 끝난 뒤(recordingLaunched)에만 단독 프리뷰로 붙는다.
-            if recordingLaunched {
-                CameraPreviewView(session: recorder.captureSession, orientation: app.sessionOrientation)
-            } else {
-                TL.surface
-            }
-        }
+        // 세션 화면은 녹화가 이미 시작된 뒤에만 등장 — 이 프리뷰가 유일한 레이어라 안전
+        CameraPreviewView(session: recorder.captureSession, orientation: app.sessionOrientation)
             .frame(width: width, height: height)
             .clipShape(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
             .overlay(

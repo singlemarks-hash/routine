@@ -480,12 +480,13 @@ struct MountGuideView: View {
 
     private var startButton: some View {
         Button {
-            // 예약 세션은 알람 화면에서 이미 집중 모드 안내를 봤으므로 바로 시작.
+            // 예약 세션은 알람 화면에서 이미 집중 모드 안내를 봤으므로 바로 카운트다운.
             // 즉시 세션(지금 바로 시작)은 여기서 안내를 거친다.
             if pending.scheduledAt == nil {
                 showFocusGuide = true
             } else {
-                app.beginRecording(pending: pending)
+                app.beginRecording(pending: pending)   // 알람 정지 + 세션 무장
+                runCountdown()
             }
         } label: {
             Label("촬영 시작", systemImage: "record.circle.fill")
