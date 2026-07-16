@@ -119,7 +119,8 @@ struct AlarmView: View {
         }
         .sheet(isPresented: $showCancelSheet) {
             CancelReasonSheet(
-                penaltyPoints: ScoreRules.points(for: .emergency, intensity: app.intensity)?.1 ?? -5,
+                penaltyPoints: ScoreRules.points(for: .emergency, intensity: app.intensity,
+                                                 durationMinutes: reservation.durationMinutes)?.1 ?? -5,
                 onConfirm: { reason in
                     showCancelSheet = false
                     app.cancelSchedule(reservation: reservation, fireDate: fireDate, reason: reason)

@@ -431,7 +431,8 @@ final class AppState: ObservableObject {
         session.endedAt = .now
         context.insert(session)
 
-        if let (type, points) = ScoreRules.points(for: .emergency, intensity: intensity) {
+        if let (type, points) = ScoreRules.points(for: .emergency, intensity: intensity,
+                                                  durationMinutes: reservation.durationMinutes) {
             let event = ScoreEvent(type: type, points: points, sessionID: session.id,
                                    intensity: intensity, note: reason,
                                    ownerUserID: AccountStore.shared.currentUserID)

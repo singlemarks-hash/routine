@@ -473,7 +473,8 @@ struct SessionResultView: View {
                 Text("순수 촬영 \(TLFormat.hms(s.recordedSeconds)) / 목표 \(TLFormat.hms(s.targetSeconds))")
                     .font(.tlTimer(15)).foregroundStyle(TL.paper)
 
-                if let (_, points) = ScoreRules.points(for: outcome, intensity: s.intensity) {
+                if let (_, points) = ScoreRules.points(for: outcome, intensity: s.intensity,
+                                                       durationMinutes: s.targetSeconds / 60) {
                     HStack(spacing: 8) {
                         Text(points > 0 ? "+\(points)점 적립" : "\(points)점 벌점")
                             .font(.system(size: 14, weight: .bold, design: .rounded))

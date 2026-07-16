@@ -329,11 +329,22 @@ final class ScoreEvent {
 // MARK: - 점수 규칙 엔진
 
 enum ScoreRules {
+    /// 완주 상점은 활동 길이에 따라 커진다 (벌점은 길이와 무관하게 기존 유지).
+    /// 10분~1시간 +10 · 1시간 30분~3시간 +20 · 4시간~8시간 +30
+    static func completionBase(forMinutes minutes: Int) -> Int {
+        switch minutes {
+        case ..<90:  return 10
+        case ..<240: return 20
+        default:     return 30
+        }
+    }
+
     /// 미친 매운맛은 상점도 2배, 벌점도 2배 — 하이 리스크 하이 리턴.
-    static func points(for outcome: SessionOutcome, intensity: Intensity) -> (ScoreEventType, Int)? {
+    static func points(for outcome: SessionOutcome, intensity: Intensity,
+                       durationMinutes: Int) -> (ScoreEventType, Int)? {
         let multiplier = intensity == .insane ? 2 : 1
         switch outcome {
-        case .completed:   return (.complete, 10 * multiplier)
+        case .completed:   return (.complete, completionBase(forMinutes: durationMinutes) * multiplier)
         case .exitFailed:  return (.exitFail, -10 * multiplier)
         case .noShow:      return (.noShow, -15 * multiplier)
         case .emergency:   return (.emergency, -5 * multiplier)

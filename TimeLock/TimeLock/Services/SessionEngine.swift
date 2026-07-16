@@ -482,7 +482,8 @@ final class SessionEngine: NSObject, ObservableObject {
         s.endedAt = .now
         if s.modelContext == nil { context.insert(s) }
 
-        if let (type, points) = ScoreRules.points(for: outcome, intensity: s.intensity) {
+        if let (type, points) = ScoreRules.points(for: outcome, intensity: s.intensity,
+                                                  durationMinutes: s.targetSeconds / 60) {
             let event = ScoreEvent(type: type, points: points,
                                    sessionID: s.id, intensity: s.intensity, note: note,
                                    ownerUserID: s.ownerUserID)
@@ -560,7 +561,8 @@ final class SessionEngine: NSObject, ObservableObject {
                 noShow.outcome = .noShow
                 noShow.endedAt = fire.addingTimeInterval(graceWindow)
                 context.insert(noShow)
-                if let (type, points) = ScoreRules.points(for: .noShow, intensity: intensity) {
+                if let (type, points) = ScoreRules.points(for: .noShow, intensity: intensity,
+                                                          durationMinutes: reservation.durationMinutes) {
                     let event = ScoreEvent(type: type, points: points,
                                            sessionID: noShow.id, intensity: intensity,
                                            note: "\(TimePolicy.startWindowMinutes)분 내 미시작",
@@ -592,7 +594,8 @@ final class SessionEngine: NSObject, ObservableObject {
         let outcome: SessionOutcome = (wasOnBreak && !wasInCall) ? .exitFailed : .safetyEnded
         orphan.outcome = outcome
         orphan.endedAt = .now
-        if let (type, points) = ScoreRules.points(for: outcome, intensity: orphan.intensity) {
+        if let (type, points) = ScoreRules.points(for: outcome, intensity: orphan.intensity,
+                                                  durationMinutes: orphan.targetSeconds / 60) {
             let event = ScoreEvent(type: type, points: points, sessionID: orphan.id,
                                    intensity: orphan.intensity,
                                    note: outcome == .exitFailed ? "이탈 후 앱 종료" : "비정상 종료 복구",

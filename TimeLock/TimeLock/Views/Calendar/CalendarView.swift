@@ -352,7 +352,8 @@ struct DayDetailView: View {
     // MARK: 보조
 
     private func pts(_ session: FocusSession) -> Int? {
-        ScoreRules.points(for: session.outcome ?? .completed, intensity: session.intensity)?.1
+        ScoreRules.points(for: session.outcome ?? .completed, intensity: session.intensity,
+                          durationMinutes: session.targetSeconds / 60)?.1
     }
 
     private func circleColor(_ outcome: SessionOutcome) -> Color {

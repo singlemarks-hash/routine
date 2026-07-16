@@ -226,13 +226,24 @@ struct ReservationEditView: View {
                         .font(.tlBody).foregroundStyle(TL.paper)
                         .disabled(isLocked)
                     Divider().overlay(TL.hairline)
-                    Picker("활동 시간", selection: $durationMinutes) {
-                        ForEach(durations, id: \.self) { Text(TLFormat.durationLabel($0)).tag($0) }
+                    HStack(spacing: 10) {
+                        Picker("활동 시간", selection: $durationMinutes) {
+                            ForEach(durations, id: \.self) {
+                                Text("\(TLFormat.durationLabel($0)) — 완료 시 \(ScoreRules.completionBase(forMinutes: $0))점")
+                                    .tag($0)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(TL.paper)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .disabled(isLocked)
+                        // 선택한 길이의 완주 상점 미리 보기
+                        Text("완료 시 +\(ScoreRules.completionBase(forMinutes: durationMinutes))점")
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(TL.jade)
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Capsule().fill(TL.jade.opacity(0.14)))
                     }
-                    .pickerStyle(.menu)
-                    .tint(TL.paper)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .disabled(isLocked)
                 }
             }
         }
