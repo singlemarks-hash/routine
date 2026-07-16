@@ -38,14 +38,16 @@ final class SessionEngine: NSObject, ObservableObject {
     /// 이번 완주로 미친 매운맛이 해제됐을 때의 보너스 점수 — 결과 화면이 배지+파티클로 표시
     @Published private(set) var lastUnlockBonus: Int?
 
-    // 자리비움 감지 정책: 30초 연속 부재 → 경고 배너, 2분 연속 부재 확정 시 —
-    // 매운맛: 자동 긴급 중단(남은 예산 창, 부재 자체엔 벌점 없음) / 미친 매운맛: 즉시 실패 /
-    // 한 활동에서 3번째 부재는 자동 실패 (실패 시에만 이탈 벌점)
+    // 자리비움 감지 정책: 30초 연속 부재 → 경고 배너 + 카운트 +1 (복귀해도 카운트 유지).
+    // 경고 3회 누적 또는 경고 후 2분 연속 부재 →
+    // 매운맛: 자동 긴급 중단(남은 예산 창, 부재 자체엔 벌점 없음) / 미친 매운맛: 즉시 실패.
+    // 벌점은 실패가 확정될 때만 이탈 벌점으로 부과된다.
     @Published private(set) var absenceWarning = false
     private var absencePenaltyApplied = false
     private let absenceWarnSeconds = 30
     private let absencePenaltySeconds = 120
-    /// 한 활동에서 2분 부재가 반복된 횟수 — 3번째는 봐주지 않고 자동 실패.
+    /// 한 활동에서 자리비움 '경고'가 뜬 누적 횟수 — 2분 내 복귀해도 되돌리지 않는다.
+    /// 3번째 경고는 그 자체로 자동 긴급 중단(매운맛)/즉시 실패(미친 매운맛).
     /// 경고 배너가 "n/3" 카운트를 표시할 수 있도록 발행한다.
     @Published private(set) var absenceEpisodeCount = 0
     let absenceMaxEpisodes = 3
@@ -156,21 +158,30 @@ final class SessionEngine: NSObject, ObservableObject {
         // 간격 단위로 점프한다 — 통화/중단 동안은 틱이 멈추므로 순수 촬영 시간과 일치.
         recordedSeconds += 1
 
-        // 자리비움 감지 — 2분 안에 돌아오지 않으면 자동 긴급 중단(매운맛) / 즉시 실패(미친 매운맛)
+        // 자리비움 감지 — 경고가 뜨는 순간 카운트(복귀해도 되돌리지 않음).
+        // 3번째 경고는 그 자체로 자동 긴급 중단(매운맛) / 즉시 실패(미친 매운맛).
+        // 경고 후 2분 안에 돌아오지 않아도 동일하게 중단/실패 처리.
         let absent = CameraRecorder.shared.absentSeconds
         if absent >= absenceWarnSeconds {
             if !absenceWarning {
                 absenceWarning = true
+                absenceEpisodeCount += 1
                 AlarmScheduler.shared.playChime()
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                if absenceEpisodeCount >= absenceMaxEpisodes {
+                    handleAbsenceEvent(session: s,
+                                       insaneNote: "자리비움 경고 \(absenceMaxEpisodes)회 누적 — 즉시 실패")
+                    return
+                }
             }
             if absent >= absencePenaltySeconds, !absencePenaltyApplied {
                 absencePenaltyApplied = true
-                handleAbsenceTimeout(session: s)
+                handleAbsenceEvent(session: s,
+                                   insaneNote: "자리비움 \(absencePenaltySeconds / 60)분 — 즉시 실패")
                 return
             }
         } else if absenceWarning {
-            // 사람이 돌아옴 — 에피소드 종료, 다음 부재는 새로 판정
+            // 사람이 돌아옴 — 경고는 내리지만 누적 카운트는 유지된다
             absenceWarning = false
             absencePenaltyApplied = false
         }
@@ -431,22 +442,15 @@ final class SessionEngine: NSObject, ObservableObject {
         lastUnlockBonus = 5
     }
 
-    /// 2분 연속 부재 확정 — 갑작스러운 부재를 최대한 봐주는 처리 (부재 자체엔 벌점 없음).
+    /// 부재 확정 처리 (경고 3회 누적 또는 2분 연속 부재) — 부재 자체엔 벌점 없음.
     /// 매운맛: 긴급 용무 버튼을 누른 것과 동일하게 자동 중단(남은 예산만큼 재촬영 창).
+    ///         반복될수록 예산이 닳아 결국 창 만료/예산 소진으로 실패에 수렴한다.
     /// 미친 매운맛: 긴급 용무가 없으므로 즉시 실패(이탈 벌점).
-    /// 단, 한 활동에서 3번째 부재는 더 봐주지 않고 자동 실패 처리한다.
-    private func handleAbsenceTimeout(session s: FocusSession) {
-        absenceEpisodeCount += 1
-
+    private func handleAbsenceEvent(session s: FocusSession, insaneNote: String) {
         if s.intensity == .insane {
-            failFromAbsence(session: s, note: "자리비움 \(absencePenaltySeconds / 60)분 — 즉시 실패")
+            failFromAbsence(session: s, note: insaneNote)
             return
         }
-        if absenceEpisodeCount >= absenceMaxEpisodes {
-            failFromAbsence(session: s, note: "자리비움 \(absenceMaxEpisodes)회 반복 — 자동 실패")
-            return
-        }
-
         AlarmScheduler.shared.playChime()
         UINotificationFeedbackGenerator().notificationOccurred(.error)
         absenceWarning = false
