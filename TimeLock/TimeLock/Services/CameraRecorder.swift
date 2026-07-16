@@ -430,6 +430,12 @@ struct CameraPreviewView: UIViewRepresentable {
     /// true = 화면 꽉 채움(살짝 잘릴 수 있음), false = 촬영되는 그대로(잘림 없음, 구도용)
     var fill: Bool = true
 
+    /// 앱 전체 단일 프리뷰 뷰.
+    /// previewLayer.session 연결은 '실행 중인 세션과의 동기화' 때문에 메인 스레드를
+    /// 수 초 블록할 수 있다 — 화면(거치 가이드→세션)마다 새로 만들지 않고 이 뷰 하나를
+    /// 옮겨 붙인다(re-parent는 비용 0). 세션 연결은 최초 1회만 일어난다.
+    @MainActor static let sharedView = PreviewUIView()
+
     /// 프리뷰 레이어. RotationCoordinator가 카메라·기기 방향에 맞는 각도를 실시간 반영.
     final class PreviewUIView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
@@ -464,18 +470,37 @@ struct CameraPreviewView: UIViewRepresentable {
         }
     }
 
-    func makeUIView(context: Context) -> PreviewUIView {
-        let view = PreviewUIView()
-        view.previewLayer.session = session
-        view.previewLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
-        // 전면 카메라는 자연스러운 셀피처럼 좌우 반전 (저장본은 반전 안 함)
-        view.previewLayer.connection?.automaticallyAdjustsVideoMirroring = true
-        view.syncCoordinator(session: session)
-        return view
+    func makeUIView(context: Context) -> UIView {
+        let container = UIView()
+        container.clipsToBounds = true
+        adoptShared(into: container)
+        return container
     }
 
-    func updateUIView(_ uiView: PreviewUIView, context: Context) {
-        uiView.previewLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
-        uiView.syncCoordinator(session: session)   // 카메라 전환 반영
+    func updateUIView(_ container: UIView, context: Context) {
+        adoptShared(into: container)
+    }
+
+    /// 공유 프리뷰 뷰를 이 컨테이너로 입양하고 표시 설정을 맞춘다.
+    private func adoptShared(into container: UIView) {
+        let shared = Self.sharedView
+        if shared.previewLayer.session !== session {
+            shared.previewLayer.session = session   // 최초 1회만 (그 뒤엔 항상 동일 세션)
+            shared.previewLayer.connection?.automaticallyAdjustsVideoMirroring = true
+        }
+        shared.previewLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
+        shared.syncCoordinator(session: session)
+
+        if shared.superview !== container {
+            shared.removeFromSuperview()   // 이전 화면에서 분리 (동시 표시 없음)
+            shared.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(shared)
+            NSLayoutConstraint.activate([
+                shared.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                shared.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                shared.topAnchor.constraint(equalTo: container.topAnchor),
+                shared.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+            ])
+        }
     }
 }
