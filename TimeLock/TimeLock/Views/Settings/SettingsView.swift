@@ -580,23 +580,14 @@ struct AppLanguageView: View {
                             Text("한국어")
                                 .font(.tlTitle(16)).foregroundStyle(TL.paper)
                             Spacer()
-                            TagChip(name: "기본")
+                            Image(systemName: "checkmark").foregroundStyle(TL.jade)
                         }
                         HStack {
                             Text("English")
-                                .font(.tlTitle(16)).foregroundStyle(TL.paper)
+                                .font(.tlTitle(16)).foregroundStyle(TL.faint)
                             Spacer()
-                            TagChip(name: "베타 · 일부 화면")
+                            TagChip(name: "준비 중")
                         }
-                        Divider().overlay(TL.hairline)
-                        Text("앱 언어는 iOS 설정에서 변경합니다. 영어는 온보딩부터 순차적으로 적용 중입니다.")
-                            .font(.system(size: 13)).foregroundStyle(TL.muted)
-                        Button("iOS 설정에서 언어 변경") {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(url)
-                            }
-                        }
-                        .buttonStyle(TLPrimaryButtonStyle())
                     }
                 }
             }

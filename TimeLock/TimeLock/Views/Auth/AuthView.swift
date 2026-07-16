@@ -92,13 +92,12 @@ struct AuthView: View {
 
     private var header: some View {
         VStack(spacing: 0) {
-            RECRingDial(progress: 1, live: false, tint: TL.rec) {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(TL.paper)
-            }
-            .frame(width: 92, height: 92)
-            .padding(.top, 48)
+            // 앵그리모티 캐릭터 (온보딩과 동일 에셋)
+            Image("OnboardingCharacter")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 96, height: 96)
+                .padding(.top, 48)
 
             TLEyebrow(text: "앵그리모티 출석부", color: TL.rec)
                 .padding(.top, 20)
