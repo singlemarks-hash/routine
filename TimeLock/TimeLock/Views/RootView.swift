@@ -86,18 +86,10 @@ private struct CaptureFlowCover: View {
     }
 }
 
-// MARK: - 탭
+// MARK: - 메인 (활동|기록 토글 쉘 — 설정은 홈 우상단 마이페이지로 이동)
 
 struct MainTabView: View {
     var body: some View {
-        TabView {
-            HomeView()
-                .tabItem { Label("오늘", systemImage: "clock.fill") }
-            CalendarView()
-                .tabItem { Label("기록", systemImage: "calendar") }
-            SettingsView()
-                .tabItem { Label("설정", systemImage: "gearshape.fill") }
-        }
-        .background(TL.ink)
+        HomeShellView()
     }
 }
