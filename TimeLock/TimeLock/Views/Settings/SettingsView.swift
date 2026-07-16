@@ -134,7 +134,7 @@ struct SettingsView: View {
         .confirmationDialog("계정을 삭제할까요?", isPresented: $showDeleteAccountConfirm, titleVisibility: .visible) {
             Button("계정 영구 삭제", role: .destructive) { deleteAccount() }
         } message: {
-            Text("이 기기의 예약·세션·촬영본과 개인정보가 즉시 완전 삭제되고 되돌릴 수 없습니다. 운영 통계는 개인 식별정보를 제거한 채 3개월간 보관 후 파기됩니다.")
+            Text("이 기기의 예약·세션·촬영본과 계정·서버 데이터가 즉시 완전 삭제되고 되돌릴 수 없습니다.")
         }
         .alert("계정 삭제", isPresented: .constant(deleteAccountError != nil)) {
             Button("확인") { deleteAccountError = nil }

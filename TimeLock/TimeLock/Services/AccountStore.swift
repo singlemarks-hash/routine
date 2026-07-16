@@ -321,28 +321,25 @@ final class AccountStore: ObservableObject {
 
     // MARK: 계정 삭제 (App Store 심사 규정 5.1.1(v) — 계정 생성 앱은 앱 내 삭제 필수)
 
-    /// 계정을 삭제한다.
+    /// 계정을 삭제한다. 어떤 흔적도 남기지 않는 완전 삭제 정책.
     /// - 이 기기의 개인 데이터(예약·세션·점수·촬영본)를 즉시 완전 삭제
-    /// - 운영자 원장(서버)은 식별정보를 끊고(익명화) 3개월 보존 후 서버 배치로 파기
-    ///   → 개인정보가 아닌 통계로만 남으므로 PIPA·App Store 모두 안전
+    /// - 서버(Firestore)의 사용자 문서와 점수 원장을 통째로 삭제
     /// - 인증 계정 자체를 삭제
     func deleteAccount() async throws {
         let uid = currentUserID
         guard !uid.isEmpty else { return }
         let isGuestAccount = currentUser?.provider == .guest
 
-        // 1) 서버 원장 익명화 + 3개월 보존/파기 마커 (Firebase 연동 시)
-        //    개인 식별정보(email·displayName)를 제거하고 purgeAfter 이후 서버 배치가 파기한다.
+        // 1) 서버 데이터 완전 삭제 (Firebase 연동 시).
+        //    하위 컬렉션은 자동 삭제되지 않으므로 점수 원장 문서를 먼저 지운 뒤 사용자 문서 삭제.
+        //    (인증 계정을 지우기 전에 수행 — 이후엔 보안 규칙상 쓰기 권한이 사라진다)
         #if canImport(FirebaseFirestore)
         if backendActive, !isGuestAccount {
-            let purgeAfter = Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date()
-            try? await Firestore.firestore().collection("users").document(uid).setData([
-                "email": FieldValue.delete(),
-                "displayName": FieldValue.delete(),
-                "anonymized": true,
-                "deletedAt": Date(),
-                "purgeAfter": purgeAfter
-            ], merge: true)
+            let userDoc = Firestore.firestore().collection("users").document(uid)
+            if let snapshot = try? await userDoc.collection("scoreEvents").getDocuments() {
+                for doc in snapshot.documents { try? await doc.reference.delete() }
+            }
+            try? await userDoc.delete()
         }
         #endif
 
