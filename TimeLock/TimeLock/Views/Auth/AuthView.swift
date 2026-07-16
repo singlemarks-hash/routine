@@ -56,6 +56,13 @@ struct AuthView: View {
                     socialButtons
                     guestButton
                         .padding(.top, 26)
+
+                    Text("계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주됩니다.")
+                        .font(.system(size: 11)).foregroundStyle(TL.faint)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 18)
+                    LegalLinksRow()
+                        .padding(.top, 8)
                         .padding(.bottom, 24)
                 }
                 .padding(.horizontal, 24)

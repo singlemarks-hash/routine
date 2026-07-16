@@ -318,10 +318,11 @@ struct SettingsView: View {
     // MARK: 정보
 
     private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             TLEyebrow(text: "앵그리모티")
             Text("알람을 끄는 유일한 방법, 촬영 시작. · v1.0.0")
                 .font(.system(size: 12)).foregroundStyle(TL.faint)
+            LegalLinksRow()
         }
     }
 }
@@ -387,9 +388,14 @@ struct PaywallView: View {
                 .foregroundStyle(TL.muted)
                 .padding(.top, 12)
 
-                Text("월 단위 자동 갱신 · 언제든 App Store에서 해지")
+                Text(Legal.subscriptionDisclosure)
                     .font(.system(size: 11)).foregroundStyle(TL.faint)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 8)
+
+                LegalLinksRow()
+                    .padding(.top, 10)
                     .padding(.bottom, 16)
             }
             .padding(.horizontal, 24)
