@@ -54,11 +54,12 @@ struct SessionView: View {
 
             // 시작 프리롤 오버레이 — 라이브 카메라 위에 "3·2·1·시작!".
             // 정지화면이 아니라 실제 프리뷰가 살아있고, '시작!'에서 녹화가 개시된다.
+            // 페이드 없이 즉시 교체 — 프리롤 프리뷰와 셀피 프리뷰가 한 프레임도 공존하지
+            // 않게 해 세션 연결 다툼(검은 화면)을 막는다.
             if showStartCountdown {
-                startCountdownOverlay.transition(.opacity)
+                startCountdownOverlay
             }
         }
-        .animation(TLMotion.smooth, value: showStartCountdown)
         .interactiveDismissDisabled()
         .task { await runStartCountdown() }
         .onChange(of: recorder.frameCount) { _, n in
@@ -152,7 +153,16 @@ struct SessionView: View {
 
     /// selfie 영역 — 프리뷰 + REC 표시 (촬영 중이므로 카메라 전환은 없음)
     private func selfieCard(width: CGFloat, height: CGFloat) -> some View {
-        CameraPreviewView(session: recorder.captureSession, orientation: app.sessionOrientation)
+        Group {
+            // 프리롤(전체화면 프리뷰)이 떠 있는 동안엔 셀피 프리뷰를 만들지 않는다.
+            // 프리뷰 레이어 2개가 같은 세션 연결을 두고 다투면 하나가 검게 죽기 때문.
+            // 프리롤이 끝난 뒤(recordingLaunched)에만 단독 프리뷰로 붙는다.
+            if recordingLaunched {
+                CameraPreviewView(session: recorder.captureSession, orientation: app.sessionOrientation)
+            } else {
+                TL.surface
+            }
+        }
             .frame(width: width, height: height)
             .clipShape(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
             .overlay(
