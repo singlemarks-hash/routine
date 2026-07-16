@@ -445,6 +445,7 @@ struct MountGuideView: View {
                     checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount)
                     checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
                     startButton
+                    cancelButton
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
@@ -473,6 +474,7 @@ struct MountGuideView: View {
                     checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount)
                     checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
                     startButton
+                    cancelButton
                 }
                 .padding(20)
             }
@@ -505,6 +507,20 @@ struct MountGuideView: View {
             orientationToggle
             cameraSwitchButton
         }
+    }
+
+    /// 아직 시작 전 — 마음이 바뀌면 아무 기록 없이 되돌아간다.
+    /// (예약 세션은 알람 화면으로, 즉시 세션은 홈으로)
+    private var cancelButton: some View {
+        Button("취소하기") {
+            app.cancelMountGuide(pending: pending)
+        }
+        .font(.system(size: 14, weight: .semibold, design: .rounded))
+        .foregroundStyle(TL.muted)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .disabled(countdown != nil)   // 카운트다운 시작 후엔 취소 불가
+        .opacity(countdown != nil ? 0.3 : 1)
     }
 
     private var startButton: some View {

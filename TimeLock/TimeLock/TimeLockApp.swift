@@ -369,6 +369,16 @@ final class AppState: ObservableObject {
         route = .mountGuide(pending: pending)
     }
 
+    /// 거치 가이드 '취소하기' — 아직 시작 전이므로 아무 기록 없이 되돌아간다.
+    /// 예약 세션은 알람 화면으로(알람은 계속 울리는 중), 즉시 세션은 홈으로.
+    func cancelMountGuide(pending: PendingSession) {
+        if let id = pending.reservationID, let fire = pending.scheduledAt {
+            route = .alarm(reservationID: id, fireDate: fire)
+        } else {
+            route = .none
+        }
+    }
+
     /// 거치 가이드 '촬영 시작' — 알람 정지 + 세션 무장.
     /// 카운트다운(3·2·1)은 거치 가이드가 자기 라이브 프리뷰 위에서 진행한다
     /// (프리뷰 레이어가 항상 1개라 화면 멈춤·검은 화면이 구조적으로 불가능).
