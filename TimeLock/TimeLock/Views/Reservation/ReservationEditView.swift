@@ -420,6 +420,8 @@ private struct SlotPolicySheet: View {
                 Text("하나에 집중하는 습관을 위해, 활동 슬롯은 연속 달성일로 늘어납니다.")
                     .font(.system(size: 14)).foregroundStyle(TL.muted)
                     .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 // 단계표
                 VStack(spacing: 0) {
@@ -464,10 +466,12 @@ private struct SlotPolicySheet: View {
                       systemImage: "crown.fill")
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.jade)
                     .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Label("연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 사라지지 않아요. 새로 추가하는 것만 제한됩니다.", systemImage: "shield.checkerboard")
                     .font(.system(size: 12)).foregroundStyle(TL.muted)
                     .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
             }
             .padding(20)
