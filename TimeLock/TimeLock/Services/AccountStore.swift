@@ -75,6 +75,20 @@ enum AuthError: LocalizedError {
     }
 }
 
+enum DeleteAccountError: LocalizedError {
+    case requiresRecentLogin
+    case unknown(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .requiresRecentLogin:
+            return "보안을 위해 다시 로그인한 뒤 삭제할 수 있습니다. 로그아웃 후 다시 로그인하고 삭제를 진행하세요."
+        case .unknown(let message):
+            return "계정 삭제에 실패했습니다 — \(message)"
+        }
+    }
+}
+
 // MARK: - AccountStore
 
 @MainActor
@@ -305,6 +319,77 @@ final class AccountStore: ObservableObject {
         onUserChanged?()
     }
 
+    // MARK: 계정 삭제 (App Store 심사 규정 5.1.1(v) — 계정 생성 앱은 앱 내 삭제 필수)
+
+    /// 계정을 삭제한다.
+    /// - 이 기기의 개인 데이터(예약·세션·점수·촬영본)를 즉시 완전 삭제
+    /// - 운영자 원장(서버)은 식별정보를 끊고(익명화) 3개월 보존 후 서버 배치로 파기
+    ///   → 개인정보가 아닌 통계로만 남으므로 PIPA·App Store 모두 안전
+    /// - 인증 계정 자체를 삭제
+    func deleteAccount() async throws {
+        let uid = currentUserID
+        guard !uid.isEmpty else { return }
+        let isGuestAccount = currentUser?.provider == .guest
+
+        // 1) 서버 원장 익명화 + 3개월 보존/파기 마커 (Firebase 연동 시)
+        //    개인 식별정보(email·displayName)를 제거하고 purgeAfter 이후 서버 배치가 파기한다.
+        #if canImport(FirebaseFirestore)
+        if backendActive, !isGuestAccount {
+            let purgeAfter = Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date()
+            try? await Firestore.firestore().collection("users").document(uid).setData([
+                "email": FieldValue.delete(),
+                "displayName": FieldValue.delete(),
+                "anonymized": true,
+                "deletedAt": Date(),
+                "purgeAfter": purgeAfter
+            ], merge: true)
+        }
+        #endif
+
+        // 2) 인증 계정 삭제 (최근 로그인 필요 시 재로그인 요청)
+        #if canImport(FirebaseAuth)
+        if backendActive, let fbUser = Auth.auth().currentUser {
+            do {
+                try await fbUser.delete()
+            } catch let error as NSError where error.code == AuthErrorCode.requiresRecentLogin.rawValue {
+                throw DeleteAccountError.requiresRecentLogin
+            } catch {
+                throw DeleteAccountError.unknown(error.localizedDescription)
+            }
+        }
+        #endif
+        #if canImport(GoogleSignIn)
+        GIDSignIn.sharedInstance.signOut()
+        #endif
+
+        // 3) 이 기기의 개인 데이터 완전 삭제 (예약·세션·점수 + 촬영본 파일)
+        deleteLocalData(ownerID: uid)
+        LocalAccountVault.remove(id: uid)   // 오프라인 폴백 계정도 제거
+
+        // 4) 세션 종료 → 인증 화면으로 복귀 (onUserChanged가 라우팅)
+        currentUser = nil
+        defaults.removeObject(forKey: sessionKey)
+        onUserChanged?()
+    }
+
+    /// 특정 소유자의 로컬 데이터(예약·세션·점수)와 촬영본 파일을 모두 삭제
+    private func deleteLocalData(ownerID owner: String) {
+        guard let context = modelContext else { return }
+        if let list = try? context.fetch(FetchDescriptor<FocusSession>(predicate: #Predicate { $0.ownerUserID == owner })) {
+            list.forEach { session in
+                SessionStorage.deleteFiles(of: session)   // 촬영본·썸네일 파일 삭제
+                context.delete(session)
+            }
+        }
+        if let list = try? context.fetch(FetchDescriptor<Reservation>(predicate: #Predicate { $0.ownerUserID == owner })) {
+            list.forEach { context.delete($0) }
+        }
+        if let list = try? context.fetch(FetchDescriptor<ScoreEvent>(predicate: #Predicate { $0.ownerUserID == owner })) {
+            list.forEach { context.delete($0) }
+        }
+        try? context.save()
+    }
+
     // MARK: 내부
 
     private func setUser(_ user: UserAccount, adoptGuestData adopt: Bool = true) {
@@ -428,5 +513,13 @@ private enum LocalAccountVault {
             throw AuthError.wrongCredentials
         }
         return record
+    }
+
+    /// 계정 삭제 시 오프라인 폴백 레코드 제거
+    static func remove(id: String) {
+        var records = load()
+        let before = records.count
+        records.removeAll { $0.id == id }
+        if records.count != before { save(records) }
     }
 }

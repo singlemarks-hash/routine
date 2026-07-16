@@ -21,6 +21,9 @@ struct SettingsView: View {
     @State private var showAuth = false
     @State private var showDeleteAllConfirm = false
     @State private var showSignOutConfirm = false
+    @State private var showDeleteAccountConfirm = false
+    @State private var deletingAccount = false
+    @State private var deleteAccountError: String?
 
     /// 현재 계정의 기록만
     private var events: [ScoreEvent] {
@@ -88,9 +91,26 @@ struct SettingsView: View {
                                       tint: myReward + myPenalty >= 0 ? TL.paper : TL.rec)
                         }
 
-                        Button("로그아웃") { showSignOutConfirm = true }
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(TL.muted)
+                        Divider().overlay(TL.hairline)
+
+                        HStack {
+                            Button("로그아웃") { showSignOutConfirm = true }
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(TL.muted)
+                            Spacer()
+                            Button {
+                                showDeleteAccountConfirm = true
+                            } label: {
+                                if deletingAccount {
+                                    ProgressView().tint(TL.rec)
+                                } else {
+                                    Text("계정 삭제")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(TL.rec)
+                                }
+                            }
+                            .disabled(deletingAccount)
+                        }
                     }
                 }
             } else {
@@ -110,6 +130,30 @@ struct SettingsView: View {
             Button("로그아웃", role: .destructive) { account.signOut() }
         } message: {
             Text("기록은 계정에 남아 있고, 다시 로그인하면 그대로 보입니다.")
+        }
+        .confirmationDialog("계정을 삭제할까요?", isPresented: $showDeleteAccountConfirm, titleVisibility: .visible) {
+            Button("계정 영구 삭제", role: .destructive) { deleteAccount() }
+        } message: {
+            Text("이 기기의 예약·세션·촬영본과 개인정보가 즉시 완전 삭제되고 되돌릴 수 없습니다. 운영 통계는 개인 식별정보를 제거한 채 3개월간 보관 후 파기됩니다.")
+        }
+        .alert("계정 삭제", isPresented: .constant(deleteAccountError != nil)) {
+            Button("확인") { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "")
+        }
+    }
+
+    private func deleteAccount() {
+        deletingAccount = true
+        deleteAccountError = nil
+        Task {
+            defer { deletingAccount = false }
+            do {
+                try await account.deleteAccount()
+                // 성공 시 onUserChanged가 인증 화면으로 라우팅
+            } catch {
+                deleteAccountError = error.localizedDescription
+            }
         }
     }
 
