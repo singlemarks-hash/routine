@@ -225,10 +225,11 @@ struct AuthView: View {
             Button {
                 run { try await account.signInWithGoogle() }
             } label: {
-                HStack(spacing: 8) {
-                    Text("G")
-                        .font(.system(size: 18, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color(hex: 0x4285F4))
+                HStack(spacing: 10) {
+                    Image("GoogleLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
                     Text("Google로 계속하기")
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(TL.ink)
