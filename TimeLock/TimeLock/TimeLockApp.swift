@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             return []
         }
         // 세션 중 '알림차단'이 켜져 있으면 화면에 뜨는 모든 배너를 숨긴다
-        if await AlarmScheduler.shared.muteAllNotifications {
+        if AlarmScheduler.shared.muteAllNotifications {
             return []
         }
         return [.banner, .sound]

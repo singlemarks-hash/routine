@@ -63,7 +63,9 @@ enum WatermarkExporter {
             text.fontSize = max(22, renderSize.width * 0.038)
             text.foregroundColor = UIColor(white: 1, alpha: 0.85).cgColor
             text.alignmentMode = .right
-            text.contentsScale = UIScreen.main.scale
+            // 영상 합성 레이어는 renderSize(픽셀) 기준으로 렌더되므로 화면 스케일 대신 고정값.
+            // (UIScreen.main은 main-actor 격리 + deprecated라 nonisolated async에서 접근 부적합)
+            text.contentsScale = 2
             let height = text.fontSize * 1.5
             text.frame = CGRect(x: 0, y: 24, width: renderSize.width - 24, height: height)
             parentLayer.addSublayer(text)
