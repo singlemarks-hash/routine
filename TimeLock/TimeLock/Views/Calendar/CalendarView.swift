@@ -30,25 +30,25 @@ struct CalendarView: View {
         everyScoreEvent.filter { $0.ownerUserID == account.currentUserID }
     }
 
+    // 홈 우상단 누적점수 배지에서 푸시되는 화면 — 자체 NavigationStack 없음
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    monthGrid
-                    DashboardSection(sessions: allSessions, scoreEvents: scoreEvents)
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                monthGrid
+                DashboardSection(sessions: allSessions, scoreEvents: scoreEvents)
             }
-            .background(TL.ink)
-            .navigationTitle("기록")
-            .sheet(item: Binding(
-                get: { selectedDay.map(DayBox.init) },
-                set: { selectedDay = $0?.date })) { box in
-                DayDetailView(day: box.date,
-                              sessions: sessions(on: box.date),
-                              scoreEvents: scoreEvents)
-            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 32)
+        }
+        .background(TL.ink)
+        .navigationTitle("기록")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: Binding(
+            get: { selectedDay.map(DayBox.init) },
+            set: { selectedDay = $0?.date })) { box in
+            DayDetailView(day: box.date,
+                          sessions: sessions(on: box.date),
+                          scoreEvents: scoreEvents)
         }
     }
 

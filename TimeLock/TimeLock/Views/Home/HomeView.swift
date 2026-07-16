@@ -12,14 +12,14 @@ import SwiftData
 // MARK: - 쉘: 활동 | 기록 토글
 
 struct HomeShellView: View {
-    enum Tab { case activity, records }
+    enum Tab { case activity, schedule }
     @State private var tab: Tab = .activity
 
     var body: some View {
         ZStack(alignment: .bottom) {
             switch tab {
             case .activity: HomeView()
-            case .records:  CalendarView()
+            case .schedule: WeeklyScheduleView()
             }
 
             bottomToggle
@@ -29,13 +29,13 @@ struct HomeShellView: View {
         .animation(TLMotion.smooth, value: tab)
     }
 
-    /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성
+    /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성 (1.5배 확대)
     private var bottomToggle: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             toggleSegment("활동", icon: "clock.fill", tab: .activity)
-            toggleSegment("기록", icon: "calendar", tab: .records)
+            toggleSegment("일정", icon: "calendar", tab: .schedule)
         }
-        .padding(5)
+        .padding(7)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule().strokeBorder(
@@ -52,15 +52,15 @@ struct HomeShellView: View {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             withAnimation(TLMotion.snappy) { tab = target }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                 Text(title)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             .foregroundStyle(selected ? TL.ink : TL.paper.opacity(0.72))
-            .padding(.horizontal, 22)
-            .padding(.vertical, 11)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 15)
             .background(
                 Capsule()
                     .fill(selected ? AnyShapeStyle(TL.paper) : AnyShapeStyle(.clear))
@@ -135,7 +135,7 @@ struct HomeView: View {
                         .padding(.top, 8)
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 96)   // 하단 토글 자리
+                .padding(.bottom, 116)   // 하단 토글 자리
             }
             .background(TL.ink)
             .toolbar(.hidden, for: .navigationBar)
@@ -162,27 +162,32 @@ struct HomeView: View {
         HStack(spacing: 10) {
             Spacer()
 
-            // 누적 총점 배지 — 양수 스마일 / 음수 앵그리 캐릭터
-            HStack(spacing: 6) {
-                Image(totalScore < 0 ? "MotiAngry" : "MotiSmile")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 20, height: 20)
-                Text(scoreLabel)
-                    .font(.tlTimer(15))
-                    .foregroundStyle(totalScoreTint)
+            // 누적 총점 배지 — 양수 스마일 / 음수 앵그리. 누르면 '기록'(캘린더 점수판)으로.
+            NavigationLink {
+                CalendarView()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(totalScore < 0 ? "MotiAngry" : "MotiSmile")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 30, height: 30)
+                    Text(scoreLabel)
+                        .font(.tlTimer(22))
+                        .foregroundStyle(totalScoreTint)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(TL.surface))
+                .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(Capsule().fill(TL.surface))
-            .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
+            .pressableStyle()
 
             // 마이페이지
             NavigationLink {
                 MyPageView()
             } label: {
                 Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 30))
+                    .font(.system(size: 45))
                     .foregroundStyle(TL.muted)
             }
             .pressableStyle()
