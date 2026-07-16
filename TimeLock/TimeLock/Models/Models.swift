@@ -224,6 +224,7 @@ enum ScoreEventType: String, Codable, CaseIterable {
     case noShow         // 노쇼 벌점
     case emergency      // 긴급 벌점
     case unlockBonus    // 미친 매운맛 잠금 해제 보너스
+    case absence        // 촬영 중 자리비움 벌점 (사람 부재 감지)
 
     var title: String {
         switch self {
@@ -232,6 +233,7 @@ enum ScoreEventType: String, Codable, CaseIterable {
         case .noShow:      return "노쇼 벌점"
         case .emergency:   return "긴급 종료"
         case .unlockBonus: return "잠금 해제 보너스"
+        case .absence:     return "자리비움 벌점"
         }
     }
 }

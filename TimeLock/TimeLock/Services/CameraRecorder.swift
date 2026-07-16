@@ -16,6 +16,7 @@
 import Foundation
 import AVFoundation
 import UIKit
+import Vision
 
 final class CameraRecorder: NSObject, ObservableObject {
     static let shared = CameraRecorder()
@@ -48,6 +49,14 @@ final class CameraRecorder: NSObject, ObservableObject {
     /// 타임랩스 캡처 간격 — 세션 길이에 맞춰 startRecording에서 동적으로 정한다.
     /// (짧은 세션은 촘촘히, 긴 세션은 성기게 캡처해 결과 길이를 20~40초로 수렴)
     private var captureInterval: TimeInterval = 1.0
+
+    // MARK: 사람 부재 감지 (온디바이스 Vision — 외부 의존성·네트워크 없음)
+    /// 연속 부재 시간(초). 사람이 다시 잡히면 0으로 리셋. SessionEngine이 정책 판정에 사용.
+    @Published private(set) var absentSeconds: Int = 0
+    private var absenceStartedAt: TimeInterval?
+    private var lastPresenceCheckAt: TimeInterval = 0
+    /// 감지 주기 — 5초에 1회만 Vision을 돌려 배터리·발열 영향 최소화 (프레임당 아님)
+    private let presenceCheckInterval: TimeInterval = 5
     /// 재생 프레임레이트
     private let playbackFPS: Int32 = 30
 
@@ -234,8 +243,13 @@ final class CameraRecorder: NSObject, ObservableObject {
             self.frameCountInternal = 0
             self.isPaused = false
             self.isRecording = true
+            self.absenceStartedAt = nil
+            self.lastPresenceCheckAt = 0
         }
-        DispatchQueue.main.async { self.frameCount = 0 }
+        DispatchQueue.main.async {
+            self.frameCount = 0
+            self.absentSeconds = 0
+        }
         startPreview()
     }
 
@@ -342,6 +356,13 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
               let source = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
         let now = CACurrentMediaTime()
+
+        // 사람 부재 감지 — 타임랩스 캡처 간격과 무관하게 5초마다 확인
+        if now - lastPresenceCheckAt >= presenceCheckInterval {
+            lastPresenceCheckAt = now
+            detectPresence(in: source, at: now)
+        }
+
         guard now - lastCaptureAt >= captureInterval else { return }
         lastCaptureAt = now
 
@@ -372,6 +393,29 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
         let context = CIContext()
         guard let cg = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         return UIImage(cgImage: cg)
+    }
+
+    // MARK: 사람 부재 감지 (processingQueue에서 5초마다 호출)
+
+    /// Vision의 사람 감지(상반신)로 프레임 안에 사람이 있는지 확인하고
+    /// 연속 부재 시간을 absentSeconds로 발행한다. 완전 온디바이스라 네트워크·추가 모델 없음.
+    private func detectPresence(in buffer: CVPixelBuffer, at now: TimeInterval) {
+        let request = VNDetectHumanRectanglesRequest()
+        request.upperBodyOnly = true   // 책상 앞 상반신만 보여도 인식
+        let handler = VNImageRequestHandler(cvPixelBuffer: buffer, options: [:])
+        try? handler.perform([request])
+        let personFound = !(request.results?.isEmpty ?? true)
+
+        if personFound {
+            absenceStartedAt = nil
+            DispatchQueue.main.async {
+                if self.absentSeconds != 0 { self.absentSeconds = 0 }
+            }
+        } else {
+            if absenceStartedAt == nil { absenceStartedAt = now }
+            let seconds = Int(now - (absenceStartedAt ?? now))
+            DispatchQueue.main.async { self.absentSeconds = seconds }
+        }
     }
 }
 

@@ -122,7 +122,7 @@ private struct PermissionStep: View {
         .padding(.horizontal, 24)
     }
 
-    private func permissionRow(icon: String, title: String, detail: String,
+    private func permissionRow(icon: String, title: LocalizedStringKey, detail: LocalizedStringKey,
                                granted: Bool?, action: @escaping () -> Void) -> some View {
         TLCard {
             HStack(spacing: 14) {

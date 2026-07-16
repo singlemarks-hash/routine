@@ -42,6 +42,17 @@ struct SessionView: View {
                 portraitLayout
             }
 
+            // 자리비움 경고 배너 — 30초 연속 부재, 2분 초과 시 벌점
+            if engine.absenceWarning {
+                VStack {
+                    absenceBanner
+                        .padding(.top, 10)
+                        .padding(.horizontal, 20)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             // 통화 일시정지 오버레이
             if engine.phase == .pausedForCall {
                 pauseOverlay
@@ -60,6 +71,7 @@ struct SessionView: View {
                 startCountdownOverlay
             }
         }
+        .animation(TLMotion.smooth, value: engine.absenceWarning)
         .interactiveDismissDisabled()
         .task { await runStartCountdown() }
         .onChange(of: recorder.frameCount) { _, n in
@@ -227,6 +239,29 @@ struct SessionView: View {
                     .strokeBorder(TL.hairline, lineWidth: active ? 0 : 1)
             )
         }
+    }
+
+    // MARK: 자리비움 경고 배너
+
+    private var absenceBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "person.fill.questionmark")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(TL.ink)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("자리비움 감지")
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .foregroundStyle(TL.ink)
+                Text("화면 앞으로 돌아오세요 — 2분 초과 시 벌점")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TL.ink.opacity(0.8))
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous).fill(TL.amber))
+        .shadow(color: .black.opacity(0.3), radius: 8, y: 3)
     }
 
     private var pauseOverlay: some View {

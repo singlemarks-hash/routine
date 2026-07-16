@@ -34,6 +34,12 @@ final class SessionEngine: NSObject, ObservableObject {
     @Published var oneMinuteWarningFired = false
     @Published var lastFinishedSession: FocusSession?
 
+    // 자리비움 감지 정책: 30초 연속 부재 → 경고 배너, 2분 초과 → 벌점 1회(에피소드당)
+    @Published private(set) var absenceWarning = false
+    private var absencePenaltyApplied = false
+    private let absenceWarnSeconds = 30
+    private let absencePenaltySeconds = 120
+
     /// finalize 완료 직후 호출 — 결과 화면 라우팅은 이 콜백이 보장한다.
     /// (phase 변화 관찰에만 의존하면 finalize 전 선(先)설정과 겹쳐 전환이 누락될 수 있다)
     var onFinalized: (() -> Void)?
@@ -92,6 +98,8 @@ final class SessionEngine: NSObject, ObservableObject {
         self.session = session
         recordedSeconds = 0
         oneMinuteWarningFired = false
+        absenceWarning = false
+        absencePenaltyApplied = false
         phase = .recording
         isCallActive = false
         isFinalizing = false
@@ -132,6 +140,24 @@ final class SessionEngine: NSObject, ObservableObject {
         }
         guard phase == .recording else { return }
         recordedSeconds = CameraRecorder.shared.capturedSeconds   // 프레임 수 × 캡처 간격 = 순수 촬영 초
+
+        // 자리비움 감지 — 경고 후에도 계속 비어 있으면 벌점 (에피소드당 1회)
+        let absent = CameraRecorder.shared.absentSeconds
+        if absent >= absenceWarnSeconds {
+            if !absenceWarning {
+                absenceWarning = true
+                AlarmScheduler.shared.playChime()
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
+            if absent >= absencePenaltySeconds, !absencePenaltyApplied {
+                absencePenaltyApplied = true
+                recordAbsencePenalty(session: s)
+            }
+        } else if absenceWarning {
+            // 사람이 돌아옴 — 에피소드 종료, 다음 부재는 새로 판정
+            absenceWarning = false
+            absencePenaltyApplied = false
+        }
 
         // 종료 1분 전 예고
         if !oneMinuteWarningFired, remainingSeconds <= 60, remainingSeconds > 0 {
@@ -314,6 +340,21 @@ final class SessionEngine: NSObject, ObservableObject {
         } else {
             session.recordedSeconds = recordedSeconds
         }
+    }
+
+    /// 자리비움 벌점 — 세션은 계속 진행되고 원장에만 기록된다.
+    private func recordAbsencePenalty(session s: FocusSession) {
+        guard let context = modelContext else { return }
+        let points = s.intensity == .insane ? -10 : -5
+        let event = ScoreEvent(type: .absence, points: points,
+                               sessionID: s.id, intensity: s.intensity,
+                               note: "촬영 중 자리비움 \(absencePenaltySeconds / 60)분 초과",
+                               ownerUserID: s.ownerUserID)
+        context.insert(event)
+        AccountStore.shared.mirror(event: event)
+        try? context.save()
+        AlarmScheduler.shared.playChime()
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
     }
 
     private func finalize(session s: FocusSession, outcome: SessionOutcome, note: String?) {
