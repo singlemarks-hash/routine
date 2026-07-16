@@ -424,6 +424,12 @@ struct SessionResultView: View {
                 Image("MotiSmile")
                     .resizable().scaledToFit()
                     .frame(width: 84, height: 84)
+                    .overlay {
+                        // 슬롯 확장 순간의 축하 파티클 (해당자만)
+                        if engine.lastSlotBonus != nil {
+                            ConfettiBurst()
+                        }
+                    }
             } else if outcome.isFailure || outcome == .emergency {
                 Image("MotiAngry")
                     .resizable().scaledToFit()
@@ -462,6 +468,18 @@ struct SessionResultView: View {
                         }
                     }
                     .padding(.top, 4)
+
+                    // 슬롯 확장 보너스 — 연속 달성 단계를 넘은 순간에만 (파티클과 함께)
+                    if let bonus = engine.lastSlotBonus {
+                        Label("연속 \(bonus.days)일 달성! 보너스 상점 +\(bonus.points)",
+                              systemImage: "party.popper.fill")
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundStyle(TL.ink)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(Capsule().fill(TL.amber))
+                            .shadow(color: TL.amber.opacity(0.5), radius: 10)
+                            .padding(.top, 6)
+                    }
                 } else {
                     Text("벌점 없음")
                         .font(.system(size: 13, weight: .semibold))

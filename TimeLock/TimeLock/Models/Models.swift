@@ -282,6 +282,7 @@ enum ScoreEventType: String, Codable, CaseIterable {
     case unlockBonus    // 미친 매운맛 잠금 해제 보너스
     case absence        // 촬영 중 자리비움 벌점 (사람 부재 감지)
     case penaltyReset   // 멤버십 가입 시 누적 벌점 리셋 (상쇄 이벤트 — 원장은 불변)
+    case slotBonus      // 연속 달성으로 슬롯이 확장되는 순간의 보너스 상점
 
     var title: String {
         switch self {
@@ -292,6 +293,7 @@ enum ScoreEventType: String, Codable, CaseIterable {
         case .unlockBonus:  return "잠금 해제 보너스"
         case .absence:      return "자리비움 벌점"
         case .penaltyReset: return "멤버십 벌점 리셋"
+        case .slotBonus:    return "슬롯 확장 보너스"
         }
     }
 }

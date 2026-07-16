@@ -33,6 +33,8 @@ final class SessionEngine: NSObject, ObservableObject {
     @Published private(set) var recordedSeconds: Int = 0
     @Published var oneMinuteWarningFired = false
     @Published var lastFinishedSession: FocusSession?
+    /// 이번 완주로 슬롯이 확장됐을 때의 축하 정보 (연속일, 보너스 점수) — 결과 화면이 파티클로 표시
+    @Published private(set) var lastSlotBonus: (days: Int, points: Int)?
 
     // 자리비움 감지 정책: 30초 연속 부재 → 경고 배너, 2분 초과 → 벌점 1회(에피소드당)
     @Published private(set) var absenceWarning = false
@@ -358,6 +360,38 @@ final class SessionEngine: NSObject, ObservableObject {
         }
     }
 
+    /// 연속 달성일이 슬롯 확장 단계를 '이번에' 넘었으면 보너스 상점 +5를 지급한다.
+    /// 같은 연속 구간에서 같은 단계를 두 번 받지 않도록 계정별로 최고 지급 단계를 기억하고,
+    /// 연속이 끊겨 처음부터 다시 쌓으면 단계 도달 시 다시 받을 수 있다.
+    private func awardSlotBonusIfTierCrossed(session s: FocusSession, context: ModelContext) {
+        let owner = s.ownerUserID
+        let all = (try? context.fetch(FetchDescriptor<FocusSession>(
+            predicate: #Predicate { $0.ownerUserID == owner }))) ?? []
+        let streak = SlotPolicy.currentStreak(sessions: all)
+
+        let key = "slotBonus.awardedTier.\(owner)"
+        var awardedTier = defaults.integer(forKey: key)
+        if streak < awardedTier { awardedTier = 0 }   // 연속이 끊겼다 다시 쌓는 중 → 초기화
+
+        var totalBonus = 0
+        var crossedDays = 0
+        for tier in SlotPolicy.tiers where tier.days <= streak && tier.days > awardedTier {
+            let event = ScoreEvent(type: .slotBonus, points: 5,
+                                   sessionID: s.id, intensity: s.intensity,
+                                   note: "연속 \(tier.days)일 달성 — 활동 슬롯 확장 보너스",
+                                   ownerUserID: owner)
+            context.insert(event)
+            AccountStore.shared.mirror(event: event)
+            totalBonus += 5
+            crossedDays = tier.days
+            awardedTier = tier.days
+        }
+        defaults.set(awardedTier, forKey: key)
+        if totalBonus > 0 {
+            lastSlotBonus = (days: crossedDays, points: totalBonus)
+        }
+    }
+
     /// 자리비움 벌점 — 세션은 계속 진행되고 원장에만 기록된다.
     private func recordAbsencePenalty(session s: FocusSession) {
         guard let context = modelContext else { return }
@@ -385,6 +419,11 @@ final class SessionEngine: NSObject, ObservableObject {
                                    ownerUserID: s.ownerUserID)
             context.insert(event)
             AccountStore.shared.mirror(event: event)
+        }
+        // 이번 완주로 연속 달성일이 슬롯 확장 단계(3·5·7·10·30일)를 넘었으면 보너스 상점 +5
+        lastSlotBonus = nil
+        if outcome == .completed {
+            awardSlotBonusIfTierCrossed(session: s, context: context)
         }
         try? context.save()
 
