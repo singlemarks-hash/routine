@@ -323,6 +323,9 @@ struct DayDetailView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 150)
                     .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+                    // fill로 넘친 이미지는 clipShape로 잘라도 '터치 영역'은 그대로 남아
+                    // 위 헤더 행의 탭(접기)을 가로챈다 — 장식 이미지이므로 히트 테스트 제외
+                    .allowsHitTesting(false)
             }
 
             if let reason = reason(for: session), !reason.isEmpty {

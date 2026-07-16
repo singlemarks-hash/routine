@@ -29,28 +29,43 @@ struct HomeShellView: View {
         .animation(TLMotion.smooth, value: tab)
     }
 
-    /// 하단 알약형 토글 — 목업의 [활동 | 기록]
+    /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성
     private var bottomToggle: some View {
-        HStack(spacing: 0) {
-            toggleSegment("활동", tab: .activity)
-            toggleSegment("기록", tab: .records)
+        HStack(spacing: 4) {
+            toggleSegment("활동", icon: "clock.fill", tab: .activity)
+            toggleSegment("기록", icon: "calendar", tab: .records)
         }
-        .padding(4)
-        .background(Capsule().fill(TL.raised))
-        .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
-        .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        .padding(5)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule().strokeBorder(
+                LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.05)],
+                               startPoint: .top, endPoint: .bottom),
+                lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
     }
 
-    private func toggleSegment(_ title: String, tab target: Tab) -> some View {
-        Button {
-            tab = target
+    private func toggleSegment(_ title: String, icon: String, tab target: Tab) -> some View {
+        let selected = tab == target
+        return Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(TLMotion.snappy) { tab = target }
         } label: {
-            Text(title)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(tab == target ? TL.ink : TL.muted)
-                .frame(width: 92)
-                .padding(.vertical, 10)
-                .background(Capsule().fill(tab == target ? TL.paper : .clear))
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(selected ? TL.ink : TL.paper.opacity(0.72))
+            .padding(.horizontal, 22)
+            .padding(.vertical, 11)
+            .background(
+                Capsule()
+                    .fill(selected ? AnyShapeStyle(TL.paper) : AnyShapeStyle(.clear))
+                    .shadow(color: selected ? .black.opacity(0.25) : .clear, radius: 5, y: 2)
+            )
         }
         .buttonStyle(.plain)
     }
