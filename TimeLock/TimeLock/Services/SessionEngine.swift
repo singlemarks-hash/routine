@@ -530,11 +530,24 @@ final class SessionEngine: NSObject, ObservableObject {
         let now = Date()
 
         var existing: Set<String> = []
+        let reservationByID = Dictionary(uniqueKeysWithValues: reservations.map { ($0.id, $0) })
         if let sessions = try? context.fetch(FetchDescriptor<FocusSession>()) {
             for s in sessions {
-                if let rid = s.reservationID, let sched = s.scheduledAt {
-                    existing.insert("\(rid.uuidString)-\(Int(sched.timeIntervalSince1970))")
+                guard let rid = s.reservationID, let sched = s.scheduledAt else { continue }
+                // 과거 버그 복구: 예약 '생성 이전' 발생분에 찍힌 노쇼는 잘못된 기록이므로
+                // 세션과 벌점 이벤트를 함께 제거한다. (예: 토 16시에 만든 매일 6시 예약이
+                // 금·토 6시 발생분으로 소급 노쇼 -30점을 받던 결함)
+                if s.outcome == .noShow, let r = reservationByID[rid], sched < r.createdAt {
+                    let sid = s.id
+                    if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
+                        predicate: #Predicate { $0.sessionID == sid })) {
+                        events.forEach { context.delete($0) }
+                    }
+                    SessionStorage.deleteFiles(of: s)
+                    context.delete(s)
+                    continue
                 }
+                existing.insert("\(rid.uuidString)-\(Int(sched.timeIntervalSince1970))")
             }
         }
 
@@ -542,6 +555,7 @@ final class SessionEngine: NSObject, ObservableObject {
             for offset in [-1, 0] {   // 어제~오늘 발생분 점검
                 guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
                       let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
+                guard fire >= reservation.createdAt else { continue }   // 예약을 만들기 전 발생분은 책임 없음
                 guard fire.addingTimeInterval(graceWindow) < now else { continue }   // 10분 창이 끝났고
                 guard fire > now.addingTimeInterval(-86_400 * 2) else { continue }
                 let key = "\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))"
