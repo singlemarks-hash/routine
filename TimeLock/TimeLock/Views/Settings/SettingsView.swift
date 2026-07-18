@@ -208,8 +208,8 @@ struct ProfileEditView: View {
                                     Text(subscription.isPro ? "앵그리모티 멤버십 사용 중" : "앵그리모티 멤버십")
                                         .font(.tlTitle(17)).foregroundStyle(TL.paper)
                                     Text(subscription.isPro
-                                         ? "멤버십 혜택 적용 중 — 슬롯 \(SlotPolicy.memberFloorSlots)개부터·워터마크 제거."
-                                         : "슬롯 \(SlotPolicy.memberFloorSlots)개부터 · 워터마크 제거 · 벌점 리셋.")
+                                         ? "멤버십 혜택 적용 중 — 슬롯 \(SlotPolicy.memberFloorSlots)개부터·워터마크 제거·미친 매운맛."
+                                         : "슬롯 \(SlotPolicy.memberFloorSlots)개부터 · 워터마크 제거 · 미친 매운맛 즉시 해제.")
                                         .font(.system(size: 13)).foregroundStyle(TL.muted)
                                 }
                                 Spacer()
@@ -391,7 +391,7 @@ struct IntensitySettingsView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(TL.amber)
                 }
-                Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. 미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다. (현재 \(min(app.spicyCompletions, 3))/3)")
+                Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. 미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다. (현재 \(min(app.spicyCompletions, 3))/3 · 멤버십은 조건 없이 바로 사용)")
                     .font(.system(size: 12))
                     .foregroundStyle(TL.faint)
             }
@@ -560,10 +560,7 @@ struct AppLanguageView: View {
 
 struct PaywallView: View {
     @EnvironmentObject private var subscription: SubscriptionManager
-    @EnvironmentObject private var account: AccountStore
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Query private var allEvents: [ScoreEvent]
     @State private var purchasing = false
 
     var body: some View {
@@ -587,7 +584,7 @@ struct PaywallView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     benefit("활동 슬롯 최소 \(SlotPolicy.memberFloorSlots)개부터 시작 (무료는 2개)")
                     benefit("타임랩스 워터마크 제거")
-                    benefit("가입 즉시 누적 벌점 리셋")
+                    benefit("미친 매운맛 즉시 잠금 해제 (완주 3회 조건 없음)")
                     benefit("멤버들과 함께: 랭킹게임 (준비 중)")
                     benefit("그 외 추가되는 멤버십 기능 모두 포함")
                 }
@@ -601,7 +598,6 @@ struct PaywallView: View {
                         Task {
                             defer { purchasing = false }
                             if (try? await subscription.purchase()) == true {
-                                resetPenalties()   // 가입 즉시 누적 벌점 리셋 (상쇄 이벤트)
                                 dismiss()
                             }
                         }
@@ -645,22 +641,6 @@ struct PaywallView: View {
             }
         }
         .preferredColorScheme(.dark)
-    }
-
-    /// 가입 즉시 누적 벌점 리셋 — 원장은 불변이므로 삭제 대신 '상쇄 이벤트'를 기록한다.
-    private func resetPenalties() {
-        let uid = account.currentUserID
-        let penaltySum = allEvents
-            .filter { $0.ownerUserID == uid && $0.points < 0 }
-            .reduce(0) { $0 + $1.points }
-        guard penaltySum < 0 else { return }
-        let event = ScoreEvent(type: .penaltyReset, points: -penaltySum,
-                               sessionID: nil, intensity: .spicy,
-                               note: "멤버십 가입 — 누적 벌점 \(penaltySum)점 상쇄",
-                               ownerUserID: uid)
-        context.insert(event)
-        AccountStore.shared.mirror(event: event)
-        try? context.save()
     }
 
     private func benefit(_ text: String) -> some View {
