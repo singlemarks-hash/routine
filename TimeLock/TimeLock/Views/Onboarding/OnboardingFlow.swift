@@ -177,7 +177,7 @@ private struct IntensityStep: View {
             }
             .padding(.top, 28)
 
-            Text("미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다.")
+            Text("미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다.\n(멤버십은 조건 없이 바로 사용할 수 있어요)")
                 .font(.system(size: 13))
                 .foregroundStyle(TL.faint)
                 .padding(.top, 14)

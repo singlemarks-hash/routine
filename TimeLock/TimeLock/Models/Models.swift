@@ -281,7 +281,7 @@ enum ScoreEventType: String, Codable, CaseIterable {
     case emergency      // 긴급 벌점
     case unlockBonus    // 미친 매운맛 잠금 해제 보너스
     case absence        // (미사용 예약) 자리비움은 벌점 없이 자동 긴급 중단으로 처리 — 실패 시에만 이탈 벌점
-    case penaltyReset   // 멤버십 가입 시 누적 벌점 리셋 (상쇄 이벤트 — 원장은 불변)
+    case penaltyReset   // (미사용 예약) 과거 '멤버십 벌점 리셋' 혜택의 흔적 — 기존 기록 표시 호환용으로 유지
     case slotBonus      // 연속 달성으로 슬롯이 확장되는 순간의 보너스 상점
 
     var title: String {
