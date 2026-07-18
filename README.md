@@ -2,7 +2,7 @@
 
 > 예약한 활동 시각에 알람이 울리고, **알람을 끄는 유일한 방법은 전면 카메라 타임랩스 촬영을 시작하는 것**. 미루기·노쇼를 막는 자기관리 앱.
 
-- **플랫폼**: iOS 17.0+ / SwiftUI
+- **플랫폼**: iOS 17.0+ (SwiftUI, `TimeLock/`) · Android 8.0+ (Kotlin/Compose, `android/` — [안드로이드 가이드](docs/안드로이드-가이드.md))
 - **개발/운영**: 작은따옴표 (개인사업자) · 브랜드 *Culture Design Corperation ‘      ’*
 - **문의**: singlemarks@gmail.com
 
@@ -45,7 +45,7 @@
 
 ## 2. 운영자용 — 상세 정책
 
-> 모든 수치는 소스 코드(`Models.swift`, `SessionEngine.swift`, `TimeLockApp.swift`, `CameraRecorder.swift`)의 실제 값과 일치합니다. 정책을 바꾸려면 여기와 해당 상수를 함께 수정하세요.
+> 모든 수치는 소스 코드(`Models.swift`, `SessionEngine.swift`, `TimeLockApp.swift`, `CameraRecorder.swift`)의 실제 값과 일치합니다. 정책을 바꾸려면 **여기 + iOS 상수 + 안드로이드(`android/.../models/Models.kt`)를 반드시 함께** 수정하세요 — 이 문서가 양 플랫폼의 단일 기준입니다.
 
 ### 2.1 시간 정책 (`TimePolicy`)
 | 항목 | 값 | 초과 시 |
