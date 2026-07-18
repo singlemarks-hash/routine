@@ -2,65 +2,142 @@
 //  HomeView.swift
 //  TimeLock
 //
-//  오늘의 예약 타임라인 + 다음 활동 카운트다운 + 지금 바로 시작.
+//  홈(활동 탭): 우상단 누적 상점·마이페이지, 다짐 카드, 활동 추가하기,
+//  지금 바로 시작, 예정된 활동 리스트. 하단 [활동|기록] 토글은 HomeShellView가 담당.
 //
 
 import SwiftUI
 import SwiftData
 
+// MARK: - 쉘: 활동 | 기록 토글
+
+struct HomeShellView: View {
+    enum Tab { case activity, schedule }
+    @State private var tab: Tab = .activity
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            switch tab {
+            case .activity: HomeView()
+            case .schedule: WeeklyScheduleView()
+            }
+
+            bottomToggle
+                .padding(.bottom, 12)
+        }
+        .background(TL.ink.ignoresSafeArea())
+        .animation(TLMotion.smooth, value: tab)
+    }
+
+    /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성 (1.5배 확대)
+    private var bottomToggle: some View {
+        HStack(spacing: 5) {
+            // 활동 = REC 아이콘(촬영이 곧 활동 — 앱 시그니처), 일정 = 시계
+            toggleSegment("활동", icon: "record.circle", tab: .activity)
+            toggleSegment("일정", icon: "clock.fill", tab: .schedule)
+        }
+        .padding(7)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule().strokeBorder(
+                LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.05)],
+                               startPoint: .top, endPoint: .bottom),
+                lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
+    }
+
+    private func toggleSegment(_ title: String, icon: String, tab target: Tab) -> some View {
+        let selected = tab == target
+        return Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(TLMotion.snappy) { tab = target }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(selected ? TL.ink : TL.paper.opacity(0.72))
+            .padding(.horizontal, 32)
+            .padding(.vertical, 15)
+            .background(
+                Capsule()
+                    .fill(selected ? AnyShapeStyle(TL.paper) : AnyShapeStyle(.clear))
+                    .shadow(color: selected ? .black.opacity(0.25) : .clear, radius: 5, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - 홈 (활동)
+
 struct HomeView: View {
     @EnvironmentObject private var app: AppState
+    @EnvironmentObject private var account: AccountStore
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
-    private var reservations: [Reservation]
+    private var allActiveReservations: [Reservation]
+    @Query private var allEvents: [ScoreEvent]
+
+    /// 현재 계정의 예약만
+    private var reservations: [Reservation] {
+        allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
+    }
+
+    /// 누적 총점 = 지금까지의 상점·벌점 전체 합
+    private var totalScore: Int {
+        allEvents.filter { $0.ownerUserID == account.currentUserID }
+            .reduce(0) { $0 + $1.points }
+    }
+    /// 총점 색 — 상점 우세 초록, 벌점 우세 빨강, 0은 중립
+    private var totalScoreTint: Color {
+        totalScore > 0 ? TL.jade : (totalScore < 0 ? TL.rec : TL.paper)
+    }
 
     @State private var now = Date()
     @State private var showEditor = false
     @State private var editing: Reservation?
     @State private var showQuickStart = false
+    @State private var showGoalEditor = false
+    @State private var goalText = ""
 
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    private var todayItems: [(reservation: Reservation, fire: Date)] {
+    /// 다음 발생 시각 순으로 정렬한 예정된 활동
+    private var upcoming: [(reservation: Reservation, fire: Date?)] {
         reservations
-            .compactMap { r in r.occurrence(on: now).map { (r, $0) } }
-            .sorted { $0.1 < $1.1 }
-    }
-
-    private var nextItem: (reservation: Reservation, fire: Date)? {
-        // 오늘 남은 것 중 첫 번째, 없으면 다음 발생
-        if let today = todayItems.first(where: { $0.fire > now }) { return today }
-        return reservations
-            .compactMap { r in r.nextOccurrence(after: now).map { (r, $0) } }
-            .sorted { $0.1 < $1.1 }
-            .first
+            .map { ($0, $0.nextOccurrence(after: now)) }
+            .sorted { ($0.1 ?? .distantFuture) < ($1.1 ?? .distantFuture) }
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    nextActivityCard
-                    timelineSection
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
-            }
-            .background(TL.ink)
-            .navigationTitle("오늘")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                        .padding(.top, 6)
+
+                    goalCard
+
+                    Button("활동 추가하기") {
                         editing = nil
                         showEditor = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(TL.paper)
                     }
+                    .buttonStyle(TLPrimaryButtonStyle())
+
+                    quickStartRow
+
+                    upcomingSection
+                        .padding(.top, 8)
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 116)   // 하단 토글 자리
             }
+            .background(TL.ink)
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showEditor) {
                 ReservationEditView(reservation: editing)
             }
@@ -68,66 +145,119 @@ struct HomeView: View {
                 QuickStartSheet()
                     .presentationDetents([.height(420)])
             }
+            .sheet(isPresented: $showGoalEditor) {
+                GoalEditorSheet(goal: $goalText) { saveGoal() }
+                    .presentationDetents([.height(260)])
+            }
             .onReceive(clock) { now = $0 }
+            .onAppear { loadGoal() }
+            .onChange(of: account.currentUserID) { loadGoal() }
         }
     }
 
-    // MARK: 다음 활동 카운트다운
+    // MARK: 헤더 — 누적 상점 + 마이페이지
 
-    @ViewBuilder
-    private var nextActivityCard: some View {
-        if let next = nextItem {
-            let remaining = Int(next.fire.timeIntervalSince(now))
-            TLCard(raised: true) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        TLEyebrow(text: "다음 활동", color: remaining <= 600 ? TL.amber : TL.muted)
-                        Spacer()
-                        TagChip(name: next.reservation.tag)
-                    }
-                    Text(next.reservation.name)
-                        .font(.tlTitle(22))
-                        .foregroundStyle(TL.paper)
-                    HStack(alignment: .lastTextBaseline, spacing: 8) {
-                        Text(countdownText(remaining))
-                            .font(.tlTimer(40))
-                            .foregroundStyle(remaining <= 600 ? TL.amber : TL.paper)
-                        Text("뒤 알람")
-                            .font(.tlBody)
-                            .foregroundStyle(TL.muted)
-                    }
-                    HStack(spacing: 6) {
-                        Image(systemName: "bell.fill").font(.system(size: 11))
-                        Text("\(TLFormat.clock(next.fire)) · \(TLFormat.durationLabel(next.reservation.durationMinutes)) · 5분 내 촬영 시작")
-                    }
-                    .font(.system(size: 13))
+    private var header: some View {
+        HStack(spacing: 10) {
+            // 누적 총점 배지 (좌측 정렬) — 양수 스마일 / 음수 앵그리. 탭 → 기록 캘린더.
+            NavigationLink {
+                CalendarView()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(totalScore < 0 ? "MotiAngry" : "MotiSmile")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 30, height: 30)
+                    Text(scoreLabel)
+                        .font(.tlTimer(22))
+                        .foregroundStyle(totalScoreTint)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(TL.surface))
+                .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
+            }
+            .pressableStyle()
+
+            Spacer()
+
+            // 기록관리 — 점수 배지와 동일하게 기록 캘린더로 진입
+            NavigationLink {
+                CalendarView()
+            } label: {
+                Image(systemName: "calendar")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(TL.paper)
+                    .frame(width: 45, height: 45)
+                    .background(Circle().fill(TL.surface))
+                    .overlay(Circle().strokeBorder(TL.hairline, lineWidth: 1))
+            }
+            .pressableStyle()
+
+            // 마이페이지
+            NavigationLink {
+                MyPageView()
+            } label: {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 45))
                     .foregroundStyle(TL.muted)
-                }
             }
-        } else {
-            TLCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    TLEyebrow(text: "예약 없음")
-                    Text("첫 자기계약을 만들어 보세요")
-                        .font(.tlTitle(19)).foregroundStyle(TL.paper)
-                    Text("활동을 예약하면 정시에 알람이 울리고, 알람을 끄는 방법은 촬영 시작뿐입니다.")
-                        .font(.system(size: 14)).foregroundStyle(TL.muted)
-                    Button("활동 예약하기") {
-                        editing = nil
-                        showEditor = true
-                    }
-                    .buttonStyle(TLPrimaryButtonStyle())
-                    .padding(.top, 6)
-                }
-            }
+            .pressableStyle()
         }
+    }
 
+    private var scoreLabel: String {
+        let magnitude = abs(totalScore)
+        let body = magnitude >= 1000
+            ? String(format: "%.1fK", Double(magnitude) / 1000).replacingOccurrences(of: ".0K", with: "K")
+            : "\(magnitude)"
+        if totalScore > 0 { return "+\(body)" }
+        if totalScore < 0 { return "-\(body)" }
+        return "0"
+    }
+
+    // MARK: 다짐/목표 카드
+
+    private var goalCard: some View {
+        Button {
+            showGoalEditor = true
+        } label: {
+            VStack(spacing: 6) {
+                if goalText.isEmpty {
+                    Text("나의 다짐, 목표를 적어보세요")
+                        .font(.tlTitle(17))
+                        .foregroundStyle(TL.faint)
+                    Text("탭해서 작성")
+                        .font(.system(size: 12)).foregroundStyle(TL.faint)
+                } else {
+                    Text(goalText)
+                        .font(.tlTitle(18))
+                        .foregroundStyle(TL.paper)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 110)
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
+            .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
+        }
+        .pressableStyle()
+    }
+
+    private var goalKey: String { "homeGoal.\(account.currentUserID)" }
+    private func loadGoal() { goalText = UserDefaults.standard.string(forKey: goalKey) ?? "" }
+    private func saveGoal() { UserDefaults.standard.set(goalText, forKey: goalKey) }
+
+    // MARK: 지금 바로 시작
+
+    private var quickStartRow: some View {
         Button {
             showQuickStart = true
         } label: {
             HStack {
-                Image(systemName: "record.circle")
-                    .font(.system(size: 17, weight: .semibold))
                 Text("지금 바로 시작")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                 Spacer()
@@ -139,90 +269,121 @@ struct HomeView: View {
             .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
                 .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
         }
+        .pressableStyle()
     }
 
-    private func countdownText(_ seconds: Int) -> String {
-        if seconds >= 86_400 { return "\(seconds / 86_400)일 \((seconds % 86_400) / 3600)시간" }
-        return TLFormat.hms(seconds)
-    }
-
-    // MARK: 타임라인
+    // MARK: 예정된 활동
 
     @ViewBuilder
-    private var timelineSection: some View {
-        if !todayItems.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                TLEyebrow(text: "오늘의 예약 타임라인")
-                VStack(spacing: 0) {
-                    ForEach(Array(todayItems.enumerated()), id: \.element.reservation.id) { index, item in
-                        TimelineRow(reservation: item.reservation, fire: item.fire, now: now,
-                                    isLast: index == todayItems.count - 1) {
-                            editing = item.reservation
-                            showEditor = true
-                        }
-                    }
+    private var upcomingSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("예정된 활동")
+                .font(.tlTitle(20))
+                .foregroundStyle(TL.paper)
+
+            if upcoming.isEmpty {
+                TLCard {
+                    Text("아직 예정된 활동이 없습니다. '활동 추가하기'로 첫 다짐을 만들어 보세요.")
+                        .font(.system(size: 13)).foregroundStyle(TL.muted)
+                }
+            } else {
+                ForEach(upcoming, id: \.reservation.id) { item in
+                    reservationCard(item.reservation, fire: item.fire)
                 }
             }
         }
     }
-}
 
-// MARK: - 타임라인 행
+    private func reservationCard(_ reservation: Reservation, fire: Date?) -> some View {
+        // 12시간 이내로 들어온 활동만 남은 시간 타이머(앰버) 표시
+        let remaining = fire.map { Int($0.timeIntervalSince(now)) } ?? -1
+        let showsTimer = remaining > 0 && remaining <= 12 * 3600
 
-private struct TimelineRow: View {
-    let reservation: Reservation
-    let fire: Date
-    let now: Date
-    let isLast: Bool
-    var onTap: () -> Void
-
-    private var isPast: Bool { fire.addingTimeInterval(TimeInterval(reservation.durationMinutes * 60)) < now }
-    private var isLocked: Bool { fire.timeIntervalSince(now) <= 1800 && fire > now }   // 30분 전 편집 잠금
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .top, spacing: 14) {
-                // 레일
-                VStack(spacing: 0) {
-                    Circle()
-                        .fill(isPast ? TL.faint : (isLocked ? TL.amber : TL.rec))
-                        .frame(width: 9, height: 9)
-                        .padding(.top, 6)
-                    if !isLast {
-                        Rectangle().fill(TL.hairline).frame(width: 1.5)
-                    }
-                }
-                .frame(width: 12)
-
-                VStack(alignment: .leading, spacing: 5) {
+        return Button {
+            editing = reservation
+            showEditor = true
+        } label: {
+            TLCard {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Text(TLFormat.clock(fire))
-                            .font(.tlTimer(15))
-                            .foregroundStyle(isPast ? TL.faint : TL.paper)
-                        TagChip(name: reservation.tag)
+                        Text(reservation.name)
+                            .font(.tlTitle(17))
+                            .foregroundStyle(TL.paper)
+                            .lineLimit(1)
                         Spacer()
-                        if isLocked {
-                            Label("편집 잠금", systemImage: "lock.fill")
-                                .font(.system(size: 11, weight: .bold))
+                        if showsTimer {
+                            Text(TLFormat.hms(remaining))
+                                .font(.tlTimer(18))
                                 .foregroundStyle(TL.amber)
+                        } else {
+                            TagChip(name: reservation.tag)
                         }
                     }
-                    Text(reservation.name)
-                        .font(.tlTitle(17))
-                        .foregroundStyle(isPast ? TL.faint : TL.paper)
-                    Text("\(TLFormat.durationLabel(reservation.durationMinutes))\(reservation.isRepeating ? " · 매주 " + weekdayLabel(reservation.repeatWeekdays) : "")")
-                        .font(.system(size: 13))
-                        .foregroundStyle(TL.muted)
+                    HStack(spacing: 6) {
+                        Image(systemName: "bell.fill").font(.system(size: 11))
+                        if let fire {
+                            Text("\(nextLabel(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes))\(reservation.isRepeating ? " · 매주 " + weekdayLabel(reservation.repeatWeekdays) : "")")
+                        } else {
+                            Text(TLFormat.durationLabel(reservation.durationMinutes))
+                        }
+                        Spacer()
+                        if showsTimer {
+                            TagChip(name: reservation.tag)
+                        }
+                    }
+                    .font(.system(size: 13))
+                    .foregroundStyle(TL.muted)
                 }
-                .padding(.bottom, isLast ? 0 : 22)
             }
         }
-        .buttonStyle(.plain)
+        .pressableStyle()
+    }
+
+    private func nextLabel(_ fire: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(fire) { return "오늘 \(TLFormat.clock(fire))" }
+        if cal.isDateInTomorrow(fire) { return "내일 \(TLFormat.clock(fire))" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "M월 d일 (E) a h:mm"
+        return f.string(from: fire)
     }
 
     private func weekdayLabel(_ weekdays: [Int]) -> String {
         let names = ["", "일", "월", "화", "수", "목", "금", "토"]
         return weekdays.sorted().map { names[$0] }.joined(separator: " ")
+    }
+}
+
+// MARK: - 다짐 편집 시트
+
+private struct GoalEditorSheet: View {
+    @Binding var goal: String
+    var onSave: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                TextField("예: 올해는 매일 2시간씩 공부한다", text: $goal, axis: .vertical)
+                    .font(.tlBody)
+                    .foregroundStyle(TL.paper)
+                    .lineLimit(3...5)
+                    .padding(14)
+                    .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
+
+                Button("저장") {
+                    onSave()
+                    dismiss()
+                }
+                .buttonStyle(TLPrimaryButtonStyle())
+            }
+            .padding(20)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(TL.ink)
+            .navigationTitle("나의 다짐")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 
@@ -252,9 +413,18 @@ private struct QuickStartSheet: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    TLEyebrow(text: "지속 시간")
-                    Picker("지속 시간", selection: $minutes) {
-                        ForEach([15, 25, 30, 45, 60, 90, 120, 180, 240], id: \.self) {
+                    HStack {
+                        TLEyebrow(text: "활동 시간")
+                        Spacer()
+                        // 선택한 길이의 완주 상점 미리 보기
+                        Text("완료 시 +\(ScoreRules.completionBase(forMinutes: minutes))점")
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(TL.jade)
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Capsule().fill(TL.jade.opacity(0.14)))
+                    }
+                    Picker("활동 시간", selection: $minutes) {
+                        ForEach(TimePolicy.durationOptionsMinutes, id: \.self) {
                             Text(TLFormat.durationLabel($0)).tag($0)
                         }
                     }
@@ -263,11 +433,20 @@ private struct QuickStartSheet: View {
                 }
 
                 Button("촬영 준비하기") {
-                    dismiss()
                     let finalName = name.trimmingCharacters(in: .whitespaces)
-                    app.startImmediate(name: finalName.isEmpty ? tag : finalName, tag: tag, minutes: minutes)
+                    guard !finalName.isEmpty else { return }
+                    dismiss()
+                    app.startImmediate(name: finalName, tag: tag, minutes: minutes)
                 }
                 .buttonStyle(TLPrimaryButtonStyle())
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
+
+                if name.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text("활동명을 입력해야 시작할 수 있습니다.")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TL.amber)
+                }
             }
             .padding(20)
             .background(TL.ink)

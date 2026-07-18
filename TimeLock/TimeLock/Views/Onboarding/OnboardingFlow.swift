@@ -4,7 +4,7 @@
 //
 //  1. 컨셉 — 알람을 끄는 유일한 방법은 촬영 시작
 //  2. 권한 — 카메라 / 알림 (거부 시 제약 고지)
-//  3. 강도 — 매운맛 선택 (미친 매운맛은 완주 3회 후 해금)
+//  3. 강도 — 매운맛 선택 (미친 매운맛은 완주 3회 후 잠금 해제)
 //
 
 import SwiftUI
@@ -35,17 +35,15 @@ private struct ConceptStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-            RECRingDial(progress: appeared ? 1 : 0, live: true, tint: TL.rec) {
-                VStack(spacing: 6) {
-                    TLEyebrow(text: "REC", color: TL.rec)
-                    Text("타임락")
-                        .font(.tlTimer(44))
-                        .foregroundStyle(TL.paper)
-                }
-            }
-            .frame(width: 220, height: 220)
-            .animation(.easeOut(duration: 1.2), value: appeared)
-            .onAppear { appeared = true }
+            // 캐릭터 이미지 — 기존 링(220) 대비 1/2 크기(110)
+            Image("OnboardingCharacter")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 110, height: 110)
+                .scaleEffect(appeared ? 1 : 0.8)
+                .opacity(appeared ? 1 : 0)
+                .animation(.spring(response: 0.6, dampingFraction: 0.7), value: appeared)
+                .onAppear { appeared = true }
 
             Spacer().frame(height: 48)
 
@@ -54,7 +52,7 @@ private struct ConceptStep: View {
                     .font(.tlTitle(26))
                     .foregroundStyle(TL.paper)
                     .multilineTextAlignment(.center)
-                Text("예약한 시각에 알람이 울리면 5분 안에\n전면 카메라 타임랩스를 시작해야 합니다.\n촬영이 곧 잠금이 되어 끝까지 지켜봅니다.")
+                Text("예약한 시각에 알람이 울리면 10분 안에\n전면 카메라 타임랩스를 시작해야 합니다.\n촬영이 곧 잠금이 되어 끝까지 지켜봅니다.")
                     .font(.tlBody)
                     .foregroundStyle(TL.muted)
                     .multilineTextAlignment(.center)
@@ -87,7 +85,7 @@ private struct PermissionStep: View {
                 .font(.tlTitle(28))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 8)
-            Text("타임락의 강제력은 카메라와 알람에서 나옵니다.")
+            Text("앵그리모티의 강제력은 카메라와 알람에서 나옵니다.")
                 .font(.tlBody)
                 .foregroundStyle(TL.muted)
                 .padding(.top, 6)
@@ -107,7 +105,7 @@ private struct PermissionStep: View {
             .padding(.top, 28)
 
             if cameraGranted == false || notifGranted == false {
-                Text("거부된 권한은 iPhone 설정 › 타임락에서 다시 켤 수 있습니다. 권한 없이는 알람 해제와 세션 기록이 동작하지 않습니다.")
+                Text("거부된 권한은 iPhone 설정 › 앵그리모티에서 다시 켤 수 있습니다. 권한 없이는 알람 해제와 세션 기록이 동작하지 않습니다.")
                     .font(.system(size: 13))
                     .foregroundStyle(TL.amber)
                     .padding(.top, 16)
@@ -179,7 +177,7 @@ private struct IntensityStep: View {
             }
             .padding(.top, 28)
 
-            Text("미친 매운맛은 매운맛 완주 3회 후 해금됩니다.")
+            Text("미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다.")
                 .font(.system(size: 13))
                 .foregroundStyle(TL.faint)
                 .padding(.top, 14)
@@ -207,7 +205,7 @@ struct IntensityCard: View {
                     HStack(spacing: 8) {
                         Text(intensity.title).font(.tlTitle(17)).foregroundStyle(TL.paper)
                         if locked {
-                            Label("해금 전", systemImage: "lock.fill")
+                            Label("잠금 해제 전", systemImage: "lock.fill")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(TL.faint)
                         }

@@ -2,15 +2,18 @@
 //  ExportAndSubscription.swift
 //  TimeLock
 //
-//  1) WatermarkExporter — 공유/내보내기 시 기본 워터마크 삽입.
-//     구독(타임락 프로) 상태에서만 워터마크 제거 토글이 동작한다.
-//  2) SubscriptionManager — StoreKit 2 자동갱신 구독 관리.
+//  1) WatermarkExporter — 내보내기 시 기본 워터마크 삽입.
+//     구독(앵그리모티 멤버십) 상태에서만 워터마크 제거 토글이 동작한다.
+//  2) VideoDownloader — 결과 화면의 '타임랩스 저장'. 정책상 촬영본은
+//     세션 종료 직후 사진 앱으로 저장하지 않으면 자동 삭제된다.
+//  3) SubscriptionManager — StoreKit 2 자동갱신 구독 관리.
 //
 
 import Foundation
 import AVFoundation
 import UIKit
 import StoreKit
+import Photos
 
 // MARK: - 워터마크 내보내기
 
@@ -55,12 +58,14 @@ enum WatermarkExporter {
             parentLayer.addSublayer(videoLayer)
 
             let text = CATextLayer()
-            text.string = "TIMELOCK ● REC"
+            text.string = "AngryMoti"
             text.font = UIFont.systemFont(ofSize: 10, weight: .heavy)
             text.fontSize = max(22, renderSize.width * 0.038)
             text.foregroundColor = UIColor(white: 1, alpha: 0.85).cgColor
             text.alignmentMode = .right
-            text.contentsScale = UIScreen.main.scale
+            // 영상 합성 레이어는 renderSize(픽셀) 기준으로 렌더되므로 화면 스케일 대신 고정값.
+            // (UIScreen.main은 main-actor 격리 + deprecated라 nonisolated async에서 접근 부적합)
+            text.contentsScale = 2
             let height = text.fontSize * 1.5
             text.frame = CGRect(x: 0, y: 24, width: renderSize.width - 24, height: height)
             parentLayer.addSublayer(text)
@@ -84,7 +89,44 @@ enum WatermarkExporter {
     }
 }
 
-// MARK: - 구독 (타임락 프로)
+// MARK: - 타임랩스 다운로드 (사진 앱 저장)
+
+enum VideoDownloader {
+
+    enum SaveError: LocalizedError {
+        case notAuthorized
+        case exportFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .notAuthorized:
+                return "사진 추가 권한이 꺼져 있습니다 — iPhone 설정 › 앵그리모티에서 허용하세요."
+            case .exportFailed:
+                return "영상을 준비하지 못했습니다. 다시 시도하세요."
+            }
+        }
+    }
+
+    /// 워터마크를 적용해 내보낸 뒤 사진 라이브러리에 추가한다.
+    static func saveToPhotos(videoURL: URL, watermarked: Bool) async throws {
+        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        guard status == .authorized || status == .limited else { throw SaveError.notAuthorized }
+
+        let exportURL: URL
+        do {
+            exportURL = try await WatermarkExporter.export(videoURL: videoURL, watermarked: watermarked)
+        } catch {
+            throw SaveError.exportFailed
+        }
+        defer { try? FileManager.default.removeItem(at: exportURL) }
+
+        try await PHPhotoLibrary.shared().performChanges {
+            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: exportURL)
+        }
+    }
+}
+
+// MARK: - 구독 (앵그리모티 멤버십)
 
 @MainActor
 final class SubscriptionManager: ObservableObject {

@@ -1,6 +1,6 @@
 //
 //  TimeLockApp.swift
-//  TimeLock — 타임락
+//  TimeLock — 앵그리모티
 //
 //  알람을 끄는 유일한 방법, 촬영 시작.
 //
@@ -8,6 +8,9 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+#if canImport(GoogleSignIn)
+import GoogleSignIn
+#endif
 
 @main
 struct TimeLockApp: App {
@@ -30,12 +33,19 @@ struct TimeLockApp: App {
             RootView()
                 .environmentObject(app)
                 .environmentObject(app.engine)
+                .environmentObject(AccountStore.shared)
                 .environmentObject(SubscriptionManager.shared)
                 .environmentObject(AlarmScheduler.shared)
                 .preferredColorScheme(.dark)
                 .tint(TL.rec)
                 .onAppear {
                     app.bind(context: container.mainContext)
+                }
+                .onOpenURL { url in
+                    // Google 로그인 콜백 (Info.plist의 REVERSED_CLIENT_ID 스킴)
+                    #if canImport(GoogleSignIn)
+                    GIDSignIn.sharedInstance.handle(url)
+                    #endif
                 }
         }
         .modelContainer(container)
@@ -45,10 +55,22 @@ struct TimeLockApp: App {
 // MARK: - 알림 딜리게이트 (알람 탭 → 알람 화면 라우팅)
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+
+    /// 화면 회전 정책 — 평소에는 세로 고정, 세션 관련 화면에서만 가로 허용 (AppState가 갱신)
+    static var orientationLock: UIInterfaceOrientationMask = .portrait
+
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        MainActor.assumeIsolated {
+            AccountStore.shared.configureBackendIfAvailable()
+        }
         return true
+    }
+
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.orientationLock
     }
 
     // 포그라운드에서도 알람 알림을 표시
@@ -58,6 +80,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         if kind == "alarm" {
             // 앱이 떠 있으면 배너 대신 알람 화면을 직접 띄운다
             await MainActor.run { AppState.shared.checkDueAlarm() }
+            return []
+        }
+        if kind == "break" {
+            // 앱이 화면에 떠 있으면 중단 오버레이가 이미 안내 중 — 배너 생략
+            return []
+        }
+        // 세션 중 '알림차단'이 켜져 있으면 화면에 뜨는 모든 배너를 숨긴다
+        if AlarmScheduler.shared.muteAllNotifications {
             return []
         }
         return [.banner, .sound]
@@ -90,7 +120,17 @@ final class AppState: ObservableObject {
         case session
         case result
     }
-    @Published var route: Route = .none
+    @Published var route: Route = .none {
+        didSet { updateOrientationLock() }
+    }
+
+    /// 구도 단계에서 선택하는 촬영 방향. 세션 화면은 이 방향으로 잠긴다.
+    @Published var sessionOrientation: SessionOrientation = .portrait {
+        didSet { updateOrientationLock() }
+    }
+
+    /// 세션 화면 진입 후 카운트다운 '시작!'에 녹화를 개시할 대기 세션.
+    private var armedPending: PendingSession?
 
     struct PendingSession: Equatable {
         var activityName: String
@@ -115,9 +155,6 @@ final class AppState: ObservableObject {
     @Published private var downgradeEffectiveDay: Double {
         didSet { UserDefaults.standard.set(downgradeEffectiveDay, forKey: "downgradeEffectiveDay") }
     }
-    @Published var dimModeEnabled: Bool {
-        didSet { UserDefaults.standard.set(dimModeEnabled, forKey: "dimModeEnabled") }
-    }
 
     private init() {
         let d = UserDefaults.standard
@@ -125,7 +162,6 @@ final class AppState: ObservableObject {
         intensityRaw = d.string(forKey: "intensity") ?? Intensity.spicy.rawValue
         pendingDowngrade = d.bool(forKey: "pendingDowngrade")
         downgradeEffectiveDay = d.double(forKey: "downgradeEffectiveDay")
-        dimModeEnabled = d.object(forKey: "dimModeEnabled") as? Bool ?? true
     }
 
     private var modelContext: ModelContext?
@@ -159,7 +195,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// 미친 매운맛 해금: 매운맛 완주 3회
+    /// 미친 매운맛 잠금 해제: 매운맛 완주 3회
     var insaneUnlocked: Bool { spicyCompletions >= 3 }
     @Published private(set) var spicyCompletions = 0
 
@@ -168,12 +204,21 @@ final class AppState: ObservableObject {
     func bind(context: ModelContext) {
         guard modelContext == nil else { return }
         modelContext = context
+        AccountStore.shared.bind(context: context)
+        AccountStore.shared.onUserChanged = { [weak self] in
+            self?.handleUserChanged()
+        }
         engine.bind(context: context)
+        engine.onFinalized = { [weak self] in
+            self?.sessionFinished()
+        }
         engine.recoverOrphanIfNeeded()
+        purgeUnsavedVideos()
         refreshDerived()
         applyPendingDowngradeIfDue()
         sweepNoShows()
         checkDueAlarm()
+        rescheduleAlarmsForCurrentUser()
         Task { await AlarmScheduler.shared.refreshAuthorizationStatus() }
 
         sweepTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
@@ -204,19 +249,71 @@ final class AppState: ObservableObject {
         guard let context = modelContext else { return }
         let spicyRaw = Intensity.spicy.rawValue
         let completedRaw = SessionOutcome.completed.rawValue
+        let owner = AccountStore.shared.currentUserID
         let descriptor = FetchDescriptor<FocusSession>(
-            predicate: #Predicate { $0.intensityRaw == spicyRaw && $0.outcomeRaw == completedRaw })
+            predicate: #Predicate { $0.intensityRaw == spicyRaw && $0.outcomeRaw == completedRaw && $0.ownerUserID == owner })
         spicyCompletions = (try? context.fetchCount(descriptor)) ?? 0
+    }
+
+    // MARK: 화면 회전 정책
+
+    /// 구도·세션·결과 화면은 '선택한 방향 하나로만' 잠근다.
+    /// 단일 방향만 허용하므로 촬영 중 기기를 돌려도 UI가 요동치지 않고,
+    /// 구도 단계에서 세로/가로를 고르면 그 방향으로 부드럽게 회전한다.
+    private func updateOrientationLock() {
+        let mask: UIInterfaceOrientationMask
+        switch route {
+        case .mountGuide, .session:
+            mask = sessionOrientation.interfaceMask   // 촬영은 선택한 방향으로 잠금
+        default:
+            mask = .portrait   // 결과·홈 등 일반 화면은 세로 고정
+        }
+        guard AppDelegate.orientationLock != mask else { return }
+        AppDelegate.orientationLock = mask
+
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
+            scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        }
+    }
+
+    // MARK: 계정 전환
+
+    private func handleUserChanged() {
+        refreshDerived()
+        rescheduleAlarmsForCurrentUser()
+        sweepNoShows()
+        checkDueAlarm()
+    }
+
+    func rescheduleAlarmsForCurrentUser() {
+        AlarmScheduler.shared.rescheduleAll(reservations: activeReservations())
+    }
+
+    /// 결과 화면에서 저장하지 않고 남은 촬영본 정리 (정책: 다운로드하지 않으면 자동 삭제)
+    private func purgeUnsavedVideos() {
+        guard let context = modelContext else { return }
+        let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
+            predicate: #Predicate { $0.videoFileName != nil && $0.outcomeRaw != nil }))) ?? []
+        guard !sessions.isEmpty else { return }
+        for session in sessions {
+            if let url = session.videoURL { try? FileManager.default.removeItem(at: url) }
+            session.videoFileName = nil
+        }
+        try? context.save()
     }
 
     // MARK: 알람 라우팅
 
     private func activeReservations() -> [Reservation] {
         guard let context = modelContext else { return [] }
-        return (try? context.fetch(FetchDescriptor<Reservation>(predicate: #Predicate { $0.isActive }))) ?? []
+        let owner = AccountStore.shared.currentUserID
+        return (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.isActive && $0.ownerUserID == owner }))) ?? []
     }
 
-    /// 지금 알람 창(발생~+5분)에 들어와 있고 아직 시작 안 된 예약이 있으면 알람 화면 표시
+    /// 지금 알람 창(발생~+10분)에 들어와 있고 아직 시작 안 된 예약이 있으면 알람 화면 표시
     func checkDueAlarm() {
         guard route == .none, engine.session == nil else { return }
         let now = Date()
@@ -225,7 +322,7 @@ final class AppState: ObservableObject {
             for offset in [-1, 0] {
                 guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
                       let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
-                let window = fire...fire.addingTimeInterval(300)
+                let window = fire...fire.addingTimeInterval(TimePolicy.startWindowSeconds)
                 guard window.contains(now) else { continue }
                 guard !sessionExists(reservationID: reservation.id, scheduledAt: fire) else { continue }
                 route = .alarm(reservationID: reservation.id, fireDate: fire)
@@ -272,15 +369,42 @@ final class AppState: ObservableObject {
         route = .mountGuide(pending: pending)
     }
 
-    /// 거치 가이드 → 촬영 시작 (이 순간 알람 정지 = 알람 해제)
+    /// 거치 가이드 '취소하기' — 아직 시작 전이므로 아무 기록 없이 되돌아간다.
+    /// 예약 세션은 알람 화면으로(알람은 계속 울리는 중), 즉시 세션은 홈으로.
+    func cancelMountGuide(pending: PendingSession) {
+        if let id = pending.reservationID, let fire = pending.scheduledAt {
+            route = .alarm(reservationID: id, fireDate: fire)
+        } else {
+            route = .none
+        }
+    }
+
+    /// 거치 가이드 '촬영 시작' — 알람 정지 + 세션 무장.
+    /// 카운트다운(3·2·1)은 거치 가이드가 자기 라이브 프리뷰 위에서 진행한다
+    /// (프리뷰 레이어가 항상 1개라 화면 멈춤·검은 화면이 구조적으로 불가능).
     func beginRecording(pending: PendingSession) {
         AlarmScheduler.shared.stopAlarmSound()
+        armedPending = pending
+    }
+
+    /// 카운트다운 '3' 시점 — 녹화를 미리 개시해 준비 시간을 카운트다운이 흡수하게 한다.
+    /// (화면 전환은 아직 안 함 — '시작!'에서 enterSessionIfRecording이 담당)
+    func startArmedRecording() {
+        guard let pending = armedPending else { return }
+        armedPending = nil
         let session = FocusSession(activityName: pending.activityName, tag: pending.tag,
                                    intensity: intensity,
                                    scheduledAt: pending.scheduledAt,
                                    targetSeconds: pending.targetSeconds,
-                                   reservationID: pending.reservationID)
-        engine.start(session: session)
+                                   reservationID: pending.reservationID,
+                                   ownerUserID: AccountStore.shared.currentUserID)
+        engine.start(session: session, orientation: sessionOrientation)
+    }
+
+    /// 카운트다운 '시작!' — 녹화가 정상 개시됐으면 세션 화면으로 전환.
+    /// (카메라 시작 실패로 이미 finalize됐으면 결과 화면 라우팅을 존중해 건드리지 않는다)
+    func enterSessionIfRecording() {
+        if case .finished = engine.phase { return }
         route = .session
     }
 
@@ -290,12 +414,48 @@ final class AppState: ObservableObject {
         route = .none
     }
 
+    /// 알람 화면의 '일정 취소' — 사유와 함께 벌점을 기록하고 홈으로.
+    /// 세션 기록이 남으므로 노쇼 스위퍼가 같은 발생 건을 중복 처리하지 않는다.
+    func cancelSchedule(reservation: Reservation, fireDate: Date, reason: String) {
+        guard let context = modelContext else { return }
+        AlarmScheduler.shared.stopAlarmSound()
+        AlarmScheduler.shared.cancelAlarmNotifications(reservationID: reservation.id, fireDate: fireDate)
+
+        let session = FocusSession(activityName: reservation.name, tag: reservation.tag,
+                                   intensity: intensity, scheduledAt: fireDate,
+                                   targetSeconds: reservation.durationMinutes * 60,
+                                   reservationID: reservation.id,
+                                   ownerUserID: AccountStore.shared.currentUserID)
+        session.outcome = .emergency
+        session.emergencyReason = reason
+        session.endedAt = .now
+        context.insert(session)
+
+        if let (type, points) = ScoreRules.points(for: .emergency, intensity: intensity,
+                                                  durationMinutes: reservation.durationMinutes) {
+            let event = ScoreEvent(type: type, points: points, sessionID: session.id,
+                                   intensity: intensity, note: reason,
+                                   ownerUserID: AccountStore.shared.currentUserID)
+            context.insert(event)
+            AccountStore.shared.mirror(event: event)   // 사유+벌점 클라우드 백업
+        }
+        try? context.save()
+        refreshDerived()
+        route = .none
+    }
+
     func sessionFinished() {
         route = .result
         refreshDerived()
     }
 
     func dismissResult() {
+        // 정책: 결과 화면에서 저장하지 않은 촬영본은 여기서 삭제된다
+        if let session = engine.lastFinishedSession, session.videoFileName != nil {
+            if let url = session.videoURL { try? FileManager.default.removeItem(at: url) }
+            session.videoFileName = nil
+            try? modelContext?.save()
+        }
         engine.reset()
         route = .none
     }

@@ -1,6 +1,6 @@
 //
 //  Theme.swift
-//  TimeLock — 타임락
+//  TimeLock — 앵그리모티
 //
 //  다크룸(레코딩 부스) 무드의 단일 디자인 시스템.
 //  시그니처: REC 링 — 알람 해제 버튼, 세션 타이머, 캘린더 완주 마크를
@@ -135,6 +135,117 @@ struct RECRingDial<Center: View>: View {
     }
 }
 
+// MARK: - 세션 다이얼: 교실 벽시계 (아날로그)
+
+/// 부채꼴 (파이 조각) — 남은 시간 영역 표현용
+struct PieSlice: Shape {
+    var startAngle: Angle
+    var endAngle: Angle
+
+    var animatableData: Double {
+        get { startAngle.degrees }
+        set { startAngle = .degrees(newValue) }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        path.move(to: center)
+        path.addArc(center: center,
+                    radius: min(rect.width, rect.height) / 2,
+                    startAngle: startAngle, endAngle: endAngle, clockwise: false)
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// 세션 진행 화면의 미니멀 시계판 (피그마 시안 + 뽀모도로 눈금).
+/// 흰 판 위에 12시부터 시계 방향으로 '남은 시간'만큼의 빨간 부채꼴이 그려지고,
+/// 시간이 흐르면 부채꼴이 12시를 향해 줄어든다. 중심에는 검은 점 하나.
+/// 바깥 베젤에는 3단 위계 눈금(1분·5분·15분)을 둘러 시계다운 세밀함과 시간 감각을 준다.
+/// 세션이 길수록 1분 눈금은 성글게(뭉침 방지) — minorCount가 줄어든다.
+struct FocusDial: View {
+    /// 남은 비율 0~1
+    var remaining: Double
+    var tint: Color = TL.rec
+    /// 세션 전체 길이(분). 1분 눈금 밀도 결정에 사용.
+    var totalMinutes: Int = 60
+
+    private var clamped: Double { min(1, max(0, remaining)) }
+
+    /// 1분(마이너) 눈금 개수 — 5분(12개)·15분(4개)과 항상 정렬되도록 12의 배수.
+    /// 긴 세션일수록 성글게 해서 작은 눈금이 뭉치는 것을 막는다.
+    private var minorCount: Int {
+        switch totalMinutes {
+        case ..<90:  return 60   // ~1.5시간: 1분 간격 (촘촘)
+        case ..<240: return 36   // ~4시간: 살짝 성글게
+        default:     return 24   // 그 이상: 더 성글게
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let size = min(geo.size.width, geo.size.height)
+            let majorLen = size * 0.060   // 15분 — 길고 굵고 밝게
+            let midLen   = size * 0.040   // 5분  — 중간
+            let minorLen = size * 0.022   // 1분  — 짧고 흐리게
+            let majorW = max(2.0, size * 0.012)
+            let midW   = max(1.5, size * 0.008)
+            let minorW = max(1.0, size * 0.005)
+            let outerTip = size / 2 - size * 0.006   // 눈금 바깥 끝
+            let dialInset = majorLen + size * 0.04   // 흰 판이 눈금 자리를 비워둠
+            let minorStep = minorCount / 12          // 5분 눈금과 겹치는 간격
+
+            ZStack {
+                // 1분(마이너) — 5분/15분 위치는 건너뛴다
+                ForEach(0..<minorCount, id: \.self) { i in
+                    if i % minorStep != 0 {
+                        tick(len: minorLen, width: minorW, color: TL.faint,
+                             angle: Double(i) * 360 / Double(minorCount), outerTip: outerTip)
+                    }
+                }
+                // 5분(미드) — 15분 위치는 건너뛴다
+                ForEach(0..<12, id: \.self) { i in
+                    if i % 3 != 0 {
+                        tick(len: midLen, width: midW, color: TL.muted,
+                             angle: Double(i) * 30, outerTip: outerTip)
+                    }
+                }
+                // 15분(메이저) — 길고 밝게
+                ForEach(0..<4, id: \.self) { i in
+                    tick(len: majorLen, width: majorW, color: TL.paper,
+                         angle: Double(i) * 90, outerTip: outerTip)
+                }
+
+                // 흰 시계판 (눈금 안쪽)
+                Circle().fill(Color.white).padding(dialInset)
+
+                // 남은 시간 부채꼴 (12시 → 시계 방향)
+                PieSlice(startAngle: .degrees(-90),
+                         endAngle: .degrees(-90 + 360 * clamped))
+                    .fill(tint)
+                    .padding(dialInset)
+                    .animation(TLMotion.progress, value: clamped)
+
+                // 중심점
+                Circle()
+                    .fill(TL.ink)
+                    .frame(width: size * 0.07, height: size * 0.07)
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+
+    private func tick(len: CGFloat, width: CGFloat, color: Color,
+                      angle: Double, outerTip: CGFloat) -> some View {
+        Capsule()
+            .fill(color)
+            .frame(width: width, height: len)
+            .offset(y: -(outerTip - len / 2))
+            .rotationEffect(.degrees(angle))
+    }
+}
+
 // MARK: - 버튼 스타일
 
 struct TLPrimaryButtonStyle: ButtonStyle {
@@ -148,7 +259,7 @@ struct TLPrimaryButtonStyle: ButtonStyle {
             .background(tint, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
             .opacity(configuration.isPressed ? 0.82 : 1)
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(TLMotion.press, value: configuration.isPressed)
     }
 }
 

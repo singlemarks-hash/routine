@@ -2,61 +2,404 @@
 //  SettingsView.swift
 //  TimeLock
 //
-//  강도 변경(상향 즉시/하향 다음날 0시, 미친 매운맛 해금), 프라이버시 정책과 영상 삭제,
-//  점수 원장 내역, 구독 관리.
+//  마이페이지 — 홈 우상단 프로필 아이콘으로 진입.
+//  프로필 편집 / 고객센터 / 개발자 응원하기 / 계정 관리 / 강도 설정 /
+//  구독 관리 / 프라이버시 / 점수 원장 / 앱 언어 / 이용약관 / 개인정보처리방침.
+//  (고객센터·개발자 응원하기·앱 언어·프로필 편집은 뼈대 — 추후 내용 연동)
 //
 
 import SwiftUI
 import SwiftData
 
-struct SettingsView: View {
-    @EnvironmentObject private var app: AppState
-    @EnvironmentObject private var subscription: SubscriptionManager
-    @Environment(\.modelContext) private var context
-    @Query(sort: \ScoreEvent.timestamp, order: .reverse) private var events: [ScoreEvent]
-    @Query private var sessions: [FocusSession]
+// MARK: - 마이페이지 (메뉴 허브)
 
-    @State private var showPaywall = false
-    @State private var showDeleteAllConfirm = false
+struct MyPageView: View {
+    @EnvironmentObject private var account: AccountStore
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    intensitySection
-                    subscriptionSection
-                    privacySection
-                    ledgerSection
-                    aboutSection
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // 아이콘 메뉴 그룹
+                VStack(spacing: 4) {
+                    iconRow(icon: "person.crop.circle.badge.checkmark", title: "프로필 및 구독 관리") {
+                        ProfileEditView()
+                    }
+                    iconRow(icon: "headphones", title: "고객센터") {
+                        SupportView()
+                    }
+                    iconRow(icon: "heart.text.square", title: "개발자 응원하기") {
+                        CheerDeveloperView()
+                    }
                 }
-                .padding(20)
-                .padding(.bottom, 32)
+
+                Divider().overlay(TL.hairline)
+
+                // 일반 메뉴 그룹
+                VStack(spacing: 4) {
+                    plainRow(title: "강도 설정") { IntensitySettingsView() }
+                    plainRow(title: "프라이버시") { PrivacySettingsView() }
+                    plainRow(title: "점수 원장") { LedgerView() }
+                    plainRow(title: "앱 언어") { AppLanguageView() }
+                    linkRow(title: "이용약관", url: Legal.termsOfUseURL)
+                    linkRow(title: "개인정보처리방침", url: Legal.privacyPolicyURL)
+                }
+
+                // 팀 시그니처 — 흐리고 작게
+                Text("Culture Design Corperation ‘      ‘")
+                    .font(.system(size: 11, weight: .medium, design: .serif))
+                    .foregroundStyle(TL.faint.opacity(0.75))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 10)
             }
-            .background(TL.ink)
-            .navigationTitle("설정")
-            .sheet(isPresented: $showPaywall) { PaywallView() }
+            .padding(20)
+            .padding(.bottom, 32)
+        }
+        .background(TL.ink)
+        .navigationTitle("마이페이지")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func iconRow<D: View>(icon: String, title: String,
+                                  @ViewBuilder destination: @escaping () -> D) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(TL.paper)
+                    .frame(width: 32)
+                Text(title)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TL.paper)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TL.faint)
+            }
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func plainRow<D: View>(title: String,
+                                   @ViewBuilder destination: @escaping () -> D) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            rowLabel(title)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func linkRow(title: String, url: URL) -> some View {
+        Link(destination: url) {
+            rowLabel(title)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func rowLabel(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(TL.paper)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(TL.faint)
+        }
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - 프로필 및 구독 관리 (프로필·구독·계정 관리 통합)
+
+struct ProfileEditView: View {
+    @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var subscription: SubscriptionManager
+    @Query(sort: \ScoreEvent.timestamp, order: .reverse) private var everyEvent: [ScoreEvent]
+
+    @State private var showAuth = false
+    @State private var showPaywall = false
+    @State private var showSignOutConfirm = false
+    @State private var showDeleteAccountConfirm = false
+    @State private var deletingAccount = false
+    @State private var deleteAccountError: String?
+
+    private var events: [ScoreEvent] {
+        everyEvent.filter { $0.ownerUserID == account.currentUserID }
+    }
+    private var myReward: Int { events.filter { $0.points > 0 }.reduce(0) { $0 + $1.points } }
+    private var myPenalty: Int { events.filter { $0.points < 0 }.reduce(0) { $0 + $1.points } }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if let user = account.currentUser, user.provider != .guest {
+                    // 이메일 인증 대기 안내
+                    if !account.isEmailVerified {
+                        TLCard {
+                            HStack(spacing: 8) {
+                                Image(systemName: "envelope.badge")
+                                    .font(.system(size: 13)).foregroundStyle(TL.amber)
+                                Text("이메일 인증 대기 중 — 받은 편지함을 확인하세요")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(TL.amber)
+                                Spacer()
+                                Button("재발송") {
+                                    Task { try? await account.resendVerificationEmail() }
+                                }
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(TL.paper)
+                            }
+                        }
+                    }
+
+                    // 프로필 카드
+                    TLCard(raised: true) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 12) {
+                                Circle()
+                                    .fill(TL.rec.opacity(0.2))
+                                    .frame(width: 52, height: 52)
+                                    .overlay(
+                                        Text(String((user.displayName ?? user.email ?? "?").prefix(1)).uppercased())
+                                            .font(.tlTitle(20))
+                                            .foregroundStyle(TL.rec)
+                                    )
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(user.displayName ?? user.email ?? "회원")
+                                        .font(.tlTitle(17)).foregroundStyle(TL.paper)
+                                    if let email = user.email {
+                                        Text(email).font(.system(size: 12)).foregroundStyle(TL.muted)
+                                    }
+                                }
+                                Spacer()
+                                TagChip(name: user.provider.title)
+                            }
+
+                            Divider().overlay(TL.hairline)
+
+                            HStack(spacing: 0) {
+                                stat(value: "+\(myReward)", label: "내 상점", tint: TL.jade)
+                                stat(value: "\(myPenalty)", label: "내 벌점", tint: TL.rec)
+                                stat(value: "\(myReward + myPenalty)", label: "총점",
+                                     tint: myReward + myPenalty >= 0 ? TL.paper : TL.rec)
+                            }
+
+                            // 로그아웃 — 프로필 카드 안, 점수 아래 가운데 정렬
+                            Button("로그아웃") { showSignOutConfirm = true }
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(TL.muted)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 2)
+                        }
+                    }
+
+                    // 구독 카드
+                    TLEyebrow(text: "구독")
+                    TLCard(raised: subscription.isPro) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(subscription.isPro ? "앵그리모티 멤버십 사용 중" : "앵그리모티 멤버십")
+                                        .font(.tlTitle(17)).foregroundStyle(TL.paper)
+                                    Text(subscription.isPro
+                                         ? "멤버십 혜택 적용 중 — 슬롯 \(SlotPolicy.memberFloorSlots)개부터·워터마크 제거."
+                                         : "슬롯 \(SlotPolicy.memberFloorSlots)개부터 · 워터마크 제거 · 벌점 리셋.")
+                                        .font(.system(size: 13)).foregroundStyle(TL.muted)
+                                }
+                                Spacer()
+                                if subscription.isPro {
+                                    Image(systemName: "checkmark.seal.fill").foregroundStyle(TL.jade).font(.title3)
+                                }
+                            }
+                            if !subscription.isPro {
+                                Button("구독하기") { showPaywall = true }
+                                    .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
+                            }
+                            Button("구매 복원") {
+                                Task { await subscription.restore() }
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TL.muted)
+                        }
+                    }
+                    Text(Legal.subscriptionDisclosure)
+                        .font(.system(size: 11)).foregroundStyle(TL.faint)
+                    LegalLinksRow()
+
+                    // 계정 삭제 — 최하단 큰 버튼 (진한 회색, 가운데 정렬)
+                    Button {
+                        showDeleteAccountConfirm = true
+                    } label: {
+                        Group {
+                            if deletingAccount {
+                                ProgressView().tint(TL.rec)
+                            } else {
+                                Text("계정 삭제")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundStyle(TL.rec)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                            .fill(TL.raised))
+                    }
+                    .disabled(deletingAccount)
+                    .padding(.top, 18)
+                } else {
+                    guestCard { showAuth = true }
+                }
+            }
+            .padding(20)
+        }
+        .background(TL.ink)
+        .navigationTitle("프로필 및 구독 관리")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await account.refreshEmailVerification() }
+        .sheet(isPresented: $showAuth) { AuthView() }
+        .sheet(isPresented: $showPaywall) { PaywallView() }
+        .confirmationDialog("로그아웃할까요?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
+            Button("로그아웃", role: .destructive) { account.signOut() }
+        } message: {
+            Text("기록은 계정에 남아 있고, 다시 로그인하면 그대로 보입니다.")
+        }
+        .confirmationDialog("계정을 삭제할까요?", isPresented: $showDeleteAccountConfirm, titleVisibility: .visible) {
+            Button("계정 영구 삭제", role: .destructive) { deleteAccount() }
+        } message: {
+            Text("이 기기의 예약·세션·촬영본과 계정·서버 데이터가 즉시 완전 삭제되고 되돌릴 수 없습니다.")
+        }
+        .alert("계정 삭제", isPresented: .constant(deleteAccountError != nil)) {
+            Button("확인") { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "")
         }
     }
 
-    // MARK: 강도
-
-    private var intensitySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "강도 · 앱 전체에 하나만 적용")
-            VStack(spacing: 10) {
-                intensityRow(.spicy)
-                intensityRow(.insane)
-            }
-            if app.downgradePending, let date = app.downgradeDate {
-                Label("매운맛으로 하향 예약됨 — \(TLFormat.dayTitle(date)) 0시 적용",
-                      systemImage: "clock.arrow.circlepath")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(TL.amber)
-            }
-            Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. 미친 매운맛은 매운맛 완주 3회 후 해금됩니다. (현재 \(min(app.spicyCompletions, 3))/3)")
-                .font(.system(size: 12))
-                .foregroundStyle(TL.faint)
+    private func stat(value: String, label: String, tint: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.tlTimer(18)).foregroundStyle(tint)
+            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(TL.muted)
         }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func deleteAccount() {
+        deletingAccount = true
+        deleteAccountError = nil
+        Task {
+            defer { deletingAccount = false }
+            do {
+                try await account.deleteAccount()
+                // 성공 시 onUserChanged가 인증 화면으로 라우팅
+            } catch {
+                deleteAccountError = error.localizedDescription
+            }
+        }
+    }
+}
+
+/// 게스트 상태 공용 카드
+private func guestCard(onLogin: @escaping () -> Void) -> some View {
+    TLCard {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("게스트 모드")
+                .font(.tlTitle(16)).foregroundStyle(TL.paper)
+            Text("상점·벌점이 이 기기에만 저장됩니다. 로그인하면 지금까지의 기록이 계정으로 옮겨지고, 기기를 바꿔도 유지됩니다.")
+                .font(.system(size: 13)).foregroundStyle(TL.muted)
+            Button("계정 만들기 · 로그인", action: onLogin)
+                .buttonStyle(TLPrimaryButtonStyle())
+        }
+    }
+}
+
+// MARK: - 고객센터 (뼈대)
+
+struct SupportView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                TLCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("문의하기")
+                            .font(.tlTitle(16)).foregroundStyle(TL.paper)
+                        Text("이용 중 불편한 점이나 궁금한 점을 보내주세요.")
+                            .font(.system(size: 13)).foregroundStyle(TL.muted)
+                        Link("singlemarks@gmail.com 으로 메일 보내기",
+                             destination: URL(string: "mailto:singlemarks@gmail.com")!)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TL.jade)
+                    }
+                }
+                TLCard {
+                    Text("자주 묻는 질문(FAQ)은 준비 중입니다.")
+                        .font(.system(size: 13)).foregroundStyle(TL.faint)
+                }
+            }
+            .padding(20)
+        }
+        .background(TL.ink)
+        .navigationTitle("고객센터")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - 개발자 응원하기 (뼈대)
+
+struct CheerDeveloperView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                TLCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("앵그리모티를 만들어가고 있어요")
+                            .font(.tlTitle(16)).foregroundStyle(TL.paper)
+                        Text("응원 메시지·리뷰·후원 기능은 준비 중입니다. 조금만 기다려주세요!")
+                            .font(.system(size: 13)).foregroundStyle(TL.muted)
+                    }
+                }
+            }
+            .padding(20)
+        }
+        .background(TL.ink)
+        .navigationTitle("개발자 응원하기")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - 강도 설정
+
+struct IntensitySettingsView: View {
+    @EnvironmentObject private var app: AppState
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                TLEyebrow(text: "강도 · 앱 전체에 하나만 적용")
+                VStack(spacing: 10) {
+                    intensityRow(.spicy)
+                    intensityRow(.insane)
+                }
+                if app.downgradePending, let date = app.downgradeDate {
+                    Label("매운맛으로 하향 예약됨 — \(TLFormat.dayTitle(date)) 0시 적용",
+                          systemImage: "clock.arrow.circlepath")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TL.amber)
+                }
+                Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. 미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다. (현재 \(min(app.spicyCompletions, 3))/3)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(TL.faint)
+            }
+            .padding(20)
+        }
+        .background(TL.ink)
+        .navigationTitle("강도 설정")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func intensityRow(_ target: Intensity) -> some View {
@@ -70,68 +413,45 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
     }
+}
 
-    // MARK: 구독
+// MARK: - 프라이버시
 
-    private var subscriptionSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "구독")
-            TLCard(raised: subscription.isPro) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(subscription.isPro ? "타임락 프로 사용 중" : "타임락 프로")
-                                .font(.tlTitle(17)).foregroundStyle(TL.paper)
-                            Text(subscription.isPro
-                                 ? "공유 영상의 워터마크를 제거할 수 있습니다."
-                                 : "공유/내보내기 영상의 워터마크를 제거합니다.")
-                                .font(.system(size: 13)).foregroundStyle(TL.muted)
-                        }
-                        Spacer()
-                        if subscription.isPro {
-                            Image(systemName: "checkmark.seal.fill").foregroundStyle(TL.jade).font(.title3)
-                        }
-                    }
-                    if !subscription.isPro {
-                        Button("구독하기") { showPaywall = true }
-                            .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
-                    }
-                    Button("구매 복원") {
-                        Task { await subscription.restore() }
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(TL.muted)
-                }
-            }
-        }
+struct PrivacySettingsView: View {
+    @EnvironmentObject private var account: AccountStore
+    @Environment(\.modelContext) private var context
+    @Query private var everySession: [FocusSession]
+    @State private var showDeleteAllConfirm = false
+
+    private var sessions: [FocusSession] {
+        everySession.filter { $0.ownerUserID == account.currentUserID }
     }
 
-    // MARK: 프라이버시
-
-    private var privacySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "프라이버시")
-            TLCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    privacyRow(icon: "lock.fill", text: "모든 영상은 기본 비공개 — 이 기기에만 저장되고 본인만 접근합니다.")
-                    privacyRow(icon: "eye.fill", text: "촬영 중에는 화면에 REC 표시와 프리뷰가 항상 보입니다.")
-                    privacyRow(icon: "key.fill", text: "영상 파일은 iOS 파일 보호(완전 암호화)로 저장됩니다.")
-                    privacyRow(icon: "trash.fill", text: "삭제하면 영상·썸네일이 기기에서 완전히 제거됩니다.")
-                    Divider().overlay(TL.hairline)
-                    Toggle(isOn: $app.dimModeEnabled) {
-                        Text("세션 중 밝기 자동 감소").font(.tlBody).foregroundStyle(TL.paper)
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                TLCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        privacyRow(icon: "arrow.down.circle.fill", text: "촬영본은 세션 종료 화면에서 사진 앱으로 저장하지 않으면 즉시 삭제됩니다. 서버로 전송되지 않습니다.")
+                        privacyRow(icon: "eye.fill", text: "촬영 중에는 화면에 REC 표시와 프리뷰가 항상 보입니다.")
+                        privacyRow(icon: "key.fill", text: "촬영 중 파일은 iOS 파일 보호(완전 암호화)로 저장됩니다.")
+                        privacyRow(icon: "trash.fill", text: "기록 썸네일은 아래에서 언제든 완전히 삭제할 수 있습니다.")
+                        Divider().overlay(TL.hairline)
+                        Button("기록 썸네일 전체 삭제") { showDeleteAllConfirm = true }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TL.rec)
                     }
-                    .tint(TL.rec)
-                    Button("모든 영상 삭제") { showDeleteAllConfirm = true }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(TL.rec)
                 }
             }
+            .padding(20)
         }
-        .confirmationDialog("모든 타임랩스 영상을 삭제할까요?", isPresented: $showDeleteAllConfirm, titleVisibility: .visible) {
-            Button("영상 전체 삭제 (기록·점수는 유지)", role: .destructive) { deleteAllVideos() }
+        .background(TL.ink)
+        .navigationTitle("프라이버시")
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("모든 기록 썸네일을 삭제할까요?", isPresented: $showDeleteAllConfirm, titleVisibility: .visible) {
+            Button("전체 삭제 (기록·점수는 유지)", role: .destructive) { deleteAllVideos() }
         } message: {
-            Text("삭제한 영상은 복구할 수 없습니다. 세션 기록과 점수 원장은 유지됩니다.")
+            Text("삭제한 썸네일은 복구할 수 없습니다. 세션 기록과 점수 원장은 유지됩니다.")
         }
     }
 
@@ -150,53 +470,89 @@ struct SettingsView: View {
         }
         try? context.save()
     }
+}
 
-    // MARK: 점수 원장
+// MARK: - 점수 원장
 
-    private var ledgerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "점수 원장 · 최근 20건")
-            if events.isEmpty {
-                TLCard {
-                    Text("아직 기록이 없습니다. 첫 세션을 완주하면 상점이 적립됩니다.")
-                        .font(.system(size: 13)).foregroundStyle(TL.muted)
-                }
-            } else {
-                TLCard {
-                    VStack(spacing: 0) {
-                        ForEach(Array(events.prefix(20).enumerated()), id: \.element.id) { index, event in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(event.type.title)
-                                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.paper)
-                                    Text("\(event.timestamp.formatted(date: .abbreviated, time: .shortened)) · \(event.intensity.title)\(event.note.map { " · \($0)" } ?? "")")
-                                        .font(.system(size: 11)).foregroundStyle(TL.faint)
-                                        .lineLimit(1)
+struct LedgerView: View {
+    @EnvironmentObject private var account: AccountStore
+    @Query(sort: \ScoreEvent.timestamp, order: .reverse) private var everyEvent: [ScoreEvent]
+
+    private var events: [ScoreEvent] {
+        everyEvent.filter { $0.ownerUserID == account.currentUserID }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                TLEyebrow(text: "최근 20건")
+                if events.isEmpty {
+                    TLCard {
+                        Text("아직 기록이 없습니다. 첫 세션을 완주하면 상점이 적립됩니다.")
+                            .font(.system(size: 13)).foregroundStyle(TL.muted)
+                    }
+                } else {
+                    TLCard {
+                        VStack(spacing: 0) {
+                            ForEach(Array(events.prefix(20).enumerated()), id: \.element.id) { index, event in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(event.type.title)
+                                            .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.paper)
+                                        Text("\(event.timestamp.formatted(date: .abbreviated, time: .shortened)) · \(event.intensity.title)\(event.note.map { " · \($0)" } ?? "")")
+                                            .font(.system(size: 11)).foregroundStyle(TL.faint)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Text(event.points > 0 ? "+\(event.points)" : "\(event.points)")
+                                        .font(.tlTimer(15))
+                                        .foregroundStyle(event.points > 0 ? TL.jade : TL.rec)
                                 }
-                                Spacer()
-                                Text(event.points > 0 ? "+\(event.points)" : "\(event.points)")
-                                    .font(.tlTimer(15))
-                                    .foregroundStyle(event.points > 0 ? TL.jade : TL.rec)
-                            }
-                            .padding(.vertical, 9)
-                            if index < min(events.count, 20) - 1 {
-                                Divider().overlay(TL.hairline.opacity(0.6))
+                                .padding(.vertical, 9)
+                                if index < min(events.count, 20) - 1 {
+                                    Divider().overlay(TL.hairline.opacity(0.6))
+                                }
                             }
                         }
                     }
                 }
             }
+            .padding(20)
         }
+        .background(TL.ink)
+        .navigationTitle("점수 원장")
+        .navigationBarTitleDisplayMode(.inline)
     }
+}
 
-    // MARK: 정보
+// MARK: - 앱 언어 (뼈대)
 
-    private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            TLEyebrow(text: "타임락")
-            Text("알람을 끄는 유일한 방법, 촬영 시작. · v1.0.0")
-                .font(.system(size: 12)).foregroundStyle(TL.faint)
+struct AppLanguageView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                TLCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("한국어")
+                                .font(.tlTitle(16)).foregroundStyle(TL.paper)
+                            Spacer()
+                            Image(systemName: "checkmark").foregroundStyle(TL.jade)
+                        }
+                        HStack {
+                            Text("English")
+                                .font(.tlTitle(16)).foregroundStyle(TL.faint)
+                            Spacer()
+                            TagChip(name: "준비 중")
+                        }
+                    }
+                }
+            }
+            .padding(20)
         }
+        .background(TL.ink)
+        .navigationTitle("앱 언어")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -204,42 +560,50 @@ struct SettingsView: View {
 
 struct PaywallView: View {
     @EnvironmentObject private var subscription: SubscriptionManager
+    @EnvironmentObject private var account: AccountStore
+    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query private var allEvents: [ScoreEvent]
     @State private var purchasing = false
 
     var body: some View {
         NavigationStack {
+            ScrollView {
             VStack(spacing: 0) {
-                Spacer()
-                RECRingDial(progress: 1, live: false, tint: TL.jade) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 40, weight: .bold))
-                        .foregroundStyle(TL.jade)
-                }
-                .frame(width: 150, height: 150)
+                // 멤버십 캐릭터 (moti_member)
+                Image("MotiMember")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 140, height: 140)
+                    .padding(.top, 8)
 
-                Text("타임락 프로")
+                Text("앵그리모티 멤버십")
                     .font(.tlTitle(26)).foregroundStyle(TL.paper)
-                    .padding(.top, 24)
-                Text("내 완주 기록을 워터마크 없이 공유하세요.")
+                    .padding(.top, 18)
+                Text("기본을 넘어, 자율까지.")
                     .font(.tlBody).foregroundStyle(TL.muted)
                     .padding(.top, 6)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    benefit("공유/내보내기 영상 워터마크 제거")
-                    benefit("완주 영상 원본 화질 내보내기")
-                    benefit("앞으로 추가되는 프로 기능 전부")
+                    benefit("활동 슬롯 최소 \(SlotPolicy.memberFloorSlots)개부터 시작 (무료는 2개)")
+                    benefit("타임랩스 워터마크 제거")
+                    benefit("가입 즉시 누적 벌점 리셋")
+                    benefit("멤버들과 함께: 랭킹게임 (준비 중)")
+                    benefit("그 외 추가되는 멤버십 기능 모두 포함")
                 }
-                .padding(.top, 28)
+                .padding(.top, 24)
 
-                Spacer()
+                Spacer(minLength: 24)
 
                 if let product = subscription.product {
                     Button {
                         purchasing = true
                         Task {
                             defer { purchasing = false }
-                            if (try? await subscription.purchase()) == true { dismiss() }
+                            if (try? await subscription.purchase()) == true {
+                                resetPenalties()   // 가입 즉시 누적 벌점 리셋 (상쇄 이벤트)
+                                dismiss()
+                            }
                         }
                     } label: {
                         Text(purchasing ? "처리 중…" : "\(product.displayPrice) / 월 구독하기")
@@ -261,12 +625,18 @@ struct PaywallView: View {
                 .foregroundStyle(TL.muted)
                 .padding(.top, 12)
 
-                Text("월 단위 자동 갱신 · 언제든 App Store에서 해지")
+                Text(Legal.subscriptionDisclosure)
                     .font(.system(size: 11)).foregroundStyle(TL.faint)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 8)
+
+                LegalLinksRow()
+                    .padding(.top, 10)
                     .padding(.bottom, 16)
             }
             .padding(.horizontal, 24)
+            }   // ScrollView
             .background(TL.ink)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -275,6 +645,22 @@ struct PaywallView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// 가입 즉시 누적 벌점 리셋 — 원장은 불변이므로 삭제 대신 '상쇄 이벤트'를 기록한다.
+    private func resetPenalties() {
+        let uid = account.currentUserID
+        let penaltySum = allEvents
+            .filter { $0.ownerUserID == uid && $0.points < 0 }
+            .reduce(0) { $0 + $1.points }
+        guard penaltySum < 0 else { return }
+        let event = ScoreEvent(type: .penaltyReset, points: -penaltySum,
+                               sessionID: nil, intensity: .spicy,
+                               note: "멤버십 가입 — 누적 벌점 \(penaltySum)점 상쇄",
+                               ownerUserID: uid)
+        context.insert(event)
+        AccountStore.shared.mirror(event: event)
+        try? context.save()
     }
 
     private func benefit(_ text: String) -> some View {

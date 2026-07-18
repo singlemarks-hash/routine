@@ -1,0 +1,49 @@
+name: iOS Build
+
+# 푸시/PR마다 macOS 러너에서 iOS 시뮬레이터용 빌드를 수행해
+# 컴파일 오류를 즉시 잡아낸다. (서명 불필요 — CODE_SIGNING_ALLOWED=NO)
+# PR이 열린 브랜치는 pull_request 이벤트만으로 검증해 중복 실행(푸시+PR 2회)을 막는다.
+# main 직접 푸시(머지)만 push 이벤트로 검증. private 전환 시 macOS 러너 분당 10배
+# 차감이므로 실행 횟수 절약이 중요하다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Xcode 빌드 검증
+    runs-on: macos-15
+    timeout-minutes: 45   # Firebase SPM 의존성 해석 시간 포함
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 버전 확인
+        run: xcodebuild -version
+
+      # 바이너리 아티팩트(dl.google.com) 다운로드가 간헐적으로 끊기므로 3회 재시도
+      - name: 패키지 의존성 해석 (재시도 포함)
+        run: |
+          for attempt in 1 2 3; do
+            if xcodebuild -resolvePackageDependencies \
+                 -project TimeLock/TimeLock.xcodeproj \
+                 -scheme TimeLock; then
+              exit 0
+            fi
+            echo "패키지 해석 실패 — ${attempt}회차, 15초 후 재시도"
+            sleep 15
+          done
+          exit 1
+
+      # 공유 스킴 + DerivedData 빌드 — 레거시 -target 빌드는 SPM 체크아웃 안의
+      # 'build' 파일과 경로가 충돌한다 (nanopb 등)
+      - name: iOS 시뮬레이터용 빌드
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project TimeLock/TimeLock.xcodeproj \
+            -scheme TimeLock \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build

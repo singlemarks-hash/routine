@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# Xcode 개인 설정 (창 상태, 개인 스킴 등)
+xcuserdata/
+*.xcuserstate
