@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -66,6 +67,8 @@ fun HomeShell() {
     var nav by remember { mutableStateOf<HomeNav>(HomeNav.Home) }
     var tab by remember { mutableStateOf("activity") }   // activity | schedule
     var showQuickStart by remember { mutableStateOf(false) }
+    var showGoalEditor by remember { mutableStateOf(false) }
+    var goalText by remember { mutableStateOf(com.singlemarks.angrymoti.data.Prefs.homeGoal(owner)) }
 
     when (val n = nav) {
         is HomeNav.Calendar -> { CalendarScreen(onBack = { nav = HomeNav.Home }); return }
@@ -122,6 +125,8 @@ fun HomeShell() {
         Box(Modifier.weight(1f)) {
             if (tab == "activity") ActivityTab(
                 reservations = reservations,
+                goal = goalText,
+                onEditGoal = { showGoalEditor = true },
                 onQuickStart = { showQuickStart = true },
                 onAdd = { nav = HomeNav.ReservationEdit(null) },
                 onEdit = { nav = HomeNav.ReservationEdit(it.id) },
@@ -155,6 +160,31 @@ fun HomeShell() {
         }
     }
 
+    if (showGoalEditor) {
+        ModalBottomSheet(onDismissRequest = { showGoalEditor = false }, containerColor = TL.surface) {
+            var draft by remember { mutableStateOf(goalText) }
+            Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+                Text("나의 다짐", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(16.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    draft, { draft = it }, modifier = Modifier.fillMaxWidth(),
+                    minLines = 3, maxLines = 5,
+                    placeholder = { Text("예: 올해는 매일 2시간씩 공부한다", color = TL.faint) },
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
+                        focusedBorderColor = TL.rec, unfocusedBorderColor = TL.hairline,
+                        cursorColor = TL.rec),
+                )
+                Spacer(Modifier.height(16.dp))
+                TLPrimaryButton("저장") {
+                    goalText = draft.trim()
+                    com.singlemarks.angrymoti.data.Prefs.setHomeGoal(owner, goalText)
+                    showGoalEditor = false
+                }
+            }
+        }
+    }
+
     if (showQuickStart) {
         ModalBottomSheet(onDismissRequest = { showQuickStart = false }, containerColor = TL.surface) {
             QuickStartSheet(onStart = { pending ->
@@ -168,6 +198,8 @@ fun HomeShell() {
 @Composable
 private fun ActivityTab(
     reservations: List<Reservation>,
+    goal: String,
+    onEditGoal: () -> Unit,
     onQuickStart: () -> Unit,
     onAdd: () -> Unit,
     onEdit: (Reservation) -> Unit,
@@ -179,21 +211,30 @@ private fun ActivityTab(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // 다음 활동 대형 카드 — 이름 중앙 배치 (iOS 홈 1:1)
+        // 다짐/목표 카드 — 탭하면 입력 시트 (iOS 홈 1:1)
         item {
-            val nextRes = reservations.minByOrNull { it.nextOccurrence() ?: Long.MAX_VALUE }
             Box(
-                Modifier.fillMaxWidth().height(170.dp)
+                Modifier.fillMaxWidth()
+                    .heightIn(min = 140.dp)
                     .background(TL.surface, TL.cornerL)
                     .border(1.dp, TL.hairline.copy(alpha = 0.6f), TL.cornerL)
-                    .clickable { nextRes?.let(onEdit) },
+                    .clickable(onClick = onEditGoal),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(nextRes?.name ?: "다짐을 예약해 보세요",
-                    color = if (nextRes != null) TL.paper else TL.muted,
-                    fontSize = 22.sp, fontWeight = FontWeight.Black,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp))
+                if (goal.isEmpty()) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(16.dp)) {
+                        Text("나의 다짐, 목표를 적어보세요",
+                            color = TL.faint, fontSize = 17.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.height(6.dp))
+                        Text("탭해서 작성", color = TL.faint, fontSize = 12.sp)
+                    }
+                } else {
+                    Text(goal, color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 26.sp,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp))
+                }
             }
         }
         item { TLPrimaryButton("활동 추가하기", onClick = onAdd) }

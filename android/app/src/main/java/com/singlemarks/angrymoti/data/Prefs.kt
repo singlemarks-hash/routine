@@ -50,6 +50,11 @@ object Prefs {
     fun setUnlockBonusAwarded(owner: String) =
         sp.edit().putBoolean("unlockBonus.awarded.$owner", true).apply()
 
+    /** 홈 다짐/목표 문구 (계정별) */
+    fun homeGoal(owner: String) = sp.getString("homeGoal.$owner", "") ?: ""
+    fun setHomeGoal(owner: String, text: String) =
+        sp.edit().putString("homeGoal.$owner", text).apply()
+
     /** 게스트/오프라인 계정 표시 이름 */
     var guestName: String?
         get() = sp.getString("guestName", null)
