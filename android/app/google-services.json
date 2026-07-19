@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "282729232995",
+    "project_id": "timelock-eba85",
+    "storage_bucket": "timelock-eba85.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:282729232995:android:5bb68aaed881e95ea49656",
+        "android_client_info": {
+          "package_name": "com.selfer.angrymoti"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "282729232995-njnh0ktbvtqn943qsrh7ge8gbtudo0d9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpsu-b3sLWClKrO2awibD6M3pIn-n13M0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "282729232995-njnh0ktbvtqn943qsrh7ge8gbtudo0d9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "282729232995-2jrlus4u7sm83vlkd7b5stn3ir0vl1hq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.singlemarks.timelock"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:282729232995:android:e5a583dd773a089aa49656",
+        "android_client_info": {
+          "package_name": "com.singlemarks.angrymoti"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "282729232995-njnh0ktbvtqn943qsrh7ge8gbtudo0d9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpsu-b3sLWClKrO2awibD6M3pIn-n13M0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "282729232995-njnh0ktbvtqn943qsrh7ge8gbtudo0d9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "282729232995-2jrlus4u7sm83vlkd7b5stn3ir0vl1hq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.singlemarks.timelock"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
