@@ -68,6 +68,7 @@ fun MyPageScreen(onBack: () -> Unit) {
         "intensity" -> { IntensityScreen(onBack = { sub = "menu" }); return }
         "paywall" -> { PaywallScreen(onBack = { sub = "menu" }); return }
         "ledger" -> { LedgerScreen(onBack = { sub = "menu" }); return }
+        "privacy" -> { PrivacyScreen(onBack = { sub = "menu" }); return }
     }
 
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -80,16 +81,20 @@ fun MyPageScreen(onBack: () -> Unit) {
             Text("마이페이지", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f)); Spacer(Modifier.width(44.dp))
         }
-        // 아이콘 메뉴 (투명 행)
+        // 아이콘 메뉴 (투명 행) — iOS와 동일 구성
         IconMenuRow("👤", "프로필 및 구독 관리") { sub = "profile" }
-        IconMenuRow("👑", "멤버십") { sub = "paywall" }
-        IconMenuRow("🧾", "점수 원장") { sub = "ledger" }
+        IconMenuRow("🎧", "고객센터") {
+            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:singlemarks@gmail.com")))
+        }
+        IconMenuRow("💌", "개발자 응원하기") { sub = "paywall" }
 
         androidx.compose.material3.HorizontalDivider(
             color = TL.hairline, modifier = Modifier.padding(vertical = 18.dp))
 
         // 텍스트 메뉴 (투명 행)
         PlainMenuRow("강도 설정") { sub = "intensity" }
+        PlainMenuRow("프라이버시") { sub = "privacy" }
+        PlainMenuRow("점수 원장") { sub = "ledger" }
         PlainMenuRow("앱 언어") {}
         PlainMenuRow("이용약관") { open(Legal.TERMS_URL) }
         PlainMenuRow("개인정보처리방침") { open(Legal.PRIVACY_URL) }
@@ -344,6 +349,35 @@ fun LedgerScreen(onBack: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+
+/** 프라이버시 — 촬영본·데이터 처리 요약 (iOS 프라이버시 화면 대응) */
+@Composable
+fun PrivacyScreen(onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
+        TLScreenHeader("프라이버시", onBack = onBack)
+        TLCard {
+            Text("📷  촬영본은 내 기기에만", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("타임랩스 영상은 서버로 전송되지 않고 이 기기에만 저장돼요. 세션 종료 화면에서 저장하지 않으면 자동으로 삭제됩니다.",
+                color = TL.muted, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        TLCard {
+            Text("🧠  자리비움 감지도 기기 안에서", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("사람 감지는 온디바이스 AI로만 처리되며 프레임이 외부로 나가지 않아요.",
+                color = TL.muted, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        TLCard {
+            Text("🗂  수집하는 정보", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("계정 기능을 위한 이메일·이름, 그리고 상점·벌점 기록뿐이에요. 자세한 내용은 개인정보처리방침을 확인하세요.",
+                color = TL.muted, fontSize = 13.sp)
         }
     }
 }

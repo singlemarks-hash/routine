@@ -211,7 +211,8 @@ private fun ActivityTab(
                 Text("›", color = TL.muted, fontSize = 22.sp)
             }
         }
-        item { TLEyebrow("예정된 활동") }
+        item { Text("예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
+            modifier = Modifier.padding(top = 6.dp)) }
         if (reservations.isEmpty()) {
             item {
                 TLCard {
@@ -223,27 +224,46 @@ private fun ActivityTab(
         items(reservations.sortedBy { it.nextOccurrence() ?: Long.MAX_VALUE }) { r ->
             val next = r.nextOccurrence(now)
             TLCard(onClick = { onEdit(r) }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row {
                     Column(Modifier.weight(1f)) {
                         Text(r.name, color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            "${TLFormat.timeLabel(r.startMinute)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
+                            "🔔 ${nextLabel(next)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
                                 if (r.isRepeating) " · 매주 " + weekdayLabel(r.repeatWeekdays) else "",
-                            color = TL.muted, fontSize = 13.sp,
+                            color = TL.muted, fontSize = 12.sp,
                         )
                     }
-                    if (next != null && next - now <= 12 * 3600_000L) {
-                        // 12시간 내 발생 — 카운트다운
-                        Text(TLFormat.hms((next - now) / 1000), color = TL.amber,
-                            fontSize = 15.sp, fontWeight = FontWeight.Black)
-                    } else {
-                        Text(r.tag, color = TL.faint, fontSize = 13.sp)
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (next != null && next - now <= 12 * 3600_000L) {
+                            Text(TLFormat.hms((next - now) / 1000), color = TL.amber,
+                                fontSize = 18.sp, fontWeight = FontWeight.Black)
+                            Spacer(Modifier.height(6.dp))
+                        }
+                        Box(Modifier.border(1.dp, TL.hairline, CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 5.dp)) {
+                            Text(r.tag, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }
         }
         item { Spacer(Modifier.height(8.dp)) }
     }
+}
+
+fun nextLabel(next: Long?): String {
+    if (next == null) return "예정 없음"
+    val cal = java.util.Calendar.getInstance()
+    val today = (cal.clone() as java.util.Calendar).apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val dayDiff = ((next - today) / 86_400_000L).toInt()
+    val t = java.util.Calendar.getInstance().apply { timeInMillis = next }
+    val minute = t.get(java.util.Calendar.HOUR_OF_DAY) * 60 + t.get(java.util.Calendar.MINUTE)
+    val prefix = when (dayDiff) { 0 -> "오늘"; 1 -> "내일"; else -> "${t.get(java.util.Calendar.MONTH) + 1}월 ${t.get(java.util.Calendar.DAY_OF_MONTH)}일" }
+    return "$prefix ${TLFormat.timeLabel(minute)}"
 }
 
 fun weekdayLabel(days: List<Int>): String {
