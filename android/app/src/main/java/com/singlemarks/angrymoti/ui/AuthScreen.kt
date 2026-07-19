@@ -2,6 +2,8 @@ package com.singlemarks.angrymoti.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +29,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,7 +38,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.singlemarks.angrymoti.R
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.singlemarks.angrymoti.services.AccountStore
+import com.singlemarks.angrymoti.services.GoogleSignIn
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlinx.coroutines.launch
 
@@ -42,6 +48,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun AuthScreen() {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val pendingEmail by AccountStore.pendingVerificationEmail.collectAsState()
     var mode by remember { mutableStateOf("signin") }   // signin | signup
     var email by remember { mutableStateOf("") }
@@ -138,6 +145,22 @@ fun AuthScreen() {
             }
 
             Spacer(Modifier.height(22.dp))
+            if (AccountStore.firebaseAvailable) {
+                GoogleButton(enabled = !busy) {
+                    scope.launch {
+                        busy = true; error = null
+                        runCatching {
+                            val token = GoogleSignIn.requestIdToken(context)
+                            AccountStore.signInGoogle(token)
+                        }.onFailure {
+                            if (it !is GetCredentialCancellationException)
+                                error = friendlyAuthError(it)
+                        }
+                        busy = false
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             TLGhostButton("게스트로 둘러보기") {
                 AccountStore.continueAsGuest(null)
             }
@@ -148,7 +171,24 @@ fun AuthScreen() {
     }
 }
 
+/** Google 로그인 버튼 — 흰 배경 + 잉크 텍스트 (Google 브랜드 가이드 라이트 버튼) */
+@Composable
+private fun GoogleButton(enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (enabled) Color.White else Color.White.copy(alpha = 0.5f), TL.cornerM)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("G  Google로 계속하기", color = TL.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
 private fun friendlyAuthError(t: Throwable): String {
+    if (t is androidx.credentials.exceptions.NoCredentialException)
+        return "기기에 등록된 Google 계정이 없어요. 설정 → 계정에서 Google 계정을 추가한 뒤 다시 시도해주세요."
     val m = t.message ?: return "오류가 발생했어요. 잠시 후 다시 시도해주세요."
     return when {
         m.contains("badly formatted") -> "이메일 형식이 올바르지 않아요."
