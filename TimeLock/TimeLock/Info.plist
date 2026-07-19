@@ -35,7 +35,8 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- Google 로그인 콜백 (GoogleService-Info.plist의 REVERSED_CLIENT_ID) -->
+				<!-- Google 로그인 콜백 — 셀퍼 계정용 새 Firebase iOS 앱(com.selfer.angrymoti) 등록 후
+				     새 GoogleService-Info.plist의 REVERSED_CLIENT_ID 값으로 교체할 것 -->
 				<string>com.googleusercontent.apps.282729232995-2jrlus4u7sm83vlkd7b5stn3ir0vl1hq</string>
 			</array>
 		</dict>

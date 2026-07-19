@@ -15,7 +15,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.singlemarks.angrymoti"
+        applicationId = "com.selfer.angrymoti"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
