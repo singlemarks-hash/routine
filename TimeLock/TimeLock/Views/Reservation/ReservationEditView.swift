@@ -22,14 +22,10 @@ struct ReservationEditView: View {
     @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allActiveReservations: [Reservation]
     @Query private var allSessions: [FocusSession]
 
-    /// 겹침 검사는 현재 계정의 예약끼리만 (그룹 예약 포함 — 시간이 겹치면 안 되니까)
+    /// 겹침 검사·슬롯 카운트 모두 현재 계정의 예약 전체 —
+    /// 그룹 챌린지 예약도 슬롯 1개를 차지한다 (슬롯을 늘리려면 연속 달성이 필요하도록)
     private var allReservations: [Reservation] {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
-    }
-
-    /// 슬롯 카운트는 개인 예약만 — 그룹 챌린지 예약이 개인 슬롯을 잡아먹지 않게 한다
-    private var personalReservationCount: Int {
-        allReservations.filter { !$0.isGroupReservation }.count
     }
 
     // MARK: 활동 슬롯 정책 (원띵 원칙 — 연속 달성일 사다리)
@@ -74,7 +70,7 @@ struct ReservationEditView: View {
 
     /// 활동 슬롯 현황 (원띵 — 신규 생성 화면에만). 탭하면 정책 표 팝업.
     private var slotPolicyNotice: some View {
-        let used = personalReservationCount
+        let used = allReservations.count
         let allowed = allowedSlots            // nil = 무제한 (연속 30일+)
         let full = allowed.map { used >= $0 } ?? false
         let slotLabel = allowed.map { "\(used)/\($0)" } ?? "\(used)/무제한"
@@ -309,7 +305,7 @@ struct ReservationEditView: View {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
 
         // 검증: 활동 슬롯 정책 (신규 생성만) — 연속 달성일 사다리. 기존 예약은 영향 없음.
-        if reservation == nil, let allowed = allowedSlots, personalReservationCount >= allowed {
+        if reservation == nil, let allowed = allowedSlots, allReservations.count >= allowed {
             var message = "활동 슬롯이 가득 찼습니다 (현재 연속 \(currentStreak)일 → 최대 \(allowed)개)."
             if let next = SlotPolicy.nextTier(afterStreak: currentStreak) {
                 message += " 연속 \(next.days)일을 달성하면 \(next.slots.map { "\($0)개" } ?? "무제한")까지 열려요."

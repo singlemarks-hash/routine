@@ -62,6 +62,7 @@ enum GroupError: LocalizedError {
     case nicknameTaken
     case alreadyJoined
     case scheduleConflict(String)
+    case slotFull(used: Int, allowed: Int)
     case unknown(String)
 
     var errorDescription: String? {
@@ -73,6 +74,8 @@ enum GroupError: LocalizedError {
         case .nicknameTaken:      return "이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요."
         case .alreadyJoined:      return "이미 참여 중인 방이에요."
         case .scheduleConflict(let name): return "기존 예약 '\(name)'과(와) 시간이 겹쳐요. 개인 예약을 옮기거나 삭제해야 참여할 수 있어요."
+        case .slotFull(let used, let allowed):
+            return "활동 슬롯이 가득 찼어요 (\(used)/\(allowed)). 그룹도 슬롯 1개를 차지해요 — 기존 활동을 정리하거나 연속 달성으로 슬롯을 늘려주세요."
         case .unknown(let message): return message
         }
     }
@@ -260,6 +263,23 @@ final class GroupStore: ObservableObject {
                                   durationMinutes: room.durationMinutes,
                                   repeatWeekdays: room.repeatWeekdays,
                                   startDate: room.startDate, endDate: room.endDate)
+    }
+
+    /// 그룹도 활동 슬롯 1개를 차지한다 — 슬롯이 가득 찼으면 생성·참여 모두 차단.
+    /// (슬롯을 늘리려면 연속 달성이 필요하도록, 개인 예약과 동일한 규칙)
+    func checkSlotAvailable() throws {
+        guard let context = modelContext else { return }
+        let owner = AccountStore.shared.currentUserID
+        let reservations = (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.isActive && $0.ownerUserID == owner }))) ?? []
+        let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
+            predicate: #Predicate { $0.ownerUserID == owner }))) ?? []
+        let streak = SlotPolicy.currentStreak(sessions: sessions)
+        if let allowed = SlotPolicy.allowedSlots(forStreak: streak,
+                                                 isMember: SubscriptionManager.shared.isPro),
+           reservations.count >= allowed {
+            throw GroupError.slotFull(used: reservations.count, allowed: allowed)
+        }
     }
 
     /// 방 생성 폼(방장)도 같은 검사를 쓴다 — 방장 본인의 기존 예약과 겹치면 생성 차단.

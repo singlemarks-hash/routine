@@ -364,8 +364,9 @@ struct GroupCreateView: View {
                                       to: calendar.startOfDay(for: startDay))!
         let endDate = calendar.date(byAdding: .minute, value: startMinute + minutes,
                                     to: calendar.startOfDay(for: endDay))!
-        // 방장 본인의 기존 예약(다른 그룹 포함)과 겹치면 생성 차단 — 참여자와 같은 규칙
+        // 방장도 참여자와 같은 규칙 — 슬롯 1개 확보 + 기존 예약(다른 그룹 포함) 겹침 검사
         do {
+            try store.checkSlotAvailable()
             try store.checkScheduleConflict(startMinute: startMinute, durationMinutes: minutes,
                                             repeatWeekdays: weekdays.sorted(),
                                             startDate: startDate, endDate: endDate)
@@ -567,6 +568,7 @@ struct GroupJoinView: View {
         Task {
             defer { working = false }
             do {
+                try store.checkSlotAvailable()                // 그룹도 슬롯 1개를 차지한다
                 try store.checkScheduleConflict(room: room)   // 기존 예약과 겹침 검사
                 try await store.join(room: room, nickname: nickname.trimmingCharacters(in: .whitespaces))
                 joined = true
