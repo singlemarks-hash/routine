@@ -73,36 +73,55 @@ fun MyPageScreen(onBack: () -> Unit) {
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
-            Text("← 뒤로", color = TL.muted, fontSize = 15.sp,
-                modifier = Modifier.clickable(onClick = onBack).padding(4.dp))
+        // 상단: 원형 뒤로가기 + 중앙 타이틀 (iOS 1:1)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 24.dp)) {
+            TLCircleBack(onClick = onBack)
             Spacer(Modifier.weight(1f))
             Text("마이페이지", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.weight(1f)); Spacer(Modifier.width(48.dp))
+            Spacer(Modifier.weight(1f)); Spacer(Modifier.width(44.dp))
         }
-        MenuRow("👤  프로필 및 구독 관리") { sub = "profile" }
-        MenuRow("🌶️  강도 설정") { sub = "intensity" }
-        MenuRow("👑  멤버십") { sub = "paywall" }
-        MenuRow("🧾  점수 원장") { sub = "ledger" }
-        MenuRow("📄  이용약관") { open(Legal.TERMS_URL) }
-        MenuRow("🔒  개인정보처리방침") { open(Legal.PRIVACY_URL) }
-        MenuRow("🌐  앱 언어 — 한국어 ✓ (English 준비 중)") {}
-        Spacer(Modifier.height(40.dp))
-        Text("Culture Design Corperation ‘      ’", color = TL.faint, fontSize = 11.sp,
-            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        // 아이콘 메뉴 (투명 행)
+        IconMenuRow("👤", "프로필 및 구독 관리") { sub = "profile" }
+        IconMenuRow("👑", "멤버십") { sub = "paywall" }
+        IconMenuRow("🧾", "점수 원장") { sub = "ledger" }
+
+        androidx.compose.material3.HorizontalDivider(
+            color = TL.hairline, modifier = Modifier.padding(vertical = 18.dp))
+
+        // 텍스트 메뉴 (투명 행)
+        PlainMenuRow("강도 설정") { sub = "intensity" }
+        PlainMenuRow("앱 언어") {}
+        PlainMenuRow("이용약관") { open(Legal.TERMS_URL) }
+        PlainMenuRow("개인정보처리방침") { open(Legal.PRIVACY_URL) }
+
+        Spacer(Modifier.height(48.dp))
+        BrandSignature()
     }
 }
 
 @Composable
-private fun MenuRow(label: String, onClick: () -> Unit) {
+private fun IconMenuRow(icon: String, label: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            .background(TL.surface, TL.cornerM).clickable(onClick = onClick).padding(16.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(icon, fontSize = 22.sp)
+        Spacer(Modifier.width(16.dp))
+        Text(label, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        Text("›", color = TL.faint, fontSize = 18.sp)
+        Text("›", color = TL.faint, fontSize = 20.sp)
+    }
+}
+
+@Composable
+private fun PlainMenuRow(label: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = TL.paper, fontSize = 16.sp)
+        Spacer(Modifier.weight(1f))
+        Text("›", color = TL.faint, fontSize = 20.sp)
     }
 }
 

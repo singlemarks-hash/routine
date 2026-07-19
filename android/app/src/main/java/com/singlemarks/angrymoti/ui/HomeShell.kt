@@ -81,7 +81,7 @@ fun HomeShell() {
     val reservations by db.reservations().activeFlow(owner).collectAsState(initial = emptyList())
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
-        // 헤더 — 누적 총점 배지(→기록) · 기록 캘린더 · 마이페이지
+        // 헤더 — 점수 배지 필(→기록) · 캘린더 원형 버튼 · 마이페이지 원형 버튼 (iOS 홈 헤더 1:1)
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -89,27 +89,34 @@ fun HomeShell() {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .background(TL.surface, TL.cornerL)
-                    .border(1.dp, TL.hairline, TL.cornerL)
+                    .background(TL.surface, CircleShape)
+                    .border(1.dp, TL.hairline, CircleShape)
                     .clickable { nav = HomeNav.Calendar }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
             ) {
                 Image(
                     painterResource(if (total >= 0) R.drawable.moti_smile else R.drawable.moti_angry),
-                    null, Modifier.size(28.dp),
+                    null, Modifier.size(30.dp),
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
                 Text(
-                    "누적 총점 ${TLFormat.scoreLabel(total)}",
+                    TLFormat.scoreLabel(total),
                     color = if (total >= 0) TL.jade else TL.rec,
-                    fontSize = 17.sp, fontWeight = FontWeight.Black,
+                    fontSize = 22.sp, fontWeight = FontWeight.Black,
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("📅", fontSize = 24.sp, modifier = Modifier
-                .clickable { nav = HomeNav.Calendar }.padding(8.dp))
-            Text("👤", fontSize = 24.sp, modifier = Modifier
-                .clickable { nav = HomeNav.MyPage }.padding(8.dp))
+            Box(Modifier.size(46.dp).background(TL.surface, CircleShape)
+                .border(1.dp, TL.hairline, CircleShape)
+                .clickable { nav = HomeNav.Calendar }, contentAlignment = Alignment.Center) {
+                Text("▦", color = TL.paper, fontSize = 20.sp)
+            }
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.size(46.dp).background(TL.surface, CircleShape)
+                .border(1.dp, TL.hairline, CircleShape)
+                .clickable { nav = HomeNav.MyPage }, contentAlignment = Alignment.Center) {
+                Text("👤", fontSize = 20.sp)
+            }
         }
 
         Box(Modifier.weight(1f)) {
@@ -125,24 +132,24 @@ fun HomeShell() {
             )
         }
 
-        // 하단 활동|일정 토글
+        // 하단 활동|일정 토글 — 선택된 쪽이 종이색 캡슐 + 잉크 텍스트 (iOS 1:1)
         Row(
             modifier = Modifier
                 .padding(bottom = 20.dp)
                 .align(Alignment.CenterHorizontally)
-                .background(TL.surface, CircleShape)
+                .background(TL.raised, CircleShape)
                 .border(1.dp, TL.hairline, CircleShape)
-                .padding(4.dp),
+                .padding(5.dp),
         ) {
-            listOf("activity" to "● 활동", "schedule" to "🕐 일정").forEach { (key, label) ->
+            listOf("activity" to "◉ 활동", "schedule" to "🕐 일정").forEach { (key, label) ->
                 Box(
                     modifier = Modifier
-                        .background(if (tab == key) TL.rec else TL.surface, CircleShape)
+                        .background(if (tab == key) TL.paper else TL.raised, CircleShape)
                         .clickable { tab = key }
-                        .padding(horizontal = 22.dp, vertical = 10.dp),
+                        .padding(horizontal = 26.dp, vertical = 12.dp),
                 ) {
-                    Text(label, color = if (tab == key) TL.paper else TL.muted,
-                        fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(label, color = if (tab == key) TL.ink else TL.muted,
+                        fontSize = 16.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
@@ -172,17 +179,39 @@ private fun ActivityTab(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // 다음 활동 대형 카드 — 이름 중앙 배치 (iOS 홈 1:1)
         item {
-            TLPrimaryButton("지금 바로 시작", onClick = onQuickStart)
-        }
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TLEyebrow("예정된 활동")
-                Spacer(Modifier.weight(1f))
-                Text("+ 활동 추가", color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable(onClick = onAdd).padding(4.dp))
+            val nextRes = reservations.minByOrNull { it.nextOccurrence() ?: Long.MAX_VALUE }
+            Box(
+                Modifier.fillMaxWidth().height(170.dp)
+                    .background(TL.surface, TL.cornerL)
+                    .border(1.dp, TL.hairline.copy(alpha = 0.6f), TL.cornerL)
+                    .clickable { nextRes?.let(onEdit) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(nextRes?.name ?: "다짐을 예약해 보세요",
+                    color = if (nextRes != null) TL.paper else TL.muted,
+                    fontSize = 22.sp, fontWeight = FontWeight.Black,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp))
             }
         }
+        item { TLPrimaryButton("활동 추가하기", onClick = onAdd) }
+        item {
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(TL.surface, TL.cornerL)
+                    .border(1.dp, TL.hairline.copy(alpha = 0.6f), TL.cornerL)
+                    .clickable(onClick = onQuickStart)
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("지금 바로 시작", color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("›", color = TL.muted, fontSize = 22.sp)
+            }
+        }
+        item { TLEyebrow("예정된 활동") }
         if (reservations.isEmpty()) {
             item {
                 TLCard {

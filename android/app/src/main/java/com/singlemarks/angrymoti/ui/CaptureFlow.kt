@@ -33,8 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -268,19 +271,16 @@ fun SessionScreen() {
             Text("${intensity.emoji} ${intensity.title}", color = TL.muted, fontSize = 13.sp)
             Spacer(Modifier.height(20.dp))
 
-            // 진행 링 + 남은 시간
-            Box(contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(
-                    progress = { (recorded.toFloat() / target).coerceIn(0f, 1f) },
-                    modifier = Modifier.size(220.dp), color = TL.rec,
-                    strokeWidth = 10.dp, trackColor = TL.raised,
-                )
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
-                        color = TL.paper, fontSize = 40.sp, fontWeight = FontWeight.Black)
-                    Text("남은 시간", color = TL.faint, fontSize = 12.sp)
-                }
-            }
+            // 시그니처 시계판 — 남은 시간만큼 빨간 부채꼴이 12시를 향해 줄어든다 (iOS FocusDial)
+            FocusDial(
+                remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
+                totalMinutes = target / 60,
+                modifier = Modifier.size(240.dp),
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
+                color = TL.paper, fontSize = 42.sp, fontWeight = FontWeight.Black)
+            Text("남은 시간", color = TL.faint, fontSize = 12.sp, letterSpacing = 2.2.sp)
             Spacer(Modifier.height(16.dp))
 
             // 셀피 프리뷰 (공유 Preview 유스케이스 재부착 — 재연결 없음)
@@ -422,13 +422,22 @@ fun SessionResultScreen() {
             if (outcome.isSuccess && (slotBonus != null || unlockBonus != null)) ConfettiBurst()
         }
         Spacer(Modifier.height(14.dp))
-        Text(outcome.title, color = if (outcome.isSuccess) TL.jade else TL.rec,
-            fontSize = 26.sp, fontWeight = FontWeight.Black)
-        Text(session.activityName, color = TL.paper, fontSize = 16.sp)
-        Spacer(Modifier.height(8.dp))
+        Text(if (outcome == SessionOutcome.EMERGENCY) "긴급 종료됨" else outcome.title,
+            color = TL.paper, fontSize = 30.sp, fontWeight = FontWeight.Black)
+        Text(session.activityName, color = TL.muted, fontSize = 15.sp)
+        Spacer(Modifier.height(10.dp))
+        Text("순수 촬영 ${TLFormat.hms(session.recordedSeconds.toLong())} / 목표 ${TLFormat.hms(session.targetSeconds.toLong())}",
+            color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(10.dp))
         ScoreRules.points(outcome, session.intensity, session.targetSeconds / 60)?.let { (_, pts) ->
-            Text("${TLFormat.scoreLabel(pts)}점", color = if (pts >= 0) TL.jade else TL.rec,
-                fontSize = 20.sp, fontWeight = FontWeight.Black)
+            Text(
+                if (pts >= 0) "+${pts}점 상점" else "${pts}점 벌점",
+                color = if (pts >= 0) TL.jade else TL.rec,
+                fontSize = 15.sp, fontWeight = FontWeight.Black,
+                modifier = Modifier.background(TL.surface, TL.cornerS)
+                    .border(1.dp, TL.hairline, TL.cornerS)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
         } ?: Text("벌점 없음", color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
 
         slotBonus?.let { (days, pts) ->
@@ -446,11 +455,38 @@ fun SessionResultScreen() {
                     .padding(horizontal = 14.dp, vertical = 8.dp))
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(18.dp))
+        // 타임랩스 미리보기 카드 (iOS 1:1 — 썸네일 + 캡션)
         session.videoFileName?.let {
-            Text("촬영 ${TLFormat.hms(session.recordedSeconds.toLong())} · 타임랩스가 준비됐어요",
-                color = TL.muted, fontSize = 13.sp)
-            Text("저장하지 않으면 닫을 때 자동 삭제됩니다", color = TL.faint, fontSize = 12.sp)
+            TLCard(raised = true) {
+                TLEyebrow("타임랩스 미리보기")
+                val thumb = session.thumbnailFileName?.let { name ->
+                    remember(name) {
+                        runCatching {
+                            android.graphics.BitmapFactory.decodeFile(
+                                File(CameraRecorder.sessionDir(context), name).absolutePath)
+                        }.getOrNull()
+                    }
+                }
+                Box(
+                    Modifier.fillMaxWidth(0.62f).aspectRatio(3f / 4f)
+                        .align(Alignment.CenterHorizontally)
+                        .clip(TL.cornerM).background(TL.ink),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    thumb?.let {
+                        Image(it.asImageBitmap(), null, Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    }
+                    Box(Modifier.size(64.dp).background(Color.White, CircleShape),
+                        contentAlignment = Alignment.Center) {
+                        Text("▶", color = TL.ink, fontSize = 22.sp)
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("저장하지 않으면 닫을 때 삭제됩니다. 기록·점수는 유지됩니다.",
+                    color = TL.faint, fontSize = 12.sp)
+            }
         }
         Spacer(Modifier.weight(1f))
 
@@ -463,12 +499,10 @@ fun SessionResultScreen() {
             }
             Spacer(Modifier.height(10.dp))
         }
-        Text("저장 안 하고 닫기", color = TL.muted, fontSize = 14.sp,
-            modifier = Modifier.clickable {
-                // 미저장 → 즉시 삭제
-                CameraRecorder.deleteFiles(context, session.videoFileName, session.thumbnailFileName)
-                AppState.dismissResult(context)
-            }.padding(8.dp))
+        TLPrimaryButton("종료", tint = TL.amber) {
+            CameraRecorder.deleteFiles(context, session.videoFileName, session.thumbnailFileName)
+            AppState.dismissResult(context)
+        }
         Spacer(Modifier.height(20.dp))
     }
 }

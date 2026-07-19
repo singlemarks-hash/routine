@@ -112,25 +112,23 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("취소", color = TL.muted, fontSize = 16.sp,
-                modifier = Modifier.clickable(onClick = onDone).padding(4.dp))
+            TLPillButton("닫기", tint = TL.paper, onClick = onDone)
             Spacer(Modifier.weight(1f))
-            Text(if (existing == null) "활동 추가" else "활동 편집",
-                color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(if (existing == null) "예약 추가" else "예약 편집",
+                color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
-            Text("저장", color = if (isLocked) TL.faint else TL.rec, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable(enabled = !isLocked) {
+            TLPillButton("저장", tint = TL.rec, enabled = !isLocked, onClick = save@{
                     // 검증 — 오류는 최상단에 즉시 표시
                     val finalName = name.trim()
                     val sm = timeState.hour * 60 + timeState.minute
-                    if (finalName.isEmpty()) { error = "활동명을 입력해주세요."; return@clickable }
-                    if (slotFull) { error = "활동 슬롯이 가득 찼어요. 연속 달성일을 쌓으면 슬롯이 늘어나요."; return@clickable }
+                    if (finalName.isEmpty()) { error = "활동명을 입력해주세요."; return@save }
+                    if (slotFull) { error = "활동 슬롯이 가득 찼어요. 연속 달성일을 쌓으면 슬롯이 늘어나요."; return@save }
                     val overlap = allReservations.any { other ->
                         other.id != existing?.id && other.overlaps(sm, durationMinutes) &&
                             (other.isRepeating || repeatDays.isNotEmpty() ||
                                 other.oneOffDayStart == todayStart())
                     }
-                    if (overlap) { error = "같은 시간대에 이미 다른 활동이 있어요."; return@clickable }
+                    if (overlap) { error = "같은 시간대에 이미 다른 활동이 있어요."; return@save }
 
                     scope.launch(Dispatchers.IO) {
                         val r = (existing ?: Reservation(
@@ -146,7 +144,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         r.nextOccurrence()?.let { AlarmScheduler.scheduleExact(context, r.id, it) }
                         withContext(Dispatchers.Main) { onDone() }
                     }
-                }.padding(4.dp))
+                })
         }
 
         Column(
@@ -268,9 +266,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             }
 
             existing?.let { r ->
-                Text("활동 삭제", color = TL.rec, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                Text("예약 삭제", color = TL.rec, fontSize = 17.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.fillMaxWidth()
-                        .background(TL.raised, TL.cornerM)
+                        .background(TL.surface, TL.cornerL)
                         .clickable(enabled = !isLocked) {
                             scope.launch(Dispatchers.IO) {
                                 AlarmScheduler.cancel(context, r.id)
