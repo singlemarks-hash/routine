@@ -138,6 +138,8 @@ final class AppState: ObservableObject {
         var targetSeconds: Int
         var scheduledAt: Date?
         var reservationID: UUID?
+        /// 그룹 예약은 방의 강도를 전역 설정 대신 사용
+        var intensityOverride: Intensity? = nil
     }
 
     // 온보딩 & 강도 (앱 전역 단일 값)
@@ -209,6 +211,8 @@ final class AppState: ObservableObject {
             self?.handleUserChanged()
         }
         engine.bind(context: context)
+        GroupStore.shared.bind(context: context)
+        Task { await GroupStore.shared.refresh() }
         engine.onFinalized = { [weak self] in
             self?.sessionFinished()
         }
@@ -235,6 +239,7 @@ final class AppState: ObservableObject {
         case .active:
             engine.handleReturnEvent()
             applyPendingDowngradeIfDue()
+            Task { await GroupStore.shared.refresh() }
             sweepNoShows()
             checkDueAlarm()
             refreshDerived()
@@ -283,6 +288,7 @@ final class AppState: ObservableObject {
     private func handleUserChanged() {
         refreshDerived()
         rescheduleAlarmsForCurrentUser()
+        Task { await GroupStore.shared.refresh() }
         sweepNoShows()
         checkDueAlarm()
     }
@@ -356,7 +362,8 @@ final class AppState: ObservableObject {
     func proceedToMountGuide(reservation: Reservation, fireDate: Date) {
         let pending = PendingSession(activityName: reservation.name, tag: reservation.tag,
                                      targetSeconds: reservation.durationMinutes * 60,
-                                     scheduledAt: fireDate, reservationID: reservation.id)
+                                     scheduledAt: fireDate, reservationID: reservation.id,
+                                     intensityOverride: reservation.intensityOverride)
         route = .mountGuide(pending: pending)
         // 알람은 촬영 시작 시점에만 정지 → 여기서는 계속 울린다
     }
@@ -393,7 +400,7 @@ final class AppState: ObservableObject {
         guard let pending = armedPending else { return }
         armedPending = nil
         let session = FocusSession(activityName: pending.activityName, tag: pending.tag,
-                                   intensity: intensity,
+                                   intensity: pending.intensityOverride ?? intensity,
                                    scheduledAt: pending.scheduledAt,
                                    targetSeconds: pending.targetSeconds,
                                    reservationID: pending.reservationID,
@@ -421,8 +428,9 @@ final class AppState: ObservableObject {
         AlarmScheduler.shared.stopAlarmSound()
         AlarmScheduler.shared.cancelAlarmNotifications(reservationID: reservation.id, fireDate: fireDate)
 
+        let effectiveIntensity = reservation.intensityOverride ?? intensity
         let session = FocusSession(activityName: reservation.name, tag: reservation.tag,
-                                   intensity: intensity, scheduledAt: fireDate,
+                                   intensity: effectiveIntensity, scheduledAt: fireDate,
                                    targetSeconds: reservation.durationMinutes * 60,
                                    reservationID: reservation.id,
                                    ownerUserID: AccountStore.shared.currentUserID)
@@ -431,13 +439,14 @@ final class AppState: ObservableObject {
         session.endedAt = .now
         context.insert(session)
 
-        if let (type, points) = ScoreRules.points(for: .emergency, intensity: intensity,
+        if let (type, points) = ScoreRules.points(for: .emergency, intensity: effectiveIntensity,
                                                   durationMinutes: reservation.durationMinutes) {
             let event = ScoreEvent(type: type, points: points, sessionID: session.id,
-                                   intensity: intensity, note: reason,
+                                   intensity: effectiveIntensity, note: reason,
                                    ownerUserID: AccountStore.shared.currentUserID)
             context.insert(event)
             AccountStore.shared.mirror(event: event)   // 사유+벌점 클라우드 백업
+            GroupStore.shared.reportScore(reservation: reservation, points: points)
         }
         try? context.save()
         refreshDerived()

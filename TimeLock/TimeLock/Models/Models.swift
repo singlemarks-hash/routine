@@ -96,6 +96,16 @@ enum SlotPolicy {
     }
 }
 
+// MARK: - 그룹 챌린지 정책
+
+enum GroupPolicy {
+    static let maxMembers = 30            // 방 하나의 최대 참여 인원
+    static let minMembersToStart = 2      // 시작 시각에 이 인원 미만이면 방 자동 삭제
+    static let maxDurationDays = 92       // 시작일로부터 최대 3개월
+    static let codeLength = 5             // 초대코드 자릿수 (영문 대문자+숫자)
+    static let resultRetentionDays = 30   // 종료 후 최종 결과 보존 기간
+}
+
 // MARK: - 강도 (앱 전역 단일 값)
 
 enum Intensity: String, Codable, CaseIterable, Identifiable {
@@ -137,6 +147,12 @@ final class Reservation {
     var oneOffDate: Date?
     var createdAt: Date
     var isActive: Bool
+    /// 그룹 챌린지에서 자동 생성된 예약이면 그 방의 ID. 수정·삭제 잠금 + 그룹 점수 집계에 사용.
+    var groupID: String?
+    /// 반복 예약의 종료 시점(이후 발생 없음). 그룹 예약은 방의 종료일. nil = 무기한.
+    var endDate: Date?
+    /// 예약 단위 강도 오버라이드 — 그룹 예약은 방장이 정한 강도를 전역 설정 대신 사용.
+    var intensityOverrideRaw: String?
 
     init(name: String, tag: String, startMinute: Int, durationMinutes: Int,
          repeatWeekdays: [Int] = [], oneOffDate: Date? = nil, ownerUserID: String = "") {
@@ -153,10 +169,17 @@ final class Reservation {
     }
 
     var isRepeating: Bool { !repeatWeekdays.isEmpty }
+    /// 그룹 챌린지 예약 — 수정·삭제 잠금 (탈퇴로만 정리 가능)
+    var isGroupReservation: Bool { groupID != nil }
+    /// 강도: 그룹 예약은 방의 강도, 그 외엔 nil(호출측이 전역 설정 사용)
+    var intensityOverride: Intensity? {
+        intensityOverrideRaw.flatMap(Intensity.init(rawValue:))
+    }
 
     /// 주어진 날짜에 발생하는 예약이면 그 날의 시작 Date 반환
     func occurrence(on day: Date, calendar: Calendar = .current) -> Date? {
         let dayStart = calendar.startOfDay(for: day)
+        if let end = endDate, dayStart > end { return nil }   // 종료일 지난 반복은 발생 없음
         if isRepeating {
             let weekday = calendar.component(.weekday, from: dayStart)
             guard repeatWeekdays.contains(weekday) else { return nil }
@@ -283,6 +306,7 @@ enum ScoreEventType: String, Codable, CaseIterable {
     case absence        // (미사용 예약) 자리비움은 벌점 없이 자동 긴급 중단으로 처리 — 실패 시에만 이탈 벌점
     case penaltyReset   // (미사용 예약) 과거 '멤버십 벌점 리셋' 혜택의 흔적 — 기존 기록 표시 호환용으로 유지
     case slotBonus      // 연속 달성으로 슬롯이 확장되는 순간의 보너스 상점
+    case groupQuit      // 그룹 챌린지 중도 포기 벌점 (-50 고정)
 
     var title: String {
         switch self {
@@ -294,6 +318,7 @@ enum ScoreEventType: String, Codable, CaseIterable {
         case .absence:      return "자리비움 벌점"
         case .penaltyReset: return "멤버십 벌점 리셋"
         case .slotBonus:    return "슬롯 확장 보너스"
+        case .groupQuit:    return "그룹 중도 포기"
         }
     }
 }
@@ -338,6 +363,9 @@ enum ScoreRules {
         default:     return 30
         }
     }
+
+    /// 그룹 챌린지 중도 포기 벌점 — 강도와 무관하게 고정 -50.
+    static let groupQuitPenalty = -50
 
     /// 미친 매운맛은 상점도 2배, 벌점도 2배 — 하이 리스크 하이 리턴.
     static func points(for outcome: SessionOutcome, intensity: Intensity,

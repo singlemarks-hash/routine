@@ -12,14 +12,19 @@ import SwiftData
 // MARK: - 쉘: 활동 | 기록 토글
 
 struct HomeShellView: View {
-    enum Tab { case activity, schedule }
+    enum Tab { case activity, schedule, group }
     @State private var tab: Tab = .activity
+    @EnvironmentObject private var account: AccountStore
+
+    /// 그룹 챌린지는 계정 전용 — 게스트에겐 탭 자체를 숨긴다
+    private var showsGroupTab: Bool { account.isSignedIn && !account.isGuest }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             switch tab {
             case .activity: HomeView()
             case .schedule: WeeklyScheduleView()
+            case .group: GroupTabView()
             }
 
             bottomToggle
@@ -27,14 +32,20 @@ struct HomeShellView: View {
         }
         .background(TL.ink.ignoresSafeArea())
         .animation(TLMotion.smooth, value: tab)
+        .onChange(of: showsGroupTab) {
+            if !showsGroupTab, tab == .group { tab = .activity }
+        }
     }
 
-    /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성 (1.5배 확대)
+    /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성
     private var bottomToggle: some View {
         HStack(spacing: 5) {
-            // 활동 = REC 아이콘(촬영이 곧 활동 — 앱 시그니처), 일정 = 시계
+            // 활동 = REC 아이콘(촬영이 곧 활동 — 앱 시그니처), 일정 = 시계, 그룹 = 사람들
             toggleSegment("활동", icon: "record.circle", tab: .activity)
             toggleSegment("일정", icon: "clock.fill", tab: .schedule)
+            if showsGroupTab {
+                toggleSegment("그룹", icon: "person.3.fill", tab: .group)
+            }
         }
         .padding(7)
         .background(.ultraThinMaterial, in: Capsule())
@@ -49,19 +60,21 @@ struct HomeShellView: View {
 
     private func toggleSegment(_ title: String, icon: String, tab target: Tab) -> some View {
         let selected = tab == target
+        // 3개 탭이면 캡슐 폭을 줄여 한 줄에 들어가게 한다
+        let compact = showsGroupTab
         return Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             withAnimation(TLMotion.snappy) { tab = target }
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: compact ? 6 : 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: compact ? 17 : 20, weight: .semibold))
                 Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: compact ? 17 : 20, weight: .bold, design: .rounded))
             }
             .foregroundStyle(selected ? TL.ink : TL.paper.opacity(0.72))
-            .padding(.horizontal, 32)
-            .padding(.vertical, 15)
+            .padding(.horizontal, compact ? 18 : 32)
+            .padding(.vertical, compact ? 13 : 15)
             .background(
                 Capsule()
                     .fill(selected ? AnyShapeStyle(TL.paper) : AnyShapeStyle(.clear))
@@ -103,6 +116,7 @@ struct HomeView: View {
     @State private var showQuickStart = false
     @State private var showGoalEditor = false
     @State private var goalText = ""
+    @State private var showGroupLockNotice = false
 
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -152,6 +166,11 @@ struct HomeView: View {
             .onReceive(clock) { now = $0 }
             .onAppear { loadGoal() }
             .onChange(of: account.currentUserID) { loadGoal() }
+            .alert("그룹 일정이에요", isPresented: $showGroupLockNotice) {
+                Button("확인", role: .cancel) {}
+            } message: {
+                Text("그룹에서 만들어진 일정은 수정하거나 삭제할 수 없어요. 그만두려면 그룹 탭에서 탈퇴하세요.")
+            }
         }
     }
 
@@ -300,12 +319,22 @@ struct HomeView: View {
         let showsTimer = remaining > 0 && remaining <= 12 * 3600
 
         return Button {
+            // 그룹 예약은 편집 잠금 — 그룹 탭에서 관리 (탈퇴로만 삭제)
+            guard !reservation.isGroupReservation else {
+                showGroupLockNotice = true
+                return
+            }
             editing = reservation
             showEditor = true
         } label: {
             TLCard {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
+                        if reservation.isGroupReservation {
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(TL.amber)
+                        }
                         Text(reservation.name)
                             .font(.tlTitle(17))
                             .foregroundStyle(TL.paper)

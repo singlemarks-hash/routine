@@ -131,6 +131,8 @@ struct WeeklyScheduleView: View {
 
     private func timetableRow(_ reservation: Reservation) -> some View {
         Button {
+            // 그룹 예약은 편집 잠금 — 그룹 탭에서 탈퇴로만 정리 가능
+            guard !reservation.isGroupReservation else { return }
             editing = reservation
             showEditor = true
         } label: {
@@ -140,10 +142,17 @@ struct WeeklyScheduleView: View {
                     .foregroundStyle(TL.paper)
                     .frame(width: 74, alignment: .leading)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(reservation.name)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(TL.paper)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        if reservation.isGroupReservation {
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(TL.amber)
+                        }
+                        Text(reservation.name)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TL.paper)
+                            .lineLimit(1)
+                    }
                     Text("\(TLFormat.durationLabel(reservation.durationMinutes))\(oneOffLabel(reservation))")
                         .font(.system(size: 11)).foregroundStyle(TL.muted)
                 }

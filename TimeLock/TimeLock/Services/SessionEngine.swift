@@ -483,6 +483,7 @@ final class SessionEngine: NSObject, ObservableObject {
                                    ownerUserID: s.ownerUserID)
             context.insert(event)
             AccountStore.shared.mirror(event: event)
+            reportGroupScoreIfNeeded(session: s, points: points, context: context)
         }
         // 이번 완주로 연속 달성일이 슬롯 확장 단계(3·5·7·10·30일)를 넘었으면 보너스 상점 +5
         // 매운맛 완주 3회째라면 미친 매운맛 해제 보너스 +5 (평생 1회)
@@ -499,6 +500,14 @@ final class SessionEngine: NSObject, ObservableObject {
         phase = .finished(outcome)
         cleanupRuntime()
         onFinalized?()
+    }
+
+    /// 세션이 그룹 예약 소속이면 상벌점을 그룹 랭킹 점수에도 합산한다.
+    private func reportGroupScoreIfNeeded(session s: FocusSession, points: Int, context: ModelContext) {
+        guard let rid = s.reservationID else { return }
+        let reservation = (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.id == rid })))?.first
+        GroupStore.shared.reportScore(reservation: reservation, points: points)
     }
 
     private func cleanupRuntime() {
@@ -552,6 +561,8 @@ final class SessionEngine: NSObject, ObservableObject {
         }
 
         for reservation in reservations where reservation.isActive {
+            // 그룹 예약은 방장이 정한 강도로 판정 (전역 설정 무시)
+            let effectiveIntensity = reservation.intensityOverride ?? intensity
             for offset in [-1, 0] {   // 어제~오늘 발생분 점검
                 guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
                       let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
@@ -562,21 +573,22 @@ final class SessionEngine: NSObject, ObservableObject {
                 guard !existing.contains(key) else { continue }
 
                 let noShow = FocusSession(activityName: reservation.name, tag: reservation.tag,
-                                          intensity: intensity, scheduledAt: fire,
+                                          intensity: effectiveIntensity, scheduledAt: fire,
                                           targetSeconds: reservation.durationMinutes * 60,
                                           reservationID: reservation.id,
                                           ownerUserID: reservation.ownerUserID)
                 noShow.outcome = .noShow
                 noShow.endedAt = fire.addingTimeInterval(graceWindow)
                 context.insert(noShow)
-                if let (type, points) = ScoreRules.points(for: .noShow, intensity: intensity,
+                if let (type, points) = ScoreRules.points(for: .noShow, intensity: effectiveIntensity,
                                                           durationMinutes: reservation.durationMinutes) {
                     let event = ScoreEvent(type: type, points: points,
-                                           sessionID: noShow.id, intensity: intensity,
+                                           sessionID: noShow.id, intensity: effectiveIntensity,
                                            note: "\(TimePolicy.startWindowMinutes)분 내 미시작",
                                            ownerUserID: reservation.ownerUserID)
                     context.insert(event)
                     AccountStore.shared.mirror(event: event)
+                    GroupStore.shared.reportScore(reservation: reservation, points: points)
                 }
                 existing.insert(key)
             }
@@ -610,6 +622,7 @@ final class SessionEngine: NSObject, ObservableObject {
                                    ownerUserID: orphan.ownerUserID)
             context.insert(event)
             AccountStore.shared.mirror(event: event)
+            reportGroupScoreIfNeeded(session: orphan, points: points, context: context)
         }
         try? context.save()
         defaults.removeObject(forKey: Key.activeSessionID)
