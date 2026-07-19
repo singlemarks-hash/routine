@@ -579,7 +579,7 @@ final class SessionEngine: NSObject, ObservableObject {
             for offset in dayOffsets {
                 guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
                       let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
-                guard fire >= reservation.createdAt else { continue }   // 예약을 만들기 전 발생분은 책임 없음
+                guard fire >= reservation.accountabilityStart else { continue }   // 생성(또는 마지막 편집) 전 발생분은 책임 없음
                 guard fire.addingTimeInterval(graceWindow) < now else { continue }   // 10분 창이 끝났고
                 guard reservation.isGroupReservation
                         || fire > now.addingTimeInterval(-86_400 * 2) else { continue }

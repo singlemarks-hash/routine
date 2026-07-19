@@ -25,7 +25,12 @@ data class Reservation(
     val oneOffDayStart: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val isActive: Boolean = true,
+    /** 노쇼 책임 기준 시각 — 편집으로 시간을 옮기면 그 순간으로 갱신. null = createdAt.
+     *  (createdAt을 직접 바꾸면 '생성 전 잘못 찍힌 노쇼 복구'가 과거의 정당한 노쇼까지 지운다) */
+    val accountableFrom: Long? = null,
 ) {
+    /** 이 시각 이전 발생분은 노쇼 책임이 없다 */
+    val accountabilityStart: Long get() = accountableFrom ?: createdAt
     val repeatWeekdays: List<Int>
         get() = repeatWeekdaysCsv.split(",").filter { it.isNotBlank() }.map { it.toInt() }
     val isRepeating get() = repeatWeekdays.isNotEmpty()

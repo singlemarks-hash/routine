@@ -153,6 +153,10 @@ final class Reservation {
     var endDate: Date?
     /// 예약 단위 강도 오버라이드 — 그룹 예약은 방장이 정한 강도를 전역 설정 대신 사용.
     var intensityOverrideRaw: String?
+    /// 노쇼 책임 기준 시각. 편집으로 시간을 옮기면 그 순간으로 갱신된다 —
+    /// createdAt을 직접 바꾸면 '생성 전 잘못 찍힌 노쇼 복구' 로직이 과거의 정당한
+    /// 노쇼까지 지워버리므로, 책임 기준은 별도 필드로 관리한다. nil = createdAt.
+    var accountableFrom: Date?
 
     init(name: String, tag: String, startMinute: Int, durationMinutes: Int,
          repeatWeekdays: [Int] = [], oneOffDate: Date? = nil, ownerUserID: String = "") {
@@ -175,6 +179,8 @@ final class Reservation {
     var intensityOverride: Intensity? {
         intensityOverrideRaw.flatMap(Intensity.init(rawValue:))
     }
+    /// 이 시각 이전 발생분은 노쇼 책임이 없다 (생성 시각, 편집했다면 마지막 편집 시각)
+    var accountabilityStart: Date { accountableFrom ?? createdAt }
 
     /// 주어진 날짜에 발생하는 예약이면 그 날의 시작 Date 반환
     func occurrence(on day: Date, calendar: Calendar = .current) -> Date? {

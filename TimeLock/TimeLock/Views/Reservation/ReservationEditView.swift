@@ -366,6 +366,10 @@ struct ReservationEditView: View {
             r.durationMinutes = durationMinutes
             r.repeatWeekdays = isRepeating ? Array(weekdays) : []
             r.oneOffDate = isRepeating ? nil : Calendar.current.startOfDay(for: oneOffDate)
+            // 편집 시 책임 기준 시각을 지금으로 갱신 — 이걸 안 하면 시간을 더 이른
+            // 시각으로 옮겼을 때 '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼가 된다.
+            // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
+            r.accountableFrom = .now
         } else {
             let r = Reservation(name: trimmedName, tag: finalTag,
                                 startMinute: startMinute, durationMinutes: durationMinutes,

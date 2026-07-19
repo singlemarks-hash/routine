@@ -139,6 +139,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             durationMinutes = durationMinutes,
                             repeatWeekdaysCsv = repeatDays.sorted().joinToString(","),
                             oneOffDayStart = if (repeatDays.isEmpty()) nextOneOffDay(sm) else null,
+                            // 편집 시 책임 기준 시각 갱신 — 더 이른 시각으로 옮겨도
+                            // '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼되지 않게.
+                            // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
+                            accountableFrom = if (existing != null) System.currentTimeMillis() else null,
                         )
                         db.reservations().upsert(r)
                         r.nextOccurrence()?.let { AlarmScheduler.scheduleExact(context, r.id, it) }

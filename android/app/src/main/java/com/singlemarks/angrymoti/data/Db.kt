@@ -80,16 +80,24 @@ interface ScoreDao {
     suspend fun deleteAll(owner: String)
 }
 
-@Database(entities = [Reservation::class, FocusSession::class, ScoreEvent::class], version = 1, exportSchema = false)
+@Database(entities = [Reservation::class, FocusSession::class, ScoreEvent::class], version = 2, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun reservations(): ReservationDao
     abstract fun sessions(): SessionDao
     abstract fun scores(): ScoreDao
 
     companion object {
+        /** v2: 노쇼 책임 기준 시각(accountableFrom) 추가 — 기존 데이터는 null(=createdAt 기준) */
+        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE reservations ADD COLUMN accountableFrom INTEGER")
+            }
+        }
+
         @Volatile private var instance: AppDb? = null
         fun get(context: Context): AppDb = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDb::class.java, "angrymoti.db")
+                .addMigrations(MIGRATION_1_2)
                 .build().also { instance = it }
         }
     }

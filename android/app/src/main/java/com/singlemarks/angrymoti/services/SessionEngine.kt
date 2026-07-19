@@ -475,7 +475,7 @@ object SessionEngine {
         for (r in reservations) {
             for (dayStart in listOf(today - 86_400_000L, today)) {
                 val fire = r.occurrenceOn(dayStart) ?: continue
-                if (fire < r.createdAt) continue                    // 생성 전 발생분은 책임 없음
+                if (fire < r.accountabilityStart) continue          // 생성(또는 마지막 편집) 전 발생분은 책임 없음
                 if (fire + grace >= now) continue                   // 10분 창이 아직 안 끝남
                 if (fire <= now - 86_400_000L * 2) continue
                 val key = "${r.id}-$fire"
