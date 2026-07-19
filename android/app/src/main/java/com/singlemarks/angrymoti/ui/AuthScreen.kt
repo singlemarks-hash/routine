@@ -138,7 +138,7 @@ fun AuthScreen() {
             }
 
             Spacer(Modifier.height(22.dp))
-            TLPrimaryButton("게스트로 둘러보기", tint = TL.raised) {
+            TLGhostButton("게스트로 둘러보기") {
                 AccountStore.continueAsGuest(null)
             }
             Text("게스트 기록은 이 기기에만 저장돼요", color = TL.faint, fontSize = 12.sp,

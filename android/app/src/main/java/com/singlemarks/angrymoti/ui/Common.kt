@@ -153,6 +153,21 @@ fun TLPillButton(text: String, tint: Color = TL.paper, enabled: Boolean = true, 
     }
 }
 
+/** 공용 화면 헤더 — 원형 뒤로가기 + 중앙 타이틀 (모든 서브 화면 통일) */
+@Composable
+fun TLScreenHeader(title: String, onBack: () -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+    ) {
+        TLCircleBack(onClick = onBack)
+        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+        Text(title, color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+        androidx.compose.foundation.layout.Spacer(Modifier.size(44.dp))
+    }
+}
+
 /** 브랜드 시그니처 (세리프, 흐리게) */
 @Composable
 fun BrandSignature(modifier: Modifier = Modifier) {

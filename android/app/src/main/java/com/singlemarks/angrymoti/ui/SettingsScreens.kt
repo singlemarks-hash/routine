@@ -141,13 +141,7 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
     val minus = events.filter { it.points < 0 }.sumOf { it.points }
 
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
-            Text("← 뒤로", color = TL.muted, fontSize = 15.sp,
-                modifier = Modifier.clickable(onClick = onBack).padding(4.dp))
-            Spacer(Modifier.weight(1f))
-            Text("프로필 및 구독 관리", color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.weight(1f)); Spacer(Modifier.width(48.dp))
-        }
+        TLScreenHeader("프로필 및 구독 관리", onBack = onBack)
 
         TLCard {
             Text(user?.name ?: "게스트", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
@@ -240,13 +234,7 @@ fun IntensityScreen(onBack: () -> Unit) {
     val isPro by SubscriptionManager.isPro.collectAsState()
 
     Column(Modifier.fillMaxSize().background(TL.ink).padding(20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
-            Text("← 뒤로", color = TL.muted, fontSize = 15.sp,
-                modifier = Modifier.clickable(onClick = onBack).padding(4.dp))
-            Spacer(Modifier.weight(1f))
-            Text("강도 설정", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.weight(1f)); Spacer(Modifier.width(48.dp))
-        }
+        TLScreenHeader("강도 설정", onBack = onBack)
         IntensityCard(Intensity.SPICY, intensity == Intensity.SPICY, locked = false) {
             AppState.requestIntensityChange(Intensity.SPICY)
         }
@@ -281,8 +269,7 @@ fun PaywallScreen(onBack: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("← 뒤로", color = TL.muted, fontSize = 15.sp,
-                modifier = Modifier.clickable(onClick = onBack).padding(4.dp))
+            TLCircleBack(onClick = onBack)
             Spacer(Modifier.weight(1f))
         }
         Image(painterResource(R.drawable.moti_member), null, Modifier.size(140.dp))
@@ -339,13 +326,7 @@ fun LedgerScreen(onBack: () -> Unit) {
     val events by db.scores().allFlow(AccountStore.currentUserID).collectAsState(initial = emptyList())
 
     Column(Modifier.fillMaxSize().background(TL.ink).padding(20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
-            Text("← 뒤로", color = TL.muted, fontSize = 15.sp,
-                modifier = Modifier.clickable(onClick = onBack).padding(4.dp))
-            Spacer(Modifier.weight(1f))
-            Text("점수 원장", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.weight(1f)); Spacer(Modifier.width(48.dp))
-        }
+        TLScreenHeader("점수 원장", onBack = onBack)
         androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(events.size) { i ->
                 val e = events[i]

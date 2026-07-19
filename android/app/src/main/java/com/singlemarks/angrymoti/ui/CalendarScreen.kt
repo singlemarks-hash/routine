@@ -60,14 +60,7 @@ fun CalendarScreen(onBack: () -> Unit) {
 
     LazyColumn(Modifier.fillMaxSize().background(TL.ink).padding(horizontal = 20.dp)) {
         item {
-            Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("← 뒤로", color = TL.muted, fontSize = 15.sp,
-                    modifier = Modifier.clickable(onClick = onBack).padding(4.dp))
-                Spacer(Modifier.weight(1f))
-                Text("기록", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.weight(1f))
-                Spacer(Modifier.width(48.dp))
-            }
+            Box(Modifier.padding(top = 14.dp)) { TLScreenHeader("기록", onBack = onBack) }
         }
         item {
             TLCard {
