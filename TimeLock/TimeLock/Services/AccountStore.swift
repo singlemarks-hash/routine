@@ -422,7 +422,17 @@ final class AccountStore: ObservableObject {
         //    (인증 계정을 지우기 전에 수행 — 이후엔 보안 규칙상 쓰기 권한이 사라진다)
         #if canImport(FirebaseFirestore)
         if backendActive, !isGuestAccount {
-            let userDoc = Firestore.firestore().collection("users").document(uid)
+            let db = Firestore.firestore()
+            let userDoc = db.collection("users").document(uid)
+            // 참여 중인 그룹에서 내 멤버 문서(닉네임·점수)를 지운다 —
+            // 남기면 계정이 사라진 뒤에도 랭킹에 유령 회원으로 계속 표시된다.
+            if let groupIDs = (try? await userDoc.getDocument())?.data()?["groupIDs"] as? [String] {
+                for roomID in groupIDs {
+                    let roomRef = db.collection("groups").document(roomID)
+                    try? await roomRef.collection("members").document(uid).delete()
+                    try? await roomRef.updateData(["memberCount": FieldValue.increment(Int64(-1))])
+                }
+            }
             if let snapshot = try? await userDoc.collection("scoreEvents").getDocuments() {
                 for doc in snapshot.documents { try? await doc.reference.delete() }
             }

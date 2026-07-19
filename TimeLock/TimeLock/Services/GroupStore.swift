@@ -107,6 +107,7 @@ final class GroupStore: ObservableObject {
         guard backendActive, AccountStore.shared.isSignedIn, !AccountStore.shared.isGuest else {
             rooms = []; return
         }
+        guard !isRefreshing else { return }   // 동시 실행 방지 (안내 카드 중복 누적 차단)
         isRefreshing = true
         defer { isRefreshing = false }
         let db = Firestore.firestore()
@@ -145,7 +146,8 @@ final class GroupStore: ObservableObject {
                 }
                 await removeMembershipRef(roomID: id)
                 try? await deleteRoomDocuments(roomID: id)
-                removeLocalReservation(roomID: id)
+                // 취소된 방은 예약 제거 + 그 예약에 잘못 찍힌 노쇼 기록까지 되돌린다
+                removeLocalReservation(roomID: id, purgeNoShows: true)
                 continue
             }
             // 30일 보존 기간 만료 → 서버에서 삭제
@@ -155,7 +157,10 @@ final class GroupStore: ObservableObject {
                 removeLocalReservation(roomID: id)
                 continue
             }
-            // 활성 방 — 내 기기에 그룹 예약이 없으면 생성 / 종료됐으면 정리
+            // 그룹 예약은 참여 시점에 만들어지지만, 재설치·기기 변경 대비로 여기서도 보장한다.
+            if room.status == "scheduled", !room.hasStarted {
+                ensureLocalReservation(for: room)
+            }
             if room.status == "active" {
                 if room.isFinished {
                     removeLocalReservation(roomID: id)
@@ -220,6 +225,9 @@ final class GroupStore: ObservableObject {
                              status: "scheduled", memberCount: 1)
         rooms.append(room)
         rooms.sort { $0.startDate < $1.startDate }
+        // 예약을 지금 만들어 두어야 시작 시각 정각의 첫 알람이 울린다 (시작일 전엔 발생 없음)
+        ensureLocalReservation(for: room)
+        AppState.shared.rescheduleAlarmsForCurrentUser()
         return room
         #else
         throw GroupError.backendUnavailable
@@ -246,25 +254,35 @@ final class GroupStore: ObservableObject {
     }
 
     /// 내 개인 예약과 방 일정이 겹치는지 검사. 겹치면 그 예약 이름을 담아 던진다.
+    /// (다른 그룹 예약도 참여 시점에 미리 생성되므로 방끼리의 겹침도 여기서 함께 걸린다)
     func checkScheduleConflict(room: GroupRoom) throws {
+        try checkScheduleConflict(startMinute: room.startMinute,
+                                  durationMinutes: room.durationMinutes,
+                                  repeatWeekdays: room.repeatWeekdays,
+                                  startDate: room.startDate, endDate: room.endDate)
+    }
+
+    /// 방 생성 폼(방장)도 같은 검사를 쓴다 — 방장 본인의 기존 예약과 겹치면 생성 차단.
+    func checkScheduleConflict(startMinute: Int, durationMinutes: Int, repeatWeekdays: [Int],
+                               startDate: Date, endDate: Date) throws {
         guard let context = modelContext else { return }
         let owner = AccountStore.shared.currentUserID
         let mine = (try? context.fetch(FetchDescriptor<Reservation>(
             predicate: #Predicate { $0.isActive && $0.ownerUserID == owner }))) ?? []
         let calendar = Calendar.current
         for reservation in mine {
-            guard reservation.overlaps(startMinute: room.startMinute, duration: room.durationMinutes)
+            guard reservation.overlaps(startMinute: startMinute, duration: durationMinutes)
             else { continue }
             if reservation.isRepeating {
                 // 반복끼리는 요일이 하나라도 겹치면 충돌
-                if !Set(reservation.repeatWeekdays).isDisjoint(with: room.repeatWeekdays) {
+                if !Set(reservation.repeatWeekdays).isDisjoint(with: repeatWeekdays) {
                     throw GroupError.scheduleConflict(reservation.name)
                 }
             } else if let date = reservation.oneOffDate {
                 // 일회성은 방 기간 안이고 요일이 겹치면 충돌
                 let weekday = calendar.component(.weekday, from: date)
-                if date >= calendar.startOfDay(for: room.startDate), date <= room.endDate,
-                   room.repeatWeekdays.contains(weekday) {
+                if date >= calendar.startOfDay(for: startDate), date <= endDate,
+                   repeatWeekdays.contains(weekday) {
                     throw GroupError.scheduleConflict(reservation.name)
                 }
             }
@@ -305,6 +323,9 @@ final class GroupStore: ObservableObject {
         } catch {
             throw GroupError.unknown("참여에 실패했어요 — \(error.localizedDescription)")
         }
+        // 예약을 지금 만들어 두어야 시작 시각 정각의 첫 알람이 울린다 (시작일 전엔 발생 없음)
+        ensureLocalReservation(for: room)
+        AppState.shared.rescheduleAlarmsForCurrentUser()
         await refresh()
         #else
         throw GroupError.backendUnavailable
@@ -375,7 +396,9 @@ final class GroupStore: ObservableObject {
         try? await roomRef.collection("members").document(uid).delete()
         try? await roomRef.updateData(["memberCount": FieldValue.increment(Int64(-1))])
         await removeMembershipRef(roomID: room.id)
+        removeLocalReservation(roomID: room.id)   // 미리 만들어 둔 예약 정리
         rooms.removeAll { $0.id == room.id }
+        AppState.shared.rescheduleAlarmsForCurrentUser()
         #endif
     }
 
@@ -415,7 +438,9 @@ final class GroupStore: ObservableObject {
         let db = Firestore.firestore()
         try? await db.collection("groups").document(room.id).updateData(["status": "disbanded"])
         await removeMembershipRef(roomID: room.id)
+        removeLocalReservation(roomID: room.id)   // 미리 만들어 둔 예약 정리
         rooms.removeAll { $0.id == room.id }
+        AppState.shared.rescheduleAlarmsForCurrentUser()
         #endif
     }
 
@@ -450,13 +475,30 @@ final class GroupStore: ObservableObject {
         try? context.save()
     }
 
-    private func removeLocalReservation(roomID: String) {
+    /// purgeNoShows: 방이 무산(취소)됐을 때 — 그 예약에 찍힌 노쇼 세션·벌점을 함께 되돌린다.
+    private func removeLocalReservation(roomID: String, purgeNoShows: Bool = false) {
         guard let context = modelContext else { return }
         let owner = AccountStore.shared.currentUserID
         let list = (try? context.fetch(FetchDescriptor<Reservation>(
             predicate: #Predicate { $0.groupID == roomID && $0.ownerUserID == owner }))) ?? []
         guard !list.isEmpty else { return }
-        list.forEach { $0.isActive = false }
+        for reservation in list {
+            if purgeNoShows {
+                let rid = reservation.id
+                let noShowRaw = SessionOutcome.noShow.rawValue
+                let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
+                    predicate: #Predicate { $0.reservationID == rid && $0.outcomeRaw == noShowRaw }))) ?? []
+                for session in sessions {
+                    let sid = session.id
+                    if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
+                        predicate: #Predicate { $0.sessionID == sid })) {
+                        events.forEach { context.delete($0) }
+                    }
+                    context.delete(session)
+                }
+            }
+            reservation.isActive = false
+        }
         try? context.save()
     }
 

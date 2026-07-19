@@ -359,12 +359,21 @@ struct GroupCreateView: View {
 
     private func create() {
         errorMessage = nil
-        working = true
         let calendar = Calendar.current
         let startDate = calendar.date(byAdding: .minute, value: startMinute,
                                       to: calendar.startOfDay(for: startDay))!
         let endDate = calendar.date(byAdding: .minute, value: startMinute + minutes,
                                     to: calendar.startOfDay(for: endDay))!
+        // 방장 본인의 기존 예약(다른 그룹 포함)과 겹치면 생성 차단 — 참여자와 같은 규칙
+        do {
+            try store.checkScheduleConflict(startMinute: startMinute, durationMinutes: minutes,
+                                            repeatWeekdays: weekdays.sorted(),
+                                            startDate: startDate, endDate: endDate)
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
+        working = true
         Task {
             defer { working = false }
             do {

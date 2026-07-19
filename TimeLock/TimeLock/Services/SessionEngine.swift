@@ -563,12 +563,26 @@ final class SessionEngine: NSObject, ObservableObject {
         for reservation in reservations where reservation.isActive {
             // 그룹 예약은 방장이 정한 강도로 판정 (전역 설정 무시)
             let effectiveIntensity = reservation.intensityOverride ?? intensity
-            for offset in [-1, 0] {   // 어제~오늘 발생분 점검
+            // 개인 예약: 어제~오늘만 점검.
+            // 그룹 예약: 시작일(createdAt = 방 시작일)부터 전 기간 소급 — 앱을 며칠
+            // 안 열어도 그동안의 노쇼가 전부 집계돼야 잠수가 이득이 되지 않는다.
+            let dayOffsets: [Int]
+            if reservation.isGroupReservation {
+                let sinceAnchor = calendar.dateComponents(
+                    [.day], from: calendar.startOfDay(for: reservation.createdAt),
+                    to: calendar.startOfDay(for: now)).day ?? 0
+                let span = min(max(sinceAnchor, 0), GroupPolicy.maxDurationDays)
+                dayOffsets = Array(-span...0)
+            } else {
+                dayOffsets = [-1, 0]
+            }
+            for offset in dayOffsets {
                 guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
                       let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
                 guard fire >= reservation.createdAt else { continue }   // 예약을 만들기 전 발생분은 책임 없음
                 guard fire.addingTimeInterval(graceWindow) < now else { continue }   // 10분 창이 끝났고
-                guard fire > now.addingTimeInterval(-86_400 * 2) else { continue }
+                guard reservation.isGroupReservation
+                        || fire > now.addingTimeInterval(-86_400 * 2) else { continue }
                 let key = "\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))"
                 guard !existing.contains(key) else { continue }
 
