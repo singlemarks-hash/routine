@@ -66,7 +66,7 @@ dependencies {
 
     // CameraX (AVFoundation 대응) — ProcessCameraProvider가 Guava ListenableFuture를 노출하므로 guava 필요
     implementation("com.google.guava:guava:33.0.0-android")
-    val camerax = "1.3.4"
+    val camerax = "1.4.2"
     implementation("androidx.camera:camera-core:$camerax")
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")

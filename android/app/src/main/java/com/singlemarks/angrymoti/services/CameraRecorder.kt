@@ -154,7 +154,7 @@ object CameraRecorder {
         if (!captureDue && !presenceDue) { proxy.close(); return }
 
         // 한 번만 복사하고 즉시 반납 (분석 해상도라 복사 비용은 밀리초 수준)
-        val raw: Bitmap? = runCatching { proxy.toBitmap() }.getOrNull()
+        val raw: Bitmap? = toBitmapSafe(proxy)
         val rotation = proxy.imageInfo.rotationDegrees
         proxy.close()
         if (raw == null) return
@@ -195,6 +195,41 @@ object CameraRecorder {
                 }
             }
         }
+    }
+
+    /** 프레임 → Bitmap. CameraX 네이티브(toBitmap)가 실패하는 기기(일부 에뮬레이터 등)에선
+     *  순수 코틀린 경로(YUV→NV21→JPEG→Bitmap)로 폴백한다 — 네이티브 라이브러리 불필요. */
+    private fun toBitmapSafe(proxy: ImageProxy): Bitmap? =
+        runCatching { proxy.toBitmap() }.getOrNull()
+            ?: runCatching {
+                val nv21 = yuv420ToNv21(proxy)
+                val yuvImage = android.graphics.YuvImage(
+                    nv21, android.graphics.ImageFormat.NV21, proxy.width, proxy.height, null)
+                val out = java.io.ByteArrayOutputStream()
+                yuvImage.compressToJpeg(android.graphics.Rect(0, 0, proxy.width, proxy.height), 88, out)
+                val bytes = out.toByteArray()
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }.onFailure { android.util.Log.e("AngryMoti", "toBitmapSafe fallback failed", it) }
+                .getOrNull()
+
+    private fun yuv420ToNv21(image: ImageProxy): ByteArray {
+        val w = image.width; val h = image.height
+        val out = ByteArray(w * h * 3 / 2)
+        val y = image.planes[0]
+        var pos = 0
+        for (row in 0 until h) {
+            val base = row * y.rowStride
+            for (col in 0 until w) out[pos++] = y.buffer.get(base + col * y.pixelStride)
+        }
+        val u = image.planes[1]; val v = image.planes[2]
+        for (row in 0 until h / 2) {
+            val uBase = row * u.rowStride; val vBase = row * v.rowStride
+            for (col in 0 until w / 2) {
+                out[pos++] = v.buffer.get(vBase + col * v.pixelStride)
+                out[pos++] = u.buffer.get(uBase + col * u.pixelStride)
+            }
+        }
+        return out
     }
 
     /** 완주 종료 — 영상 확정 */
