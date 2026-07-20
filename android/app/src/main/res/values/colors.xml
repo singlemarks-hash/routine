@@ -2,4 +2,6 @@
 <resources>
     <color name="ink">#0E0F12</color>
     <color name="rec">#E53935</color>
+    <!-- 런처 아이콘 배경 — 아이콘 그라데이션의 중간 빨강과 맞춤 -->
+    <color name="launcher_bg">#E02A28</color>
 </resources>
