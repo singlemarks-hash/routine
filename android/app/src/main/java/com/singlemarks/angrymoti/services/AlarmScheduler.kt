@@ -143,6 +143,40 @@ object AlarmScheduler {
     /** 세션 중 알림차단 (iOS muteAllNotifications) — 켜져 있으면 차임 무음 */
     @Volatile var sessionMuted = false
 
+    // ── 시스템 방해 금지(DND) — 안드로이드는 권한만 받으면 앱이 직접 켜고 끌 수 있다
+    /** 이번 세션에서 우리가 켠 것인지 (세션 종료 시 자동 해제용) */
+    @Volatile var dndEnabledByApp = false
+
+    fun hasDndAccess(context: Context): Boolean =
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
+            .isNotificationPolicyAccessGranted
+
+    /** 방해 금지 켜기/끄기 — 권한 없으면 false */
+    fun setDnd(context: Context, on: Boolean): Boolean {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (!nm.isNotificationPolicyAccessGranted) return false
+        nm.setInterruptionFilter(
+            if (on) android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY
+            else android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+        )
+        dndEnabledByApp = on
+        return true
+    }
+
+    /** 세션이 켰던 방해 금지를 세션 종료 시 원복 */
+    fun restoreDndIfNeeded(context: Context) {
+        if (dndEnabledByApp) { setDnd(context, false); dndEnabledByApp = false }
+    }
+
+    /** 방해 금지 접근 권한 설정 화면 열기 */
+    fun openDndAccessSettings(context: Context) {
+        runCatching {
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
     fun playChime(context: Context) {
         if (sessionMuted) return
         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION) ?: return

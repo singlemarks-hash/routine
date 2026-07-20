@@ -426,6 +426,7 @@ object SessionEngine {
 
     private fun cleanupRuntime() {
         AlarmScheduler.sessionMuted = false
+        AlarmScheduler.restoreDndIfNeeded(appContext)   // 세션이 켰던 방해 금지 자동 해제
         tickJob?.cancel(); tickJob = null
         telephonyCallback = null
         isCallActive = false

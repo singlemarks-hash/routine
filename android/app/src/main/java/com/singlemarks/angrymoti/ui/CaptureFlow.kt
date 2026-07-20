@@ -316,16 +316,33 @@ fun MountGuideScreen(pending: PendingSession) {
                         lineHeight = 28.sp)
                 }
                 Spacer(Modifier.height(18.dp))
-                Column(
-                    Modifier.fillMaxWidth().background(TL.raised, TL.cornerM).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    FocusStep(1, "화면 위에서 아래로 쓸어내려 빠른 설정을 엽니다")
-                    FocusStep(2, "🌙 방해 금지를 눌러 켭니다")
-                    FocusStep(3, "세션이 끝나면 같은 방법으로 해제하면 됩니다")
+                // 안드로이드는 권한만 받으면 앱이 방해 금지를 직접 켜고 끌 수 있다 — 버튼 한 번으로
+                var dndOn by remember { mutableStateOf(AlarmScheduler.dndEnabledByApp) }
+                if (dndOn) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                            .background(TL.jade.copy(alpha = 0.15f), TL.cornerM).padding(16.dp),
+                    ) {
+                        Text("✓", color = TL.jade, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.width(10.dp))
+                        Text("방해 금지 켜짐 — 세션이 끝나면 자동으로 해제돼요",
+                            color = TL.jade, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    TLGhostButton("🌙  방해 금지 자동으로 켜기") {
+                        if (AlarmScheduler.hasDndAccess(context)) {
+                            dndOn = AlarmScheduler.setDnd(context, true)
+                        } else {
+                            AlarmScheduler.openDndAccessSettings(context)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("처음 한 번은 권한 화면이 열려요 — 앵그리모티를 허용하고 돌아와 다시 눌러주세요.\n직접 켜려면: 화면 위에서 아래로 쓸어내려 빠른 설정 → 🌙 방해 금지",
+                        color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
                 }
                 Spacer(Modifier.height(14.dp))
-                Text("앱 안 알림음은 촬영이 시작되면 '알림차단'이 자동으로 켜져 막아줍니다.\n이탈 시 재촬영 알림은 중요 알림으로 전달됩니다.",
+                Text("앱 안 알림음은 촬영이 시작되면 '알림차단'이 자동으로 켜져 막아줍니다.",
                     color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
                 Spacer(Modifier.height(20.dp))
                 TLPrimaryButton("◉  확인 — 촬영 시작") {
