@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -623,114 +625,161 @@ fun SessionResultScreen() {
     LaunchedEffect(Unit) { pop = true }
     val scale by animateFloatAsState(if (pop) 1f else 0.45f, tween(500), label = "pop")
 
-    Column(
-        Modifier.fillMaxSize().background(TL.ink).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(48.dp))
-        Box(contentAlignment = Alignment.Center) {
-            Image(
-                painterResource(if (outcome.isSuccess) R.drawable.moti_smile else R.drawable.moti_angry),
-                null, Modifier.size(96.dp).scale(scale),
-            )
-            if (outcome.isSuccess && (slotBonus != null || unlockBonus != null)) ConfettiBurst()
-        }
-        Spacer(Modifier.height(14.dp))
-        Text(if (outcome == SessionOutcome.EMERGENCY) "긴급 종료됨" else outcome.title,
-            color = TL.paper, fontSize = 30.sp, fontWeight = FontWeight.Black)
-        Text(session.activityName, color = TL.muted, fontSize = 15.sp)
-        Spacer(Modifier.height(10.dp))
-        Text("순수 촬영 ${TLFormat.hms(session.recordedSeconds.toLong())} / 목표 ${TLFormat.hms(session.targetSeconds.toLong())}",
-            color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
-        Spacer(Modifier.height(10.dp))
-        ScoreRules.points(outcome, session.intensity, session.targetSeconds / 60)?.let { (_, pts) ->
-            Text(
-                if (pts >= 0) "+${pts}점 상점" else "${pts}점 벌점",
-                color = if (pts >= 0) TL.jade else TL.rec,
-                fontSize = 15.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.background(TL.surface, TL.cornerS)
-                    .border(1.dp, TL.hairline, TL.cornerS)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            )
-        } ?: Text("벌점 없음", color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    var showPlayer by remember { mutableStateOf(false) }
 
-        slotBonus?.let { (days, pts) ->
-            Spacer(Modifier.height(10.dp))
-            Text("🎉 연속 ${days}일 달성! 보너스 상점 +$pts", color = TL.ink,
-                fontSize = 13.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.background(TL.amber, CircleShape)
-                    .padding(horizontal = 14.dp, vertical = 8.dp))
-        }
-        unlockBonus?.let { pts ->
-            Spacer(Modifier.height(8.dp))
-            Text("🔥 미친 매운맛 잠금 해제! 보너스 상점 +$pts", color = TL.paper,
-                fontSize = 13.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.background(TL.rec, CircleShape)
-                    .padding(horizontal = 14.dp, vertical = 8.dp))
-        }
+    Column(Modifier.fillMaxSize().background(TL.ink)) {
+        // 스크롤 영역 — 화면이 작아도 하단 버튼은 항상 보인다
+        Column(
+            Modifier.weight(1f).fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(28.dp))
+            Box(contentAlignment = Alignment.Center) {
+                Image(
+                    painterResource(if (outcome.isSuccess) R.drawable.moti_smile else R.drawable.moti_angry),
+                    null, Modifier.size(96.dp).scale(scale),
+                )
+                if (outcome.isSuccess && (slotBonus != null || unlockBonus != null)) ConfettiBurst()
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(if (outcome == SessionOutcome.EMERGENCY) "긴급 종료됨" else outcome.title,
+                color = TL.paper, fontSize = 30.sp, fontWeight = FontWeight.Black)
+            Text(session.activityName, color = TL.muted, fontSize = 15.sp)
+            Spacer(Modifier.height(12.dp))
+            Text("순수 촬영 ${TLFormat.hms(session.recordedSeconds.toLong())} / 목표 ${TLFormat.hms(session.targetSeconds.toLong())}",
+                color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(12.dp))
+            ScoreRules.points(outcome, session.intensity, session.targetSeconds / 60)?.let { (_, pts) ->
+                Text(
+                    if (pts >= 0) "+${pts}점 상점" else "${pts}점 벌점",
+                    color = if (pts >= 0) TL.jade else TL.rec,
+                    fontSize = 15.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.background(TL.surface, TL.cornerS)
+                        .border(1.dp, TL.hairline, TL.cornerS)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+            } ?: Text("벌점 없음", color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
 
-        Spacer(Modifier.height(18.dp))
-        // 타임랩스 미리보기 카드 (iOS 1:1 — 썸네일 + 캡션)
-        session.videoFileName?.let {
-            TLCard(raised = true) {
-                TLEyebrow("타임랩스 미리보기")
-                val thumb = session.thumbnailFileName?.let { name ->
-                    remember(name) {
-                        runCatching {
-                            android.graphics.BitmapFactory.decodeFile(
-                                File(CameraRecorder.sessionDir(context), name).absolutePath)
-                        }.getOrNull()
+            slotBonus?.let { (days, pts) ->
+                Spacer(Modifier.height(10.dp))
+                Text("🎉 연속 ${days}일 달성! 보너스 상점 +$pts", color = TL.ink,
+                    fontSize = 13.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.background(TL.amber, CircleShape)
+                        .padding(horizontal = 14.dp, vertical = 8.dp))
+            }
+            unlockBonus?.let { pts ->
+                Spacer(Modifier.height(8.dp))
+                Text("🔥 미친 매운맛 잠금 해제! 보너스 상점 +$pts", color = TL.paper,
+                    fontSize = 13.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.background(TL.rec, CircleShape)
+                        .padding(horizontal = 14.dp, vertical = 8.dp))
+            }
+
+            // 타임랩스 미리보기 카드 — 탭하면 인앱 재생 (iOS 1:1)
+            session.videoFileName?.let {
+                Spacer(Modifier.height(18.dp))
+                TLCard(raised = true) {
+                    TLEyebrow("타임랩스 미리보기")
+                    val thumb = session.thumbnailFileName?.let { name ->
+                        remember(name) {
+                            runCatching {
+                                android.graphics.BitmapFactory.decodeFile(
+                                    File(CameraRecorder.sessionDir(context), name).absolutePath)
+                            }.getOrNull()
+                        }
                     }
+                    Box(
+                        Modifier.fillMaxWidth(0.55f).aspectRatio(3f / 4f)
+                            .align(Alignment.CenterHorizontally)
+                            .clip(TL.cornerM).background(TL.ink)
+                            .clickable { showPlayer = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        thumb?.let {
+                            Image(it.asImageBitmap(), null, Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        }
+                        Box(Modifier.size(58.dp).background(Color.White, CircleShape),
+                            contentAlignment = Alignment.Center) {
+                            Text("▶", color = TL.ink, fontSize = 20.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("저장하지 않으면 닫을 때 삭제됩니다. 기록·점수는 유지됩니다.",
+                        color = TL.faint, fontSize = 12.sp)
                 }
-                Box(
-                    Modifier.fillMaxWidth(0.62f).aspectRatio(3f / 4f)
-                        .align(Alignment.CenterHorizontally)
-                        .clip(TL.cornerM).background(TL.ink),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    thumb?.let {
-                        Image(it.asImageBitmap(), null, Modifier.fillMaxSize(),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                    }
-                    Box(Modifier.size(64.dp).background(Color.White, CircleShape),
-                        contentAlignment = Alignment.Center) {
-                        Text("▶", color = TL.ink, fontSize = 22.sp)
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // 하단 고정 버튼 — 스크롤과 무관하게 항상 보임
+        Column(Modifier.padding(horizontal = 24.dp)) {
+            session.videoFileName?.let { fileName ->
+                TLPrimaryButton("갤러리에 저장", tint = TL.jade) {
+                    scope.launch(Dispatchers.IO) {
+                        val ok = saveToGallery(context, File(CameraRecorder.sessionDir(context), fileName))
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context,
+                                if (ok) "갤러리에 저장했어요 (Movies/AngryMoti)" else "저장에 실패했어요 — 다시 시도해주세요",
+                                android.widget.Toast.LENGTH_SHORT).show()
+                            if (ok) AppState.dismissResult(context)
+                        }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                Text("저장하지 않으면 닫을 때 삭제됩니다. 기록·점수는 유지됩니다.",
-                    color = TL.faint, fontSize = 12.sp)
             }
+            TLPrimaryButton(if (session.videoFileName != null) "저장 없이 종료" else "종료", tint = TL.amber) {
+                CameraRecorder.deleteFiles(context, session.videoFileName, session.thumbnailFileName)
+                AppState.dismissResult(context)
+            }
+            Spacer(Modifier.height(18.dp))
         }
-        Spacer(Modifier.weight(1f))
+    }
 
-        session.videoFileName?.let { fileName ->
-            TLPrimaryButton("갤러리에 저장", tint = TL.jade) {
-                scope.launch(Dispatchers.IO) {
-                    saveToGallery(context, File(CameraRecorder.sessionDir(context), fileName))
-                    withContext(Dispatchers.Main) { AppState.dismissResult(context) }
-                }
+    // 인앱 타임랩스 재생 — 화면 탭하면 닫힘
+    if (showPlayer) session.videoFileName?.let { fileName ->
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showPlayer = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(
+                Modifier.fillMaxSize().background(Color.Black)
+                    .clickable { showPlayer = false },
+                contentAlignment = Alignment.Center,
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        android.widget.VideoView(ctx).apply {
+                            setVideoPath(File(CameraRecorder.sessionDir(ctx), fileName).absolutePath)
+                            setOnPreparedListener { mp -> mp.isLooping = true; start() }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text("탭해서 닫기", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 48.dp))
             }
-            Spacer(Modifier.height(10.dp))
         }
-        TLPrimaryButton("종료", tint = TL.amber) {
-            CameraRecorder.deleteFiles(context, session.videoFileName, session.thumbnailFileName)
-            AppState.dismissResult(context)
-        }
-        Spacer(Modifier.height(20.dp))
     }
 }
 
-private fun saveToGallery(context: android.content.Context, file: File) {
-    if (!file.exists()) return
-    val values = android.content.ContentValues().apply {
-        put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, "AngryMoti_${System.currentTimeMillis()}.mp4")
-        put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-        put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/AngryMoti")
-    }
-    val resolver = context.contentResolver
-    val uri = resolver.insert(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return
-    resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } }
+private fun saveToGallery(context: android.content.Context, file: File): Boolean {
+    if (!file.exists()) return false
+    return runCatching {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, "AngryMoti_${System.currentTimeMillis()}.mp4")
+            put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+            put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/AngryMoti")
+        }
+        val resolver = context.contentResolver
+        val uri = resolver.insert(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return false
+        resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } }
+            ?: return false
+        true
+    }.getOrElse { android.util.Log.e("AngryMoti", "saveToGallery failed", it); false }
 }
 
 // MARK: 콘페티 — 결정적 의사난수 30파티클 (iOS ConfettiBurst 대응)
