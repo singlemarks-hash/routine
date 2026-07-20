@@ -190,6 +190,7 @@ object CameraRecorder {
                 } else raw
                 encoder?.let { e ->
                     runCatching { e.addFrame(bitmap) }
+                        .onFailure { android.util.Log.e("AngryMoti", "addFrame failed", it) }
                     frameCount.value = e.frameCount
                 }
             }
@@ -214,6 +215,7 @@ object CameraRecorder {
 
         val frames = e.frameCount
         val ok = e.finish()
+        android.util.Log.i("AngryMoti", "stopRecording frames=$frames ok=$ok")
         if (!ok) return null
 
         var thumbName: String? = null

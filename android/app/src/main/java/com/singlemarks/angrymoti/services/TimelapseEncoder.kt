@@ -84,40 +84,39 @@ class TimelapseEncoder(
 
         val inIndex = codec.dequeueInputBuffer(100_000)
         if (inIndex >= 0) {
-            val buf = codec.getInputBuffer(inIndex)!!
-            fillFlexible(buf, inIndex)
+            val image = codec.getInputImage(inIndex)
+            if (image != null) {
+                fillImage(image)
+            } else {
+                codec.getInputBuffer(inIndex)?.let { it.clear(); it.put(yuv) }
+            }
             val ptsUs = frameIndex * 1_000_000L / FPS
-            codec.queueInputBuffer(inIndex, 0, yuvSizeFor(inIndex), ptsUs, 0)
+            codec.queueInputBuffer(inIndex, 0, yuv.size, ptsUs, 0)
             frameIndex++; frameCount++
+        } else {
+            android.util.Log.w("AngryMoti", "encoder input busy — frame dropped")
         }
         drain(false)
     }
 
     // Flexible 포맷은 코덱마다 실제 레이아웃이 다르다 — Image API로 plane에 직접 쓴다.
-    private fun fillFlexible(fallback: ByteBuffer, inIndex: Int) {
-        val image = codec.getInputImage(inIndex)
-        if (image != null) {
-            val w = width; val h = height
-            val yPlane = image.planes[0]; val uPlane = image.planes[1]; val vPlane = image.planes[2]
-            var yi = 0
-            for (row in 0 until h) {
-                val pos = row * yPlane.rowStride
-                for (col in 0 until w) yPlane.buffer.put(pos + col * yPlane.pixelStride, yuv[yi++])
+    private fun fillImage(image: android.media.Image) {
+        val w = width; val h = height
+        val yPlane = image.planes[0]; val uPlane = image.planes[1]; val vPlane = image.planes[2]
+        var yi = 0
+        for (row in 0 until h) {
+            val pos = row * yPlane.rowStride
+            for (col in 0 until w) yPlane.buffer.put(pos + col * yPlane.pixelStride, yuv[yi++])
+        }
+        var ui = w * h; var vi = w * h + (w * h / 4)
+        for (row in 0 until h / 2) {
+            val uPos = row * uPlane.rowStride; val vPos = row * vPlane.rowStride
+            for (col in 0 until w / 2) {
+                uPlane.buffer.put(uPos + col * uPlane.pixelStride, yuv[ui++])
+                vPlane.buffer.put(vPos + col * vPlane.pixelStride, yuv[vi++])
             }
-            var ui = w * h; var vi = w * h + (w * h / 4)
-            for (row in 0 until h / 2) {
-                val uPos = row * uPlane.rowStride; val vPos = row * vPlane.rowStride
-                for (col in 0 until w / 2) {
-                    uPlane.buffer.put(uPos + col * uPlane.pixelStride, yuv[ui++])
-                    vPlane.buffer.put(vPos + col * vPlane.pixelStride, yuv[vi++])
-                }
-            }
-        } else {
-            fallback.clear(); fallback.put(yuv)
         }
     }
-
-    private fun yuvSizeFor(@Suppress("UNUSED_PARAMETER") inIndex: Int) = yuv.size
 
     private fun argbToI420(argb: IntArray, out: ByteArray, w: Int, h: Int) {
         var yIdx = 0; var uIdx = w * h; var vIdx = w * h + (w * h / 4)
@@ -139,18 +138,37 @@ class TimelapseEncoder(
 
     private fun drain(endOfStream: Boolean) {
         if (endOfStream) {
-            val inIndex = codec.dequeueInputBuffer(100_000)
-            if (inIndex >= 0) codec.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+            // 입력 큐가 가득 차 있으면 출력을 빼면서 EOS 넣기를 재시도 (교착 방지)
+            var eosTries = 0
+            while (true) {
+                val inIndex = codec.dequeueInputBuffer(100_000)
+                if (inIndex >= 0) {
+                    codec.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                    break
+                }
+                if (++eosTries > 20) {
+                    android.util.Log.e("AngryMoti", "encoder EOS queue failed — giving up")
+                    return
+                }
+            }
         }
+        var idleSpins = 0
         while (true) {
             val outIndex = codec.dequeueOutputBuffer(bufferInfo, if (endOfStream) 100_000 else 0)
             when {
-                outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!endOfStream) return
+                outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                    if (!endOfStream) return
+                    if (++idleSpins > 50) {   // EOS 신호 유실 대비 — 5초 상한
+                        android.util.Log.e("AngryMoti", "encoder EOS drain timeout")
+                        return
+                    }
+                }
                 outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                     trackIndex = muxer.addTrack(codec.outputFormat)
                     muxer.start(); muxerStarted = true
                 }
                 outIndex >= 0 -> {
+                    idleSpins = 0
                     val encoded = codec.getOutputBuffer(outIndex)!!
                     if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) bufferInfo.size = 0
                     if (bufferInfo.size > 0 && muxerStarted) {
@@ -169,12 +187,17 @@ class TimelapseEncoder(
     @Synchronized
     fun finish(): Boolean {
         return try {
+            android.util.Log.i("AngryMoti", "encoder finish — frames=$frameCount muxerStarted=$muxerStarted")
             if (frameCount > 0) drain(true)
             runCatching { codec.stop() }; codec.release()
             if (muxerStarted) { runCatching { muxer.stop() }; }
             muxer.release()
-            if (frameCount == 0) { outFile.delete(); false } else true
-        } catch (_: Exception) {
+            if (frameCount == 0 || !muxerStarted) {
+                android.util.Log.e("AngryMoti", "encoder produced no playable video (frames=$frameCount muxerStarted=$muxerStarted)")
+                outFile.delete(); false
+            } else true
+        } catch (e: Exception) {
+            android.util.Log.e("AngryMoti", "encoder finish failed", e)
             runCatching { muxer.release() }
             outFile.delete(); false
         }
