@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -38,9 +39,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.*
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.models.ActivityTag
@@ -69,11 +72,16 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     var existing by remember { mutableStateOf<Reservation?>(null) }
     var name by remember { mutableStateOf("") }
     var tag by remember { mutableStateOf(ActivityTag.presets.first()) }
+    var customTag by remember { mutableStateOf("") }
     var startMinute by remember { mutableStateOf(TimePolicy.defaultStartMinute()) }
     var durationMinutes by remember { mutableStateOf(60) }
     var repeatDays by remember { mutableStateOf(setOf<Int>()) }
+    var oneOffDay by remember { mutableStateOf<Long?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var showSlotSheet by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var showDurationMenu by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
     var allSessions by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.FocusSession>()) }
     var allReservations by remember { mutableStateOf(listOf<Reservation>()) }
 
@@ -84,8 +92,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             reservationId?.let { id ->
                 db.reservations().byId(id)?.let { r ->
                     existing = r
-                    name = r.name; tag = r.tag; startMinute = r.startMinute
+                    name = r.name; startMinute = r.startMinute
                     durationMinutes = r.durationMinutes; repeatDays = r.repeatWeekdays.toSet()
+                    oneOffDay = r.oneOffDayStart
+                    if (r.tag in ActivityTag.presets) tag = r.tag else customTag = r.tag
                 }
             }
             loaded = true
@@ -120,6 +130,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             TLPillButton("저장", tint = TL.rec, enabled = !isLocked, onClick = save@{
                     // 검증 — 오류는 최상단에 즉시 표시
                     val finalName = name.trim()
+                    val finalTag = customTag.trim().ifEmpty { tag }
                     val sm = timeState.hour * 60 + timeState.minute
                     if (finalName.isEmpty()) { error = "활동명을 입력해주세요."; return@save }
                     if (slotFull) { error = "활동 슬롯이 가득 찼어요. 연속 달성일을 쌓으면 슬롯이 늘어나요."; return@save }
@@ -132,13 +143,13 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
 
                     scope.launch(Dispatchers.IO) {
                         val r = (existing ?: Reservation(
-                            ownerUserID = owner, name = finalName, tag = tag,
+                            ownerUserID = owner, name = finalName, tag = finalTag,
                             startMinute = sm, durationMinutes = durationMinutes,
                         )).copy(
-                            name = finalName, tag = tag, startMinute = sm,
+                            name = finalName, tag = finalTag, startMinute = sm,
                             durationMinutes = durationMinutes,
                             repeatWeekdaysCsv = repeatDays.sorted().joinToString(","),
-                            oneOffDayStart = if (repeatDays.isEmpty()) nextOneOffDay(sm) else null,
+                            oneOffDayStart = if (repeatDays.isEmpty()) (oneOffDay ?: nextOneOffDay(sm)) else null,
                             // 편집 시 책임 기준 시각 갱신 — 더 이른 시각으로 옮겨도
                             // '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼되지 않게.
                             // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
@@ -185,55 +196,91 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 Text("ⓘ", color = TL.muted, fontSize = 15.sp)
             }
 
+            // ── 활동명 (필수) — 큰 서피스 입력 필드 (iOS 1:1)
             Column {
-                TLEyebrow("활동명")
-                OutlinedTextField(
-                    name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    enabled = !isLocked,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
-                        focusedBorderColor = TL.rec, unfocusedBorderColor = TL.hairline, cursorColor = TL.rec),
-                )
+                TLEyebrow("활동명 (필수)")
+                TLField(name, { name = it }, "예: 기출문제 3회분", enabled = !isLocked)
             }
 
+            // ── 태그 — 프리셋 칩 + '직접 입력' 필드 (iOS 1:1)
             Column {
                 TLEyebrow("태그")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(ActivityTag.presets.size) { i ->
                         val p = ActivityTag.presets[i]
-                        TagChip(p, tag == p) { if (!isLocked) tag = p }
-                    }
-                }
-            }
-
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TLEyebrow("시작 시각 · 활동 시간")
-                    Spacer(Modifier.weight(1f))
-                    Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
-                        color = TL.jade, fontSize = 12.sp, fontWeight = FontWeight.Black,
-                        modifier = Modifier.background(TL.jade.copy(alpha = 0.14f), CircleShape)
-                            .padding(horizontal = 10.dp, vertical = 5.dp))
-                }
-                TLCard {
-                    TimePicker(state = timeState)
-                    Spacer(Modifier.height(8.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(TimePolicy.durationOptionsMinutes.size) { i ->
-                            val m = TimePolicy.durationOptionsMinutes[i]
-                            TagChip(TLFormat.durationLabel(m), durationMinutes == m) {
-                                if (!isLocked) durationMinutes = m
-                            }
+                        TagChip(p, customTag.isBlank() && tag == p) {
+                            if (!isLocked) { tag = p; customTag = "" }
                         }
                     }
                 }
+                Spacer(Modifier.height(10.dp))
+                TLField(customTag, { customTag = it }, "직접 입력", enabled = !isLocked)
             }
 
+            // ── 시작 시각 · 활동 시간 — 한 카드: 값 필 행 + 길이 드롭다운 + 점수 태그 (iOS 1:1)
+            Column {
+                TLEyebrow("시작 시각 · 활동 시간")
+                TLCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("시작 시각", color = TL.paper, fontSize = 16.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text(TLFormat.timeLabel(timeState.hour * 60 + timeState.minute),
+                            color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.background(TL.raised, CircleShape)
+                                .clickable(enabled = !isLocked) { showTimePicker = !showTimePicker }
+                                .padding(horizontal = 16.dp, vertical = 9.dp))
+                    }
+                    if (showTimePicker) {
+                        Spacer(Modifier.height(10.dp))
+                        TimePicker(state = timeState)
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clickable(enabled = !isLocked) { showDurationMenu = true }
+                                    .padding(vertical = 2.dp),
+                            ) {
+                                Text(TLFormat.durationLabel(durationMinutes),
+                                    color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(6.dp))
+                                androidx.compose.material3.Icon(Lucide.ChevronsUpDown, null,
+                                    tint = TL.muted, modifier = Modifier.size(15.dp))
+                            }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = showDurationMenu,
+                                onDismissRequest = { showDurationMenu = false },
+                                containerColor = TL.raised,
+                            ) {
+                                TimePolicy.durationOptionsMinutes.forEach { m ->
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = {
+                                            Text(TLFormat.durationLabel(m),
+                                                color = if (m == durationMinutes) TL.paper else TL.muted,
+                                                fontWeight = if (m == durationMinutes) FontWeight.Bold else FontWeight.Normal)
+                                        },
+                                        onClick = { durationMinutes = m; showDurationMenu = false },
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
+                            color = TL.jade, fontSize = 13.sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier.background(TL.jade.copy(alpha = 0.16f), CircleShape)
+                                .padding(horizontal = 12.dp, vertical = 6.dp))
+                    }
+                }
+            }
+
+            // ── 반복 — 요일 반복 토글 + (꺼짐: 날짜 필 / 켜짐: 요일 원형) (iOS 1:1)
             Column {
                 TLEyebrow("반복")
                 TLCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("요일 반복", color = TL.paper, fontSize = 15.sp)
+                        Text("요일 반복", color = TL.paper, fontSize = 16.sp)
                         Spacer(Modifier.weight(1f))
                         Switch(
                             checked = repeatDays.isNotEmpty(),
@@ -241,30 +288,40 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 if (isLocked) return@Switch
                                 repeatDays = if (on) setOf(2, 3, 4, 5, 6) else emptySet()
                             },
-                            colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
+                            colors = SwitchDefaults.colors(checkedTrackColor = TL.jade),
                         )
                     }
                     if (repeatDays.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
                                 .forEach { (d, label) ->
+                                    val on = d in repeatDays
                                     Box(
-                                        modifier = Modifier
-                                            .background(if (d in repeatDays) TL.rec else TL.raised, CircleShape)
+                                        modifier = Modifier.size(38.dp)
+                                            .background(if (on) TL.paper else TL.raised, CircleShape)
                                             .clickable {
                                                 if (isLocked) return@clickable
-                                                repeatDays = if (d in repeatDays) repeatDays - d else repeatDays + d
-                                            }.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                repeatDays = if (on) repeatDays - d else repeatDays + d
+                                            },
+                                        contentAlignment = Alignment.Center,
                                     ) {
-                                        Text(label, color = if (d in repeatDays) TL.paper else TL.muted,
-                                            fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text(label, color = if (on) TL.ink else TL.muted,
+                                            fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                         }
                     } else {
-                        Text("반복 없이 다음 도래하는 시각 1회만 울려요", color = TL.faint, fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 6.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("날짜", color = TL.paper, fontSize = 16.sp)
+                            Spacer(Modifier.weight(1f))
+                            val day = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
+                            Text(dateLabel(day), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.background(TL.raised, CircleShape)
+                                    .clickable(enabled = !isLocked) { showDatePicker = true }
+                                    .padding(horizontal = 16.dp, vertical = 9.dp))
+                        }
                     }
                 }
             }
@@ -291,6 +348,57 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             SlotPolicySheet(streak = streak, isPro = isPro)
         }
     }
+
+    // 일회성 날짜 선택 다이얼로그
+    if (showDatePicker) {
+        val dateState = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute))
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    dateState.selectedDateMillis?.let { utc ->
+                        // DatePicker는 UTC 자정 기준 — 로컬 자정으로 변환해 저장
+                        val u = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+                            .apply { timeInMillis = utc }
+                        val local = Calendar.getInstance().apply {
+                            set(u.get(Calendar.YEAR), u.get(Calendar.MONTH), u.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        oneOffDay = local.timeInMillis
+                    }
+                    showDatePicker = false
+                }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDatePicker = false }) {
+                    Text("취소", color = TL.muted)
+                }
+            },
+        ) { androidx.compose.material3.DatePicker(state = dateState) }
+    }
+}
+
+/** 큰 서피스 입력 필드 — iOS 텍스트필드 1:1 (배경 서피스, 테두리 없음) */
+@Composable
+private fun TLField(value: String, onChange: (String) -> Unit, placeholder: String, enabled: Boolean = true) {
+    OutlinedTextField(
+        value, onChange, modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = enabled,
+        placeholder = { Text(placeholder, color = TL.faint, fontSize = 16.sp) },
+        shape = TL.cornerM,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = TL.surface, unfocusedContainerColor = TL.surface,
+            disabledContainerColor = TL.surface,
+            focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
+            focusedBorderColor = TL.hairline, unfocusedBorderColor = Color.Transparent,
+            disabledBorderColor = Color.Transparent,
+            cursorColor = TL.rec),
+    )
+}
+
+private fun dateLabel(dayStart: Long): String {
+    val c = Calendar.getInstance().apply { timeInMillis = dayStart }
+    return "${c.get(Calendar.YEAR)}. ${c.get(Calendar.MONTH) + 1}. ${c.get(Calendar.DAY_OF_MONTH)}."
 }
 
 private fun todayStart(): Long = Calendar.getInstance().apply {
