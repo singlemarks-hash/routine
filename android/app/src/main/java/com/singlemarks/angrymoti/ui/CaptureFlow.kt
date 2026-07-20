@@ -358,16 +358,41 @@ fun SessionScreen() {
                     delay(500)
                 }
             }
-            Box(Modifier.fillMaxSize().background(TL.ink.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(28.dp)) {
-                    Text("긴급 용무 중", color = TL.amber, fontSize = 22.sp, fontWeight = FontWeight.Black)
-                    Spacer(Modifier.height(8.dp))
-                    Text(TLFormat.hms(left.toLong()), color = TL.paper, fontSize = 52.sp, fontWeight = FontWeight.Black)
-                    Spacer(Modifier.height(8.dp))
-                    Text("총 ${TimePolicy.RESUME_WINDOW_MINUTES}분 예산 안에 재촬영을 시작하면 벌점이 없습니다.\n시간은 리셋되지 않고 누적 차감돼요. 0이 되면 실패로 종료됩니다.",
-                        color = TL.muted, fontSize = 13.sp, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(24.dp))
-                    TLPrimaryButton("지금 재촬영 시작", tint = TL.jade) { SessionEngine.resumeFromBreak() }
+            // iOS 브레이크 오버레이 1:1 — 앰버 링 카운트다운 + 하단 재촬영/포기 버튼
+            Box(Modifier.fillMaxSize().background(TL.ink.copy(alpha = 0.96f))) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                ) {
+                    Spacer(Modifier.height(70.dp))
+                    Text("촬영 일시중단", color = TL.amber, fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text("긴급 용무 중", color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                    Spacer(Modifier.height(36.dp))
+                    // 두꺼운 앰버 링 + 중앙 카운트다운
+                    Box(
+                        Modifier.size(300.dp)
+                            .border(14.dp, TL.amber, androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(TLFormat.hms(left.toLong()), color = TL.paper,
+                                fontSize = 56.sp, fontWeight = FontWeight.Black)
+                            Text("안에 재촬영을 시작하세요", color = TL.muted, fontSize = 13.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(32.dp))
+                    Text("총 ${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.",
+                        color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다",
+                        color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    TLPrimaryButton("◉  지금 재촬영 시작") { SessionEngine.resumeFromBreak() }
+                    Spacer(Modifier.height(10.dp))
+                    TLGhostButton("세션 포기 — 벌점 받기", tint = TL.muted) { showEmergency = true }
+                    Spacer(Modifier.height(28.dp))
                 }
             }
         }
