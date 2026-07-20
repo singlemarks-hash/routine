@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -157,48 +159,82 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
         TLScreenHeader("프로필 및 구독 관리", onBack = onBack)
 
-        TLCard {
-            Text(user?.name ?: "게스트", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
-            user?.email?.let { Text(it, color = TL.muted, fontSize = 13.sp) }
-            Text(when (user?.provider) {
-                "google" -> "Google 계정"; "email" -> "이메일 계정"; else -> "게스트 (기기 저장)"
-            }, color = TL.faint, fontSize = 12.sp)
+        // 프로필 카드 — 아바타 이니셜 + 이름/이메일 + 제공자 칩 + 구분선 + 점수 3단 + 로그아웃 (iOS 1:1)
+        TLCard(raised = true) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(52.dp).background(TL.rec.copy(alpha = 0.2f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text((user?.name ?: user?.email ?: "?").take(1).uppercase(),
+                        color = TL.rec, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(user?.name ?: user?.email ?: "회원",
+                        color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    user?.email?.let { Text(it, color = TL.muted, fontSize = 12.sp) }
+                }
+                TagChip(when (user?.provider) {
+                    "google" -> "Google"; "email" -> "이메일"; else -> "게스트"
+                }, selected = false, onClick = {})
+            }
+            Spacer(Modifier.height(14.dp))
+            androidx.compose.material3.HorizontalDivider(color = TL.hairline)
             Spacer(Modifier.height(14.dp))
             Row {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("+$plus", color = TL.jade, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    Text("상점", color = TL.muted, fontSize = 12.sp)
+                    Text("내 상점", color = TL.muted, fontSize = 12.sp)
                 }
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("$minus", color = TL.rec, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    Text("벌점", color = TL.muted, fontSize = 12.sp)
+                    Text("내 벌점", color = TL.muted, fontSize = 12.sp)
                 }
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${plus + minus}", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Text("${plus + minus}",
+                        color = if (plus + minus >= 0) TL.paper else TL.rec,
+                        fontSize = 18.sp, fontWeight = FontWeight.Black)
                     Text("총점", color = TL.muted, fontSize = 12.sp)
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            Text("로그아웃", color = TL.muted, fontSize = 13.sp, textAlign = TextAlign.Center,
+            Spacer(Modifier.height(10.dp))
+            Text("로그아웃", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().clickable { AccountStore.signOut() }.padding(6.dp))
         }
 
-        Spacer(Modifier.height(14.dp))
-        TLCard(onClick = openPaywall) {
+        // 구독 카드 — 눈썹 라벨 + 카드(멤버는 raised) + 구독하기/구매 복원 (iOS 1:1)
+        Spacer(Modifier.height(18.dp))
+        TLEyebrow("구독")
+        TLCard(raised = isPro) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(painterResource(R.drawable.moti_member), null, Modifier.size(44.dp))
-                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(if (isPro) "앵그리모티 멤버십 사용 중" else "앵그리모티 멤버십",
-                        color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(3.dp))
                     Text(
                         if (isPro) "멤버십 혜택 적용 중 — 슬롯 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터·워터마크 제거·미친 매운맛."
                         else "슬롯 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 · 워터마크 제거 · 미친 매운맛 즉시 해제.",
-                        color = TL.muted, fontSize = 12.sp)
+                        color = TL.muted, fontSize = 13.sp)
                 }
-                if (isPro) Text("👑", fontSize = 20.sp)
+                if (isPro) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.Rounded.Verified,
+                        null, tint = TL.jade, modifier = Modifier.size(24.dp))
+                }
             }
+            if (!isPro) {
+                Spacer(Modifier.height(12.dp))
+                TLPrimaryButton("구독하기", tint = TL.jade, onClick = openPaywall)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("구매 복원", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clickable { SubscriptionManager.refresh() }.padding(4.dp))
         }
+        Spacer(Modifier.height(10.dp))
+        Text(Legal.SUBSCRIPTION_DISCLOSURE, color = TL.faint, fontSize = 11.sp)
 
         Spacer(Modifier.height(40.dp))
         Text("계정 삭제", color = TL.rec, fontSize = 15.sp, fontWeight = FontWeight.Black,
