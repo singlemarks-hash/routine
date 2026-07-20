@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.*
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlin.math.min
 
@@ -138,7 +139,7 @@ fun TLCircleBack(onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.material3.Icon(
-            com.composables.icons.lucide.Lucide.ChevronLeft,
+            Lucide.ChevronLeft,
             contentDescription = "뒤로", tint = TL.paper,
             modifier = Modifier.size(22.dp))
     }

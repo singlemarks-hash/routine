@@ -46,6 +46,7 @@ import com.singlemarks.angrymoti.models.SlotPolicy
 import com.singlemarks.angrymoti.services.AccountStore
 import com.singlemarks.angrymoti.services.CameraRecorder
 import com.singlemarks.angrymoti.services.SubscriptionManager
+import com.composables.icons.lucide.*
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -84,11 +85,11 @@ fun MyPageScreen(onBack: () -> Unit) {
             Spacer(Modifier.weight(1f)); Spacer(Modifier.width(44.dp))
         }
         // 아이콘 메뉴 (투명 행) — iOS와 동일 구성
-        IconMenuRow(com.composables.icons.lucide.Lucide.UserRoundCheck, "프로필 및 구독 관리") { sub = "profile" }
-        IconMenuRow(com.composables.icons.lucide.Lucide.Headphones, "고객센터") {
+        IconMenuRow(Lucide.UserRoundCheck, "프로필 및 구독 관리") { sub = "profile" }
+        IconMenuRow(Lucide.Headphones, "고객센터") {
             context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:singlemarks@gmail.com")))
         }
-        IconMenuRow(com.composables.icons.lucide.Lucide.Heart, "개발자 응원하기") { sub = "paywall" }
+        IconMenuRow(Lucide.Heart, "개발자 응원하기") { sub = "paywall" }
 
         androidx.compose.material3.HorizontalDivider(
             color = TL.hairline, modifier = Modifier.padding(vertical = 18.dp))
@@ -122,7 +123,7 @@ private fun IconMenuRow(
         Text(label, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         androidx.compose.material3.Icon(
-            com.composables.icons.lucide.Lucide.ChevronRight,
+            Lucide.ChevronRight,
             null, tint = TL.faint, modifier = Modifier.size(18.dp))
     }
 }
@@ -136,7 +137,7 @@ private fun PlainMenuRow(label: String, onClick: () -> Unit) {
         Text(label, color = TL.paper, fontSize = 16.sp)
         Spacer(Modifier.weight(1f))
         androidx.compose.material3.Icon(
-            com.composables.icons.lucide.Lucide.ChevronRight,
+            Lucide.ChevronRight,
             null, tint = TL.faint, modifier = Modifier.size(18.dp))
     }
 }
@@ -220,7 +221,7 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
                 }
                 if (isPro) {
                     androidx.compose.material3.Icon(
-                        com.composables.icons.lucide.Lucide.BadgeCheck,
+                        Lucide.BadgeCheck,
                         null, tint = TL.jade, modifier = Modifier.size(24.dp))
                 }
             }

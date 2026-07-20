@@ -48,6 +48,7 @@ import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.models.ScoreRules
 import com.singlemarks.angrymoti.models.TimePolicy
 import com.singlemarks.angrymoti.services.AccountStore
+import com.composables.icons.lucide.*
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
@@ -116,7 +117,7 @@ fun HomeShell() {
                 .border(1.dp, TL.hairline, CircleShape)
                 .clickable { nav = HomeNav.Calendar }, contentAlignment = Alignment.Center) {
                 androidx.compose.material3.Icon(
-                    com.composables.icons.lucide.Lucide.CalendarDays,
+                    Lucide.CalendarDays,
                     contentDescription = "기록", tint = TL.paper,
                     modifier = Modifier.size(22.dp))
             }
@@ -126,7 +127,7 @@ fun HomeShell() {
                 .border(1.dp, TL.hairline, CircleShape)
                 .clickable { nav = HomeNav.MyPage }, contentAlignment = Alignment.Center) {
                 androidx.compose.material3.Icon(
-                    com.composables.icons.lucide.Lucide.UserRound,
+                    Lucide.UserRound,
                     contentDescription = "마이페이지", tint = TL.paper,
                     modifier = Modifier.size(21.dp))
             }
@@ -158,8 +159,8 @@ fun HomeShell() {
                 .padding(6.dp),
         ) {
             listOf(
-                Triple("activity", "활동", com.composables.icons.lucide.Lucide.CircleDot),
-                Triple("schedule", "일정", com.composables.icons.lucide.Lucide.Clock),
+                Triple("activity", "활동", Lucide.CircleDot),
+                Triple("schedule", "일정", Lucide.Clock),
             ).forEach { (key, label, icon) ->
                 val selected = tab == key
                 Row(
@@ -270,7 +271,7 @@ private fun ActivityTab(
                 Text("지금 바로 시작", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 androidx.compose.material3.Icon(
-                    com.composables.icons.lucide.Lucide.ChevronRight,
+                    Lucide.ChevronRight,
                     null, tint = TL.paper, modifier = Modifier.size(18.dp))
             }
         }
