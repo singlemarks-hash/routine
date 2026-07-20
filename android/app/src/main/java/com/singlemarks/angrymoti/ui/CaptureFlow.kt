@@ -304,6 +304,7 @@ fun MountGuideScreen(pending: PendingSession) {
             }
         }
     }
+}
 
 /** 거치 가이드 체크리스트 행 — 원형 라디오 + 라벨 (iOS 1:1) */
 @Composable
