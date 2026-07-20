@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * 멤버십 구독 — Google Play Billing (iOS StoreKit 2 대응).
- * Play Console에 동일 상품 ID의 정기 결제를 등록해야 한다: com.timelock.pro.monthly / ₩4,900.
+ * Play Console에 동일 상품 ID의 정기 결제를 등록해야 한다: com.timelock.pro.monthly / ₩4,400.
  */
 object SubscriptionManager : PurchasesUpdatedListener {
     const val PRODUCT_ID = "com.timelock.pro.monthly"
@@ -111,5 +111,5 @@ object SubscriptionManager : PurchasesUpdatedListener {
 
     val displayPrice: String
         get() = product.value?.subscriptionOfferDetails?.firstOrNull()
-            ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice ?: "₩4,900"
+            ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice ?: "₩4,400"
 }
