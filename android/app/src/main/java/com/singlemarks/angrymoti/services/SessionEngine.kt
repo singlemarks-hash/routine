@@ -79,6 +79,7 @@ object SessionEngine {
               scheduledAt: Long?, targetSeconds: Int, reservationId: String?,
               portrait: Boolean, isPro: Boolean) {
         AlarmScheduler.sessionMuted = true   // 촬영 시작과 함께 알림차단 기본 활성화 (iOS 동일)
+        if (AlarmScheduler.hasDndAccess(appContext)) AlarmScheduler.setDnd(appContext, true)   // 권한 있으면 시스템 방해 금지도 자동 ON
         val owner = AccountStore.currentUserID
         val s = FocusSession(
             ownerUserID = owner, activityName = activityName, tag = tag,

@@ -158,7 +158,6 @@ fun MountGuideScreen(pending: PendingSession) {
     var portrait by remember { mutableStateOf(true) }
     var check1 by remember { mutableStateOf(false) }   // 거치대에 폰 고정
     var check2 by remember { mutableStateOf(false) }   // 구도 안에 내가 보임
-    var showFocusSheet by remember { mutableStateOf(false) }
     var countdown by remember { mutableStateOf<Int?>(null) }
     var waitingCamera by remember { mutableStateOf(false) }
 
@@ -276,7 +275,7 @@ fun MountGuideScreen(pending: PendingSession) {
             TLPrimaryButton(
                 if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
                 enabled = check1 && check2 && countdown == null,
-            ) { showFocusSheet = true }
+            ) { countdown = 3 }
             Spacer(Modifier.height(8.dp))
             Text("취소하기", color = if (countdown == null) TL.paper.copy(alpha = 0.8f) else TL.faint,
                 fontSize = 15.sp,
@@ -304,56 +303,6 @@ fun MountGuideScreen(pending: PendingSession) {
         }
     }
 
-    // 집중 모드(방해 금지) 안내 시트 — 확인하면 카운트다운 시작 (iOS 1:1)
-    if (showFocusSheet) {
-        ModalBottomSheet(onDismissRequest = { showFocusSheet = false }, containerColor = TL.surface) {
-            Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 36.dp)) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Text("🌙", fontSize = 24.sp)
-                    Spacer(Modifier.width(10.dp))
-                    Text("시작 전, 방해 금지 모드를 켜서\n알림을 차단해보세요",
-                        color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
-                        lineHeight = 28.sp)
-                }
-                Spacer(Modifier.height(18.dp))
-                // 안드로이드는 권한만 받으면 앱이 방해 금지를 직접 켜고 끌 수 있다 — 버튼 한 번으로
-                var dndOn by remember { mutableStateOf(AlarmScheduler.dndEnabledByApp) }
-                if (dndOn) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                            .background(TL.jade.copy(alpha = 0.15f), TL.cornerM).padding(16.dp),
-                    ) {
-                        Text("✓", color = TL.jade, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                        Spacer(Modifier.width(10.dp))
-                        Text("방해 금지 켜짐 — 세션이 끝나면 자동으로 해제돼요",
-                            color = TL.jade, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    TLGhostButton("🌙  방해 금지 자동으로 켜기") {
-                        if (AlarmScheduler.hasDndAccess(context)) {
-                            dndOn = AlarmScheduler.setDnd(context, true)
-                        } else {
-                            AlarmScheduler.openDndAccessSettings(context)
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("처음 한 번은 권한 화면이 열려요 — 앵그리모티를 허용하고 돌아와 다시 눌러주세요.\n직접 켜려면: 화면 위에서 아래로 쓸어내려 빠른 설정 → 🌙 방해 금지",
-                        color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
-                }
-                Spacer(Modifier.height(14.dp))
-                Text("앱 안 알림음은 촬영이 시작되면 '알림차단'이 자동으로 켜져 막아줍니다.",
-                    color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
-                Spacer(Modifier.height(20.dp))
-                TLPrimaryButton("◉  확인 — 촬영 시작") {
-                    showFocusSheet = false
-                    countdown = 3
-                }
-            }
-        }
-    }
-}
-
 /** 거치 가이드 체크리스트 행 — 원형 라디오 + 라벨 (iOS 1:1) */
 @Composable
 private fun MountCheckRow(label: String, checked: Boolean, onClick: () -> Unit) {
@@ -377,22 +326,6 @@ private fun MountCheckRow(label: String, checked: Boolean, onClick: () -> Unit) 
         }
         Spacer(Modifier.width(12.dp))
         Text(label, color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-/** 집중 모드 안내 스텝 행 — 앰버 번호 원 + 설명 */
-@Composable
-private fun FocusStep(number: Int, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.size(26.dp).background(TL.amber, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("$number", color = TL.ink, fontSize = 14.sp, fontWeight = FontWeight.Black)
-        }
-        Spacer(Modifier.width(12.dp))
-        Text(text, color = TL.paper, fontSize = 14.sp, lineHeight = 20.sp,
-            modifier = Modifier.weight(1f))
     }
 }
 
@@ -484,8 +417,21 @@ fun SessionScreen() {
                 label = if (muted) "차단 중" else "알림 허용",
                 active = muted,
             ) {
-                muted = !muted
-                AlarmScheduler.sessionMuted = muted
+                if (muted) {
+                    // 차단 해제 — 앱 알림음 + 시스템 방해 금지 모두 원복
+                    muted = false
+                    AlarmScheduler.sessionMuted = false
+                    AlarmScheduler.restoreDndIfNeeded(context)
+                } else {
+                    // 차단 켜기 — 권한 있으면 시스템 방해 금지까지, 없으면 권한 화면으로
+                    muted = true
+                    AlarmScheduler.sessionMuted = true
+                    if (AlarmScheduler.hasDndAccess(context)) {
+                        AlarmScheduler.setDnd(context, true)
+                    } else {
+                        AlarmScheduler.openDndAccessSettings(context)
+                    }
+                }
             }
             SessionSquareButton(icon = Lucide.Siren, label = "긴급중단", active = false) {
                 if (intensity == Intensity.SPICY && phase == SessionEngine.Phase.Recording) {
