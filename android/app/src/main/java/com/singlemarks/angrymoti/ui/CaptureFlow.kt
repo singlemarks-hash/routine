@@ -627,6 +627,7 @@ fun SessionResultScreen() {
 
     var showPlayer by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
         // 스크롤 영역 — 화면이 작아도 하단 버튼은 항상 보인다
@@ -707,15 +708,19 @@ fun SessionResultScreen() {
                             Text("▶", color = TL.ink, fontSize = 20.sp)
                         }
                         // 우측 상단 다운로드 버튼 — 갤러리 저장 (iOS 1:1)
+                        // 저장 중에는 로딩 서클로 바뀌고 탭이 막혀 연타를 방지한다
                         Box(
                             Modifier.align(Alignment.TopEnd).padding(10.dp)
-                                .size(44.dp).background(Color.White, CircleShape)
-                                .clickable {
+                                .size(44.dp)
+                                .background(if (saved) TL.jade else Color.White, CircleShape)
+                                .clickable(enabled = !saving && !saved) {
                                     session.videoFileName?.let { fileName ->
+                                        saving = true
                                         scope.launch(Dispatchers.IO) {
                                             val ok = saveToGallery(context,
                                                 File(CameraRecorder.sessionDir(context), fileName))
                                             withContext(Dispatchers.Main) {
+                                                saving = false
                                                 if (ok) saved = true
                                                 android.widget.Toast.makeText(context,
                                                     if (ok) "갤러리에 저장했어요 (Movies/AngryMoti)"
@@ -727,11 +732,19 @@ fun SessionResultScreen() {
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            androidx.compose.material3.Icon(
-                                if (saved) Lucide.Check else Lucide.ArrowDownToLine,
-                                "갤러리에 저장",
-                                tint = if (saved) TL.jade else TL.ink,
-                                modifier = Modifier.size(21.dp))
+                            if (saving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(19.dp),
+                                    color = TL.ink, trackColor = Color.Transparent,
+                                    strokeWidth = 2.4.dp,
+                                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            } else {
+                                androidx.compose.material3.Icon(
+                                    if (saved) Lucide.Check else Lucide.ArrowDownToLine,
+                                    "갤러리에 저장",
+                                    tint = TL.ink,
+                                    modifier = Modifier.size(21.dp))
+                            }
                         }
                     }
                     Spacer(Modifier.height(10.dp))

@@ -603,12 +603,18 @@ struct SessionResultView: View {
         Button {
             save(session: session)
         } label: {
-            Image(systemName: saved ? "checkmark" : (saving ? "arrow.down" : "arrow.down.to.line"))
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(saved ? TL.ink : TL.ink)
-                .frame(width: 38, height: 38)
-                .background(Circle().fill(saved ? TL.jade : TL.paper))
-                .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+            Group {
+                if saving {
+                    SaveSpinner()
+                } else {
+                    Image(systemName: saved ? "checkmark" : "arrow.down.to.line")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(TL.ink)
+                }
+            }
+            .frame(width: 38, height: 38)
+            .background(Circle().fill(saved ? TL.jade : TL.paper))
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
         }
         .pressableStyle()
         .disabled(saving || saved)
@@ -723,5 +729,26 @@ private struct PlayerLayerView: UIViewRepresentable {
     final class PlayerUIView: UIView {
         override class var layerClass: AnyClass { AVPlayerLayer.self }
         var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    }
+}
+
+// MARK: - 저장 진행 스피너 — 꼬리가 잦아드는 아크 (연타 방지 시각 피드백)
+
+private struct SaveSpinner: View {
+    @State private var spinning = false
+
+    var body: some View {
+        Circle()
+            .trim(from: 0.06, to: 0.94)
+            .stroke(
+                AngularGradient(
+                    gradient: Gradient(colors: [TL.ink.opacity(0), TL.ink]),
+                    center: .center,
+                    startAngle: .degrees(0), endAngle: .degrees(320)),
+                style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
+            .frame(width: 17, height: 17)
+            .rotationEffect(.degrees(spinning ? 360 : 0))
+            .animation(.linear(duration: 0.85).repeatForever(autoreverses: false), value: spinning)
+            .onAppear { spinning = true }
     }
 }
