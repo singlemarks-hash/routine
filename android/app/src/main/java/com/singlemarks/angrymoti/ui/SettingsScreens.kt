@@ -82,11 +82,11 @@ fun MyPageScreen(onBack: () -> Unit) {
             Spacer(Modifier.weight(1f)); Spacer(Modifier.width(44.dp))
         }
         // 아이콘 메뉴 (투명 행) — iOS와 동일 구성
-        IconMenuRow("👤", "프로필 및 구독 관리") { sub = "profile" }
-        IconMenuRow("🎧", "고객센터") {
+        IconMenuRow(androidx.compose.material.icons.Icons.Rounded.AccountCircle, "프로필 및 구독 관리") { sub = "profile" }
+        IconMenuRow(androidx.compose.material.icons.Icons.Rounded.Headphones, "고객센터") {
             context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:singlemarks@gmail.com")))
         }
-        IconMenuRow("💌", "개발자 응원하기") { sub = "paywall" }
+        IconMenuRow(androidx.compose.material.icons.Icons.Rounded.FavoriteBorder, "개발자 응원하기") { sub = "paywall" }
 
         androidx.compose.material3.HorizontalDivider(
             color = TL.hairline, modifier = Modifier.padding(vertical = 18.dp))
@@ -105,16 +105,23 @@ fun MyPageScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun IconMenuRow(icon: String, label: String, onClick: () -> Unit) {
+private fun IconMenuRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(icon, fontSize = 22.sp)
+        androidx.compose.material3.Icon(icon, null, tint = TL.paper,
+            modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(16.dp))
         Text(label, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        Text("›", color = TL.faint, fontSize = 20.sp)
+        androidx.compose.material3.Icon(
+            androidx.compose.material.icons.Icons.Rounded.ChevronRight,
+            null, tint = TL.faint, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -126,7 +133,9 @@ private fun PlainMenuRow(label: String, onClick: () -> Unit) {
     ) {
         Text(label, color = TL.paper, fontSize = 16.sp)
         Spacer(Modifier.weight(1f))
-        Text("›", color = TL.faint, fontSize = 20.sp)
+        androidx.compose.material3.Icon(
+            androidx.compose.material.icons.Icons.Rounded.ChevronRight,
+            null, tint = TL.faint, modifier = Modifier.size(20.dp))
     }
 }
 

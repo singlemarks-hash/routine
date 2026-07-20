@@ -136,7 +136,12 @@ fun TLCircleBack(onClick: () -> Unit) {
             .border(1.dp, TL.hairline, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Text("‹", color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Bold) }
+    ) {
+        androidx.compose.material3.Icon(
+            androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBackIos,
+            contentDescription = "뒤로", tint = TL.paper,
+            modifier = Modifier.size(18.dp))
+    }
 }
 
 /** 상단 필 버튼 (닫기 / 저장) — 예약 편집 상단 */

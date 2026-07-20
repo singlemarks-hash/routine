@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -109,17 +111,21 @@ fun HomeShell() {
                 )
             }
             Spacer(Modifier.weight(1f))
-            Box(Modifier.size(46.dp).background(TL.surface, CircleShape)
+            // 기록 캘린더 — 원형 버튼 + 캘린더 아이콘 (iOS SF calendar 1:1)
+            Box(Modifier.size(45.dp).background(TL.surface, CircleShape)
                 .border(1.dp, TL.hairline, CircleShape)
                 .clickable { nav = HomeNav.Calendar }, contentAlignment = Alignment.Center) {
-                Text("▦", color = TL.paper, fontSize = 20.sp)
+                androidx.compose.material3.Icon(
+                    androidx.compose.material.icons.Icons.Rounded.CalendarMonth,
+                    contentDescription = "기록", tint = TL.paper,
+                    modifier = Modifier.size(23.dp))
             }
             Spacer(Modifier.width(10.dp))
-            Box(Modifier.size(46.dp).background(TL.surface, CircleShape)
-                .border(1.dp, TL.hairline, CircleShape)
-                .clickable { nav = HomeNav.MyPage }, contentAlignment = Alignment.Center) {
-                Text("👤", fontSize = 20.sp)
-            }
+            // 마이페이지 — 배경 없는 사람 아이콘 (iOS person.crop.circle.fill 1:1)
+            androidx.compose.material3.Icon(
+                androidx.compose.material.icons.Icons.Rounded.AccountCircle,
+                contentDescription = "마이페이지", tint = TL.muted,
+                modifier = Modifier.size(45.dp).clickable { nav = HomeNav.MyPage })
         }
 
         Box(Modifier.weight(1f)) {
@@ -137,24 +143,34 @@ fun HomeShell() {
             )
         }
 
-        // 하단 활동|일정 토글 — 선택된 쪽이 종이색 캡슐 + 잉크 텍스트 (iOS 1:1)
+        // 하단 활동|일정 토글 — 반투명 캡슐 + 아이콘, 선택된 쪽 종이색 캡슐 (iOS 글래스 토글 1:1)
         Row(
             modifier = Modifier
                 .padding(bottom = 20.dp)
                 .align(Alignment.CenterHorizontally)
-                .background(TL.raised, CircleShape)
-                .border(1.dp, TL.hairline, CircleShape)
-                .padding(5.dp),
+                .shadow(18.dp, CircleShape, ambientColor = Color.Black, spotColor = Color.Black)
+                .background(TL.raised.copy(alpha = 0.92f), CircleShape)
+                .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
+                .padding(6.dp),
         ) {
-            listOf("activity" to "◉ 활동", "schedule" to "🕐 일정").forEach { (key, label) ->
-                Box(
+            listOf(
+                Triple("activity", "활동", androidx.compose.material.icons.Icons.Rounded.RadioButtonChecked),
+                Triple("schedule", "일정", androidx.compose.material.icons.Icons.Rounded.Schedule),
+            ).forEach { (key, label, icon) ->
+                val selected = tab == key
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .background(if (tab == key) TL.paper else TL.raised, CircleShape)
+                        .background(if (selected) TL.paper else Color.Transparent, CircleShape)
                         .clickable { tab = key }
-                        .padding(horizontal = 26.dp, vertical = 12.dp),
+                        .padding(horizontal = 28.dp, vertical = 14.dp),
                 ) {
-                    Text(label, color = if (tab == key) TL.ink else TL.muted,
-                        fontSize = 16.sp, fontWeight = FontWeight.Black)
+                    androidx.compose.material3.Icon(icon, null,
+                        tint = if (selected) TL.ink else TL.paper.copy(alpha = 0.72f),
+                        modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, color = if (selected) TL.ink else TL.paper.copy(alpha = 0.72f),
+                        fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -247,9 +263,11 @@ private fun ActivityTab(
                     .padding(horizontal = 20.dp, vertical = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("지금 바로 시작", color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("지금 바로 시작", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Text("›", color = TL.muted, fontSize = 22.sp)
+                androidx.compose.material3.Icon(
+                    androidx.compose.material.icons.Icons.Rounded.ChevronRight,
+                    null, tint = TL.paper, modifier = Modifier.size(20.dp))
             }
         }
         item { Text("예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
@@ -257,35 +275,35 @@ private fun ActivityTab(
         if (reservations.isEmpty()) {
             item {
                 TLCard {
-                    Text("아직 예약된 활동이 없어요", color = TL.muted, fontSize = 14.sp)
-                    Text("다짐을 예약하면 그 시각에 알람이 울려요.", color = TL.faint, fontSize = 12.sp)
+                    Text("아직 예정된 활동이 없습니다. '활동 추가하기'로 첫 다짐을 만들어 보세요.",
+                        color = TL.muted, fontSize = 13.sp)
                 }
             }
         }
         items(reservations.sortedBy { it.nextOccurrence() ?: Long.MAX_VALUE }) { r ->
             val next = r.nextOccurrence(now)
+            // iOS 예약 카드 1:1 — 1행: 이름 + (12시간 내 타이머 or 태그 칩) / 2행: 🔔 일정 + (타이머면 칩)
+            val showsTimer = next != null && next - now in 1..(12 * 3600_000L)
             TLCard(onClick = { onEdit(r) }) {
-                Row {
-                    Column(Modifier.weight(1f)) {
-                        Text(r.name, color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "🔔 ${nextLabel(next)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
-                                if (r.isRepeating) " · 매주 " + weekdayLabel(r.repeatWeekdays) else "",
-                            color = TL.muted, fontSize = 12.sp,
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(r.name, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f))
+                    if (showsTimer) {
+                        Text(TLFormat.hms((next!! - now) / 1000), color = TL.amber,
+                            fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    } else {
+                        TagChip(r.tag, selected = false, onClick = { onEdit(r) })
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (next != null && next - now <= 12 * 3600_000L) {
-                            Text(TLFormat.hms((next - now) / 1000), color = TL.amber,
-                                fontSize = 18.sp, fontWeight = FontWeight.Black)
-                            Spacer(Modifier.height(6.dp))
-                        }
-                        Box(Modifier.border(1.dp, TL.hairline, CircleShape)
-                            .padding(horizontal = 12.dp, vertical = 5.dp)) {
-                            Text(r.tag, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "🔔 ${nextLabel(next)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
+                            if (r.isRepeating) " · 매주 " + weekdayLabel(r.repeatWeekdays) else "",
+                        color = TL.muted, fontSize = 13.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (showsTimer) TagChip(r.tag, selected = false, onClick = { onEdit(r) })
                 }
             }
         }
