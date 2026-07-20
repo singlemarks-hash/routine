@@ -124,7 +124,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
         ) {
             TLPillButton("닫기", tint = TL.paper, onClick = onDone)
             Spacer(Modifier.weight(1f))
-            Text(if (existing == null) "예약 추가" else "예약 편집",
+            Text(if (existing == null) "활동 예약" else "예약 편집",
                 color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
             TLPillButton("저장", tint = TL.rec, enabled = !isLocked, onClick = save@{
