@@ -14,9 +14,15 @@ import SwiftData
 
 struct GroupTabView: View {
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var subscription: SubscriptionManager
     @StateObject private var store = GroupStore.shared
     @State private var showCreate = false
     @State private var showJoin = false
+    @State private var showPaywall = false
+
+    /// 그룹 챌린지는 멤버십 전용. 단, 구독 중 참여한 방이 남아 있으면
+    /// (구독이 끝나도 노쇼 벌점은 계속 쌓이므로) 기존 방 열람·관리는 막지 않는다.
+    private var locked: Bool { !subscription.isPro }
 
     var body: some View {
         NavigationStack {
@@ -25,16 +31,24 @@ struct GroupTabView: View {
                     header
                         .padding(.top, 6)
 
-                    notices
+                    if locked && store.rooms.isEmpty {
+                        lockedPanel
+                    } else {
+                        notices
 
-                    Button("그룹방 만들기") { showCreate = true }
+                        Button("그룹방 만들기") {
+                            if locked { showPaywall = true } else { showCreate = true }
+                        }
                         .buttonStyle(TLPrimaryButtonStyle())
 
-                    Button("초대코드로 참여하기") { showJoin = true }
+                        Button("초대코드로 참여하기") {
+                            if locked { showPaywall = true } else { showJoin = true }
+                        }
                         .buttonStyle(TLGhostButtonStyle())
 
-                    roomList
-                        .padding(.top, 8)
+                        roomList
+                            .padding(.top, 8)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 116)   // 하단 토글 자리
@@ -45,7 +59,39 @@ struct GroupTabView: View {
             .task { await store.refresh() }
             .sheet(isPresented: $showCreate) { GroupCreateView() }
             .sheet(isPresented: $showJoin) { GroupJoinView() }
+            .sheet(isPresented: $showPaywall) { PaywallView() }
         }
+    }
+
+    // MARK: 멤버십 잠금 패널 — 비구독자 & 참여 중인 방 없음
+
+    private var lockedPanel: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(TL.raised)
+                    .frame(width: 84, height: 84)
+                    .overlay(Circle().strokeBorder(TL.hairline, lineWidth: 1))
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(TL.amber)
+            }
+            .padding(.top, 28)
+
+            Text("멤버십 전용 기능이에요")
+                .font(.tlTitle(20))
+                .foregroundStyle(TL.paper)
+            Text("초대코드로 친구들과 방을 만들고,\n같은 일정으로 상벌점 랭킹 대결을 해보세요.\n멤버십을 구독하면 바로 열립니다.")
+                .font(.system(size: 14))
+                .foregroundStyle(TL.muted)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+
+            Button("멤버십 구독하고 시작하기") { showPaywall = true }
+                .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
+                .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var header: some View {
