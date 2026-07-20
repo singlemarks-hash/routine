@@ -116,16 +116,20 @@ fun HomeShell() {
                 .border(1.dp, TL.hairline, CircleShape)
                 .clickable { nav = HomeNav.Calendar }, contentAlignment = Alignment.Center) {
                 androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.Rounded.CalendarMonth,
+                    com.composables.icons.lucide.Lucide.CalendarDays,
                     contentDescription = "기록", tint = TL.paper,
-                    modifier = Modifier.size(23.dp))
+                    modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(10.dp))
             // 마이페이지 — 배경 없는 사람 아이콘 (iOS person.crop.circle.fill 1:1)
-            androidx.compose.material3.Icon(
-                androidx.compose.material.icons.Icons.Rounded.AccountCircle,
-                contentDescription = "마이페이지", tint = TL.muted,
-                modifier = Modifier.size(45.dp).clickable { nav = HomeNav.MyPage })
+            Box(Modifier.size(45.dp).background(TL.surface, CircleShape)
+                .border(1.dp, TL.hairline, CircleShape)
+                .clickable { nav = HomeNav.MyPage }, contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Icon(
+                    com.composables.icons.lucide.Lucide.UserRound,
+                    contentDescription = "마이페이지", tint = TL.paper,
+                    modifier = Modifier.size(21.dp))
+            }
         }
 
         Box(Modifier.weight(1f)) {
@@ -154,8 +158,8 @@ fun HomeShell() {
                 .padding(6.dp),
         ) {
             listOf(
-                Triple("activity", "활동", androidx.compose.material.icons.Icons.Rounded.RadioButtonChecked),
-                Triple("schedule", "일정", androidx.compose.material.icons.Icons.Rounded.Schedule),
+                Triple("activity", "활동", com.composables.icons.lucide.Lucide.CircleDot),
+                Triple("schedule", "일정", com.composables.icons.lucide.Lucide.Clock),
             ).forEach { (key, label, icon) ->
                 val selected = tab == key
                 Row(
@@ -266,8 +270,8 @@ private fun ActivityTab(
                 Text("지금 바로 시작", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.Rounded.ChevronRight,
-                    null, tint = TL.paper, modifier = Modifier.size(20.dp))
+                    com.composables.icons.lucide.Lucide.ChevronRight,
+                    null, tint = TL.paper, modifier = Modifier.size(18.dp))
             }
         }
         item { Text("예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,

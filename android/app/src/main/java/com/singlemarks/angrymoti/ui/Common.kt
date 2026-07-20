@@ -138,9 +138,9 @@ fun TLCircleBack(onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.material3.Icon(
-            androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBackIos,
+            com.composables.icons.lucide.Lucide.ChevronLeft,
             contentDescription = "뒤로", tint = TL.paper,
-            modifier = Modifier.size(18.dp))
+            modifier = Modifier.size(22.dp))
     }
 }
 
