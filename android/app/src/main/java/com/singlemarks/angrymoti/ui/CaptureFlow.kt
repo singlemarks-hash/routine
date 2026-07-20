@@ -37,7 +37,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -145,14 +149,16 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
 
 // MARK: 거치 가이드 — 방향 선택·프리뷰·3-2-1 카운트다운 (녹화는 카운트다운과 병렬 시작)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MountGuideScreen(pending: PendingSession) {
     val context = LocalContext.current
     var portrait by remember { mutableStateOf(true) }
-    var checked by remember { mutableStateOf(false) }
+    var check1 by remember { mutableStateOf(false) }   // 거치대에 폰 고정
+    var check2 by remember { mutableStateOf(false) }   // 구도 안에 내가 보임
+    var showFocusSheet by remember { mutableStateOf(false) }
     var countdown by remember { mutableStateOf<Int?>(null) }
     var waitingCamera by remember { mutableStateOf(false) }
-    val frameCount by CameraRecorder.frameCount.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { CameraRecorder.startPreview(context) }
 
@@ -176,72 +182,198 @@ fun MountGuideScreen(pending: PendingSession) {
         }
     }
 
-    Column(
-        Modifier.fillMaxSize().background(TL.ink).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("거치 가이드", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
-            modifier = Modifier.padding(top = 16.dp))
-        Text("기기를 세워두고, 화면에 본인이 잘 보이는지 확인하세요",
-            color = TL.muted, fontSize = 13.sp)
-        Spacer(Modifier.height(14.dp))
+    // iOS 1:1 — 전체 화면 프리뷰 위에 오버레이 (헤더·방향 토글·점선 구도 가이드·체크리스트·시작 버튼)
+    Box(Modifier.fillMaxSize().background(TL.ink)) {
+        AndroidView(
+            factory = { ctx ->
+                androidx.camera.view.PreviewView(ctx).also { pv ->
+                    CameraRecorder.previewUseCase.setSurfaceProvider(pv.surfaceProvider)
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
 
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(if (portrait) 3f / 4f else 4f / 3f)
-                .clip(TL.cornerL).background(TL.surface),
-            contentAlignment = Alignment.Center,
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            AndroidView(
-                factory = { ctx ->
-                    androidx.camera.view.PreviewView(ctx).also { pv ->
-                        CameraRecorder.previewUseCase.setSurfaceProvider(pv.surfaceProvider)
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
-            countdown?.let { c ->
-                Box(Modifier.fillMaxSize().background(TL.ink.copy(alpha = 0.55f)),
-                    contentAlignment = Alignment.Center) {
-                    if (waitingCamera) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = TL.rec)
-                            Spacer(Modifier.height(10.dp))
-                            Text("카메라 준비 중…", color = TL.paper, fontSize = 15.sp)
+            Spacer(Modifier.height(18.dp))
+            Text("거치 가이드", color = TL.amber, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(pending.activityName, color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
+            if (pending.scheduledAt != null) {
+                Spacer(Modifier.height(4.dp))
+                Text("${TimePolicy.START_WINDOW_MINUTES}분 안에 시작하지 않으면 노쇼 처리됩니다",
+                    color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(16.dp))
+
+            // 방향 토글 캡슐 + 카메라 전환 원형 버튼 (iOS 1:1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.background(TL.ink.copy(alpha = 0.55f), CircleShape).padding(5.dp),
+                ) {
+                    listOf(true to "세로", false to "가로").forEach { (isPortrait, label) ->
+                        val selected = portrait == isPortrait
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(if (selected) TL.paper else Color.Transparent, CircleShape)
+                                .clickable { if (countdown == null) portrait = isPortrait }
+                                .padding(horizontal = 20.dp, vertical = 11.dp),
+                        ) {
+                            androidx.compose.material3.Icon(
+                                if (isPortrait) Lucide.Smartphone else Lucide.Tablet, null,
+                                tint = if (selected) TL.ink else TL.paper,
+                                modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(label, color = if (selected) TL.ink else TL.paper,
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
-                    } else {
-                        Text(if (c == 0) "시작!" else "$c", color = TL.paper,
-                            fontSize = 72.sp, fontWeight = FontWeight.Black)
                     }
+                }
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier.size(48.dp).background(TL.ink.copy(alpha = 0.55f), CircleShape)
+                        .clickable { if (countdown == null) CameraRecorder.flipCamera(context) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.material3.Icon(Lucide.SwitchCamera, "카메라 전환",
+                        tint = TL.paper, modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+
+            // 점선 구도 가이드 프레임 (iOS 1:1)
+            Box(
+                Modifier.fillMaxWidth(0.64f).weight(1f)
+                    .drawBehind {
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.65f),
+                            style = Stroke(
+                                width = 2.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 16f)),
+                            ),
+                            cornerRadius = CornerRadius(24.dp.toPx()),
+                        )
+                    },
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                Text("얼굴과 책상이 프레임 안에", color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
+            }
+            Spacer(Modifier.height(18.dp))
+
+            // 체크리스트 2개 — 둘 다 체크해야 시작 가능 (iOS 1:1)
+            MountCheckRow("거치대에 폰을 고정했어요", check1) { if (countdown == null) check1 = !check1 }
+            Spacer(Modifier.height(10.dp))
+            MountCheckRow("구도 안에 내가 보여요", check2) { if (countdown == null) check2 = !check2 }
+            Spacer(Modifier.height(14.dp))
+
+            TLPrimaryButton(
+                if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
+                enabled = check1 && check2 && countdown == null,
+            ) { showFocusSheet = true }
+            Spacer(Modifier.height(8.dp))
+            Text("취소하기", color = if (countdown == null) TL.paper.copy(alpha = 0.8f) else TL.faint,
+                fontSize = 15.sp,
+                modifier = Modifier.clickable(enabled = countdown == null) {
+                    AppState.cancelMountGuide(pending)
+                }.padding(8.dp))
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // 3-2-1 카운트다운 오버레이
+        countdown?.let { c ->
+            Box(Modifier.fillMaxSize().background(TL.ink.copy(alpha = 0.62f)),
+                contentAlignment = Alignment.Center) {
+                if (waitingCamera) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = TL.rec)
+                        Spacer(Modifier.height(10.dp))
+                        Text("카메라 준비 중…", color = TL.paper, fontSize = 15.sp)
+                    }
+                } else {
+                    Text(if (c == 0) "시작!" else "$c", color = TL.paper,
+                        fontSize = 84.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
+    }
 
-        Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            TagChip("📱 세로", portrait) { if (countdown == null) portrait = true }
-            TagChip("📱 가로", !portrait) { if (countdown == null) portrait = false }
+    // 집중 모드(방해 금지) 안내 시트 — 확인하면 카운트다운 시작 (iOS 1:1)
+    if (showFocusSheet) {
+        ModalBottomSheet(onDismissRequest = { showFocusSheet = false }, containerColor = TL.surface) {
+            Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 36.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Text("🌙", fontSize = 24.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("시작 전, 방해 금지 모드를 켜서\n알림을 차단해보세요",
+                        color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
+                        lineHeight = 28.sp)
+                }
+                Spacer(Modifier.height(18.dp))
+                Column(
+                    Modifier.fillMaxWidth().background(TL.raised, TL.cornerM).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    FocusStep(1, "화면 위에서 아래로 쓸어내려 빠른 설정을 엽니다")
+                    FocusStep(2, "🌙 방해 금지를 눌러 켭니다")
+                    FocusStep(3, "세션이 끝나면 같은 방법으로 해제하면 됩니다")
+                }
+                Spacer(Modifier.height(14.dp))
+                Text("앱 안 알림음은 촬영이 시작되면 '알림차단'이 자동으로 켜져 막아줍니다.\n이탈 시 재촬영 알림은 중요 알림으로 전달됩니다.",
+                    color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
+                Spacer(Modifier.height(20.dp))
+                TLPrimaryButton("◉  확인 — 촬영 시작") {
+                    showFocusSheet = false
+                    countdown = 3
+                }
+            }
         }
-        Spacer(Modifier.height(14.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable { if (countdown == null) checked = !checked }.padding(6.dp),
+    }
+}
+
+/** 거치 가이드 체크리스트 행 — 원형 라디오 + 라벨 (iOS 1:1) */
+@Composable
+private fun MountCheckRow(label: String, checked: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+            .background(TL.ink.copy(alpha = 0.6f), TL.cornerM)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 15.dp),
+    ) {
+        Box(
+            Modifier.size(24.dp)
+                .background(if (checked) TL.jade else Color.Transparent, CircleShape)
+                .border(2.dp, if (checked) TL.jade else TL.muted, CircleShape),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(if (checked) "☑" else "☐", color = if (checked) TL.jade else TL.muted, fontSize = 20.sp)
-            Spacer(Modifier.padding(4.dp))
-            Text("구도를 확인했어요", color = TL.paper, fontSize = 15.sp)
+            if (checked) {
+                androidx.compose.material3.Icon(Lucide.Check, null,
+                    tint = TL.ink, modifier = Modifier.size(15.dp))
+            }
         }
-        Spacer(Modifier.weight(1f))
-        TLPrimaryButton(
-            if (countdown != null) "곧 시작합니다…" else "촬영 시작",
-            enabled = checked && countdown == null,
-        ) { countdown = 3 }
-        Spacer(Modifier.height(10.dp))
-        Text("취소하기", color = if (countdown == null) TL.muted else TL.faint, fontSize = 14.sp,
-            modifier = Modifier.clickable(enabled = countdown == null) {
-                AppState.cancelMountGuide(pending)
-            }.padding(8.dp))
-        Spacer(Modifier.height(12.dp))
-        if (frameCount > 0) { /* 첫 프레임 도착 — LaunchedEffect가 세션으로 전환 */ }
+        Spacer(Modifier.width(12.dp))
+        Text(label, color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** 집중 모드 안내 스텝 행 — 앰버 번호 원 + 설명 */
+@Composable
+private fun FocusStep(number: Int, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(26.dp).background(TL.amber, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("$number", color = TL.ink, fontSize = 14.sp, fontWeight = FontWeight.Black)
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(text, color = TL.paper, fontSize = 14.sp, lineHeight = 20.sp,
+            modifier = Modifier.weight(1f))
     }
 }
 

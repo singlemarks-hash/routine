@@ -38,7 +38,9 @@ object CameraRecorder {
     private val encodeExecutor = Executors.newSingleThreadExecutor()
 
     private var provider: ProcessCameraProvider? = null
+    private var analysisUseCase: ImageAnalysis? = null
     private var bound = false
+    @Volatile private var frontFacing = true
 
     @Volatile private var isRecording = false
     @Volatile private var isPaused = false
@@ -82,13 +84,30 @@ object CameraRecorder {
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
             analysis.setAnalyzer(analysisExecutor) { proxy -> onFrame(context, proxy) }
+            analysisUseCase = analysis
             ContextCompat.getMainExecutor(context).execute {
                 camLifecycle.registry.currentState = Lifecycle.State.RESUMED
                 p.unbindAll()
+                frontFacing = true
                 p.bindToLifecycle(camLifecycle, CameraSelector.DEFAULT_FRONT_CAMERA, previewUseCase, analysis)
                 bound = true
             }
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    /** 전/후면 카메라 전환 — 프리뷰·분석 유스케이스를 유지한 채 재바인딩 */
+    fun flipCamera(context: Context) {
+        val p = provider ?: return
+        val analysis = analysisUseCase ?: return
+        ContextCompat.getMainExecutor(context).execute {
+            frontFacing = !frontFacing
+            p.unbindAll()
+            p.bindToLifecycle(
+                camLifecycle,
+                if (frontFacing) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA,
+                previewUseCase, analysis,
+            )
+        }
     }
 
     /** 촬영 시작 — 세션 길이에 맞춰 캡처 간격을 동적으로 정한다 (재생 30fps) */
@@ -158,10 +177,11 @@ object CameraRecorder {
         if (captureDue) {
             lastCaptureAt = now
             encodeExecutor.execute {
-                val bitmap = if (rotation != 0) {
+                val mirror = frontFacing
+                val bitmap = if (rotation != 0 || mirror) {
                     val m = android.graphics.Matrix().apply {
                         postRotate(rotation.toFloat())
-                        postScale(-1f, 1f)   // 전면 카메라 미러 보정
+                        if (mirror) postScale(-1f, 1f)   // 전면 카메라만 미러 보정
                     }
                     Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
                 } else raw
