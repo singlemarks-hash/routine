@@ -32,6 +32,8 @@ object CameraRecorder {
 
     val frameCount = MutableStateFlow(0)
     val absentSeconds = MutableStateFlow(0)
+    /** 이번 세션의 촬영 방향 — 세션 화면이 이 값으로 화면 회전을 잠근다 */
+    val portraitSession = MutableStateFlow(true)
     val previewUseCase = Preview.Builder().build()   // PreviewView가 화면에서 SurfaceProvider만 붙인다
 
     private val analysisExecutor = Executors.newSingleThreadExecutor()
@@ -114,6 +116,7 @@ object CameraRecorder {
     fun startRecording(context: Context, sessionId: String, portrait: Boolean, plannedSeconds: Double, watermark: Boolean) {
         this.sessionId = sessionId
         this.portrait = portrait
+        portraitSession.value = portrait
         val outMinutes = plannedSeconds / 60.0
         val outSeconds = outMinutes.coerceIn(15.0, 60.0)      // 결과 영상 길이 앵커: 15초~60초
         val targetFrames = (outSeconds * TimelapseEncoder.FPS).coerceAtLeast(1.0)

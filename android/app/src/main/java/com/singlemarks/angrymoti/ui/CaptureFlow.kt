@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
@@ -25,6 +26,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -418,76 +420,122 @@ fun SessionScreen() {
     val target = s?.targetSeconds ?: 1
     val intensity = s?.intensity ?: Intensity.SPICY
 
-    Box(Modifier.fillMaxSize().background(TL.ink)) {
-        Column(
-            Modifier.fillMaxSize().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+    // 촬영 방향대로 화면 회전 잠금 — 가로 선택 시 세션 화면도 가로 (iOS 동일)
+    val portraitSession by CameraRecorder.portraitSession.collectAsStateWithLifecycle()
+    val activity = context as? android.app.Activity
+    DisposableEffect(portraitSession) {
+        activity?.requestedOrientation = if (portraitSession)
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        onDispose {
+            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+    var muted by remember { mutableStateOf(AlarmScheduler.sessionMuted) }
+
+    // 공용 조각 — 프리뷰 카드(가용 높이에 맞춰 축소, 버튼 간섭 없음)와 버튼 행
+    val previewCard: @Composable (Float) -> Unit = { aspect ->
+        Box(
+            Modifier.fillMaxHeight()
+                .aspectRatio(aspect, matchHeightConstraintsFirst = true)
+                .clip(TL.cornerL).background(TL.surface),
         ) {
-            Spacer(Modifier.height(14.dp))
-            Text(s?.activityName ?: "", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.height(16.dp))
-
-            // 시그니처 시계판 — 남은 시간만큼 빨간 부채꼴이 12시를 향해 줄어든다 (iOS FocusDial)
-            FocusDial(
-                remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
-                totalMinutes = target / 60,
-                modifier = Modifier.size(280.dp),
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
-                color = TL.paper, fontSize = 48.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.height(16.dp))
-
-            // 셀피 프리뷰 카드 + REC 배지 (공유 Preview 유스케이스 재부착 — 재연결 없음)
-            Box(
-                Modifier.fillMaxWidth(0.5f).weight(1f, fill = false).aspectRatio(9f / 16f)
-                    .clip(TL.cornerL).background(TL.surface),
-            ) {
-                AndroidView(
-                    factory = { ctx ->
-                        androidx.camera.view.PreviewView(ctx).also { pv ->
-                            CameraRecorder.previewUseCase.setSurfaceProvider(pv.surfaceProvider)
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(10.dp)
-                        .background(TL.ink.copy(alpha = 0.55f), CircleShape)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                ) {
-                    Box(Modifier.size(8.dp).background(TL.rec, CircleShape))
-                    Spacer(Modifier.width(6.dp))
-                    Text("REC", color = TL.paper, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                }
-            }
-            Spacer(Modifier.height(18.dp))
-
-            // 하단 사각 버튼 2개 — 차단 중(알림차단 토글) · 긴급중단 (iOS 1:1)
-            var muted by remember { mutableStateOf(AlarmScheduler.sessionMuted) }
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                SessionSquareButton(
-                    icon = Lucide.BellOff,
-                    label = if (muted) "차단 중" else "알림 허용",
-                    active = muted,
-                ) {
-                    muted = !muted
-                    AlarmScheduler.sessionMuted = muted
-                }
-                SessionSquareButton(
-                    icon = Lucide.Siren,
-                    label = "긴급중단",
-                    active = false,
-                ) {
-                    if (intensity == Intensity.SPICY && phase == SessionEngine.Phase.Recording) {
-                        SessionEngine.startBreak()
-                    } else {
-                        showEmergency = true
+            AndroidView(
+                factory = { ctx ->
+                    androidx.camera.view.PreviewView(ctx).also { pv ->
+                        CameraRecorder.previewUseCase.setSurfaceProvider(pv.surfaceProvider)
                     }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(10.dp)
+                    .background(TL.ink.copy(alpha = 0.55f), CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            ) {
+                Box(Modifier.size(8.dp).background(TL.rec, CircleShape))
+                Spacer(Modifier.width(6.dp))
+                Text("REC", color = TL.paper, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            }
+        }
+    }
+    val buttonsRow: @Composable () -> Unit = {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            SessionSquareButton(
+                icon = Lucide.BellOff,
+                label = if (muted) "차단 중" else "알림 허용",
+                active = muted,
+            ) {
+                muted = !muted
+                AlarmScheduler.sessionMuted = muted
+            }
+            SessionSquareButton(icon = Lucide.Siren, label = "긴급중단", active = false) {
+                if (intensity == Intensity.SPICY && phase == SessionEngine.Phase.Recording) {
+                    SessionEngine.startBreak()
+                } else {
+                    showEmergency = true
                 }
             }
-            Spacer(Modifier.height(20.dp))
+        }
+    }
+
+    Box(Modifier.fillMaxSize().background(TL.ink)) {
+        if (portraitSession) {
+            // 세로 — 이름/다이얼/타이머/프리뷰/버튼 수직 배치 (iOS 1:1)
+            Column(
+                Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(14.dp))
+                Text(s?.activityName ?: "", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(16.dp))
+                FocusDial(
+                    remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
+                    totalMinutes = target / 60,
+                    modifier = Modifier.size(280.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
+                    color = TL.paper, fontSize = 48.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    previewCard(9f / 16f)
+                }
+                Spacer(Modifier.height(14.dp))
+                buttonsRow()
+                Spacer(Modifier.height(16.dp))
+            }
+        } else {
+            // 가로 — 왼쪽 다이얼/타이머, 오른쪽 프리뷰/버튼 나란히
+            Row(
+                Modifier.fillMaxSize().padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(s?.activityName ?: "", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Spacer(Modifier.height(10.dp))
+                    FocusDial(
+                        remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
+                        totalMinutes = target / 60,
+                        modifier = Modifier.size(190.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
+                        color = TL.paper, fontSize = 38.sp, fontWeight = FontWeight.Black)
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(
+                    Modifier.weight(1.2f).fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(Modifier.weight(1f).padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                        previewCard(16f / 9f)
+                    }
+                    buttonsRow()
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
         }
 
         // 자리비움 경고 배너 — n/3, 4번째는 배너 없이 즉시 처리됨
