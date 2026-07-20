@@ -119,65 +119,57 @@ object CameraRecorder {
         isPaused = false
     }
 
-    @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
+    // 핵심 원칙: 카메라 버퍼(ImageProxy)는 절대 붙잡지 않는다.
+    // 필요한 프레임만 비트맵으로 즉시 복사하고 바로 close — 프리뷰가 항상 매끄럽고,
+    // 얼굴 인식·회전·인코딩 같은 무거운 일은 전부 파이프라인 밖(별도 스레드/비동기)에서 한다.
+    // "촬영은 정상, 결과물만 타임랩스"가 되는 구조.
     private fun onFrame(context: Context, proxy: ImageProxy) {
         if (!isRecording || isPaused) { proxy.close(); return }
         val now = System.currentTimeMillis()
+        val captureDue = now - lastCaptureAt >= captureIntervalMs
+        val presenceDue = now - lastPresenceCheckAt >= PRESENCE_CHECK_MS && !presenceBusy
 
-        // 부재 감지 (5초 주기)
-        if (now - lastPresenceCheckAt >= PRESENCE_CHECK_MS && !presenceBusy) {
+        if (!captureDue && !presenceDue) { proxy.close(); return }
+
+        // 한 번만 복사하고 즉시 반납 (분석 해상도라 복사 비용은 밀리초 수준)
+        val raw: Bitmap? = runCatching { proxy.toBitmap() }.getOrNull()
+        val rotation = proxy.imageInfo.rotationDegrees
+        proxy.close()
+        if (raw == null) return
+
+        // 부재 감지 — 복사본 기반 비동기, 파이프라인과 완전 분리
+        if (presenceDue) {
             lastPresenceCheckAt = now
             presenceBusy = true
-            val media = proxy.image
-            if (media != null) {
-                val input = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
-                faceDetector.process(input)
-                    .addOnSuccessListener { faces ->
-                        if (faces.isEmpty()) {
-                            if (absenceStartedAt == 0L) absenceStartedAt = now
-                            absentSeconds.value = ((now - absenceStartedAt) / 1000).toInt()
-                        } else {
-                            absenceStartedAt = 0
-                            if (absentSeconds.value != 0) absentSeconds.value = 0
-                        }
-                    }
-                    .addOnCompleteListener {
-                        presenceBusy = false
-                        captureIfDue(proxy, now)
-                    }
-                return   // proxy는 captureIfDue에서 close
-            }
-            presenceBusy = false
-        }
-        captureIfDue(proxy, now)
-    }
-
-    private fun captureIfDue(proxy: ImageProxy, now: Long) {
-        if (isRecording && !isPaused && now - lastCaptureAt >= captureIntervalMs) {
-            lastCaptureAt = now
-            val bitmap: Bitmap? = runCatching {
-                val b = proxy.toBitmap()
-                val deg = proxy.imageInfo.rotationDegrees
-                if (deg != 0) {
-                    val m = android.graphics.Matrix().apply {
-                        postRotate(deg.toFloat())
-                        // 전면 카메라 미러 보정
-                        postScale(-1f, 1f)
-                    }
-                    Bitmap.createBitmap(b, 0, 0, b.width, b.height, m, true)
-                } else b
-            }.getOrNull()
-            proxy.close()
-            if (bitmap != null) {
-                encodeExecutor.execute {
-                    encoder?.let { e ->
-                        runCatching { e.addFrame(bitmap) }
-                        frameCount.value = e.frameCount
+            faceDetector.process(InputImage.fromBitmap(raw, rotation))
+                .addOnSuccessListener { faces ->
+                    if (faces.isEmpty()) {
+                        if (absenceStartedAt == 0L) absenceStartedAt = now
+                        absentSeconds.value = ((now - absenceStartedAt) / 1000).toInt()
+                    } else {
+                        absenceStartedAt = 0
+                        if (absentSeconds.value != 0) absentSeconds.value = 0
                     }
                 }
+                .addOnCompleteListener { presenceBusy = false }
+        }
+
+        // 타임랩스 프레임 — 회전·미러·인코딩은 전용 스레드에서
+        if (captureDue) {
+            lastCaptureAt = now
+            encodeExecutor.execute {
+                val bitmap = if (rotation != 0) {
+                    val m = android.graphics.Matrix().apply {
+                        postRotate(rotation.toFloat())
+                        postScale(-1f, 1f)   // 전면 카메라 미러 보정
+                    }
+                    Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
+                } else raw
+                encoder?.let { e ->
+                    runCatching { e.addFrame(bitmap) }
+                    frameCount.value = e.frameCount
+                }
             }
-        } else {
-            proxy.close()
         }
     }
 

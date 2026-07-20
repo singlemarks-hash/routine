@@ -78,6 +78,7 @@ object SessionEngine {
     fun start(activityName: String, tag: String, intensity: Intensity,
               scheduledAt: Long?, targetSeconds: Int, reservationId: String?,
               portrait: Boolean, isPro: Boolean) {
+        AlarmScheduler.sessionMuted = true   // 촬영 시작과 함께 알림차단 기본 활성화 (iOS 동일)
         val owner = AccountStore.currentUserID
         val s = FocusSession(
             ownerUserID = owner, activityName = activityName, tag = tag,
@@ -424,6 +425,7 @@ object SessionEngine {
     }
 
     private fun cleanupRuntime() {
+        AlarmScheduler.sessionMuted = false
         tickJob?.cancel(); tickJob = null
         telephonyCallback = null
         isCallActive = false

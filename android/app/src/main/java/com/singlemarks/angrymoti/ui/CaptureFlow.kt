@@ -56,6 +56,7 @@ import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScoreRules
 import com.singlemarks.angrymoti.models.SessionOutcome
 import com.singlemarks.angrymoti.models.TimePolicy
+import com.composables.icons.lucide.*
 import com.singlemarks.angrymoti.services.AlarmScheduler
 import com.singlemarks.angrymoti.services.CameraRecorder
 import com.singlemarks.angrymoti.services.SessionEngine
@@ -243,6 +244,29 @@ fun MountGuideScreen(pending: PendingSession) {
     }
 }
 
+/** 세션 하단 사각 버튼 — 아이콘 위 + 라벨 아래, 활성 시 종이색 (iOS 1:1) */
+@Composable
+private fun SessionSquareButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.size(86.dp)
+            .background(if (active) TL.paper else TL.raised, TL.cornerM)
+            .clickable(onClick = onClick),
+    ) {
+        androidx.compose.material3.Icon(icon, null,
+            tint = if (active) TL.ink else TL.paper, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = if (active) TL.ink else TL.muted,
+            fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
 // MARK: 세션 화면 — 타이머·자리비움 배너(n/3)·긴급 용무·브레이크 오버레이
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -266,26 +290,25 @@ fun SessionScreen() {
             Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(14.dp))
             Text(s?.activityName ?: "", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("${intensity.emoji} ${intensity.title}", color = TL.muted, fontSize = 13.sp)
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
 
             // 시그니처 시계판 — 남은 시간만큼 빨간 부채꼴이 12시를 향해 줄어든다 (iOS FocusDial)
             FocusDial(
                 remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
                 totalMinutes = target / 60,
-                modifier = Modifier.size(240.dp),
+                modifier = Modifier.size(280.dp),
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
-                color = TL.paper, fontSize = 42.sp, fontWeight = FontWeight.Black)
-            Text("남은 시간", color = TL.faint, fontSize = 12.sp, letterSpacing = 2.2.sp)
+                color = TL.paper, fontSize = 48.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(16.dp))
 
-            // 셀피 프리뷰 (공유 Preview 유스케이스 재부착 — 재연결 없음)
+            // 셀피 프리뷰 카드 + REC 배지 (공유 Preview 유스케이스 재부착 — 재연결 없음)
             Box(
-                Modifier.fillMaxWidth(0.6f).aspectRatio(3f / 4f).clip(TL.cornerM).background(TL.surface),
+                Modifier.fillMaxWidth(0.5f).weight(1f, fill = false).aspectRatio(9f / 16f)
+                    .clip(TL.cornerL).background(TL.surface),
             ) {
                 AndroidView(
                     factory = { ctx ->
@@ -295,21 +318,43 @@ fun SessionScreen() {
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(10.dp)
+                        .background(TL.ink.copy(alpha = 0.55f), CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                ) {
+                    Box(Modifier.size(8.dp).background(TL.rec, CircleShape))
+                    Spacer(Modifier.width(6.dp))
+                    Text("REC", color = TL.paper, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                }
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(18.dp))
 
-            if (intensity == Intensity.SPICY) {
-                val exhausted = budget < 1
-                TLPrimaryButton(
-                    if (exhausted) "긴급 소진" else "긴급 용무 (남은 예산 ${TLFormat.hms(budget)})",
-                    enabled = !exhausted && phase == SessionEngine.Phase.Recording,
-                    tint = TL.amber,
-                ) { SessionEngine.startBreak() }
-                Spacer(Modifier.height(10.dp))
+            // 하단 사각 버튼 2개 — 차단 중(알림차단 토글) · 긴급중단 (iOS 1:1)
+            var muted by remember { mutableStateOf(AlarmScheduler.sessionMuted) }
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                SessionSquareButton(
+                    icon = Lucide.BellOff,
+                    label = if (muted) "차단 중" else "알림 허용",
+                    active = muted,
+                ) {
+                    muted = !muted
+                    AlarmScheduler.sessionMuted = muted
+                }
+                SessionSquareButton(
+                    icon = Lucide.Siren,
+                    label = "긴급중단",
+                    active = false,
+                ) {
+                    if (intensity == Intensity.SPICY && phase == SessionEngine.Phase.Recording) {
+                        SessionEngine.startBreak()
+                    } else {
+                        showEmergency = true
+                    }
+                }
             }
-            Text("긴급 종료 (벌점)", color = TL.muted, fontSize = 14.sp,
-                modifier = Modifier.clickable { showEmergency = true }.padding(8.dp))
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
         }
 
         // 자리비움 경고 배너 — n/3, 4번째는 배너 없이 즉시 처리됨

@@ -140,7 +140,11 @@ object AlarmScheduler {
         alarmPlayer = null
     }
 
+    /** 세션 중 알림차단 (iOS muteAllNotifications) — 켜져 있으면 차임 무음 */
+    @Volatile var sessionMuted = false
+
     fun playChime(context: Context) {
+        if (sessionMuted) return
         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION) ?: return
         chimePlayer?.release()
         chimePlayer = MediaPlayer().apply {
