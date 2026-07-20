@@ -626,6 +626,7 @@ fun SessionResultScreen() {
     val scale by animateFloatAsState(if (pop) 1f else 0.45f, tween(500), label = "pop")
 
     var showPlayer by remember { mutableStateOf(false) }
+    var saved by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
         // 스크롤 영역 — 화면이 작아도 하단 버튼은 항상 보인다
@@ -695,15 +696,42 @@ fun SessionResultScreen() {
                             .align(Alignment.CenterHorizontally)
                             .clip(TL.cornerM).background(TL.ink)
                             .clickable { showPlayer = true },
-                        contentAlignment = Alignment.Center,
                     ) {
                         thumb?.let {
                             Image(it.asImageBitmap(), null, Modifier.fillMaxSize(),
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop)
                         }
-                        Box(Modifier.size(58.dp).background(Color.White, CircleShape),
+                        Box(Modifier.align(Alignment.Center)
+                            .size(58.dp).background(Color.White, CircleShape),
                             contentAlignment = Alignment.Center) {
                             Text("▶", color = TL.ink, fontSize = 20.sp)
+                        }
+                        // 우측 상단 다운로드 버튼 — 갤러리 저장 (iOS 1:1)
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(10.dp)
+                                .size(44.dp).background(Color.White, CircleShape)
+                                .clickable {
+                                    session.videoFileName?.let { fileName ->
+                                        scope.launch(Dispatchers.IO) {
+                                            val ok = saveToGallery(context,
+                                                File(CameraRecorder.sessionDir(context), fileName))
+                                            withContext(Dispatchers.Main) {
+                                                if (ok) saved = true
+                                                android.widget.Toast.makeText(context,
+                                                    if (ok) "갤러리에 저장했어요 (Movies/AngryMoti)"
+                                                    else "저장에 실패했어요 — 다시 시도해주세요",
+                                                    android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            androidx.compose.material3.Icon(
+                                if (saved) Lucide.Check else Lucide.ArrowDownToLine,
+                                "갤러리에 저장",
+                                tint = if (saved) TL.jade else TL.ink,
+                                modifier = Modifier.size(21.dp))
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -714,23 +742,9 @@ fun SessionResultScreen() {
             Spacer(Modifier.height(16.dp))
         }
 
-        // 하단 고정 버튼 — 스크롤과 무관하게 항상 보임
+        // 하단 고정 버튼 — 저장은 미리보기 우측 상단 다운로드 버튼이 담당 (iOS 1:1)
         Column(Modifier.padding(horizontal = 24.dp)) {
-            session.videoFileName?.let { fileName ->
-                TLPrimaryButton("갤러리에 저장", tint = TL.jade) {
-                    scope.launch(Dispatchers.IO) {
-                        val ok = saveToGallery(context, File(CameraRecorder.sessionDir(context), fileName))
-                        withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(context,
-                                if (ok) "갤러리에 저장했어요 (Movies/AngryMoti)" else "저장에 실패했어요 — 다시 시도해주세요",
-                                android.widget.Toast.LENGTH_SHORT).show()
-                            if (ok) AppState.dismissResult(context)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-            }
-            TLPrimaryButton(if (session.videoFileName != null) "저장 없이 종료" else "종료", tint = TL.amber) {
+            TLPrimaryButton("종료", tint = TL.amber) {
                 CameraRecorder.deleteFiles(context, session.videoFileName, session.thumbnailFileName)
                 AppState.dismissResult(context)
             }
