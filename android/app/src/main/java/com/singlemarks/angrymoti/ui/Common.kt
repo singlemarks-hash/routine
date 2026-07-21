@@ -54,6 +54,12 @@ object TLFormat {
     }
 
     fun scoreLabel(points: Int): String = if (points >= 0) "+$points" else "$points"
+
+    /** 시:분 (예: 오전/오후 없이 24시간제 "HH:mm") — 기록 캘린더 시작 시각 표시 */
+    fun clock(epochMillis: Long): String {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
+        return "%02d:%02d".format(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+    }
 }
 
 /** 대문자 트래킹 라벨 — iOS TLEyebrow (tracking 2.2) */

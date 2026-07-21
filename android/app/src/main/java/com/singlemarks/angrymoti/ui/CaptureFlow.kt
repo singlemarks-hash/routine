@@ -34,6 +34,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -166,6 +167,16 @@ fun MountGuideScreen(pending: PendingSession) {
 
     LaunchedEffect(Unit) { CameraRecorder.startPreview(context) }
 
+    // 가로 선택 시 화면도 가로로 잠가 iOS 분할 레이아웃과 동일하게 (세로면 세로 잠금)
+    val activity = context as? android.app.Activity
+    DisposableEffect(portrait) {
+        activity?.requestedOrientation = if (portrait)
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        // 취소하고 화면을 뜨면 세로로 복귀 — 촬영으로 이어지면 SessionScreen이 즉시 다시 잠근다
+        onDispose { activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+    }
+
     LaunchedEffect(countdown) {
         if (countdown == 3) {
             AppState.startArmedRecording(pending, portrait)   // 카운트다운과 병렬로 녹화 시작
@@ -186,106 +197,135 @@ fun MountGuideScreen(pending: PendingSession) {
         }
     }
 
-    // iOS 1:1 — 전체 화면 프리뷰 위에 오버레이 (헤더·방향 토글·점선 구도 가이드·체크리스트·시작 버튼)
-    Box(Modifier.fillMaxSize().background(TL.ink)) {
+    // 공용 조각 — 세로/가로 레이아웃이 함께 쓴다
+    val previewView: @Composable (Modifier) -> Unit = { mod ->
         AndroidView(
             factory = { ctx ->
                 androidx.camera.view.PreviewView(ctx).also { pv ->
                     CameraRecorder.previewUseCase.setSurfaceProvider(pv.surfaceProvider)
                 }
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = mod,
         )
-
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+    }
+    val dashedGuide: @Composable (Modifier) -> Unit = { mod ->
+        Box(
+            mod.drawBehind {
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.65f),
+                    style = Stroke(
+                        width = 2.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 16f)),
+                    ),
+                    cornerRadius = CornerRadius(24.dp.toPx()),
+                )
+            },
+            contentAlignment = Alignment.TopCenter,
         ) {
-            Spacer(Modifier.height(18.dp))
-            Text("거치 가이드", color = TL.amber, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(pending.activityName, color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
-            if (pending.scheduledAt != null) {
-                Spacer(Modifier.height(4.dp))
-                Text("${TimePolicy.START_WINDOW_MINUTES}분 안에 시작하지 않으면 노쇼 처리됩니다",
-                    color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(16.dp))
-
-            // 방향 토글 캡슐 + 카메라 전환 원형 버튼 (iOS 1:1)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(
-                    Modifier.background(TL.ink.copy(alpha = 0.55f), CircleShape).padding(5.dp),
-                ) {
-                    listOf(true to "세로", false to "가로").forEach { (isPortrait, label) ->
-                        val selected = portrait == isPortrait
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .background(if (selected) TL.paper else Color.Transparent, CircleShape)
-                                .clickable { if (countdown == null) portrait = isPortrait }
-                                .padding(horizontal = 20.dp, vertical = 11.dp),
-                        ) {
-                            androidx.compose.material3.Icon(
-                                if (isPortrait) Lucide.Smartphone else Lucide.Tablet, null,
-                                tint = if (selected) TL.ink else TL.paper,
-                                modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(label, color = if (selected) TL.ink else TL.paper,
-                                fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        }
+            Text("얼굴과 책상이 프레임 안에", color = Color.White.copy(alpha = 0.75f),
+                fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
+        }
+    }
+    val orientationRow: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.background(TL.ink.copy(alpha = 0.55f), CircleShape).padding(5.dp)) {
+                listOf(true to "세로", false to "가로").forEach { (isPortrait, label) ->
+                    val selected = portrait == isPortrait
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(if (selected) TL.paper else Color.Transparent, CircleShape)
+                            .clickable { if (countdown == null) portrait = isPortrait }
+                            .padding(horizontal = 20.dp, vertical = 11.dp),
+                    ) {
+                        androidx.compose.material3.Icon(
+                            if (isPortrait) Lucide.Smartphone else Lucide.Tablet, null,
+                            tint = if (selected) TL.ink else TL.paper,
+                            modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(label, color = if (selected) TL.ink else TL.paper,
+                            fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Spacer(Modifier.width(10.dp))
-                Box(
-                    Modifier.size(48.dp).background(TL.ink.copy(alpha = 0.55f), CircleShape)
-                        .clickable { if (countdown == null) CameraRecorder.flipCamera(context) },
-                    contentAlignment = Alignment.Center,
+            }
+            Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier.size(48.dp).background(TL.ink.copy(alpha = 0.55f), CircleShape)
+                    .clickable { if (countdown == null) CameraRecorder.flipCamera(context) },
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.material3.Icon(Lucide.SwitchCamera, "카메라 전환",
+                    tint = TL.paper, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+    val header: @Composable () -> Unit = {
+        Text("거치 가이드", color = TL.amber, fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(pending.activityName, color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        if (pending.scheduledAt != null) {
+            Spacer(Modifier.height(4.dp))
+            Text("${TimePolicy.START_WINDOW_MINUTES}분 안에 시작하지 않으면 노쇼 처리됩니다",
+                color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+    val checklistAndStart: @Composable () -> Unit = {
+        MountCheckRow("거치대에 폰을 고정했어요", check1) { if (countdown == null) check1 = !check1 }
+        Spacer(Modifier.height(10.dp))
+        MountCheckRow("구도 안에 내가 보여요", check2) { if (countdown == null) check2 = !check2 }
+        Spacer(Modifier.height(14.dp))
+        TLPrimaryButton(
+            if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
+            enabled = check1 && check2 && countdown == null,
+        ) { countdown = 3 }
+        Spacer(Modifier.height(8.dp))
+        Text("취소하기", color = if (countdown == null) TL.paper.copy(alpha = 0.8f) else TL.faint,
+            fontSize = 15.sp,
+            modifier = Modifier.clickable(enabled = countdown == null) {
+                AppState.cancelMountGuide(pending)
+            }.padding(8.dp))
+    }
+
+    Box(Modifier.fillMaxSize().background(TL.ink)) {
+        if (portrait) {
+            // 세로 — 전체 화면 프리뷰 위에 오버레이 (iOS 1:1)
+            previewView(Modifier.fillMaxSize())
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(18.dp))
+                header()
+                Spacer(Modifier.height(16.dp))
+                orientationRow()
+                Spacer(Modifier.height(20.dp))
+                dashedGuide(Modifier.fillMaxWidth(0.64f).weight(1f))
+                Spacer(Modifier.height(18.dp))
+                checklistAndStart()
+                Spacer(Modifier.height(14.dp))
+            }
+        } else {
+            // 가로 — 좌측 프리뷰(점선 가이드 오버레이) / 우측 컨트롤 패널 (iOS 분할 1:1)
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    previewView(Modifier.fillMaxSize())
+                    dashedGuide(Modifier.fillMaxSize().padding(20.dp))
+                }
+                Column(
+                    Modifier.width(360.dp).fillMaxHeight()
+                        .background(TL.ink).padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    androidx.compose.material3.Icon(Lucide.SwitchCamera, "카메라 전환",
-                        tint = TL.paper, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.height(20.dp))
+                    header()
+                    Spacer(Modifier.height(16.dp))
+                    orientationRow()
+                    Spacer(Modifier.weight(1f))
+                    checklistAndStart()
+                    Spacer(Modifier.height(20.dp))
                 }
             }
-            Spacer(Modifier.height(20.dp))
-
-            // 점선 구도 가이드 프레임 (iOS 1:1)
-            Box(
-                Modifier.fillMaxWidth(0.64f).weight(1f)
-                    .drawBehind {
-                        drawRoundRect(
-                            color = Color.White.copy(alpha = 0.65f),
-                            style = Stroke(
-                                width = 2.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 16f)),
-                            ),
-                            cornerRadius = CornerRadius(24.dp.toPx()),
-                        )
-                    },
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                Text("얼굴과 책상이 프레임 안에", color = Color.White.copy(alpha = 0.75f),
-                    fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
-            }
-            Spacer(Modifier.height(18.dp))
-
-            // 체크리스트 2개 — 둘 다 체크해야 시작 가능 (iOS 1:1)
-            MountCheckRow("거치대에 폰을 고정했어요", check1) { if (countdown == null) check1 = !check1 }
-            Spacer(Modifier.height(10.dp))
-            MountCheckRow("구도 안에 내가 보여요", check2) { if (countdown == null) check2 = !check2 }
-            Spacer(Modifier.height(14.dp))
-
-            TLPrimaryButton(
-                if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
-                enabled = check1 && check2 && countdown == null,
-            ) { countdown = 3 }
-            Spacer(Modifier.height(8.dp))
-            Text("취소하기", color = if (countdown == null) TL.paper.copy(alpha = 0.8f) else TL.faint,
-                fontSize = 15.sp,
-                modifier = Modifier.clickable(enabled = countdown == null) {
-                    AppState.cancelMountGuide(pending)
-                }.padding(8.dp))
-            Spacer(Modifier.height(14.dp))
         }
 
         // 3-2-1 카운트다운 오버레이
@@ -368,7 +408,6 @@ fun SessionScreen() {
     val absenceWarning by SessionEngine.absenceWarning.collectAsStateWithLifecycle()
     val episodes by SessionEngine.absenceEpisodeCount.collectAsStateWithLifecycle()
     var showEmergency by remember { mutableStateOf(false) }
-    var emergencyReason by remember { mutableStateOf("") }
 
     val s = SessionEngine.currentSession
     val target = s?.targetSeconds ?: 1
@@ -584,29 +623,32 @@ fun SessionScreen() {
                     Spacer(Modifier.weight(1f))
                     TLPrimaryButton("◉  지금 재촬영 시작") { SessionEngine.resumeFromBreak() }
                     Spacer(Modifier.height(10.dp))
-                    TLGhostButton("세션 포기 — 벌점 받기", tint = TL.muted) { showEmergency = true }
+                    // iOS와 동일 — 브레이크 중 포기는 확인 시트 없이 바로 종료 (사유는 고정 기록)
+                    TLGhostButton("세션 포기 — 벌점 받기", tint = TL.muted) {
+                        SessionEngine.emergencyEnd("긴급 용무 지속")
+                    }
                     Spacer(Modifier.height(28.dp))
                 }
             }
         }
     }
 
+    // 미친 매운맛 긴급 종료 — iOS insaneEmergencySheet 1:1 (사유 입력 없이 즉시 종료/계속 진행).
+    // 향후 '사유 선택 옵션'을 넣을 때 emergencyEnd(reason)에 값을 실어 보내면 그대로 기록된다.
     if (showEmergency) {
-        ModalBottomSheet(onDismissRequest = { showEmergency = false }, containerColor = TL.surface) {
+        ModalBottomSheet(onDismissRequest = { showEmergency = false }, containerColor = TL.ink) {
             Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-                Text("세션을 포기할까요?", color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
-                Text("긴급 벌점이 부과되고 촬영분은 보존됩니다.", color = TL.muted, fontSize = 13.sp)
-                Spacer(Modifier.height(14.dp))
-                OutlinedTextField(emergencyReason, { emergencyReason = it }, modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("사유", color = TL.faint) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
-                        focusedBorderColor = TL.rec, unfocusedBorderColor = TL.hairline, cursorColor = TL.rec))
-                Spacer(Modifier.height(14.dp))
-                TLPrimaryButton("긴급 종료 확정", enabled = emergencyReason.isNotBlank()) {
+                Text("긴급 종료", color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(10.dp))
+                Text("미친 매운맛은 사유 없이 즉시 종료되며 '긴급'으로 구분 표시되고 벌점이 부과됩니다.",
+                    color = TL.muted, fontSize = 14.sp, lineHeight = 20.sp)
+                Spacer(Modifier.height(18.dp))
+                TLPrimaryButton("긴급 종료") {
                     showEmergency = false
-                    SessionEngine.emergencyEnd(emergencyReason.trim())
+                    SessionEngine.emergencyEnd(null)
                 }
+                Spacer(Modifier.height(10.dp))
+                TLGhostButton("계속 진행", tint = TL.muted) { showEmergency = false }
             }
         }
     }
@@ -698,16 +740,33 @@ fun SessionResultScreen() {
                         Modifier.fillMaxWidth(0.55f).aspectRatio(3f / 4f)
                             .align(Alignment.CenterHorizontally)
                             .clip(TL.cornerM).background(TL.ink)
-                            .clickable { showPlayer = true },
+                            .clickable(enabled = !showPlayer) { showPlayer = true },
                     ) {
-                        thumb?.let {
-                            Image(it.asImageBitmap(), null, Modifier.fillMaxSize(),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                        }
-                        Box(Modifier.align(Alignment.Center)
-                            .size(58.dp).background(Color.White, CircleShape),
-                            contentAlignment = Alignment.Center) {
-                            Text("▶", color = TL.ink, fontSize = 20.sp)
+                        if (showPlayer) {
+                            // 프레임 안에서 1회 재생 — 끝나면 재생 버튼으로 복귀 (iOS TimelapsePreview 1:1)
+                            key(session.videoFileName) {
+                                AndroidView(
+                                    factory = { ctx ->
+                                        android.widget.VideoView(ctx).apply {
+                                            setVideoPath(File(CameraRecorder.sessionDir(ctx),
+                                                session.videoFileName!!).absolutePath)
+                                            setOnPreparedListener { mp -> mp.isLooping = false; start() }
+                                            setOnCompletionListener { showPlayer = false }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        } else {
+                            thumb?.let {
+                                Image(it.asImageBitmap(), null, Modifier.fillMaxSize(),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                            }
+                            Box(Modifier.align(Alignment.Center)
+                                .size(58.dp).background(Color.White, CircleShape),
+                                contentAlignment = Alignment.Center) {
+                                Text("▶", color = TL.ink, fontSize = 20.sp)
+                            }
                         }
                         // 우측 상단 다운로드 버튼 — 갤러리 저장 (iOS 1:1)
                         // 저장 중에는 로딩 서클로 바뀌고 탭이 막혀 연타를 방지한다
@@ -764,32 +823,6 @@ fun SessionResultScreen() {
                 AppState.dismissResult(context)
             }
             Spacer(Modifier.height(18.dp))
-        }
-    }
-
-    // 인앱 타임랩스 재생 — 화면 탭하면 닫힘
-    if (showPlayer) session.videoFileName?.let { fileName ->
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showPlayer = false },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(
-                Modifier.fillMaxSize().background(Color.Black)
-                    .clickable { showPlayer = false },
-                contentAlignment = Alignment.Center,
-            ) {
-                AndroidView(
-                    factory = { ctx ->
-                        android.widget.VideoView(ctx).apply {
-                            setVideoPath(File(CameraRecorder.sessionDir(ctx), fileName).absolutePath)
-                            setOnPreparedListener { mp -> mp.isLooping = true; start() }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text("탭해서 닫기", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 48.dp))
-            }
         }
     }
 }
