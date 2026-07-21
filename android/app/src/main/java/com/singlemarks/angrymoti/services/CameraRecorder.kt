@@ -68,6 +68,29 @@ object CameraRecorder {
         )
     }
 
+    // 3차 판정: 움직임 감지 — 32×32 휘도 격자를 직전 검사(5초 전)와 비교.
+    // 격자의 2% 이상에서 큰 밝기 변화(>28/255)가 있으면 '움직임 있음' = 재석.
+    private const val MOTION_GRID = 32
+    private var lastPresenceSample: IntArray? = null
+
+    private fun motionDetected(bitmap: Bitmap): Boolean {
+        val scaled = Bitmap.createScaledBitmap(bitmap, MOTION_GRID, MOTION_GRID, true)
+        val px = IntArray(MOTION_GRID * MOTION_GRID)
+        scaled.getPixels(px, 0, MOTION_GRID, 0, 0, MOTION_GRID, MOTION_GRID)
+        val luma = IntArray(px.size) { i ->
+            val p = px[i]
+            ((p shr 16 and 0xFF) * 299 + (p shr 8 and 0xFF) * 587 + (p and 0xFF) * 114) / 1000
+        }
+        val previous = lastPresenceSample
+        lastPresenceSample = luma
+        if (previous == null || previous.size != luma.size) return true   // 첫 검사 — 관대하게 재석
+        var changed = 0
+        for (i in luma.indices) {
+            if (kotlin.math.abs(luma[i] - previous[i]) > 28) changed++
+        }
+        return changed >= luma.size * 2 / 100
+    }
+
     // 2차 판정: 몸(포즈) 감지 — 고개를 숙이거나 얼굴이 프레임 밖이어도 상반신이 보이면 재석.
     // '얼굴이 안 보인다'가 아니라 '자리에 사람이 없다'만 부재로 판정한다 (iOS 상반신 기준과 통일)
     private val poseDetector by lazy {
@@ -140,6 +163,7 @@ object CameraRecorder {
         frameCount.value = 0
         absentSeconds.value = 0
         absenceStartedAt = 0; lastPresenceCheckAt = 0; lastCaptureAt = 0
+        lastPresenceSample = null
         isPaused = false
         isRecording = true
     }
@@ -150,6 +174,7 @@ object CameraRecorder {
         // 중단 동안 감지가 멈춰 부재 시간이 묵는다 — 재개 직후 오탐을 막기 위해 초기화
         absenceStartedAt = 0
         lastPresenceCheckAt = 0
+        lastPresenceSample = null
         absentSeconds.value = 0
         isPaused = false
     }
@@ -173,10 +198,12 @@ object CameraRecorder {
         if (raw == null) return
 
         // 부재 감지 — 복사본 기반 비동기, 파이프라인과 완전 분리.
-        // 1차: 얼굴 / 2차: 몸(포즈). 둘 다 없을 때만 부재 — 얼굴 일부가 잘려도 벌 안 준다.
+        // 1차: 얼굴 / 2차: 몸(포즈) / 3차: 움직임. 셋 다 없을 때만 부재 —
+        // 뒷모습 촬영처럼 사람 감지가 못 잡는 구도도 움직임만 있으면 재석이다.
         if (presenceDue) {
             lastPresenceCheckAt = now
             presenceBusy = true
+            val moved = motionDetected(raw)   // 매 검사마다 갱신해야 5초 간격 비교가 이어진다
             val image = InputImage.fromBitmap(raw, rotation)
             fun markPresent() {
                 absenceStartedAt = 0
@@ -195,9 +222,9 @@ object CameraRecorder {
                             .addOnSuccessListener { pose ->
                                 val bodyVisible = pose.allPoseLandmarks
                                     .count { it.inFrameLikelihood > 0.5f } >= 4
-                                if (bodyVisible) markPresent() else markAbsent()
+                                if (bodyVisible || moved) markPresent() else markAbsent()
                             }
-                            .addOnFailureListener { markAbsent() }
+                            .addOnFailureListener { if (moved) markPresent() else markAbsent() }
                             .addOnCompleteListener { presenceBusy = false }
                     }
                 }
