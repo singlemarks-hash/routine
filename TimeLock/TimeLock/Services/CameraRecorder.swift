@@ -245,7 +245,6 @@ final class CameraRecorder: NSObject, ObservableObject {
             self.isRecording = true
             self.absenceStartedAt = nil
             self.lastPresenceCheckAt = 0
-            self.lastPresenceSample = []
         }
         DispatchQueue.main.async {
             self.frameCount = 0
@@ -297,7 +296,6 @@ final class CameraRecorder: NSObject, ObservableObject {
             self.isPaused = false
             self.absenceStartedAt = nil
             self.lastPresenceCheckAt = 0
-            self.lastPresenceSample = []
         }
         DispatchQueue.main.async { self.absentSeconds = 0 }
     }
@@ -408,17 +406,24 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
 
     // MARK: 사람 부재 감지 (processingQueue에서 5초마다 호출)
 
-    /// Vision의 사람 감지(상반신)로 프레임 안에 사람이 있는지 확인하고
+    /// Vision의 사람 감지로 프레임 안에 '사람의 몸'이 있는지 확인하고
     /// 연속 부재 시간을 absentSeconds로 발행한다. 완전 온디바이스라 네트워크·추가 모델 없음.
-    /// 뒷모습 촬영 등 사람 감지가 놓치는 구도를 위해 '움직임'을 최종 폴백으로 본다 —
-    /// 감지 실패여도 프레임에 움직임이 있으면 재석, 움직임조차 없어야 부재.
+    /// 기준은 사람의 몸 — 1차 상반신 사각형, 2차 몸 포즈(뒷모습·고개 숙임 대응).
+    /// 움직임은 재석 근거로 쓰지 않는다: 흔들리는 물건이 빈자리를 재석으로 못 만들고,
+    /// 미동 없이 몰입한 사람은 몸이 보이는 한 재석이다.
     private func detectPresence(in buffer: CVPixelBuffer, at now: TimeInterval) {
-        let moved = motionDetected(in: buffer)   // 매 검사마다 갱신해야 비교가 이어진다
-        let request = VNDetectHumanRectanglesRequest()
-        request.upperBodyOnly = true   // 책상 앞 상반신만 보여도 인식
+        let rectRequest = VNDetectHumanRectanglesRequest()
+        rectRequest.upperBodyOnly = true   // 책상 앞 상반신만 보여도 인식
+        let poseRequest = VNDetectHumanBodyPoseRequest()
         let handler = VNImageRequestHandler(cvPixelBuffer: buffer, options: [:])
-        try? handler.perform([request])
-        let personFound = !(request.results?.isEmpty ?? true) || moved
+        try? handler.perform([rectRequest, poseRequest])
+        let rectFound = !(rectRequest.results?.isEmpty ?? true)
+        // 포즈: 신뢰도 있는 관절이 4개 이상이면 몸으로 인정
+        let poseFound = (poseRequest.results ?? []).contains { observation in
+            let joints = (try? observation.recognizedPoints(.all)) ?? [:]
+            return joints.values.filter { $0.confidence > 0.3 }.count >= 4
+        }
+        let personFound = rectFound || poseFound
 
         if personFound {
             absenceStartedAt = nil
@@ -432,44 +437,6 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
 
-    // MARK: 움직임 감지 — 32×32 휘도 격자를 직전 검사(5초 전)와 비교
-
-    /// 직전 검사의 휘도 샘플 (processingQueue 전용)
-    private static let motionGrid = 32
-    private var lastPresenceSample: [Int] = []
-
-    /// 프레임을 32×32 휘도 격자로 샘플링해 직전 검사와 비교한다.
-    /// 격자의 2% 이상에서 큰 밝기 변화(>28/255)가 있으면 '움직임 있음'.
-    /// 첫 검사처럼 비교 대상이 없으면 재석으로 관대하게 처리한다.
-    private func motionDetected(in buffer: CVPixelBuffer) -> Bool {
-        CVPixelBufferLockBaseAddress(buffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
-        guard let base = CVPixelBufferGetBaseAddress(buffer) else { return true }
-        let width = CVPixelBufferGetWidth(buffer)
-        let height = CVPixelBufferGetHeight(buffer)
-        let stride = CVPixelBufferGetBytesPerRow(buffer)
-        let grid = Self.motionGrid
-        guard width >= grid, height >= grid else { return true }
-
-        // 출력 포맷은 32BGRA 고정 (setupCamera) — 픽셀당 4바이트
-        let ptr = base.assumingMemoryBound(to: UInt8.self)
-        var sample = [Int](repeating: 0, count: grid * grid)
-        for gy in 0..<grid {
-            let y = gy * height / grid
-            for gx in 0..<grid {
-                let x = gx * width / grid
-                let p = y * stride + x * 4
-                let b = Int(ptr[p]), g = Int(ptr[p + 1]), r = Int(ptr[p + 2])
-                sample[gy * grid + gx] = (r * 299 + g * 587 + b * 114) / 1000
-            }
-        }
-        let previous = lastPresenceSample
-        lastPresenceSample = sample
-        guard previous.count == sample.count else { return true }
-        var changed = 0
-        for i in 0..<sample.count where abs(sample[i] - previous[i]) > 28 { changed += 1 }
-        return changed >= sample.count * 2 / 100
-    }
 }
 
 // MARK: - SwiftUI 프리뷰 레이어
