@@ -122,6 +122,7 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
             AppState.beginRecording(context, PendingSession(
                 activityName = r.name, tag = r.tag, targetSeconds = r.durationMinutes * 60,
                 reservationId = r.id, scheduledAt = fireAt,
+                intensityOverrideRaw = r.intensityOverrideRaw,
             ))
         }
         Spacer(Modifier.height(12.dp))

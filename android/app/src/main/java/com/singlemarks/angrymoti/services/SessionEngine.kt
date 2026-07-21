@@ -371,6 +371,10 @@ object SessionEngine {
                 sessionID = s.id, intensityRaw = s.intensityRaw, note = note)
             db.scores().insert(e)
             AccountStore.mirror(e)
+            // 그룹 예약이면 서버 그룹 점수에도 합산
+            s.reservationID?.let { rid ->
+                GroupStore.reportScore(db.reservations().byId(rid), points)
+            }
         }
 
         lastSlotBonus.value = null
@@ -477,26 +481,35 @@ object SessionEngine {
         }
         val today = cal.timeInMillis
         for (r in reservations) {
-            for (dayStart in listOf(today - 86_400_000L, today)) {
+            // 그룹 예약은 방의 강도로 판정 (개인 전역 강도와 무관)
+            val effIntensity = r.intensityOverride ?: intensity
+            val days: List<Long> = if (r.groupId != null) {
+                // 그룹: 시작일부터 전 구간 스윕 (최대 92일) — 앱을 오래 안 열어도 전부 집계
+                val spanDays = (((today - r.accountabilityStart) / 86_400_000L) + 1)
+                    .coerceIn(1, com.singlemarks.angrymoti.models.GroupPolicy.MAX_DURATION_DAYS.toLong())
+                (0 until spanDays).map { today - it * 86_400_000L }
+            } else listOf(today - 86_400_000L, today)
+            for (dayStart in days) {
                 val fire = r.occurrenceOn(dayStart) ?: continue
                 if (fire < r.accountabilityStart) continue          // 생성(또는 마지막 편집) 전 발생분은 책임 없음
                 if (fire + grace >= now) continue                   // 10분 창이 아직 안 끝남
-                if (fire <= now - 86_400_000L * 2) continue
+                if (r.groupId == null && fire <= now - 86_400_000L * 2) continue   // 개인은 2일 이내만
                 val key = "${r.id}-$fire"
                 if (key in existing) continue
 
                 val noShow = FocusSession(
                     ownerUserID = r.ownerUserID, activityName = r.name, tag = r.tag,
-                    intensityRaw = intensity.raw, scheduledAt = fire,
+                    intensityRaw = effIntensity.raw, scheduledAt = fire,
                     endedAt = fire + grace, targetSeconds = r.durationMinutes * 60,
                     outcomeRaw = SessionOutcome.NO_SHOW.raw, reservationID = r.id,
                 )
                 db.sessions().upsert(noShow)
-                ScoreRules.points(SessionOutcome.NO_SHOW, intensity, r.durationMinutes)?.let { (type, pts) ->
+                ScoreRules.points(SessionOutcome.NO_SHOW, effIntensity, r.durationMinutes)?.let { (type, pts) ->
                     val e = ScoreEvent(ownerUserID = r.ownerUserID, typeRaw = type.raw, points = pts,
-                        sessionID = noShow.id, intensityRaw = intensity.raw,
+                        sessionID = noShow.id, intensityRaw = effIntensity.raw,
                         note = "${TimePolicy.START_WINDOW_MINUTES}분 내 미시작")
                     db.scores().insert(e); AccountStore.mirror(e)
+                    GroupStore.reportScore(r, pts)   // 그룹 예약이면 그룹 점수에도 반영
                 }
                 existing.add(key)
             }
@@ -522,6 +535,7 @@ object SessionEngine {
                 sessionID = s.id, intensityRaw = s.intensityRaw,
                 note = if (outcome == SessionOutcome.EXIT_FAILED) "이탈 후 앱 종료" else "비정상 종료 복구")
             db.scores().insert(e); AccountStore.mirror(e)
+            s.reservationID?.let { rid -> GroupStore.reportScore(db.reservations().byId(rid), pts) }
         }
         Prefs.activeSessionId = null
         Prefs.breakDeadline = 0

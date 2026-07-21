@@ -134,18 +134,23 @@ fun HomeShell() {
         }
 
         Box(Modifier.weight(1f)) {
-            if (tab == "activity") ActivityTab(
-                reservations = reservations,
-                goal = goalText,
-                onEditGoal = { showGoalEditor = true },
-                onQuickStart = { showQuickStart = true },
-                onAdd = { nav = HomeNav.ReservationEdit(null) },
-                onEdit = { nav = HomeNav.ReservationEdit(it.id) },
-            ) else WeeklyScheduleTab(
-                reservations = reservations,
-                onAdd = { nav = HomeNav.ReservationEdit(null) },
-                onEdit = { nav = HomeNav.ReservationEdit(it.id) },
-            )
+            when (tab) {
+                "activity" -> ActivityTab(
+                    reservations = reservations,
+                    goal = goalText,
+                    onEditGoal = { showGoalEditor = true },
+                    onQuickStart = { showQuickStart = true },
+                    onAdd = { nav = HomeNav.ReservationEdit(null) },
+                    // 그룹 예약은 개인 편집 불가 — 그룹 탭에서 관리
+                    onEdit = { if (it.groupId == null) nav = HomeNav.ReservationEdit(it.id) else tab = "group" },
+                )
+                "group" -> GroupTab()
+                else -> WeeklyScheduleTab(
+                    reservations = reservations,
+                    onAdd = { nav = HomeNav.ReservationEdit(null) },
+                    onEdit = { if (it.groupId == null) nav = HomeNav.ReservationEdit(it.id) else tab = "group" },
+                )
+            }
         }
 
         // 하단 활동|일정 토글 — 반투명 캡슐 + 아이콘, 선택된 쪽 종이색 캡슐 (iOS 글래스 토글 1:1)
@@ -158,17 +163,24 @@ fun HomeShell() {
                 .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
                 .padding(6.dp),
         ) {
-            listOf(
+            val user by AccountStore.user.collectAsState()
+            val isGuest = user?.provider == "guest"
+            (if (isGuest) listOf(
                 Triple("activity", "활동", Lucide.CircleDot),
                 Triple("schedule", "일정", Lucide.Clock),
-            ).forEach { (key, label, icon) ->
+            ) else listOf(
+                // 그룹 챌린지는 계정 필요 — 게스트에겐 탭 자체를 숨긴다 (iOS 동일)
+                Triple("activity", "활동", Lucide.CircleDot),
+                Triple("schedule", "일정", Lucide.Clock),
+                Triple("group", "그룹", Lucide.Users),
+            )).forEach { (key, label, icon) ->
                 val selected = tab == key
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .background(if (selected) TL.paper else Color.Transparent, CircleShape)
                         .clickable { tab = key }
-                        .padding(horizontal = 28.dp, vertical = 14.dp),
+                        .padding(horizontal = if (isGuest) 28.dp else 19.dp, vertical = 14.dp),
                 ) {
                     androidx.compose.material3.Icon(icon, null,
                         tint = if (selected) TL.ink else TL.paper.copy(alpha = 0.72f),

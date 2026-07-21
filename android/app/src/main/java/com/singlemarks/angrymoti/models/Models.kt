@@ -67,12 +67,14 @@ enum class SessionOutcome(val raw: String) {
 
 enum class ScoreEventType(val raw: String) {
     COMPLETE("complete"), EXIT_FAIL("exitFail"), NO_SHOW("noShow"), EMERGENCY("emergency"),
-    UNLOCK_BONUS("unlockBonus"), ABSENCE("absence"), PENALTY_RESET("penaltyReset"), SLOT_BONUS("slotBonus");
+    UNLOCK_BONUS("unlockBonus"), ABSENCE("absence"), PENALTY_RESET("penaltyReset"), SLOT_BONUS("slotBonus"),
+    GROUP_QUIT("groupQuit");
 
     val title get() = when (this) {
         COMPLETE -> "완주 상점"; EXIT_FAIL -> "이탈 벌점"; NO_SHOW -> "노쇼 벌점"
         EMERGENCY -> "긴급 종료"; UNLOCK_BONUS -> "잠금 해제 보너스"; ABSENCE -> "자리비움 벌점"
         PENALTY_RESET -> "멤버십 벌점 리셋"; SLOT_BONUS -> "슬롯 확장 보너스"
+        GROUP_QUIT -> "그룹 중도 포기"
     }
 
     companion object {
@@ -101,6 +103,19 @@ object ScoreRules {
             SessionOutcome.SAFETY_ENDED -> null
         }
     }
+
+    /** 그룹 챌린지 중도 포기 벌점 (그룹 점수 + 개인 누적 동일 반영) */
+    const val GROUP_QUIT_PENALTY = -50
+}
+
+// MARK: 그룹 챌린지 정책 (iOS GroupPolicy와 1:1)
+
+object GroupPolicy {
+    const val MAX_MEMBERS = 30
+    const val MIN_MEMBERS_TO_START = 2
+    const val MAX_DURATION_DAYS = 92          // 최대 3개월
+    const val CODE_LENGTH = 5
+    const val RESULT_RETENTION_DAYS = 30      // 종료 후 결과 보존 기간
 }
 
 // MARK: 활동 슬롯 정책 — 슬롯은 언제나 '현재 연속 달성일'이 정한다

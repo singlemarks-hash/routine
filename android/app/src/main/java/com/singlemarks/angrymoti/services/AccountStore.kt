@@ -125,6 +125,20 @@ object AccountStore {
         val uid = currentUserID
         if (firebaseAvailable && uid != "guest") {
             val fs = FirebaseFirestore.getInstance()
+            // 참여 중인 그룹방에서 내 멤버 문서 제거 (유령 멤버 방지 — iOS와 동일)
+            runCatching {
+                val userDoc = fs.collection("users").document(uid).get().await()
+                @Suppress("UNCHECKED_CAST")
+                val groupIDs = userDoc.get("groupIDs") as? List<String> ?: emptyList()
+                for (roomID in groupIDs) {
+                    val roomRef = fs.collection("groups").document(roomID)
+                    runCatching { roomRef.collection("members").document(uid).delete().await() }
+                    runCatching {
+                        roomRef.update("memberCount",
+                            com.google.firebase.firestore.FieldValue.increment(-1)).await()
+                    }
+                }
+            }
             runCatching {
                 val docs = fs.collection("users").document(uid).collection("scoreEvents").get().await()
                 for (d in docs.documents) d.reference.delete().await()

@@ -21,6 +21,8 @@ data class PendingSession(
     val targetSeconds: Int,
     val reservationId: String? = null,
     val scheduledAt: Long? = null,
+    /** 그룹 예약의 방 강도 — null이면 전역 강도 사용 */
+    val intensityOverrideRaw: String? = null,
 )
 
 sealed class Route {
@@ -101,9 +103,11 @@ object AppState {
 
     /** 거치 가이드 카운트다운 시작과 동시에 호출 — 녹화를 미리 켠다 */
     fun startArmedRecording(pending: PendingSession, portrait: Boolean) {
+        // 그룹 예약은 방의 강도로 판정 (iOS와 동일)
+        val effective = pending.intensityOverrideRaw?.let { Intensity.from(it) } ?: intensity.value
         com.singlemarks.angrymoti.services.SessionEngine.start(
             activityName = pending.activityName, tag = pending.tag,
-            intensity = intensity.value, scheduledAt = pending.scheduledAt,
+            intensity = effective, scheduledAt = pending.scheduledAt,
             targetSeconds = pending.targetSeconds, reservationId = pending.reservationId,
             portrait = portrait, isPro = SubscriptionManager.isPro.value,
         )
@@ -133,10 +137,12 @@ object AppState {
         com.singlemarks.angrymoti.services.AlarmScheduler.cancelAlarmNotification(context)
         scope.launch(Dispatchers.IO) {
             val db = AppDb.get(context)
+            // 그룹 예약은 방의 강도로 판정
+            val effective = reservation.intensityOverride ?: intensity.value
             val s = com.singlemarks.angrymoti.data.FocusSession(
                 ownerUserID = AccountStore.currentUserID,
                 activityName = reservation.name, tag = reservation.tag,
-                intensityRaw = intensity.value.raw, scheduledAt = fireAt,
+                intensityRaw = effective.raw, scheduledAt = fireAt,
                 endedAt = System.currentTimeMillis(),
                 targetSeconds = reservation.durationMinutes * 60,
                 outcomeRaw = com.singlemarks.angrymoti.models.SessionOutcome.EMERGENCY.raw,
@@ -145,12 +151,13 @@ object AppState {
             db.sessions().upsert(s)
             com.singlemarks.angrymoti.models.ScoreRules.points(
                 com.singlemarks.angrymoti.models.SessionOutcome.EMERGENCY,
-                intensity.value, reservation.durationMinutes
+                effective, reservation.durationMinutes
             )?.let { (type, pts) ->
                 val e = com.singlemarks.angrymoti.data.ScoreEvent(
                     ownerUserID = AccountStore.currentUserID, typeRaw = type.raw,
-                    points = pts, sessionID = s.id, intensityRaw = intensity.value.raw, note = reason)
+                    points = pts, sessionID = s.id, intensityRaw = effective.raw, note = reason)
                 db.scores().insert(e); AccountStore.mirror(e)
+                com.singlemarks.angrymoti.services.GroupStore.reportScore(reservation, pts)
             }
         }
         route.value = Route.None

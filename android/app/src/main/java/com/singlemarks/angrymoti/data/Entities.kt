@@ -28,9 +28,16 @@ data class Reservation(
     /** 노쇼 책임 기준 시각 — 편집으로 시간을 옮기면 그 순간으로 갱신. null = createdAt.
      *  (createdAt을 직접 바꾸면 '생성 전 잘못 찍힌 노쇼 복구'가 과거의 정당한 노쇼까지 지운다) */
     val accountableFrom: Long? = null,
+    /** 그룹 챌린지 방 ID — 그룹 예약이면 non-null (createdAt = 방 시작일) */
+    val groupId: String? = null,
+    /** 반복 종료 시각(epoch millis) — 그룹 예약의 대회 종료일. null = 무기한 */
+    val endAt: Long? = null,
+    /** 그룹 방의 강도 — 개인 전역 강도 대신 이 값으로 판정 */
+    val intensityOverrideRaw: String? = null,
 ) {
     /** 이 시각 이전 발생분은 노쇼 책임이 없다 */
     val accountabilityStart: Long get() = accountableFrom ?: createdAt
+    val intensityOverride: Intensity? get() = intensityOverrideRaw?.let { Intensity.from(it) }
     val repeatWeekdays: List<Int>
         get() = repeatWeekdaysCsv.split(",").filter { it.isNotBlank() }.map { it.toInt() }
     val isRepeating get() = repeatWeekdays.isNotEmpty()
@@ -43,7 +50,19 @@ data class Reservation(
         } else {
             if (oneOffDayStart != dayStart) return null
         }
-        return dayStart + startMinute * 60_000L
+        val fire = dayStart + startMinute * 60_000L
+        // 그룹 예약: 방 시작일(createdAt) 이전 날짜엔 발생 없음 — 미리 만들어 둔 예약이 미리 울리지 않게
+        if (groupId != null) {
+            val startDay = Calendar.getInstance().apply {
+                timeInMillis = createdAt
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            if (dayStart < startDay) return null
+        }
+        // 종료일 이후 발생 없음
+        if (endAt != null && fire > endAt) return null
+        return fire
     }
 
     /** 다음 발생 시각 (now 이후, 28일 내) */

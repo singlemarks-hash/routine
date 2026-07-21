@@ -203,6 +203,8 @@
 
 **서버 구조 (Firestore)**: `groups/{roomID}` 방 설정 + `groups/{roomID}/members/{uid}` 닉네임·점수 + `users/{uid}.groupIDs` 참여 목록. 수명 주기는 서버 함수 없이 클라이언트가 게으르게 처리.
 
+**플랫폼**: iOS(`GroupStore.swift`)·안드로이드(`GroupStore.kt`) 모두 구현 — 같은 Firestore 컬렉션을 공유하므로 **iOS와 안드로이드 사용자가 한 방에서 대결 가능**. 정책·해체 정리 로직 1:1 동일.
+
 ### 2.12 계정·법무
 - 로그인: 이메일 / Google / Apple / 게스트. 이메일 가입 시 인증 필수, 만 14세 이상
 - 계정 삭제: **마이페이지 → 프로필 및 구독 관리 → 계정 삭제** — 기기·서버 데이터 즉시 완전 삭제

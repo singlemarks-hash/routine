@@ -1,0 +1,796 @@
+package com.singlemarks.angrymoti.ui
+
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.*
+import com.singlemarks.angrymoti.models.GroupPolicy
+import com.singlemarks.angrymoti.models.Intensity
+import com.singlemarks.angrymoti.models.ScoreRules
+import com.singlemarks.angrymoti.models.TimePolicy
+import com.singlemarks.angrymoti.services.AccountStore
+import com.singlemarks.angrymoti.services.GroupStore
+import com.singlemarks.angrymoti.services.GroupStore.GroupRoom
+import com.singlemarks.angrymoti.services.SubscriptionManager
+import com.singlemarks.angrymoti.ui.theme.TL
+import kotlinx.coroutines.launch
+import java.util.Calendar
+
+// MARK: 그룹 챌린지 탭 — iOS GroupTabView 1:1 (멤버십 전용, 게스트는 탭 자체가 숨겨짐)
+
+private object GroupFormat {
+    private val weekdayNames = listOf("", "일", "월", "화", "수", "목", "금", "토")
+
+    fun weekdays(days: List<Int>): String =
+        if (days.size == 7) "매일" else "매주 " + days.sorted().joinToString("·") { weekdayNames[it] }
+
+    fun time(startMinute: Int): String = "%d:%02d".format(startMinute / 60, startMinute % 60)
+
+    fun duration(minutes: Int): String = when {
+        minutes % 60 == 0 -> "${minutes / 60}시간"
+        minutes > 60 -> "${minutes / 60}시간 ${minutes % 60}분"
+        else -> "${minutes}분"
+    }
+
+    fun day(millis: Long): String {
+        val c = Calendar.getInstance().apply { timeInMillis = millis }
+        return "${c.get(Calendar.MONTH) + 1}/${c.get(Calendar.DAY_OF_MONTH)}"
+    }
+
+    fun period(start: Long, end: Long): String = "${day(start)} ~ ${day(end)}"
+
+    fun schedule(room: GroupRoom): String =
+        "${weekdays(room.repeatWeekdays)} · ${time(room.startMinute)} · ${duration(room.durationMinutes)}"
+}
+
+private sealed class GroupNav {
+    data object List : GroupNav()
+    data object Create : GroupNav()
+    data object Join : GroupNav()
+    data class Detail(val roomId: String) : GroupNav()
+    data object Paywall : GroupNav()
+}
+
+@Composable
+fun GroupTab() {
+    val context = LocalContext.current
+    val rooms by GroupStore.rooms.collectAsState()
+    val cancelled by GroupStore.cancelledNotices.collectAsState()
+    val disbanded by GroupStore.disbandedNotices.collectAsState()
+    val refreshing by GroupStore.isRefreshing.collectAsState()
+    val isPro by SubscriptionManager.isPro.collectAsState()
+    var nav by remember { mutableStateOf<GroupNav>(GroupNav.List) }
+
+    LaunchedEffect(Unit) { GroupStore.refresh(context) }
+
+    // 기존 방은 구독이 끊겨도 계속 볼 수 있다 — 새 생성·참여만 잠금 (iOS 동일)
+    val locked = !isPro
+
+    when (val n = nav) {
+        GroupNav.Paywall -> { PaywallScreen(onBack = { nav = GroupNav.List }); return }
+        GroupNav.Create -> { GroupCreateScreen(onDone = { nav = GroupNav.List }); return }
+        GroupNav.Join -> { GroupJoinScreen(onDone = { nav = GroupNav.List }); return }
+        is GroupNav.Detail -> {
+            val room = rooms.firstOrNull { it.id == n.roomId }
+            if (room == null) { nav = GroupNav.List } else {
+                GroupRoomDetailScreen(room, onBack = { nav = GroupNav.List })
+                return
+            }
+        }
+        GroupNav.List -> {}
+    }
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TLEyebrow("그룹 챌린지")
+            Spacer(Modifier.weight(1f))
+            if (refreshing) CircularProgressIndicator(
+                modifier = Modifier.size(16.dp), color = TL.muted, strokeWidth = 2.dp)
+        }
+        Spacer(Modifier.height(10.dp))
+
+        // 취소·해체 안내 카드
+        (cancelled + disbanded).forEach { notice ->
+            TLCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Icon(Lucide.Info, null,
+                        tint = TL.amber, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(notice, color = TL.paper, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text("확인", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { GroupStore.clearNotices() }.padding(4.dp))
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        if (locked && rooms.isEmpty()) {
+            // 멤버십 잠금 패널 (iOS lockedPanel 1:1)
+            Spacer(Modifier.height(40.dp))
+            Column(
+                Modifier.fillMaxWidth().background(TL.surface, TL.cornerL)
+                    .border(1.dp, TL.hairline, TL.cornerL).padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(Modifier.size(64.dp).background(TL.raised, CircleShape),
+                    contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.Icon(Lucide.Lock, null,
+                        tint = TL.amber, modifier = Modifier.size(26.dp))
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("그룹 챌린지는 멤버십 전용", color = TL.paper,
+                    fontSize = 19.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(8.dp))
+                Text("초대코드로 지인들과 모여 같은 일정으로 대결해요.\n노쇼도 완주도 전부 랭킹에 반영됩니다.",
+                    color = TL.muted, fontSize = 13.sp, textAlign = TextAlign.Center, lineHeight = 20.sp)
+                Spacer(Modifier.height(20.dp))
+                TLPrimaryButton("멤버십 구독하고 시작하기", tint = TL.jade) { nav = GroupNav.Paywall }
+            }
+        } else {
+            Row {
+                Box(Modifier.weight(1f)) {
+                    TLPrimaryButton("방 만들기") {
+                        if (locked) nav = GroupNav.Paywall else nav = GroupNav.Create
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
+                Box(Modifier.weight(1f)) {
+                    TLPrimaryButton("초대코드로 참여", tint = TL.raised) {
+                        if (locked) nav = GroupNav.Paywall else nav = GroupNav.Join
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+
+            if (rooms.isEmpty()) {
+                Spacer(Modifier.height(48.dp))
+                Text("아직 참여 중인 그룹방이 없어요.\n방을 만들어 초대코드를 공유하거나, 받은 코드로 참여해보세요.",
+                    color = TL.muted, fontSize = 14.sp, lineHeight = 22.sp,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            } else {
+                rooms.forEach { room ->
+                    GroupRoomCard(room) { nav = GroupNav.Detail(room.id) }
+                    Spacer(Modifier.height(10.dp))
+                }
+            }
+        }
+        Spacer(Modifier.height(110.dp))   // 하단 토글에 안 가리게
+    }
+}
+
+@Composable
+private fun GroupRoomCard(room: GroupRoom, onClick: () -> Unit) {
+    val statusLabel = when {
+        room.status == "active" && room.isFinished -> "결과 보기" to TL.amber
+        room.status == "active" -> "진행 중" to TL.jade
+        else -> "시작 전" to TL.muted
+    }
+    Column(
+        Modifier.fillMaxWidth().background(TL.surface, TL.cornerL)
+            .border(1.dp, TL.hairline, TL.cornerL)
+            .clickable(onClick = onClick).padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(room.name, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Black,
+                modifier = Modifier.weight(1f))
+            Text(statusLabel.first, color = statusLabel.second,
+                fontSize = 12.sp, fontWeight = FontWeight.Black,
+                modifier = Modifier.background(TL.raised, CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 5.dp))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(GroupFormat.schedule(room), color = TL.muted, fontSize = 13.sp)
+        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(GroupFormat.period(room.startDate, room.endDate),
+                color = TL.faint, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            androidx.compose.material3.Icon(Lucide.Users, null,
+                tint = TL.faint, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("${room.memberCount}/${GroupPolicy.MAX_MEMBERS}", color = TL.faint, fontSize = 12.sp)
+            Spacer(Modifier.width(10.dp))
+            Text("${room.intensity.emoji} ${room.intensity.title}", color = TL.faint, fontSize = 12.sp)
+        }
+    }
+}
+
+// MARK: 초대코드 카드 — 탭하면 복사
+
+@Composable
+private fun InviteCodeCard(code: String) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    Column(
+        Modifier.fillMaxWidth().background(TL.raised, TL.cornerL)
+            .border(1.dp, TL.hairline, TL.cornerL)
+            .clickable {
+                clipboard.setText(AnnotatedString(code))
+                Toast.makeText(context, "초대코드를 복사했어요", Toast.LENGTH_SHORT).show()
+            }
+            .padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        TLEyebrow("초대코드")
+        Spacer(Modifier.height(8.dp))
+        Text(code.toCharArray().joinToString("  "), color = TL.paper,
+            fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Icon(Lucide.Copy, null,
+                tint = TL.muted, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(5.dp))
+            Text("탭해서 복사", color = TL.muted, fontSize = 12.sp)
+        }
+    }
+}
+
+// MARK: 방 만들기 — iOS GroupCreateView 1:1
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GroupCreateScreen(onDone: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var name by remember { mutableStateOf("") }
+    var nickname by remember { mutableStateOf("") }
+    var intensity by remember { mutableStateOf(Intensity.SPICY) }
+    var startMinute by remember { mutableStateOf(TimePolicy.defaultStartMinute()) }
+    var durationMinutes by remember { mutableStateOf(60) }
+    var repeatDays by remember { mutableStateOf(setOf(2, 3, 4, 5, 6)) }   // 기본 평일
+    val tomorrow = remember {
+        Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    var startDay by remember { mutableStateOf(tomorrow) }
+    var endDay by remember { mutableStateOf(tomorrow + 29 * 86_400_000L) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var showDurationMenu by remember { mutableStateOf(false) }
+    var pickingDate by remember { mutableStateOf<String?>(null) }   // "start" | "end"
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var created by remember { mutableStateOf<GroupRoom?>(null) }
+
+    val timeState = rememberTimePickerState(
+        initialHour = startMinute / 60, initialMinute = startMinute % 60, is24Hour = false)
+
+    Column(Modifier.fillMaxSize().background(TL.ink)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TLPillButton("닫기", tint = TL.paper, onClick = onDone)
+            Spacer(Modifier.weight(1f))
+            Text("그룹방 만들기", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.weight(1f))
+            TLPillButton("만들기", tint = TL.rec,
+                enabled = !busy && created == null && name.isNotBlank()
+                    && nickname.isNotBlank() && repeatDays.isNotEmpty()) {
+                error = null; busy = true
+                val chosenStartMinute = timeState.hour * 60 + timeState.minute
+                scope.launch {
+                    try {
+                        val days = ((endDay - startDay) / 86_400_000L).toInt() + 1
+                        if (endDay < startDay) throw GroupStore.GroupException("종료일이 시작일보다 빠를 수 없어요.")
+                        if (days > GroupPolicy.MAX_DURATION_DAYS)
+                            throw GroupStore.GroupException("기간은 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월)까지 가능해요.")
+                        if (startDay < tomorrow)
+                            throw GroupStore.GroupException("시작일은 내일부터 가능해요.")
+                        GroupStore.checkSlotAvailable(context)
+                        GroupStore.checkScheduleConflict(context, chosenStartMinute, durationMinutes,
+                            repeatDays.toList(), startDay, endDay + 86_400_000L - 1)
+                        created = GroupStore.createRoom(
+                            context, name.trim(), nickname.trim(), intensity,
+                            chosenStartMinute, durationMinutes, repeatDays.toList().sorted(),
+                            startDay, endDay + 86_400_000L - 1,
+                        )
+                    } catch (e: Exception) {
+                        error = e.message ?: "방 생성에 실패했어요."
+                    } finally { busy = false }
+                }
+            }
+        }
+
+        val createdRoom = created
+        if (createdRoom != null) {
+            // 생성 완료 패널 — 초대코드 공유
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(32.dp))
+                Text("방이 만들어졌어요!", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(8.dp))
+                Text("아래 초대코드를 지인들에게 공유하세요.\n시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 이상이면 대결이 시작됩니다.",
+                    color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
+                Spacer(Modifier.height(20.dp))
+                InviteCodeCard(createdRoom.code)
+                Spacer(Modifier.height(20.dp))
+                TLPrimaryButton("완료", tint = TL.jade) { onDone() }
+            }
+        } else Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+        ) {
+            error?.let {
+                Text(it, color = TL.rec, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 10.dp))
+            }
+
+            GroupField(name, { name = it }, "방 이름 (예: 아침 공부방)")
+            Spacer(Modifier.height(10.dp))
+            GroupField(nickname, { nickname = it }, "내 닉네임")
+            Spacer(Modifier.height(14.dp))
+
+            TLCard {
+                TLEyebrow("강도")
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    Intensity.entries.forEach { level ->
+                        val selected = intensity == level
+                        Text("${level.emoji} ${level.title}",
+                            color = if (selected) TL.ink else TL.paper,
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .background(if (selected) TL.paper else TL.raised, CircleShape)
+                                .clickable { intensity = level }
+                                .padding(horizontal = 16.dp, vertical = 10.dp))
+                        Spacer(Modifier.width(8.dp))
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(intensity.subtitle, color = TL.faint, fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(10.dp))
+
+            TLCard {
+                TLEyebrow("일정 — 전원에게 동일하게 적용")
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("시작 시각", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(GroupFormat.time(timeState.hour * 60 + timeState.minute),
+                        color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Black,
+                        modifier = Modifier.background(TL.raised, CircleShape)
+                            .clickable { showTimePicker = !showTimePicker }
+                            .padding(horizontal = 14.dp, vertical = 8.dp))
+                }
+                if (showTimePicker) {
+                    Spacer(Modifier.height(8.dp))
+                    TimePicker(state = timeState)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("1회 길이", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Box {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.background(TL.raised, CircleShape)
+                                .clickable { showDurationMenu = true }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        ) {
+                            Text(GroupFormat.duration(durationMinutes), color = TL.paper,
+                                fontSize = 15.sp, fontWeight = FontWeight.Black)
+                            Spacer(Modifier.width(6.dp))
+                            androidx.compose.material3.Icon(Lucide.ChevronsUpDown, null,
+                                tint = TL.muted, modifier = Modifier.size(14.dp))
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = showDurationMenu,
+                            onDismissRequest = { showDurationMenu = false },
+                        ) {
+                            TimePolicy.durationOptionsMinutes.forEach { m ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(GroupFormat.duration(m)) },
+                                    onClick = { durationMinutes = m; showDurationMenu = false })
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("반복 요일", color = TL.paper, fontSize = 15.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
+                        .forEach { (day, label) ->
+                            val selected = day in repeatDays
+                            Box(
+                                Modifier.size(38.dp)
+                                    .background(if (selected) TL.paper else TL.raised, CircleShape)
+                                    .clickable {
+                                        repeatDays = if (selected) repeatDays - day else repeatDays + day
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(label, color = if (selected) TL.ink else TL.muted,
+                                    fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("기간", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(GroupFormat.day(startDay), color = TL.paper, fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.background(TL.raised, CircleShape)
+                            .clickable { pickingDate = "start" }
+                            .padding(horizontal = 12.dp, vertical = 7.dp))
+                    Text("  ~  ", color = TL.muted, fontSize = 14.sp)
+                    Text(GroupFormat.day(endDay), color = TL.paper, fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.background(TL.raised, CircleShape)
+                            .clickable { pickingDate = "end" }
+                            .padding(horizontal = 12.dp, vertical = 7.dp))
+                }
+                Spacer(Modifier.height(6.dp))
+                Text("내일부터 시작 가능 · 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월) · " +
+                    "시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 자동 취소",
+                    color = TL.faint, fontSize = 12.sp, lineHeight = 18.sp)
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    if (pickingDate != null) {
+        val initial = if (pickingDate == "start") startDay else endDay
+        val dateState = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = initial)
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { pickingDate = null },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    dateState.selectedDateMillis?.let { utc ->
+                        // DatePicker는 UTC 자정 기준 — 로컬 자정으로 변환해 저장
+                        val u = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+                            .apply { timeInMillis = utc }
+                        val local = Calendar.getInstance().apply {
+                            set(u.get(Calendar.YEAR), u.get(Calendar.MONTH),
+                                u.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                        if (pickingDate == "start") startDay = local else endDay = local
+                    }
+                    pickingDate = null
+                }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pickingDate = null }) {
+                    Text("취소", color = TL.muted)
+                }
+            },
+        ) { androidx.compose.material3.DatePicker(state = dateState) }
+    }
+}
+
+// MARK: 초대코드 참여 — iOS GroupJoinView 1:1
+
+@Composable
+private fun GroupJoinScreen(onDone: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var nickname by remember { mutableStateOf("") }
+    var preview by remember { mutableStateOf<GroupRoom?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var joined by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize().background(TL.ink)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TLPillButton("닫기", tint = TL.paper, onClick = onDone)
+            Spacer(Modifier.weight(1f))
+            Text("초대코드로 참여", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(52.dp))
+        }
+
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+        ) {
+            error?.let {
+                Text(it, color = TL.rec, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 10.dp))
+            }
+
+            val room = preview
+            if (joined) {
+                Spacer(Modifier.height(40.dp))
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(64.dp).background(TL.jade, CircleShape),
+                        contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.Icon(Lucide.Check, null,
+                            tint = TL.ink, modifier = Modifier.size(28.dp))
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Text("참여 완료!", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    Spacer(Modifier.height(8.dp))
+                    Text("그룹 일정이 활동 목록에 추가됐어요.\n시작일부터 알람이 울립니다.",
+                        color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
+                    Spacer(Modifier.height(24.dp))
+                    TLPrimaryButton("확인", tint = TL.jade) { onDone() }
+                }
+            } else if (room == null) {
+                GroupField(code, { code = it.uppercase().take(GroupPolicy.CODE_LENGTH) },
+                    "초대코드 ${GroupPolicy.CODE_LENGTH}자리")
+                Spacer(Modifier.height(14.dp))
+                TLPrimaryButton("방 찾기",
+                    enabled = !busy && code.length == GroupPolicy.CODE_LENGTH) {
+                    error = null; busy = true
+                    scope.launch {
+                        try { preview = GroupStore.lookup(code) }
+                        catch (e: Exception) { error = e.message }
+                        finally { busy = false }
+                    }
+                }
+            } else {
+                TLCard(raised = true) {
+                    Text(room.name, color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                    Spacer(Modifier.height(8.dp))
+                    Text(GroupFormat.schedule(room), color = TL.paper, fontSize = 14.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(GroupFormat.period(room.startDate, room.endDate), color = TL.muted, fontSize = 13.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("${room.intensity.emoji} ${room.intensity.title} · " +
+                        "현재 ${room.memberCount}/${GroupPolicy.MAX_MEMBERS}명",
+                        color = TL.muted, fontSize = 13.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+                GroupField(nickname, { nickname = it }, "이 방에서 쓸 닉네임")
+                Spacer(Modifier.height(14.dp))
+                TLPrimaryButton(if (busy) "참여 중…" else "이 방에 참여하기",
+                    enabled = !busy && nickname.isNotBlank()) {
+                    error = null; busy = true
+                    scope.launch {
+                        try {
+                            GroupStore.checkSlotAvailable(context)
+                            GroupStore.checkScheduleConflict(context, room)
+                            GroupStore.join(context, room, nickname.trim())
+                            joined = true
+                        } catch (e: Exception) {
+                            error = e.message
+                        } finally { busy = false }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                TLGhostButton("다른 코드 입력", tint = TL.muted) {
+                    preview = null; nickname = ""; error = null
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+// MARK: 방 상세 — 대기실 / 랭킹 / 최종 결과 (iOS GroupRoomDetailView 1:1)
+
+@Composable
+private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var members by remember { mutableStateOf(listOf<GroupStore.GroupMember>()) }
+    var confirmAction by remember { mutableStateOf<String?>(null) }   // disband | leave | quit
+    val myUid = AccountStore.currentUserID
+
+    LaunchedEffect(room.id) { members = GroupStore.members(room.id) }
+
+    val waiting = room.status == "scheduled" && !room.hasStarted
+    val finished = room.isFinished
+
+    Column(Modifier.fillMaxSize().background(TL.ink)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TLCircleBack(onClick = onBack)
+            Spacer(Modifier.weight(1f))
+            Text(room.name, color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(45.dp))
+        }
+
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+        ) {
+            TLCard {
+                Text(GroupFormat.schedule(room), color = TL.paper, fontSize = 14.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("${GroupFormat.period(room.startDate, room.endDate)} · " +
+                    "${room.intensity.emoji} ${room.intensity.title}",
+                    color = TL.muted, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(12.dp))
+
+            when {
+                waiting -> {
+                    InviteCodeCard(room.code)
+                    Spacer(Modifier.height(12.dp))
+                    TLCard {
+                        TLEyebrow("참여자 ${members.size}/${GroupPolicy.MAX_MEMBERS} — " +
+                            "시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 자동 취소")
+                        Spacer(Modifier.height(8.dp))
+                        members.sortedBy { it.joinedAt }.forEach { m ->
+                            Row(Modifier.padding(vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.Icon(
+                                    if (m.id == room.hostUID) Lucide.Crown else Lucide.UserRound,
+                                    null, tint = if (m.id == room.hostUID) TL.amber else TL.muted,
+                                    modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(m.nickname + if (m.id == myUid) " (나)" else "",
+                                    color = TL.paper, fontSize = 14.sp,
+                                    fontWeight = if (m.id == myUid) FontWeight.Black else FontWeight.Normal)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    if (room.isHostMine) {
+                        TLGhostButton("방 해체하기", tint = TL.rec) { confirmAction = "disband" }
+                    } else {
+                        TLGhostButton("방 나가기 (시작 전 자유 탈퇴)", tint = TL.muted) { confirmAction = "leave" }
+                    }
+                }
+                else -> {
+                    // 진행 중 / 종료 — 랭킹
+                    TLCard(raised = true) {
+                        TLEyebrow(if (finished) "최종 결과" else "실시간 랭킹")
+                        Spacer(Modifier.height(8.dp))
+                        val ranked = GroupStore.ranked(members)
+                        val display = if (ranked.size > 7) {
+                            val top = ranked.take(5)
+                            val mine = ranked.filter { it.second.id == myUid && it.second !in top.map { t -> t.second } }
+                            top + mine
+                        } else ranked
+                        display.forEachIndexed { index, (rank, m) ->
+                            if (ranked.size > 7 && index == 5) {
+                                Text("⋯", color = TL.faint, fontSize = 14.sp,
+                                    modifier = Modifier.padding(vertical = 2.dp))
+                            }
+                            Row(Modifier.padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    when (rank) {
+                                        1 -> "🥇"; 2 -> "🥈"; 3 -> "🥉"; else -> "$rank"
+                                    },
+                                    color = TL.muted, fontSize = 15.sp, fontWeight = FontWeight.Black,
+                                    modifier = Modifier.width(34.dp))
+                                Text(
+                                    m.nickname + if (m.id == myUid) " (나)" else "",
+                                    color = if (m.quit) TL.faint else TL.paper, fontSize = 15.sp,
+                                    fontWeight = if (m.id == myUid) FontWeight.Black else FontWeight.Normal,
+                                    modifier = Modifier.weight(1f))
+                                if (m.quit) {
+                                    Text("포기", color = TL.faint, fontSize = 11.sp,
+                                        modifier = Modifier.padding(end = 8.dp))
+                                }
+                                Text(TLFormat.scoreLabel(m.score),
+                                    color = if (m.score >= 0) TL.jade else TL.rec,
+                                    fontSize = 15.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
+                        if (members.isEmpty()) {
+                            Text("불러오는 중…", color = TL.faint, fontSize = 13.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    if (finished) {
+                        TLGhostButton("방 나가기 — 내 목록에서 제거", tint = TL.muted) {
+                            scope.launch { GroupStore.hideFinishedRoom(room); onBack() }
+                        }
+                        Text("결과는 종료 후 ${GroupPolicy.RESULT_RETENTION_DAYS}일까지 보관됩니다.",
+                            color = TL.faint, fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 6.dp))
+                    } else {
+                        val meQuit = members.firstOrNull { it.id == myUid }?.quit == true
+                        if (!meQuit) {
+                            TLGhostButton("중도 포기 (${ScoreRules.GROUP_QUIT_PENALTY}점 벌점)",
+                                tint = TL.rec) { confirmAction = "quit" }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    confirmAction?.let { action ->
+        val (title, desc, button) = when (action) {
+            "disband" -> Triple("방을 해체할까요?",
+                "참여자들의 그룹 일정도 함께 사라집니다. 되돌릴 수 없어요.", "해체하기")
+            "leave" -> Triple("방을 나갈까요?",
+                "시작 전에는 벌점 없이 자유롭게 나갈 수 있어요.", "나가기")
+            else -> Triple("정말 중도 포기할까요?",
+                "${ScoreRules.GROUP_QUIT_PENALTY}점 벌점이 그룹 점수와 개인 점수에 모두 기록되고, 되돌릴 수 없어요.", "포기하기")
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmAction = null },
+            containerColor = TL.surface,
+            title = { Text(title, color = TL.paper, fontWeight = FontWeight.Black) },
+            text = { Text(desc, color = TL.muted) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmAction = null
+                    scope.launch {
+                        when (action) {
+                            "disband" -> GroupStore.disband(context, room)
+                            "leave" -> GroupStore.leaveBeforeStart(context, room)
+                            else -> GroupStore.quitAfterStart(context, room)
+                        }
+                        onBack()
+                    }
+                }) { Text(button, color = TL.rec, fontWeight = FontWeight.Black) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmAction = null }) {
+                    Text("취소", color = TL.muted)
+                }
+            },
+        )
+    }
+}
+
+/** 큰 서피스 입력 필드 (ReservationEdit.TLField와 동일 룩) */
+@Composable
+private fun GroupField(value: String, onChange: (String) -> Unit, placeholder: String) {
+    OutlinedTextField(
+        value, onChange, modifier = Modifier.fillMaxWidth(), singleLine = true,
+        placeholder = { Text(placeholder, color = TL.faint, fontSize = 16.sp) },
+        shape = TL.cornerM,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = TL.surface, unfocusedContainerColor = TL.surface,
+            focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
+            focusedBorderColor = TL.hairline, unfocusedBorderColor = Color.Transparent,
+            cursorColor = TL.rec),
+    )
+}

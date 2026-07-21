@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         lifecycleScope.launch(Dispatchers.IO) {
             SessionEngine.recoverOrphanIfNeeded()
+            com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
             SessionEngine.sweepNoShows()
         }
         AppState.applyPendingDowngradeIfDue()
@@ -67,7 +68,10 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         SessionEngine.handleReturnEvent()
         AppState.applyPendingDowngradeIfDue()
-        lifecycleScope.launch(Dispatchers.IO) { SessionEngine.sweepNoShows() }
+        lifecycleScope.launch(Dispatchers.IO) {
+            com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
+            SessionEngine.sweepNoShows()
+        }
     }
 }
 
