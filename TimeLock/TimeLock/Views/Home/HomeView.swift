@@ -267,8 +267,13 @@ struct HomeView: View {
     }
 
     private var goalKey: String { "homeGoal.\(account.currentUserID)" }
+    private var goalUpdatedKey: String { "homeGoalUpdatedAt.\(account.currentUserID)" }
     private func loadGoal() { goalText = UserDefaults.standard.string(forKey: goalKey) ?? "" }
-    private func saveGoal() { UserDefaults.standard.set(goalText, forKey: goalKey) }
+    private func saveGoal() {
+        UserDefaults.standard.set(goalText, forKey: goalKey)
+        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: goalUpdatedKey)
+        account.mirrorHomeGoal(goalText)   // 크로스 기기 동기화
+    }
 
     // MARK: 지금 바로 시작
 

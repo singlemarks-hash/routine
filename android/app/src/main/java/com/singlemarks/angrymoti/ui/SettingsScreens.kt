@@ -3,6 +3,7 @@ package com.singlemarks.angrymoti.ui
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -65,6 +66,10 @@ object Legal {
 fun MyPageScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var sub by remember { mutableStateOf("menu") }   // menu | profile | intensity | paywall | ledger
+
+    // 뒤로가기: 마이페이지 내부 화면에서는 메뉴로 복귀.
+    // 메뉴에서는 가로채지 않아 HomeShell의 BackHandler(홈으로 복귀)로 넘어간다.
+    BackHandler(enabled = sub != "menu") { sub = "menu" }
 
     when (sub) {
         "profile" -> { ProfileEditScreen(onBack = { sub = "menu" }, openPaywall = { sub = "paywall" }); return }

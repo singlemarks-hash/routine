@@ -160,11 +160,40 @@ object AccountStore {
     // MARK: 크로스 기기 동기화 — 점수 원장 · 개인 예약 · 멤버십
 
     /** 앱 시작·복귀·로그인 시 호출되는 통합 동기화.
-     *  같은 계정이면 iOS·안드로이드 어디서든 예약/점수/멤버십이 일치하게 만든다. */
+     *  같은 계정이면 iOS·안드로이드 어디서든 예약/점수/멤버십/다짐 문구가 일치하게 만든다. */
     suspend fun syncFromCloud() {
         syncScoreEventsFromCloud()
         syncReservationsFromCloud()
         syncMembershipFromCloud()
+        syncHomeGoalFromCloud()
+    }
+
+    /** 홈 다짐(목표) 문구 업로드 — 마이페이지 편집 저장 시 호출 */
+    fun mirrorHomeGoal(text: String) {
+        val uid = currentUserID
+        if (!firebaseAvailable || uid == "guest") return
+        runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(uid)
+                .set(mapOf("homeGoal" to text, "homeGoalUpdatedAt" to System.currentTimeMillis()),
+                    com.google.firebase.firestore.SetOptions.merge())
+        }
+    }
+
+    /** 클라우드 다짐 문구 읽기 — updatedAt이 더 최신이면 로컬을 덮어쓴다 */
+    private suspend fun syncHomeGoalFromCloud() {
+        val uid = currentUserID
+        if (!firebaseAvailable || uid == "guest") return
+        val doc = runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(uid).get().await()
+        }.getOrNull() ?: return
+        val cloudText = doc.getString("homeGoal") ?: return
+        val cloudUpdated = doc.getLong("homeGoalUpdatedAt") ?: 0L
+        val localUpdated = com.singlemarks.angrymoti.data.Prefs.homeGoalUpdatedAt(uid)
+        if (cloudUpdated > localUpdated) {
+            com.singlemarks.angrymoti.data.Prefs.setHomeGoal(uid, cloudText, cloudUpdated)
+        } else if (localUpdated > cloudUpdated) {
+            mirrorHomeGoal(com.singlemarks.angrymoti.data.Prefs.homeGoal(uid))
+        }
     }
 
     /** 개인 예약 1건 클라우드 업로드 (그룹 예약은 GroupStore가 방 문서에서 재생성하므로 제외) */

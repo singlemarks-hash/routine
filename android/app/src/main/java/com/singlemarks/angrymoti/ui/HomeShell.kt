@@ -1,5 +1,6 @@
 package com.singlemarks.angrymoti.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -72,6 +73,9 @@ fun HomeShell() {
     var showQuickStart by remember { mutableStateOf(false) }
     var showGoalEditor by remember { mutableStateOf(false) }
     var goalText by remember { mutableStateOf(com.singlemarks.angrymoti.data.Prefs.homeGoal(owner)) }
+
+    // 뒤로가기: 홈이 아닌 화면에서는 홈으로 복귀, 홈에서는 시스템 기본 동작(배경으로) 그대로 둔다
+    BackHandler(enabled = nav != HomeNav.Home) { nav = HomeNav.Home }
 
     when (val n = nav) {
         is HomeNav.Calendar -> { CalendarScreen(onBack = { nav = HomeNav.Home }); return }
@@ -212,6 +216,7 @@ fun HomeShell() {
                 TLPrimaryButton("저장") {
                     goalText = draft.trim()
                     com.singlemarks.angrymoti.data.Prefs.setHomeGoal(owner, goalText)
+                    AccountStore.mirrorHomeGoal(goalText)   // 크로스 기기 동기화
                     showGoalEditor = false
                 }
             }

@@ -106,6 +106,10 @@ fun GroupTab() {
     // 기존 방은 구독이 끊겨도 계속 볼 수 있다 — 새 생성·참여만 잠금 (iOS 동일)
     val locked = !isPro
 
+    // 뒤로가기: 그룹 내부 화면(생성/참여/상세/페이월)에서는 목록으로 복귀.
+    // 목록에서는 여기서 가로채지 않아 HomeShell의 BackHandler(홈으로 복귀)로 넘어간다.
+    androidx.activity.compose.BackHandler(enabled = nav != GroupNav.List) { nav = GroupNav.List }
+
     when (val n = nav) {
         GroupNav.Paywall -> { PaywallScreen(onBack = { nav = GroupNav.List }); return }
         GroupNav.Create -> { GroupCreateScreen(onDone = { nav = GroupNav.List }); return }

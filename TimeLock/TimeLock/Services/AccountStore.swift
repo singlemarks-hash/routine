@@ -549,6 +549,38 @@ final class AccountStore: ObservableObject {
         await syncScoreEventsFromCloud()
         await syncReservationsFromCloud()
         await syncMembershipFromCloud()
+        await syncHomeGoalFromCloud()
+    }
+
+    /// 홈 다짐(목표) 문구 업로드 — 홈 화면 편집 저장 시 호출
+    func mirrorHomeGoal(_ text: String) {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return }
+        Firestore.firestore().collection("users").document(user.id).setData([
+            "homeGoal": text,
+            "homeGoalUpdatedAt": Int64(Date.now.timeIntervalSince1970 * 1000),
+        ], merge: true)
+        #endif
+    }
+
+    /// 클라우드 다짐 문구 읽기 — updatedAt이 더 최신이면 로컬(UserDefaults)을 덮어쓴다
+    private func syncHomeGoalFromCloud() async {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return }
+        let uid = user.id
+        guard let doc = try? await Firestore.firestore().collection("users").document(uid).getDocument(),
+              let cloudText = doc.data()?["homeGoal"] as? String else { return }
+        let cloudUpdated = (doc.data()?["homeGoalUpdatedAt"] as? Int64) ?? 0
+        let goalKey = "homeGoal.\(uid)"
+        let goalUpdatedKey = "homeGoalUpdatedAt.\(uid)"
+        let localUpdated = Int64(UserDefaults.standard.double(forKey: goalUpdatedKey) * 1000)
+        if cloudUpdated > localUpdated {
+            UserDefaults.standard.set(cloudText, forKey: goalKey)
+            UserDefaults.standard.set(Double(cloudUpdated) / 1000, forKey: goalUpdatedKey)
+        } else if localUpdated > cloudUpdated {
+            mirrorHomeGoal(UserDefaults.standard.string(forKey: goalKey) ?? "")
+        }
+        #endif
     }
 
     /// 클라우드 원장 내려받기 — 다른 기기(안드로이드 포함)에서 쌓인 점수 이벤트를 로컬에 병합한다.
