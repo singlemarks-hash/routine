@@ -436,6 +436,10 @@ final class AccountStore: ObservableObject {
             if let snapshot = try? await userDoc.collection("scoreEvents").getDocuments() {
                 for doc in snapshot.documents { try? await doc.reference.delete() }
             }
+            // 크로스 기기 동기화용 예약 사본도 함께 삭제 (안 지우면 계정 삭제 후에도 클라우드에 남음)
+            if let snapshot = try? await userDoc.collection("reservations").getDocuments() {
+                for doc in snapshot.documents { try? await doc.reference.delete() }
+            }
             try? await userDoc.delete()
         }
         #endif

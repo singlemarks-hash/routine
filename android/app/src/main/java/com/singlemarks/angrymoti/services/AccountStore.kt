@@ -145,8 +145,13 @@ object AccountStore {
             runCatching {
                 val docs = fs.collection("users").document(uid).collection("scoreEvents").get().await()
                 for (d in docs.documents) d.reference.delete().await()
-                fs.collection("users").document(uid).delete().await()
             }
+            // 크로스 기기 동기화용 예약 사본도 함께 삭제 (안 지우면 계정 삭제 후에도 클라우드에 남음)
+            runCatching {
+                val docs = fs.collection("users").document(uid).collection("reservations").get().await()
+                for (d in docs.documents) d.reference.delete().await()
+            }
+            runCatching { fs.collection("users").document(uid).delete().await() }
             runCatching { FirebaseAuth.getInstance().currentUser?.delete()?.await() }
         }
         user.value = null
