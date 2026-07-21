@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -12,7 +14,7 @@ if (file("google-services.json").exists()) {
 
 // 업로드 키스토어 — android/keystore.properties가 있을 때만 release 서명 구성
 // (파일·키스토어는 .gitignore 대상, docs/안드로이드-가이드.md 배포 절차 참고)
-val keystoreProps = java.util.Properties().apply {
+val keystoreProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
