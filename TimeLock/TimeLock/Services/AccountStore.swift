@@ -520,7 +520,7 @@ final class AccountStore: ObservableObject {
         guard backendActive, let user = currentUser, user.provider != .guest else { return }
         let db = Firestore.firestore()
         db.collection("users").document(user.id)
-            .collection("scoreEvents").document(event.id.uuidString)
+            .collection("scoreEvents").document(event.id.uuidString.lowercased())
             .setData([
                 "type": event.typeRaw,
                 "points": event.points,
@@ -537,9 +537,19 @@ final class AccountStore: ObservableObject {
         #endif
     }
 
+    // MARK: 크로스 기기 동기화 — 점수 원장 · 개인 예약 · 멤버십
+
+    /// 앱 시작·복귀·로그인 시 호출되는 통합 동기화.
+    /// 같은 계정이면 iOS·안드로이드 어디서든 예약/점수/멤버십이 일치하게 만든다.
+    func syncFromCloud() async {
+        await syncScoreEventsFromCloud()
+        await syncReservationsFromCloud()
+        await syncMembershipFromCloud()
+    }
+
     /// 클라우드 원장 내려받기 — 다른 기기(안드로이드 포함)에서 쌓인 점수 이벤트를 로컬에 병합한다.
     /// mirror(업로드)와 짝을 이루는 다운로드 절반. 이벤트 ID(UUID) 기준으로 중복 없이 합쳐진다.
-    func syncScoreEventsFromCloud() async {
+    private func syncScoreEventsFromCloud() async {
         #if canImport(FirebaseFirestore)
         guard backendActive, let user = currentUser, user.provider != .guest,
               let context = modelContext else { return }
@@ -577,6 +587,123 @@ final class AccountStore: ObservableObject {
             added = true
         }
         if added { try? context.save() }
+        #endif
+    }
+
+    /// 개인 예약 1건 클라우드 업로드 (그룹 예약은 GroupStore가 방 문서에서 재생성하므로 제외).
+    /// 편집 화면 저장·삭제 시와 병합 중 로컬이 최신일 때 호출된다.
+    func mirrorReservation(_ r: Reservation) {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest,
+              r.groupID == nil else { return }
+        func ms(_ date: Date?) -> Any { date.map { Int64($0.timeIntervalSince1970 * 1000) } ?? NSNull() }
+        Firestore.firestore().collection("users").document(user.id)
+            .collection("reservations").document(r.id.uuidString.lowercased())
+            .setData([
+                "name": r.name, "tag": r.tag,
+                "startMinute": r.startMinute, "durationMinutes": r.durationMinutes,
+                "repeatWeekdays": r.repeatWeekdays,
+                "oneOffDate": ms(r.oneOffDate),
+                "createdAt": ms(r.createdAt),
+                "accountableFrom": ms(r.accountableFrom),
+                "isActive": r.isActive,
+                "updatedAt": ms(r.updatedAt ?? r.createdAt),
+            ], merge: true)
+        #endif
+    }
+
+    /// 개인 예약 양방향 병합 — updatedAt이 최신인 쪽이 이긴다.
+    /// 클라우드가 최신 → 로컬 덮어쓰기 / 로컬이 최신·클라우드에 없음 → 업로드.
+    private func syncReservationsFromCloud() async {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest,
+              let context = modelContext else { return }
+        let uid = user.id
+        guard let snapshot = try? await Firestore.firestore()
+            .collection("users").document(uid).collection("reservations").getDocuments()
+        else { return }
+
+        func ms(_ any: Any?) -> Date? {
+            (any as? Int64).map { Date(timeIntervalSince1970: Double($0) / 1000) }
+        }
+
+        let locals = (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.ownerUserID == uid }))) ?? []
+        var localByID = [String: Reservation]()
+        for r in locals where r.groupID == nil { localByID[r.id.uuidString.lowercased()] = r }
+
+        var cloudIDs = Set<String>()
+        var touched = false
+        for doc in snapshot.documents {
+            let key = doc.documentID.lowercased()
+            cloudIDs.insert(key)
+            let data = doc.data()
+            let cloudUpdated = ms(data["updatedAt"]) ?? .distantPast
+            if let local = localByID[key] {
+                let localUpdated = local.updatedAt ?? local.createdAt
+                if cloudUpdated > localUpdated {
+                    local.name = data["name"] as? String ?? local.name
+                    local.tag = data["tag"] as? String ?? local.tag
+                    local.startMinute = data["startMinute"] as? Int ?? local.startMinute
+                    local.durationMinutes = data["durationMinutes"] as? Int ?? local.durationMinutes
+                    local.repeatWeekdays = data["repeatWeekdays"] as? [Int] ?? local.repeatWeekdays
+                    local.oneOffDate = ms(data["oneOffDate"])
+                    local.accountableFrom = ms(data["accountableFrom"]) ?? local.accountableFrom
+                    local.isActive = data["isActive"] as? Bool ?? local.isActive
+                    local.updatedAt = cloudUpdated
+                    touched = true
+                } else if localUpdated > cloudUpdated {
+                    mirrorReservation(local)
+                }
+            } else if let id = UUID(uuidString: key), let name = data["name"] as? String {
+                // 다른 기기에서 만든 예약 — 로컬에 생성
+                let r = Reservation(
+                    name: name, tag: data["tag"] as? String ?? "",
+                    startMinute: data["startMinute"] as? Int ?? 0,
+                    durationMinutes: data["durationMinutes"] as? Int ?? 60,
+                    repeatWeekdays: data["repeatWeekdays"] as? [Int] ?? [],
+                    oneOffDate: ms(data["oneOffDate"]),
+                    ownerUserID: uid)
+                r.id = id
+                r.createdAt = ms(data["createdAt"]) ?? r.createdAt
+                r.accountableFrom = ms(data["accountableFrom"])
+                r.isActive = data["isActive"] as? Bool ?? true
+                r.updatedAt = ms(data["updatedAt"])
+                context.insert(r)
+                touched = true
+            }
+        }
+        // 클라우드에 아직 없는 로컬 개인 예약 → 최초 업로드 (기존 사용자 마이그레이션)
+        for (key, local) in localByID where !cloudIDs.contains(key) {
+            mirrorReservation(local)
+        }
+        if touched { try? context.save() }
+        #endif
+    }
+
+    /// 구독 상태 클라우드 기록 — 반대 플랫폼(안드로이드)에서도 멤버십이 인정되도록.
+    func mirrorMembership(expiresAt: Date, platform: String) {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return }
+        Firestore.firestore().collection("users").document(user.id).setData([
+            "proExpiresAt": Int64(expiresAt.timeIntervalSince1970 * 1000),
+            "proPlatform": platform,
+        ], merge: true)
+        #endif
+    }
+
+    /// 클라우드 구독 상태 읽기 → SubscriptionManager에 반영 (스토어 구독 ∨ 클라우드 유효 = Pro)
+    private func syncMembershipFromCloud() async {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else {
+            SubscriptionManager.shared.cloudProUntil = nil
+            return
+        }
+        let doc = try? await Firestore.firestore()
+            .collection("users").document(user.id).getDocument()
+        let until = (doc?.data()?["proExpiresAt"] as? Int64)
+            .map { Date(timeIntervalSince1970: Double($0) / 1000) }
+        SubscriptionManager.shared.cloudProUntil = until
         #endif
     }
 

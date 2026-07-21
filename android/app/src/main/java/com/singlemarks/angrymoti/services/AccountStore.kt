@@ -82,7 +82,7 @@ object AccountStore {
             return
         }
         user.value = UserInfo(u.uid, u.displayName, u.email, "email", true)
-        syncScoreEventsFromCloud()   // 다른 기기에서 쌓인 점수 즉시 병합
+        syncFromCloud()   // 다른 기기에서 쌓인 예약·점수·멤버십 즉시 병합
     }
 
     /** 인증 메일 클릭 후 '인증 완료' — 새로고침해서 확인 */
@@ -92,7 +92,7 @@ object AccountStore {
         if (u.isEmailVerified) {
             pendingVerificationEmail.value = null
             user.value = UserInfo(u.uid, u.displayName, u.email, "email", true)
-            syncScoreEventsFromCloud()   // 다른 기기에서 쌓인 점수 즉시 병합
+            syncFromCloud()   // 다른 기기에서 쌓인 예약·점수·멤버십 즉시 병합
             return true
         }
         return false
@@ -115,7 +115,7 @@ object AccountStore {
         val result = FirebaseAuth.getInstance().signInWithCredential(credential).await()
         val u = result.user ?: error("로그인 실패")
         user.value = UserInfo(u.uid, u.displayName, u.email, "google", true)
-        syncScoreEventsFromCloud()   // 다른 기기에서 쌓인 점수 즉시 병합
+        syncFromCloud()   // 다른 기기에서 쌓인 예약·점수·멤버십 즉시 병합
     }
 
     fun signOut() {
@@ -152,9 +152,122 @@ object AccountStore {
         user.value = null
     }
 
+    // MARK: 크로스 기기 동기화 — 점수 원장 · 개인 예약 · 멤버십
+
+    /** 앱 시작·복귀·로그인 시 호출되는 통합 동기화.
+     *  같은 계정이면 iOS·안드로이드 어디서든 예약/점수/멤버십이 일치하게 만든다. */
+    suspend fun syncFromCloud() {
+        syncScoreEventsFromCloud()
+        syncReservationsFromCloud()
+        syncMembershipFromCloud()
+    }
+
+    /** 개인 예약 1건 클라우드 업로드 (그룹 예약은 GroupStore가 방 문서에서 재생성하므로 제외) */
+    fun mirrorReservation(r: com.singlemarks.angrymoti.data.Reservation) {
+        if (!firebaseAvailable || r.ownerUserID == "guest" || r.groupId != null) return
+        runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(r.ownerUserID)
+                .collection("reservations").document(r.id.lowercase())
+                .set(mapOf(
+                    "name" to r.name, "tag" to r.tag,
+                    "startMinute" to r.startMinute, "durationMinutes" to r.durationMinutes,
+                    "repeatWeekdays" to r.repeatWeekdays,
+                    "oneOffDate" to r.oneOffDayStart,
+                    "createdAt" to r.createdAt,
+                    "accountableFrom" to r.accountableFrom,
+                    "isActive" to r.isActive,
+                    "updatedAt" to (r.updatedAt ?: r.createdAt),
+                ), com.google.firebase.firestore.SetOptions.merge())
+        }
+    }
+
+    /** 개인 예약 양방향 병합 — updatedAt이 최신인 쪽이 이긴다 */
+    private suspend fun syncReservationsFromCloud() {
+        val uid = currentUserID
+        if (!firebaseAvailable || uid == "guest") return
+        val snapshot = runCatching {
+            FirebaseFirestore.getInstance()
+                .collection("users").document(uid).collection("reservations").get().await()
+        }.getOrNull() ?: return
+
+        val dao = com.singlemarks.angrymoti.data.AppDb.get(appContext).reservations()
+        val localByID = dao.allForOwner(uid)
+            .filter { it.groupId == null }
+            .associateBy { it.id.lowercase() }
+
+        val cloudIDs = mutableSetOf<String>()
+        for (doc in snapshot.documents) {
+            val key = doc.id.lowercase()
+            cloudIDs.add(key)
+            val cloudUpdated = doc.getLong("updatedAt") ?: 0L
+            @Suppress("UNCHECKED_CAST")
+            val weekdays = (doc.get("repeatWeekdays") as? List<Number>)?.map { it.toInt() }
+            val local = localByID[key]
+            if (local != null) {
+                val localUpdated = local.updatedAt ?: local.createdAt
+                if (cloudUpdated > localUpdated) {
+                    dao.upsert(local.copy(
+                        name = doc.getString("name") ?: local.name,
+                        tag = doc.getString("tag") ?: local.tag,
+                        startMinute = doc.getLong("startMinute")?.toInt() ?: local.startMinute,
+                        durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: local.durationMinutes,
+                        repeatWeekdaysCsv = weekdays?.joinToString(",") ?: local.repeatWeekdaysCsv,
+                        oneOffDayStart = doc.getLong("oneOffDate"),
+                        accountableFrom = doc.getLong("accountableFrom") ?: local.accountableFrom,
+                        isActive = doc.getBoolean("isActive") ?: local.isActive,
+                        updatedAt = cloudUpdated,
+                    ))
+                } else if (localUpdated > cloudUpdated) {
+                    mirrorReservation(local)
+                }
+            } else {
+                // 다른 기기(iOS 포함)에서 만든 예약 — 로컬에 생성
+                val name = doc.getString("name") ?: continue
+                dao.upsert(com.singlemarks.angrymoti.data.Reservation(
+                    id = key, ownerUserID = uid, name = name,
+                    tag = doc.getString("tag") ?: "",
+                    startMinute = doc.getLong("startMinute")?.toInt() ?: 0,
+                    durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 60,
+                    repeatWeekdaysCsv = weekdays?.joinToString(",") ?: "",
+                    oneOffDayStart = doc.getLong("oneOffDate"),
+                    createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                    isActive = doc.getBoolean("isActive") ?: true,
+                    accountableFrom = doc.getLong("accountableFrom"),
+                    updatedAt = doc.getLong("updatedAt"),
+                ))
+            }
+        }
+        // 클라우드에 아직 없는 로컬 개인 예약 → 최초 업로드 (기존 사용자 마이그레이션)
+        localByID.filterKeys { it !in cloudIDs }.values.forEach(::mirrorReservation)
+    }
+
+    /** 구독 상태 클라우드 기록 — 반대 플랫폼(iOS)에서도 멤버십이 인정되도록 */
+    fun mirrorMembership(expiresAtMillis: Long, platform: String) {
+        val uid = currentUserID
+        if (!firebaseAvailable || uid == "guest") return
+        runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(uid)
+                .set(mapOf("proExpiresAt" to expiresAtMillis, "proPlatform" to platform),
+                    com.google.firebase.firestore.SetOptions.merge())
+        }
+    }
+
+    /** 클라우드 구독 상태 읽기 → SubscriptionManager에 반영 (스토어 구독 ∨ 클라우드 유효 = Pro) */
+    private suspend fun syncMembershipFromCloud() {
+        val uid = currentUserID
+        if (!firebaseAvailable || uid == "guest") {
+            SubscriptionManager.applyCloudPro(0L)
+            return
+        }
+        val doc = runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(uid).get().await()
+        }.getOrNull()
+        SubscriptionManager.applyCloudPro(doc?.getLong("proExpiresAt") ?: 0L)
+    }
+
     /** 클라우드 원장 내려받기 — 다른 기기(iOS 포함)에서 쌓인 점수 이벤트를 로컬 Room에 병합한다.
      *  mirror(업로드)와 짝을 이루는 다운로드 절반. 이벤트 ID 기준으로 중복 없이 합쳐진다. */
-    suspend fun syncScoreEventsFromCloud() {
+    private suspend fun syncScoreEventsFromCloud() {
         val uid = currentUserID
         if (!firebaseAvailable || uid == "guest") return
         val snapshot = runCatching {

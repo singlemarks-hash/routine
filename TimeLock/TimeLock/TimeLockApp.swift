@@ -213,9 +213,10 @@ final class AppState: ObservableObject {
         engine.bind(context: context)
         GroupStore.shared.bind(context: context)
         Task {
-            await AccountStore.shared.syncScoreEventsFromCloud()   // 다른 기기 점수 병합
+            await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
             await GroupStore.shared.refresh()
             refreshDerived()
+            rescheduleAlarmsForCurrentUser()
         }
         engine.onFinalized = { [weak self] in
             self?.sessionFinished()
@@ -244,9 +245,10 @@ final class AppState: ObservableObject {
             engine.handleReturnEvent()
             applyPendingDowngradeIfDue()
             Task {
-                await AccountStore.shared.syncScoreEventsFromCloud()   // 다른 기기 점수 병합
+                await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
                 await GroupStore.shared.refresh()
                 refreshDerived()
+                rescheduleAlarmsForCurrentUser()
             }
             sweepNoShows()
             checkDueAlarm()
@@ -297,9 +299,10 @@ final class AppState: ObservableObject {
         refreshDerived()
         rescheduleAlarmsForCurrentUser()
         Task {
-            await AccountStore.shared.syncScoreEventsFromCloud()   // 로그인 직후 다른 기기 점수 병합
+            await AccountStore.shared.syncFromCloud()   // 로그인 직후 다른 기기 예약·점수·멤버십 병합
             await GroupStore.shared.refresh()
             refreshDerived()
+            rescheduleAlarmsForCurrentUser()
         }
         sweepNoShows()
         checkDueAlarm()

@@ -25,6 +25,20 @@ object SubscriptionManager : PurchasesUpdatedListener {
     val isPro = MutableStateFlow(false)
     val product = MutableStateFlow<ProductDetails?>(null)
 
+    /** 반대 플랫폼(iOS)에서 구독한 경우의 만료 시각(millis) — AccountStore 동기화가 채워준다.
+     *  Pro 판정 = 이 기기 스토어 구독 ∨ 클라우드 기록이 아직 유효. */
+    @Volatile private var cloudProUntil = 0L
+    @Volatile private var storePro = false
+
+    fun applyCloudPro(untilMillis: Long) {
+        cloudProUntil = untilMillis
+        recomputeIsPro()
+    }
+
+    private fun recomputeIsPro() {
+        isPro.value = storePro || cloudProUntil > System.currentTimeMillis()
+    }
+
     private var client: BillingClient? = null
 
     fun init(context: Context) {
@@ -71,7 +85,15 @@ object SubscriptionManager : PurchasesUpdatedListener {
                     it.purchaseState == Purchase.PurchaseState.PURCHASED &&
                         it.products.contains(PRODUCT_ID)
                 }
-                isPro.value = active
+                storePro = active
+                recomputeIsPro()
+                // 클라우드에 기록해 iOS 기기에서도 멤버십이 인정되게 한다
+                // (Play Billing은 클라이언트에서 만료일을 못 얻으므로 월 구독+유예 35일로 추정 —
+                //  구독 유지 중엔 앱을 열 때마다 앞으로 밀리고, 해지 후엔 자연 소멸)
+                if (active) {
+                    AccountStore.mirrorMembership(
+                        System.currentTimeMillis() + 35L * 86_400_000L, "google")
+                }
                 purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }
                     .forEach(::acknowledge)
             }
@@ -98,7 +120,12 @@ object SubscriptionManager : PurchasesUpdatedListener {
             purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
                 .forEach { p ->
                     if (!p.isAcknowledged) acknowledge(p)
-                    if (p.products.contains(PRODUCT_ID)) isPro.value = true
+                    if (p.products.contains(PRODUCT_ID)) {
+                        storePro = true
+                        recomputeIsPro()
+                        AccountStore.mirrorMembership(
+                            System.currentTimeMillis() + 35L * 86_400_000L, "google")
+                    }
                 }
         }
     }

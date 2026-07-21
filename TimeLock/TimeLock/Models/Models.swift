@@ -157,6 +157,8 @@ final class Reservation {
     /// createdAt을 직접 바꾸면 '생성 전 잘못 찍힌 노쇼 복구' 로직이 과거의 정당한
     /// 노쇼까지 지워버리므로, 책임 기준은 별도 필드로 관리한다. nil = createdAt.
     var accountableFrom: Date?
+    /// 마지막 수정 시각 — 크로스 기기 병합에서 최신 판정 기준. nil = createdAt.
+    var updatedAt: Date?
 
     init(name: String, tag: String, startMinute: Int, durationMinutes: Int,
          repeatWeekdays: [Int] = [], oneOffDate: Date? = nil, ownerUserID: String = "") {

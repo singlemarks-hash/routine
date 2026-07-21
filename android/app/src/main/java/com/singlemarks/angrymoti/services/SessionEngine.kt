@@ -505,7 +505,11 @@ object SessionEngine {
                 )
                 db.sessions().upsert(noShow)
                 ScoreRules.points(SessionOutcome.NO_SHOW, effIntensity, r.durationMinutes)?.let { (type, pts) ->
-                    val e = ScoreEvent(ownerUserID = r.ownerUserID, typeRaw = type.raw, points = pts,
+                    // 결정적 ID — 예약 동기화로 두 기기가 같은 노쇼를 각자 스윕해도
+                    // 클라우드 문서가 하나로 합쳐져 이중 벌점이 되지 않는다 (iOS와 동일 해시)
+                    val eventId = deterministicId("noshow|${r.id.lowercase()}|${fire / 1000}")
+                    val e = ScoreEvent(id = eventId,
+                        ownerUserID = r.ownerUserID, typeRaw = type.raw, points = pts,
                         sessionID = noShow.id, intensityRaw = effIntensity.raw,
                         note = "${TimePolicy.START_WINDOW_MINUTES}분 내 미시작")
                     db.scores().insert(e); AccountStore.mirror(e)
@@ -514,6 +518,16 @@ object SessionEngine {
                 existing.add(key)
             }
         }
+    }
+
+    /** 문자열 키 → 결정적 UUID 문자열 (MD5, iOS와 동일 알고리즘·표기).
+     *  같은 노쇼(예약+발생시각)는 어느 기기에서 스윕해도 같은 이벤트 ID를 갖는다. */
+    private fun deterministicId(key: String): String {
+        val hex = java.security.MessageDigest.getInstance("MD5")
+            .digest(key.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}" +
+            "-${hex.substring(16, 20)}-${hex.substring(20, 32)}"
     }
 
     // MARK: 고아 세션 복구 (킬/크래시)

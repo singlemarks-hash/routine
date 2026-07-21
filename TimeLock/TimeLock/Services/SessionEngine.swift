@@ -17,6 +17,7 @@ import SwiftUI
 import SwiftData
 import CallKit
 import UIKit
+import CryptoKit
 
 @MainActor
 final class SessionEngine: NSObject, ObservableObject {
@@ -532,6 +533,17 @@ final class SessionEngine: NSObject, ObservableObject {
     // MARK: 노쇼 스위퍼 & 고아 세션 복구
 
     /// 지난 발생 중 시작되지 않은 예약을 탈락 처리한다. (앱 포그라운드/주기 호출)
+    /// 문자열 키 → 결정적 UUID (MD5, 안드로이드와 동일 알고리즘·표기).
+    /// 같은 노쇼(예약+발생시각)는 어느 기기에서 스윕해도 같은 이벤트 ID를 갖는다.
+    static func deterministicUUID(_ key: String) -> UUID {
+        let digest = Insecure.MD5.hash(data: Data(key.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        let p = Array(hex)
+        let s = String(p[0..<8]) + "-" + String(p[8..<12]) + "-" + String(p[12..<16])
+              + "-" + String(p[16..<20]) + "-" + String(p[20..<32])
+        return UUID(uuidString: s) ?? UUID()
+    }
+
     func sweepNoShows(reservations: [Reservation], intensity: Intensity,
                       graceWindow: TimeInterval = TimePolicy.startWindowSeconds) {
         guard let context = modelContext else { return }
@@ -600,6 +612,10 @@ final class SessionEngine: NSObject, ObservableObject {
                                            sessionID: noShow.id, intensity: effectiveIntensity,
                                            note: "\(TimePolicy.startWindowMinutes)분 내 미시작",
                                            ownerUserID: reservation.ownerUserID)
+                    // 결정적 ID — 예약 동기화로 두 기기가 같은 노쇼를 각자 스윕해도
+                    // 클라우드 문서가 하나로 합쳐져 이중 벌점이 되지 않는다 (안드로이드와 동일 해시)
+                    event.id = Self.deterministicUUID(
+                        "noshow|\(reservation.id.uuidString.lowercased())|\(Int(fire.timeIntervalSince1970))")
                     context.insert(event)
                     AccountStore.shared.mirror(event: event)
                     GroupStore.shared.reportScore(reservation: reservation, points: points)

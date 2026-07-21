@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         lifecycleScope.launch(Dispatchers.IO) {
             SessionEngine.recoverOrphanIfNeeded()
-            AccountStore.syncScoreEventsFromCloud()   // 다른 기기 점수 병합
+            AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
             com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
             SessionEngine.sweepNoShows()
         }
@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
         SessionEngine.handleReturnEvent()
         AppState.applyPendingDowngradeIfDue()
         lifecycleScope.launch(Dispatchers.IO) {
-            AccountStore.syncScoreEventsFromCloud()   // 다른 기기 점수 병합
+            AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
             com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
             SessionEngine.sweepNoShows()
         }

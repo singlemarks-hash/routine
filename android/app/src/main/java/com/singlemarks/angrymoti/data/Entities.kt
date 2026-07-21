@@ -34,6 +34,8 @@ data class Reservation(
     val endAt: Long? = null,
     /** 그룹 방의 강도 — 개인 전역 강도 대신 이 값으로 판정 */
     val intensityOverrideRaw: String? = null,
+    /** 마지막 수정 시각 — 크로스 기기 병합에서 최신 판정 기준. null = createdAt */
+    val updatedAt: Long? = null,
 ) {
     /** 이 시각 이전 발생분은 노쇼 책임이 없다 */
     val accountabilityStart: Long get() = accountableFrom ?: createdAt

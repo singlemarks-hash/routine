@@ -137,6 +137,15 @@ final class SubscriptionManager: ObservableObject {
     @Published var isPro = false
     @Published var product: Product?
 
+    /// 반대 플랫폼(안드로이드)에서 구독한 경우의 만료 시각 — AccountStore 동기화가 채워준다.
+    /// Pro 판정 = 이 기기 스토어 구독 ∨ 클라우드 기록이 아직 유효.
+    var cloudProUntil: Date? { didSet { recomputeIsPro() } }
+    private var storePro = false
+
+    private func recomputeIsPro() {
+        isPro = storePro || (cloudProUntil ?? .distantPast) > .now
+    }
+
     private var updatesTask: Task<Void, Never>?
 
     init() {
@@ -155,14 +164,23 @@ final class SubscriptionManager: ObservableObject {
 
     func refreshEntitlement() async {
         var pro = false
+        var expires: Date?
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,
                transaction.productID == Self.productID,
                transaction.revocationDate == nil {
                 pro = true
+                if let e = transaction.expirationDate, e > (expires ?? .distantPast) { expires = e }
             }
         }
-        isPro = pro
+        storePro = pro
+        recomputeIsPro()
+        // 클라우드에 기록해 안드로이드 기기에서도 멤버십이 인정되게 한다
+        if pro {
+            AccountStore.shared.mirrorMembership(
+                expiresAt: expires ?? Date(timeIntervalSinceNow: 35 * 86_400),
+                platform: "apple")
+        }
     }
 
     func purchase() async throws -> Bool {

@@ -154,8 +154,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             // '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼되지 않게.
                             // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
                             accountableFrom = if (existing != null) System.currentTimeMillis() else null,
+                            updatedAt = System.currentTimeMillis(),
                         )
                         db.reservations().upsert(r)
+                        AccountStore.mirrorReservation(r)   // 크로스 기기 동기화
                         r.nextOccurrence()?.let { AlarmScheduler.scheduleExact(context, r.id, it) }
                         withContext(Dispatchers.Main) { onDone() }
                     }
@@ -333,7 +335,12 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         .clickable(enabled = !isLocked) {
                             scope.launch(Dispatchers.IO) {
                                 AlarmScheduler.cancel(context, r.id)
-                                db.reservations().delete(r)
+                                // 소프트 삭제 — 하드 삭제하면 클라우드 사본이 다음 동기화에서
+                                // 예약을 되살린다. iOS와 동일하게 비활성화로 처리하고 전파.
+                                val deleted = r.copy(isActive = false,
+                                    updatedAt = System.currentTimeMillis())
+                                db.reservations().upsert(deleted)
+                                AccountStore.mirrorReservation(deleted)
                                 withContext(Dispatchers.Main) { onDone() }
                             }
                         }.padding(16.dp),

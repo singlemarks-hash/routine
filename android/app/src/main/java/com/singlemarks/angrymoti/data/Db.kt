@@ -25,6 +25,9 @@ interface ReservationDao {
     @Query("SELECT * FROM reservations WHERE ownerUserID = :owner AND groupId = :groupId")
     suspend fun byGroup(owner: String, groupId: String): List<Reservation>
 
+    @Query("SELECT * FROM reservations WHERE ownerUserID = :owner")
+    suspend fun allForOwner(owner: String): List<Reservation>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(r: Reservation)
 
@@ -86,7 +89,7 @@ interface ScoreDao {
     suspend fun deleteAll(owner: String)
 }
 
-@Database(entities = [Reservation::class, FocusSession::class, ScoreEvent::class], version = 3, exportSchema = false)
+@Database(entities = [Reservation::class, FocusSession::class, ScoreEvent::class], version = 4, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun reservations(): ReservationDao
     abstract fun sessions(): SessionDao
@@ -109,10 +112,17 @@ abstract class AppDb : RoomDatabase() {
             }
         }
 
+        /** v4: 크로스 기기 병합용 수정 시각 */
+        private val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE reservations ADD COLUMN updatedAt INTEGER")
+            }
+        }
+
         @Volatile private var instance: AppDb? = null
         fun get(context: Context): AppDb = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDb::class.java, "angrymoti.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build().also { instance = it }
         }
     }

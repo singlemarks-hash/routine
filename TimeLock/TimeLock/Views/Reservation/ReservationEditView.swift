@@ -370,13 +370,17 @@ struct ReservationEditView: View {
             // 시각으로 옮겼을 때 '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼가 된다.
             // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
             r.accountableFrom = .now
+            r.updatedAt = .now
+            AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화
         } else {
             let r = Reservation(name: trimmedName, tag: finalTag,
                                 startMinute: startMinute, durationMinutes: durationMinutes,
                                 repeatWeekdays: isRepeating ? Array(weekdays) : [],
                                 oneOffDate: isRepeating ? nil : Calendar.current.startOfDay(for: oneOffDate),
                                 ownerUserID: account.currentUserID)
+            r.updatedAt = .now
             context.insert(r)
+            AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화
         }
         try? context.save()
         rescheduleAlarms()
@@ -386,6 +390,8 @@ struct ReservationEditView: View {
     private func delete() {
         guard let r = reservation, !isLocked else { return }
         r.isActive = false
+        r.updatedAt = .now
+        AccountStore.shared.mirrorReservation(r)   // 삭제도 다른 기기에 전파
         try? context.save()
         rescheduleAlarms()
         dismiss()
