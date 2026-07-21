@@ -121,14 +121,19 @@ final class GroupStore: ObservableObject {
         for id in ids {
             guard let snapshot = try? await db.collection("groups").document(id).getDocument() else { continue }
             guard snapshot.exists, var room = Self.room(from: snapshot) else {
-                // 방 문서가 사라짐 = 방장이 시작 전에 해체 (이름은 알 수 없어 일반 문구)
-                disbandedNotices.append("참여했던 그룹방을 방장이 해체했어요.")
+                // 방 문서가 사라짐 = 해체·취소된 방을 다른 기기가 이미 지운 경우 (이름은 알 수 없어 일반 문구)
+                disbandedNotices.append("참여했던 그룹방이 해체되었어요.")
                 await removeMembershipRef(roomID: id)
+                removeLocalReservation(roomID: id, purgeNoShows: true)
                 continue
             }
             if room.status == "disbanded" {
                 if !room.isHostMine { disbandedNotices.append("'\(room.name)' 방을 방장이 해체했어요.") }
                 await removeMembershipRef(roomID: id)
+                // 해체는 시작 전에만 가능 — 미리 만들어 둔 예약과 혹시 찍힌 노쇼까지 정리
+                removeLocalReservation(roomID: id, purgeNoShows: true)
+                // 서버 정리: 내 멤버 문서를 지우고, 마지막 참여자였다면 방 문서까지 삭제
+                await cleanupDisbandedRoom(roomID: id, uid: uid)
                 continue
             }
             // 시작 시각 도래 — 2명 이상이면 활성화, 미만이면 취소
@@ -458,6 +463,9 @@ final class GroupStore: ObservableObject {
         let db = Firestore.firestore()
         try? await db.collection("groups").document(room.id).updateData(["status": "disbanded"])
         await removeMembershipRef(roomID: room.id)
+        // 방장 자신의 멤버 문서 정리 — 혼자였던 방이면 문서까지 즉시 삭제,
+        // 참여자가 있으면 status로 해체를 알린 뒤 마지막 참여자가 문서를 지운다
+        await cleanupDisbandedRoom(roomID: room.id, uid: AccountStore.shared.currentUserID)
         removeLocalReservation(roomID: room.id)   // 미리 만들어 둔 예약 정리
         rooms.removeAll { $0.id == room.id }
         AppState.shared.rescheduleAlarmsForCurrentUser()
@@ -539,6 +547,19 @@ final class GroupStore: ObservableObject {
         guard !uid.isEmpty else { return }
         try? await Firestore.firestore().collection("users").document(uid)
             .setData(["groupIDs": FieldValue.arrayRemove([roomID])], merge: true)
+        #endif
+    }
+
+    /// 해체된 방의 서버 흔적 정리 — 내 멤버 문서 삭제, 남은 멤버가 없으면 방 문서까지 삭제.
+    /// (해체는 status 변경만 하므로, 참여자들이 하나씩 빠져나가며 마지막이 문서를 지운다)
+    private func cleanupDisbandedRoom(roomID: String, uid: String) async {
+        #if canImport(FirebaseFirestore)
+        let roomRef = Firestore.firestore().collection("groups").document(roomID)
+        try? await roomRef.collection("members").document(uid).delete()
+        if let remaining = try? await roomRef.collection("members").limit(to: 1).getDocuments(),
+           remaining.documents.isEmpty {
+            try? await roomRef.delete()
+        }
         #endif
     }
 
