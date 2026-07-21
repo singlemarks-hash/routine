@@ -6,3 +6,7 @@ local.properties
 *.iml
 captures/
 .kotlin/
+# 배포 서명 — 절대 커밋 금지
+keystore.properties
+*.jks
+*.keystore

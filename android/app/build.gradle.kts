@@ -10,6 +10,13 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+// 업로드 키스토어 — android/keystore.properties가 있을 때만 release 서명 구성
+// (파일·키스토어는 .gitignore 대상, docs/안드로이드-가이드.md 배포 절차 참고)
+val keystoreProps = java.util.Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.singlemarks.angrymoti"
     compileSdk = 34
@@ -22,13 +29,25 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        if (keystoreProps.isNotEmpty()) {
+            create("upload") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // 배포 전 Play Console 업로드 키로 서명 구성 필요 (docs/안드로이드-가이드.md 참고)
-            signingConfig = signingConfigs.getByName("debug")
+            // keystore.properties가 있으면 업로드 키, 없으면 debug 키 (로컬 테스트용)
+            signingConfig = if (keystoreProps.isNotEmpty())
+                signingConfigs.getByName("upload") else signingConfigs.getByName("debug")
         }
     }
     compileOptions {
