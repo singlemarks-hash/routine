@@ -537,6 +537,49 @@ final class AccountStore: ObservableObject {
         #endif
     }
 
+    /// 클라우드 원장 내려받기 — 다른 기기(안드로이드 포함)에서 쌓인 점수 이벤트를 로컬에 병합한다.
+    /// mirror(업로드)와 짝을 이루는 다운로드 절반. 이벤트 ID(UUID) 기준으로 중복 없이 합쳐진다.
+    func syncScoreEventsFromCloud() async {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest,
+              let context = modelContext else { return }
+        let uid = user.id
+        guard let snapshot = try? await Firestore.firestore()
+            .collection("users").document(uid).collection("scoreEvents").getDocuments()
+        else { return }
+
+        let existing = Set(((try? context.fetch(FetchDescriptor<ScoreEvent>(
+            predicate: #Predicate { $0.ownerUserID == uid }))) ?? []).map(\.id))
+
+        var added = false
+        for doc in snapshot.documents {
+            guard let id = UUID(uuidString: doc.documentID), !existing.contains(id) else { continue }
+            let data = doc.data()
+            guard let typeRaw = data["type"] as? String,
+                  let points = data["points"] as? Int else { continue }
+            let event = ScoreEvent(
+                type: ScoreEventType(rawValue: typeRaw) ?? .complete,
+                points: points,
+                sessionID: (data["sessionID"] as? String).flatMap(UUID.init(uuidString:)),
+                intensity: Intensity(rawValue: data["intensity"] as? String ?? "") ?? .spicy,
+                note: (data["note"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                ownerUserID: uid)
+            event.id = id
+            // 플랫폼별 저장 형식 차이 수용: iOS는 Timestamp, 안드로이드는 밀리초 정수
+            if let ts = data["timestamp"] as? Timestamp {
+                event.timestamp = ts.dateValue()
+            } else if let ms = data["timestamp"] as? Double {
+                event.timestamp = Date(timeIntervalSince1970: ms / 1000)
+            } else if let ms = data["timestamp"] as? Int64 {
+                event.timestamp = Date(timeIntervalSince1970: Double(ms) / 1000)
+            }
+            context.insert(event)
+            added = true
+        }
+        if added { try? context.save() }
+        #endif
+    }
+
     // MARK: 유틸
 
     private static func topViewController() -> UIViewController? {

@@ -82,6 +82,7 @@ object AccountStore {
             return
         }
         user.value = UserInfo(u.uid, u.displayName, u.email, "email", true)
+        syncScoreEventsFromCloud()   // 다른 기기에서 쌓인 점수 즉시 병합
     }
 
     /** 인증 메일 클릭 후 '인증 완료' — 새로고침해서 확인 */
@@ -91,6 +92,7 @@ object AccountStore {
         if (u.isEmailVerified) {
             pendingVerificationEmail.value = null
             user.value = UserInfo(u.uid, u.displayName, u.email, "email", true)
+            syncScoreEventsFromCloud()   // 다른 기기에서 쌓인 점수 즉시 병합
             return true
         }
         return false
@@ -113,6 +115,7 @@ object AccountStore {
         val result = FirebaseAuth.getInstance().signInWithCredential(credential).await()
         val u = result.user ?: error("로그인 실패")
         user.value = UserInfo(u.uid, u.displayName, u.email, "google", true)
+        syncScoreEventsFromCloud()   // 다른 기기에서 쌓인 점수 즉시 병합
     }
 
     fun signOut() {
@@ -147,6 +150,40 @@ object AccountStore {
             runCatching { FirebaseAuth.getInstance().currentUser?.delete()?.await() }
         }
         user.value = null
+    }
+
+    /** 클라우드 원장 내려받기 — 다른 기기(iOS 포함)에서 쌓인 점수 이벤트를 로컬 Room에 병합한다.
+     *  mirror(업로드)와 짝을 이루는 다운로드 절반. 이벤트 ID 기준으로 중복 없이 합쳐진다. */
+    suspend fun syncScoreEventsFromCloud() {
+        val uid = currentUserID
+        if (!firebaseAvailable || uid == "guest") return
+        val snapshot = runCatching {
+            FirebaseFirestore.getInstance()
+                .collection("users").document(uid).collection("scoreEvents").get().await()
+        }.getOrNull() ?: return
+
+        val db = com.singlemarks.angrymoti.data.AppDb.get(appContext)
+        // iOS는 대문자 UUID로 저장하므로 비교는 소문자 통일
+        val existing = db.scores().ids(uid).map { it.lowercase() }.toSet()
+        for (doc in snapshot.documents) {
+            if (doc.id.lowercase() in existing) continue
+            val typeRaw = doc.getString("type") ?: continue
+            val points = doc.getLong("points")?.toInt() ?: continue
+            // 플랫폼별 저장 형식 차이 수용: iOS는 Timestamp, 안드로이드는 밀리초 정수
+            val timestamp = when (val ts = doc.get("timestamp")) {
+                is com.google.firebase.Timestamp -> ts.toDate().time
+                is Number -> ts.toLong()
+                else -> System.currentTimeMillis()
+            }
+            db.scores().insert(com.singlemarks.angrymoti.data.ScoreEvent(
+                id = doc.id.lowercase(), ownerUserID = uid,
+                typeRaw = typeRaw, points = points,
+                sessionID = doc.getString("sessionID")?.takeIf { it.isNotEmpty() }?.lowercase(),
+                intensityRaw = doc.getString("intensity") ?: "spicy",
+                timestamp = timestamp,
+                note = doc.getString("note")?.takeIf { it.isNotEmpty() },
+            ))
+        }
     }
 
     /** 점수 이벤트 클라우드 미러 (best-effort — 실패해도 로컬 원장이 기준) */

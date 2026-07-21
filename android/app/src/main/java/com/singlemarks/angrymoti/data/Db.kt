@@ -73,6 +73,9 @@ interface ScoreDao {
     @Query("SELECT * FROM score_events WHERE sessionID = :sessionId")
     suspend fun bySession(sessionId: String): List<ScoreEvent>
 
+    @Query("SELECT id FROM score_events WHERE ownerUserID = :owner")
+    suspend fun ids(owner: String): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(e: ScoreEvent)
 
