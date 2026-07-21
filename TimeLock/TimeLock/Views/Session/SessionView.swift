@@ -383,7 +383,6 @@ struct SessionResultView: View {
     @State private var saving = false
     @State private var saved = false
     @State private var saveError: String?
-    @State private var removeWatermark = false
     /// 완주 성공 연출 — 캐릭터 팝 + 옥색 리플
     @State private var successPop = false
     @State private var successRipple = false
@@ -531,19 +530,7 @@ struct SessionResultView: View {
 
     private func previewCard(session: FocusSession, url: URL) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                TLEyebrow(text: "타임랩스 미리보기")
-                Spacer()
-                if subscription.isPro {
-                    Toggle(isOn: $removeWatermark) {
-                        Text("워터마크 제거").font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(TL.muted)
-                    }
-                    .labelsHidden()
-                    .tint(TL.jade)
-                    .scaleEffect(0.8)
-                }
-            }
+            TLEyebrow(text: "타임랩스 미리보기")
 
             // 미리보기 = 촬영 결과물과 동일 비율(세로 9:16 / 가로 16:9), 잘림 없음.
             // 카드 프레임을 영상 비율에 맞추고 resizeAspect로 그려 "잘린 데 없이" 확인 가능.
@@ -624,7 +611,8 @@ struct SessionResultView: View {
         guard let url = session.videoURL else { return }
         saveError = nil
         saving = true
-        let watermarked = !(subscription.isPro && removeWatermark)
+        // 멤버십 = 무조건 워터마크 제거, 비구독 = 항상 포함 (선택지 없음)
+        let watermarked = !subscription.isPro
         Task {
             defer { saving = false }
             do {
