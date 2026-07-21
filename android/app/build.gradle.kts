@@ -93,6 +93,8 @@ dependencies {
 
     // ML Kit 얼굴 감지 — 온디바이스, 자리비움 판정 (Vision 대응)
     implementation("com.google.mlkit:face-detection:16.1.6")
+    // ML Kit 포즈 감지 — 얼굴이 안 잡혀도 상반신이 보이면 재석 판정 (iOS upperBody 기준과 통일)
+    implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
 
     // Google Play Billing (StoreKit 2 대응)
     implementation("com.android.billingclient:billing-ktx:7.0.0")

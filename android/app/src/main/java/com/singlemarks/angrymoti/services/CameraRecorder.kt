@@ -57,11 +57,24 @@ object CameraRecorder {
     private var lastPresenceCheckAt = 0L
     private var absenceStartedAt = 0L
     private var presenceBusy = false
+    // 얼굴 감지 — ACCURATE 모드 + 최소 크기 완화: 옆얼굴·부분 얼굴도 최대한 잡는다
+    // (검사가 5초에 1회뿐이라 정확 모드의 비용 부담 없음)
     private val faceDetector by lazy {
         FaceDetection.getClient(
             FaceDetectorOptions.Builder()
-                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-                .setMinFaceSize(0.1f)
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+                .setMinFaceSize(0.05f)
+                .build()
+        )
+    }
+
+    // 2차 판정: 몸(포즈) 감지 — 고개를 숙이거나 얼굴이 프레임 밖이어도 상반신이 보이면 재석.
+    // '얼굴이 안 보인다'가 아니라 '자리에 사람이 없다'만 부재로 판정한다 (iOS 상반신 기준과 통일)
+    private val poseDetector by lazy {
+        com.google.mlkit.vision.pose.PoseDetection.getClient(
+            com.google.mlkit.vision.pose.defaults.PoseDetectorOptions.Builder()
+                .setDetectorMode(
+                    com.google.mlkit.vision.pose.defaults.PoseDetectorOptions.STREAM_MODE)
                 .build()
         )
     }
@@ -159,21 +172,36 @@ object CameraRecorder {
         proxy.close()
         if (raw == null) return
 
-        // 부재 감지 — 복사본 기반 비동기, 파이프라인과 완전 분리
+        // 부재 감지 — 복사본 기반 비동기, 파이프라인과 완전 분리.
+        // 1차: 얼굴 / 2차: 몸(포즈). 둘 다 없을 때만 부재 — 얼굴 일부가 잘려도 벌 안 준다.
         if (presenceDue) {
             lastPresenceCheckAt = now
             presenceBusy = true
-            faceDetector.process(InputImage.fromBitmap(raw, rotation))
+            val image = InputImage.fromBitmap(raw, rotation)
+            fun markPresent() {
+                absenceStartedAt = 0
+                if (absentSeconds.value != 0) absentSeconds.value = 0
+            }
+            fun markAbsent() {
+                if (absenceStartedAt == 0L) absenceStartedAt = now
+                absentSeconds.value = ((now - absenceStartedAt) / 1000).toInt()
+            }
+            faceDetector.process(image)
                 .addOnSuccessListener { faces ->
-                    if (faces.isEmpty()) {
-                        if (absenceStartedAt == 0L) absenceStartedAt = now
-                        absentSeconds.value = ((now - absenceStartedAt) / 1000).toInt()
+                    if (faces.isNotEmpty()) {
+                        markPresent(); presenceBusy = false
                     } else {
-                        absenceStartedAt = 0
-                        if (absentSeconds.value != 0) absentSeconds.value = 0
+                        poseDetector.process(image)
+                            .addOnSuccessListener { pose ->
+                                val bodyVisible = pose.allPoseLandmarks
+                                    .count { it.inFrameLikelihood > 0.5f } >= 4
+                                if (bodyVisible) markPresent() else markAbsent()
+                            }
+                            .addOnFailureListener { markAbsent() }
+                            .addOnCompleteListener { presenceBusy = false }
                     }
                 }
-                .addOnCompleteListener { presenceBusy = false }
+                .addOnFailureListener { presenceBusy = false }
         }
 
         // 타임랩스 프레임 — 회전·미러·인코딩은 전용 스레드에서
