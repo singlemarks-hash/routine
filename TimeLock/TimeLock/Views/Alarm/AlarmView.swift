@@ -516,10 +516,13 @@ struct MountGuideView: View {
         Button("취소하기") {
             app.cancelMountGuide(pending: pending)
         }
-        .font(.system(size: 14, weight: .semibold, design: .rounded))
-        .foregroundStyle(TL.muted)
+        .font(.system(size: 15, weight: .semibold, design: .rounded))
+        .foregroundStyle(TL.paper)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
+        .padding(.vertical, 13)
+        // 반투명 흰 배경 캡슐 — 전체 화면 프리뷰 위에서도 잘 보이게
+        .background(Color.white.opacity(0.14),
+                    in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
         .disabled(countdown != nil)   // 카운트다운 시작 후엔 취소 불가
         .opacity(countdown != nil ? 0.3 : 1)
     }

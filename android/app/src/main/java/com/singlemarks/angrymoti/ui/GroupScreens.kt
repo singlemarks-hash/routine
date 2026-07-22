@@ -80,6 +80,21 @@ private object GroupFormat {
 
     fun schedule(room: GroupRoom): String =
         "${weekdays(room.repeatWeekdays)} · ${time(room.startMinute)} · ${duration(room.durationMinutes)}"
+
+    /** 시작일까지 남은 일수 라벨 (D-1 / D-DAY) — iOS dDay 1:1 */
+    fun dDay(startMillis: Long): String {
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val startDay = Calendar.getInstance().apply {
+            timeInMillis = startMillis
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val days = ((startDay - today) / 86_400_000L).toInt()
+        return if (days <= 0) "D-DAY" else "D-$days"
+    }
 }
 
 private sealed class GroupNav {
@@ -128,13 +143,18 @@ fun GroupTab() {
             .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(6.dp))
+        // iOS header 1:1 — GROUP CHALLENGE eyebrow + 타이틀 + 부제
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TLEyebrow("그룹 챌린지")
+            TLEyebrow("GROUP CHALLENGE", color = TL.rec)
             Spacer(Modifier.weight(1f))
             if (refreshing) CircularProgressIndicator(
                 modifier = Modifier.size(16.dp), color = TL.muted, strokeWidth = 2.dp)
         }
-        Spacer(Modifier.height(10.dp))
+        Text("같이 하면 못 도망간다", color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(6.dp))
+        Text("초대코드로 모여 같은 일정으로 대결해요.\n그룹 점수는 0점부터, 개인 누적에도 그대로 쌓입니다.",
+            color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
+        Spacer(Modifier.height(16.dp))
 
         // 취소·해체 안내 카드
         (cancelled + disbanded).forEach { notice ->
@@ -174,26 +194,25 @@ fun GroupTab() {
                 TLPrimaryButton("멤버십 구독하고 시작하기", tint = TL.jade) { nav = GroupNav.Paywall }
             }
         } else {
-            Row {
-                Box(Modifier.weight(1f)) {
-                    TLPrimaryButton("방 만들기") {
-                        if (locked) nav = GroupNav.Paywall else nav = GroupNav.Create
-                    }
-                }
-                Spacer(Modifier.width(10.dp))
-                Box(Modifier.weight(1f)) {
-                    TLPrimaryButton("초대코드로 참여", tint = TL.raised) {
-                        if (locked) nav = GroupNav.Paywall else nav = GroupNav.Join
-                    }
-                }
+            // iOS 1:1 — 버튼 세로 스택 (그룹방 만들기 rec / 초대코드로 참여하기 ghost)
+            TLPrimaryButton("그룹방 만들기") {
+                if (locked) nav = GroupNav.Paywall else nav = GroupNav.Create
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
+            TLGhostButton("초대코드로 참여하기") {
+                if (locked) nav = GroupNav.Paywall else nav = GroupNav.Join
+            }
+            Spacer(Modifier.height(22.dp))
+
+            // '내 그룹' 섹션 헤더 (iOS와 동일하게 목록을 별도로 묶는다)
+            Text("내 그룹", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(12.dp))
 
             if (rooms.isEmpty()) {
-                Spacer(Modifier.height(48.dp))
-                Text("아직 참여 중인 그룹방이 없어요.\n방을 만들어 초대코드를 공유하거나, 받은 코드로 참여해보세요.",
-                    color = TL.muted, fontSize = 14.sp, lineHeight = 22.sp,
-                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                TLCard {
+                    Text("참여 중인 그룹이 없습니다. 방을 만들어 초대코드를 공유하거나, 받은 코드로 참여해 보세요.",
+                        color = TL.muted, fontSize = 13.sp, lineHeight = 20.sp)
+                }
             } else {
                 rooms.forEach { room ->
                     GroupRoomCard(room) { nav = GroupNav.Detail(room.id) }
@@ -207,10 +226,11 @@ fun GroupTab() {
 
 @Composable
 private fun GroupRoomCard(room: GroupRoom, onClick: () -> Unit) {
-    val statusLabel = when {
-        room.status == "active" && room.isFinished -> "결과 보기" to TL.amber
-        room.status == "active" -> "진행 중" to TL.jade
-        else -> "시작 전" to TL.muted
+    // iOS statusChip 1:1 — 종료(faint) / 진행 중(jade) / 시작 D-N(amber), 테두리 캡슐
+    val (statusLabel, statusColor) = when {
+        room.isFinished -> "종료" to TL.faint
+        room.hasStarted -> "진행 중" to TL.jade
+        else -> "시작 ${GroupFormat.dDay(room.startDate)}" to TL.amber
     }
     Column(
         Modifier.fillMaxWidth().background(TL.surface, TL.cornerL)
@@ -219,24 +239,26 @@ private fun GroupRoomCard(room: GroupRoom, onClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(room.name, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.weight(1f))
-            Text(statusLabel.first, color = statusLabel.second,
+                maxLines = 1)
+            if (room.isHostMine) {
+                Spacer(Modifier.width(6.dp))
+                Text("★", color = TL.amber, fontSize = 13.sp)   // 방장 표시
+            }
+            Spacer(Modifier.weight(1f))
+            Text(statusLabel, color = statusColor,
                 fontSize = 12.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.background(TL.raised, CircleShape)
-                    .padding(horizontal = 10.dp, vertical = 5.dp))
+                modifier = Modifier
+                    .border(1.dp, statusColor.copy(alpha = 0.5f), CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 4.dp))
         }
-        Spacer(Modifier.height(6.dp))
-        Text(GroupFormat.schedule(room), color = TL.muted, fontSize = 13.sp)
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(GroupFormat.period(room.startDate, room.endDate),
-                color = TL.faint, fontSize = 12.sp, modifier = Modifier.weight(1f))
             androidx.compose.material3.Icon(AppIcon.Users, null,
-                tint = TL.faint, modifier = Modifier.size(13.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("${room.memberCount}/${GroupPolicy.MAX_MEMBERS}", color = TL.faint, fontSize = 12.sp)
-            Spacer(Modifier.width(10.dp))
-            Text("${room.intensity.emoji} ${room.intensity.title}", color = TL.faint, fontSize = 12.sp)
+                tint = TL.muted, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(5.dp))
+            Text("${room.memberCount}명", color = TL.muted, fontSize = 13.sp)
+            Text("  ·  ", color = TL.muted, fontSize = 13.sp)
+            Text(GroupFormat.schedule(room), color = TL.muted, fontSize = 13.sp, maxLines = 1)
         }
     }
 }
@@ -646,37 +668,68 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
+            // 정보 카드 — 이름 + 방장 별 + 일정 + 기간·강도·인원 + D-day (iOS infoCard 1:1)
             TLCard {
-                Text(GroupFormat.schedule(room), color = TL.paper, fontSize = 14.sp)
-                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(room.name, color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                    if (room.isHostMine) {
+                        Spacer(Modifier.width(6.dp))
+                        Text("★", color = TL.amber, fontSize = 14.sp)
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(GroupFormat.schedule(room), color = TL.muted, fontSize = 13.sp)
+                Spacer(Modifier.height(2.dp))
                 Text("${GroupFormat.period(room.startDate, room.endDate)} · " +
-                    "${room.intensity.emoji} ${room.intensity.title}",
+                    "${room.intensity.emoji} ${room.intensity.title} · ${room.memberCount}명",
                     color = TL.muted, fontSize = 13.sp)
+                if (!room.hasStarted) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("시작까지 ${GroupFormat.dDay(room.startDate)} — 시작 전까지만 참여할 수 있어요.",
+                        color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
             when {
                 waiting -> {
-                    InviteCodeCard(room.code)
-                    Spacer(Modifier.height(12.dp))
+                    // 초대코드는 방장에게만 (iOS 1:1)
+                    if (room.isHostMine) {
+                        InviteCodeCard(room.code)
+                        Spacer(Modifier.height(6.dp))
+                        Text("코드는 방장에게만 보여요. 시작 전까지 공유해 참여자를 모으세요.",
+                            color = TL.faint, fontSize = 12.sp)
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    TLEyebrow("참여자 ${members.size}/${GroupPolicy.MAX_MEMBERS}")
+                    Spacer(Modifier.height(8.dp))
                     TLCard {
-                        TLEyebrow("참여자 ${members.size}/${GroupPolicy.MAX_MEMBERS} — " +
-                            "시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 자동 취소")
-                        Spacer(Modifier.height(8.dp))
-                        members.sortedBy { it.joinedAt }.forEach { m ->
-                            Row(Modifier.padding(vertical = 5.dp),
+                        val sorted = members.sortedBy { it.joinedAt }
+                        sorted.forEachIndexed { index, m ->
+                            Row(Modifier.padding(vertical = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
-                                androidx.compose.material3.Icon(
-                                    if (m.id == room.hostUID) AppIcon.Crown else AppIcon.UserRound,
-                                    null, tint = if (m.id == room.hostUID) TL.amber else TL.muted,
-                                    modifier = Modifier.size(15.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(m.nickname + if (m.id == myUid) " (나)" else "",
-                                    color = TL.paper, fontSize = 14.sp,
-                                    fontWeight = if (m.id == myUid) FontWeight.Black else FontWeight.Normal)
+                                Text(m.nickname, color = TL.paper, fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold)
+                                if (m.id == room.hostUID) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("★", color = TL.amber, fontSize = 12.sp)
+                                }
+                                if (m.id == myUid) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("나", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.background(TL.jade, CircleShape)
+                                            .padding(horizontal = 7.dp, vertical = 2.dp))
+                                }
+                            }
+                            if (index != sorted.lastIndex) {
+                                androidx.compose.material3.HorizontalDivider(
+                                    color = TL.hairline.copy(alpha = 0.5f))
                             }
                         }
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Text("시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 방이 자동 삭제됩니다.",
+                        color = TL.faint, fontSize = 12.sp)
                     Spacer(Modifier.height(16.dp))
                     if (room.isHostMine) {
                         TLGhostButton("방 해체하기", tint = TL.rec) { confirmAction = "disband" }

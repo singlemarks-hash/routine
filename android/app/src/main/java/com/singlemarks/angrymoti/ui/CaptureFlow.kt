@@ -292,12 +292,19 @@ fun MountGuideScreen(pending: PendingSession) {
             if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
             enabled = check1 && check2 && countdown == null,
         ) { countdown = 3 }
-        Spacer(Modifier.height(8.dp))
-        Text("취소하기", color = if (countdown == null) TL.paper.copy(alpha = 0.8f) else TL.faint,
-            fontSize = 15.sp,
-            modifier = Modifier.clickable(enabled = countdown == null) {
-                AppState.cancelMountGuide(pending)
-            }.padding(8.dp))
+        Spacer(Modifier.height(10.dp))
+        // 반투명 흰 배경 캡슐 — 전체 화면 프리뷰 위에서도 잘 보이게
+        Box(
+            Modifier.fillMaxWidth()
+                .background(Color.White.copy(alpha = 0.14f), TL.cornerM)
+                .clickable(enabled = countdown == null) { AppState.cancelMountGuide(pending) }
+                .padding(vertical = 13.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("취소하기",
+                color = if (countdown == null) TL.paper else TL.faint,
+                fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
     }
 
     Box(Modifier.fillMaxSize().background(TL.ink)) {
