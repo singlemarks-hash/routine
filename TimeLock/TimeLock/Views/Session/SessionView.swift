@@ -617,11 +617,18 @@ struct SessionResultView: View {
             defer { saving = false }
             do {
                 try await VideoDownloader.saveToPhotos(videoURL: url, watermarked: watermarked)
-                // 정책: 다운로드 완료 즉시 원본 삭제
-                try? FileManager.default.removeItem(at: url)
+                // 정책: 다운로드 완료 즉시 원본 삭제.
+                // 순서 중요 — DB에서 참조를 먼저 끊어 저장을 확정한 뒤에 파일을 지운다.
+                // (먼저 지우고 저장이 실패하면 DB가 '없는 파일'을 참조해 미리보기가 깨진다)
                 session.videoFileName = nil
-                try? context.save()
-                saved = true
+                do {
+                    try context.save()
+                    try? FileManager.default.removeItem(at: url)
+                    saved = true
+                } catch {
+                    session.videoFileName = url.lastPathComponent   // 롤백 — 파일·참조 모두 보존
+                    saveError = "저장 상태를 기록하지 못했어요. 다시 시도해주세요."
+                }
             } catch {
                 saveError = error.localizedDescription
             }
