@@ -47,6 +47,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -615,10 +616,29 @@ fun SessionScreen() {
                     Spacer(Modifier.height(6.dp))
                     Text("긴급 용무 중", color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
                     Spacer(Modifier.height(36.dp))
-                    // 두꺼운 앰버 링 + 중앙 카운트다운
+                    // 남은 시간 비율만큼 줄어드는 프로그레스 아크 (iOS RECRingDial 1:1)
+                    // 60초 이하면 빨강으로 전환. 12시 방향에서 시작해 시계 방향으로 그린다.
+                    val fraction = (left.toFloat() / TimePolicy.RESUME_WINDOW_SECONDS)
+                        .coerceIn(0f, 1f)
+                    val ringColor = if (left <= 60) TL.rec else TL.amber
                     Box(
-                        Modifier.size(300.dp)
-                            .border(14.dp, TL.amber, androidx.compose.foundation.shape.CircleShape),
+                        Modifier.size(300.dp).drawBehind {
+                            val stroke = 14.dp.toPx()
+                            val inset = stroke / 2
+                            val arcSize = androidx.compose.ui.geometry.Size(
+                                size.width - stroke, size.height - stroke)
+                            val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+                            // 배경 트랙 (희미한 링)
+                            drawArc(
+                                color = TL.raised, startAngle = 0f, sweepAngle = 360f,
+                                useCenter = false, topLeft = topLeft, size = arcSize,
+                                style = Stroke(width = stroke, cap = StrokeCap.Round))
+                            // 남은 시간 진행 아크
+                            drawArc(
+                                color = ringColor, startAngle = -90f, sweepAngle = 360f * fraction,
+                                useCenter = false, topLeft = topLeft, size = arcSize,
+                                style = Stroke(width = stroke, cap = StrokeCap.Round))
+                        },
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
