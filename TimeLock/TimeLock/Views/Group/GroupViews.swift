@@ -339,9 +339,10 @@ struct GroupCreateView: View {
                     }
                 }
 
-                field("기간 — 시작은 내일부터, 최대 3개월") {
+                field("기간 — 시작은 1시간 뒤부터, 최대 3개월") {
                     VStack(spacing: 0) {
-                        DatePicker("시작일", selection: $startDay, in: tomorrow..., displayedComponents: .date)
+                        DatePicker("시작일", selection: $startDay,
+                                   in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
                         Divider().overlay(TL.hairline)
                             .padding(.vertical, 6)
                         DatePicker("종료일", selection: $endDay, in: startDay...maxEndDay, displayedComponents: .date)
@@ -395,7 +396,7 @@ struct GroupCreateView: View {
         let time = GroupFormat.time(startMinute)
         let days = weekdays.isEmpty ? "요일 미선택"
             : "매주 " + weekdays.sorted().compactMap { GroupFormat.weekdayNames[$0] }.joined(separator: " ")
-        return "\(start) ~ \(end)\n\(days) · \(time) 시작 · \(TLFormat.durationLabel(minutes)) · \(intensity.title)\n시작 전까지만 참여할 수 있고, 시작 시각에 2명 미만이면 방이 자동 삭제됩니다."
+        return "\(start) ~ \(end)\n\(days) · \(time) 시작 · \(TLFormat.durationLabel(minutes)) · \(intensity.title)\n시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있고, 시작 시각에 \(GroupPolicy.minMembersToStart)명 미만이면 방이 자동 삭제됩니다."
     }
 
     private var startMinute: Int {
@@ -410,6 +411,11 @@ struct GroupCreateView: View {
                                       to: calendar.startOfDay(for: startDay))!
         let endDate = calendar.date(byAdding: .minute, value: startMinute + minutes,
                                     to: calendar.startOfDay(for: endDay))!
+        // 시작은 지금부터 최소 1시간 뒤 (참여자가 10분 전 알람을 받을 수 있게 여유를 둔다)
+        guard startDate >= Date().addingTimeInterval(Double(GroupPolicy.minStartLeadMinutes) * 60) else {
+            errorMessage = "시작은 지금부터 최소 \(GroupPolicy.minStartLeadMinutes / 60)시간 이후로 설정해주세요."
+            return
+        }
         // 방장도 참여자와 같은 규칙 — 슬롯 1개 확보 + 기존 예약(다른 그룹 포함) 겹침 검사
         do {
             try store.checkSlotAvailable()
@@ -697,7 +703,7 @@ struct GroupRoomDetailView: View {
                 Text("\(GroupFormat.day(room.startDate)) ~ \(GroupFormat.day(room.endDate)) · \(room.intensity.emoji) \(room.intensity.title) · \(room.memberCount)명")
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
                 if !room.hasStarted {
-                    Text("시작까지 \(GroupFormat.dDay(room.startDate)) — 시작 전까지만 참여할 수 있어요.")
+                    Text("시작까지 \(GroupFormat.dDay(room.startDate)) — 시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있어요.")
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.amber)
                 }
             }

@@ -354,21 +354,24 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                     && nickname.isNotBlank() && repeatDays.isNotEmpty()) {
                 error = null; busy = true
                 val chosenStartMinute = timeState.hour * 60 + timeState.minute
+                val startMoment = startDay + chosenStartMinute * 60_000L   // 실제 시작 순간
                 scope.launch {
                     try {
                         val days = ((endDay - startDay) / 86_400_000L).toInt() + 1
                         if (endDay < startDay) throw GroupStore.GroupException("종료일이 시작일보다 빠를 수 없어요.")
                         if (days > GroupPolicy.MAX_DURATION_DAYS)
                             throw GroupStore.GroupException("기간은 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월)까지 가능해요.")
-                        if (startDay < tomorrow)
-                            throw GroupStore.GroupException("시작일은 내일부터 가능해요.")
+                        // 시작은 지금부터 최소 1시간 뒤 (참여자가 10분 전 알람을 받을 수 있게 여유를 둔다)
+                        if (startMoment < System.currentTimeMillis() + GroupPolicy.MIN_START_LEAD_MINUTES * 60_000L)
+                            throw GroupStore.GroupException(
+                                "시작은 지금부터 최소 ${GroupPolicy.MIN_START_LEAD_MINUTES / 60}시간 이후로 설정해주세요.")
                         GroupStore.checkSlotAvailable(context)
                         GroupStore.checkScheduleConflict(context, chosenStartMinute, durationMinutes,
                             repeatDays.toList(), startDay, endDay + 86_400_000L - 1)
                         created = GroupStore.createRoom(
                             context, name.trim(), nickname.trim(), intensity,
                             chosenStartMinute, durationMinutes, repeatDays.toList().sorted(),
-                            startDay, endDay + 86_400_000L - 1,
+                            startMoment, endDay + 86_400_000L - 1,   // startDate = 실제 시작 순간(iOS 통일)
                         )
                     } catch (e: Exception) {
                         error = e.message ?: "방 생성에 실패했어요."
@@ -699,7 +702,7 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                     color = TL.muted, fontSize = 13.sp)
                 if (!room.hasStarted) {
                     Spacer(Modifier.height(4.dp))
-                    Text("시작까지 ${GroupFormat.dDay(room.startDate)} — 시작 전까지만 참여할 수 있어요.",
+                    Text("시작까지 ${GroupFormat.dDay(room.startDate)} — 시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있어요.",
                         color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }

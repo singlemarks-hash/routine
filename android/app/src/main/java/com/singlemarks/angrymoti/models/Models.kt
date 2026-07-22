@@ -113,6 +113,8 @@ object GroupPolicy {
     const val MAX_MEMBERS = 30
     const val MIN_MEMBERS_TO_START = 2
     const val MAX_DURATION_DAYS = 92          // 최대 3개월
+    const val MIN_START_LEAD_MINUTES = 60     // 시작은 지금부터 최소 1시간 뒤
+    const val JOIN_CUTOFF_MINUTES = 11        // 시작 11분 전까지만 참여 (10분 전 알람을 받을 수 있게)
     const val CODE_LENGTH = 5
     const val RESULT_RETENTION_DAYS = 30      // 종료 후 결과 보존 기간
 }

@@ -102,6 +102,8 @@ enum GroupPolicy {
     static let maxMembers = 30            // 방 하나의 최대 참여 인원
     static let minMembersToStart = 2      // 시작 시각에 이 인원 미만이면 방 자동 삭제
     static let maxDurationDays = 92       // 시작일로부터 최대 3개월
+    static let minStartLeadMinutes = 60   // 시작은 지금부터 최소 1시간 뒤
+    static let joinCutoffMinutes = 11     // 시작 11분 전까지만 참여 (10분 전 알람을 받을 수 있게)
     static let codeLength = 5             // 초대코드 자릿수 (영문 대문자+숫자)
     static let resultRetentionDays = 30   // 종료 후 최종 결과 보존 기간
 }

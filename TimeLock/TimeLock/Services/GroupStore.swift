@@ -41,7 +41,13 @@ struct GroupRoom: Identifiable, Equatable, Hashable {
     var memberCount: Int
 
     var intensity: Intensity { Intensity(rawValue: intensityRaw) ?? .spicy }
+    // startDate = 실제 시작 순간(시작일 자정 + 시작 시각). 생성 시 그 값으로 저장한다.
     var hasStarted: Bool { Date() >= startDate }
+    /// 참여 가능 = 아직 scheduled이고 시작 11분 전이 지나지 않음 (10분 전 알람을 받을 수 있게)
+    var joinOpen: Bool {
+        status == "scheduled" &&
+            Date() < startDate.addingTimeInterval(-Double(GroupPolicy.joinCutoffMinutes) * 60)
+    }
     var isFinished: Bool { Date() >= endDate }
     @MainActor var isHostMine: Bool { hostUID == AccountStore.shared.currentUserID }
     /// 30일 보존 기간이 지나 서버에서 지워야 하는가
@@ -276,7 +282,10 @@ final class GroupStore: ObservableObject {
         guard let doc = snapshot?.documents.first, let room = Self.room(from: doc) else {
             throw GroupError.roomNotFound
         }
-        guard room.status == "scheduled", !room.hasStarted else { throw GroupError.alreadyStarted }
+        guard room.status == "scheduled" else { throw GroupError.alreadyStarted }
+        guard Date() < room.startDate.addingTimeInterval(-Double(GroupPolicy.joinCutoffMinutes) * 60) else {
+            throw GroupError.unknown("시작 \(GroupPolicy.joinCutoffMinutes)분 전이 지나 참여가 마감된 방이에요.")
+        }
         return room
         #else
         throw GroupError.backendUnavailable
@@ -347,7 +356,10 @@ final class GroupStore: ObservableObject {
         // 최신 상태 재확인
         guard let fresh = try? await roomRef.getDocument(), fresh.exists,
               let current = Self.room(from: fresh) else { throw GroupError.roomNotFound }
-        guard current.status == "scheduled", !current.hasStarted else { throw GroupError.alreadyStarted }
+        guard current.status == "scheduled" else { throw GroupError.alreadyStarted }
+        guard Date() < current.startDate.addingTimeInterval(-Double(GroupPolicy.joinCutoffMinutes) * 60) else {
+            throw GroupError.unknown("시작 \(GroupPolicy.joinCutoffMinutes)분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)")
+        }
         guard current.memberCount < GroupPolicy.maxMembers else { throw GroupError.roomFull }
 
         let members = try? await roomRef.collection("members").getDocuments()

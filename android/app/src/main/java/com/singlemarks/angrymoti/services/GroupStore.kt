@@ -46,7 +46,11 @@ object GroupStore {
         val memberCount: Int,
     ) {
         val intensity get() = Intensity.from(intensityRaw)
+        // startDate = 실제 시작 순간(시작일 + 시작 시각). 생성 시 그 값으로 저장한다(iOS와 통일).
         val hasStarted get() = System.currentTimeMillis() >= startDate
+        /** 참여 가능 = 아직 scheduled이고 시작 11분 전이 지나지 않음 (10분 전 알람을 받을 수 있게) */
+        val joinOpen get() = status == "scheduled" &&
+            System.currentTimeMillis() < startDate - GroupPolicy.JOIN_CUTOFF_MINUTES * 60_000L
         val isFinished get() = System.currentTimeMillis() >= endDate
         val isHostMine get() = hostUID == AccountStore.currentUserID
         val isExpired get() = System.currentTimeMillis() >=
@@ -236,8 +240,10 @@ object GroupStore {
         val doc = snapshot?.documents?.firstOrNull()
             ?: throw GroupException("초대코드에 해당하는 방을 찾지 못했어요. 코드를 다시 확인해주세요.")
         val room = roomFrom(doc) ?: throw GroupException("방 정보를 읽지 못했어요.")
-        if (room.status != "scheduled" || room.hasStarted)
-            throw GroupException("이미 시작된 방에는 참여할 수 없어요.")
+        if (room.status != "scheduled")
+            throw GroupException("이미 시작됐거나 취소된 방이에요.")
+        if (System.currentTimeMillis() >= room.startDate - GroupPolicy.JOIN_CUTOFF_MINUTES * 60_000L)
+            throw GroupException("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전이 지나 참여가 마감된 방이에요.")
         return room
     }
 
@@ -300,8 +306,10 @@ object GroupStore {
         val fresh = runCatching { roomRef.get().await() }.getOrNull()
         val current = fresh?.takeIf { it.exists() }?.let { roomFrom(it) }
             ?: throw GroupException("초대코드에 해당하는 방을 찾지 못했어요.")
-        if (current.status != "scheduled" || current.hasStarted)
-            throw GroupException("이미 시작된 방에는 참여할 수 없어요.")
+        if (current.status != "scheduled")
+            throw GroupException("이미 시작됐거나 취소된 방이에요.")
+        if (System.currentTimeMillis() >= current.startDate - GroupPolicy.JOIN_CUTOFF_MINUTES * 60_000L)
+            throw GroupException("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)")
         if (current.memberCount >= GroupPolicy.MAX_MEMBERS)
             throw GroupException("이 방은 정원(${GroupPolicy.MAX_MEMBERS}명)이 가득 찼어요.")
 
