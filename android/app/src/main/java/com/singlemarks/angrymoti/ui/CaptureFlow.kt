@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -190,8 +191,25 @@ fun MountGuideScreen(pending: PendingSession) {
         onDispose { activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
     }
 
+    // 실제 디스플레이 회전이 바뀔 때마다(가로 잠금이 실제로 적용된 뒤 포함) 녹화 프레임 회전을 맞춘다.
+    // 이 값이 없으면 가로로 찍어도 프레임이 세로로 세워져 결과물이 90도 돌아간다.
+    val configuration = LocalConfiguration.current
+    LaunchedEffect(configuration.orientation, portrait) {
+        val rotation = activity?.let { act ->
+            if (android.os.Build.VERSION.SDK_INT >= 30) act.display?.rotation
+            else @Suppress("DEPRECATION") act.windowManager.defaultDisplay.rotation
+        } ?: android.view.Surface.ROTATION_0
+        CameraRecorder.setAnalysisRotation(rotation)
+    }
+
     LaunchedEffect(countdown) {
         if (countdown == 3) {
+            // 녹화 직전, 지금 화면 회전을 프레임 회전 기준으로 확정 (가로 결과물이 세로로 돌아가는 것 방지)
+            val rotation = activity?.let { act ->
+                if (android.os.Build.VERSION.SDK_INT >= 30) act.display?.rotation
+                else @Suppress("DEPRECATION") act.windowManager.defaultDisplay.rotation
+            } ?: android.view.Surface.ROTATION_0
+            CameraRecorder.setAnalysisRotation(rotation)
             AppState.startArmedRecording(pending, portrait)   // 카운트다운과 병렬로 녹화 시작
         }
         when (val c = countdown) {
@@ -566,12 +584,17 @@ fun SessionScreen() {
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(
-                    Modifier.weight(1.2f).fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    Modifier.weight(1.2f).fillMaxHeight().padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.Start,   // 프리뷰·버튼 모두 왼쪽 기준 정렬
                 ) {
-                    Box(Modifier.weight(1f).padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
-                        previewCard(16f / 9f)
+                    // 프리뷰를 80%로 축소(20%↓)해 아래 버튼과 간격을 확보하고, 프레임 왼쪽에 맞춘다
+                    Box(
+                        Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Box(Modifier.fillMaxHeight(0.8f)) { previewCard(16f / 9f) }
                     }
+                    Spacer(Modifier.height(12.dp))
                     buttonsRow()
                     Spacer(Modifier.height(6.dp))
                 }
@@ -795,8 +818,15 @@ fun SessionResultScreen() {
                             }.getOrNull()
                         }
                     }
+                    // 결과물 비율을 실제 촬영 프레임(썸네일)에서 그대로 가져와 프레임을 피팅한다 —
+                    // 가로 촬영이면 16:9 가로 프레임, 세로면 3:4 세로 프레임. (기본값은 세로)
+                    val previewAspect = thumb?.let {
+                        it.width.toFloat() / it.height.coerceAtLeast(1)
+                    } ?: (3f / 4f)
+                    val previewLandscape = previewAspect >= 1f
                     Box(
-                        Modifier.fillMaxWidth(0.55f).aspectRatio(3f / 4f)
+                        Modifier.fillMaxWidth(if (previewLandscape) 0.92f else 0.55f)
+                            .aspectRatio(previewAspect)
                             .align(Alignment.CenterHorizontally)
                             .clip(TL.cornerM).background(TL.ink)
                             .clickable(enabled = !showPlayer) { showPlayer = true },

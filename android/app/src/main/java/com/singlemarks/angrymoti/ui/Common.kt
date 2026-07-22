@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Emergency
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Headphones
@@ -52,6 +51,7 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.TabletAndroid
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WorkspacePremium
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlin.math.min
@@ -75,7 +75,9 @@ object AppIcon {
     val Tablet = Icons.Filled.TabletAndroid
     val SwitchCamera = Icons.Filled.Cameraswitch
     val Smartphone = Icons.Filled.Smartphone
-    val Siren = Icons.Filled.Emergency
+    // 컴포즈 머티리얼 아이콘 세트엔 사이렌/경광등 글리프가 없어(iOS는 light.beacon.max),
+    // 벨(차단 버튼)과 겹치지 않으면서 가장 '긴급'으로 읽히는 경고 삼각형을 쓴다.
+    val Siren = Icons.Filled.Warning
     val Lock = Icons.Filled.Lock
     val Info = Icons.Filled.Info
     val Heart = Icons.Filled.Favorite
