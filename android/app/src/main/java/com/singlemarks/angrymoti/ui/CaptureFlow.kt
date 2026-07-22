@@ -398,15 +398,15 @@ private fun SessionSquareButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        modifier = Modifier.size(86.dp)
+        modifier = Modifier.size(64.dp)   // iOS squareButton 64×64
             .background(if (active) TL.paper else TL.raised, TL.cornerM)
             .clickable(onClick = onClick),
     ) {
         androidx.compose.material3.Icon(icon, null,
-            tint = if (active) TL.ink else TL.paper, modifier = Modifier.size(24.dp))
-        Spacer(Modifier.height(6.dp))
+            tint = if (active) TL.ink else TL.paper, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.height(5.dp))
         Text(label, color = if (active) TL.ink else TL.muted,
-            fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -507,24 +507,26 @@ fun SessionScreen() {
                 Modifier.fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // iOS SessionView 세로 비율 1:1 — 제목22 / 다이얼230 / 타이머36 / 프리뷰9:16 / 버튼64.
+                // 프리뷰는 남는 공간을 채워(9:16 유지) 어떤 화면에서도 버튼까지 한 화면에 들어온다.
                 Spacer(Modifier.height(14.dp))
-                Text(s?.activityName ?: "", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.height(16.dp))
+                Text(s?.activityName ?: "", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.weight(1f))
                 FocusDial(
                     remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
                     totalMinutes = target / 60,
-                    modifier = Modifier.size(280.dp),
+                    modifier = Modifier.size(230.dp),
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
                 Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
-                    color = TL.paper, fontSize = 48.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.height(12.dp))
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    color = TL.paper, fontSize = 36.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.weight(1f))
+                Box(Modifier.weight(3f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     previewCard(9f / 16f)
                 }
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.weight(1f))
                 buttonsRow()
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
             }
         } else {
             // 가로 — 왼쪽 다이얼/타이머, 오른쪽 프리뷰/버튼 나란히
@@ -542,7 +544,7 @@ fun SessionScreen() {
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
-                        color = TL.paper, fontSize = 38.sp, fontWeight = FontWeight.Black)
+                        color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)   // iOS 가로 타이머 28
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(
