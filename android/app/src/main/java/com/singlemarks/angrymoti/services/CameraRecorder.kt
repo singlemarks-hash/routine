@@ -43,6 +43,9 @@ object CameraRecorder {
     private var analysisUseCase: ImageAnalysis? = null
     private var bound = false
     @Volatile private var frontFacing = true
+    // 촬영 프레임을 화면과 같은 방향으로 세우기 위한 목표 회전값 — 가로 촬영 시 UI가 실제 디스플레이 회전을 넣어준다.
+    // 바인딩 전에 값이 들어오면 저장해 두었다가 바인딩 직후 적용한다(레이스 방지).
+    @Volatile private var pendingTargetRotation: Int? = null
 
     @Volatile private var isRecording = false
     @Volatile private var isPaused = false
@@ -109,6 +112,7 @@ object CameraRecorder {
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 analysis.setAnalyzer(analysisExecutor) { proxy -> onFrame(context, proxy) }
+                pendingTargetRotation?.let { analysis.targetRotation = it }   // 가로 회전 요청이 먼저 왔으면 반영
                 analysisUseCase = analysis
                 ContextCompat.getMainExecutor(context).execute {
                     try {
@@ -134,6 +138,16 @@ object CameraRecorder {
     /** 바인딩이 아직 안 됐으면 다시 시도 — 잠금 해제 직후 등에서 프리뷰를 살리는 재시도 경로 */
     fun retryPreviewIfNeeded(context: Context) {
         if (!bound) startPreview(context)
+    }
+
+    /**
+     * 분석(=녹화) 프레임의 목표 회전을 화면 방향에 맞춘다.
+     * 이 값이 곧 proxy.imageInfo.rotationDegrees의 기준이 되어, 가로 촬영 시 프레임이
+     * 세로가 아니라 가로(16:9)로 바로 서서 인코딩된다. UI가 실제 디스플레이 회전값(Surface.ROTATION_*)을 넣어준다.
+     */
+    fun setAnalysisRotation(surfaceRotation: Int) {
+        pendingTargetRotation = surfaceRotation
+        analysisUseCase?.targetRotation = surfaceRotation
     }
 
     /** 전/후면 카메라 전환 — 프리뷰·분석 유스케이스를 유지한 채 재바인딩 */
