@@ -107,21 +107,36 @@ object GroupStore {
                     cleanupDisbandedRoom(id, myUid)
                     continue
                 }
-                // 시작 시각 도래 — 2명 이상이면 활성화, 미만이면 취소
+                // 시작 시각 도래 — 실제 멤버 수가 최소 인원 이상이면 활성화, 미만이면 취소.
+                // 판정 근거는 비정규화 카운터(memberCount)가 아니라 '실제 멤버 문서 수'다 —
+                // 카운터 드리프트로 멤버가 충분한 방이 잘못 취소·삭제되던 문제(#04)를 차단.
                 if (room.status == "scheduled" && room.hasStarted) {
-                    val newStatus = if (room.memberCount >= GroupPolicy.MIN_MEMBERS_TO_START)
-                        "active" else "cancelled"
-                    runCatching {
-                        db().collection("groups").document(id).update("status", newStatus).await()
-                    }
-                    room = room.copy(status = newStatus)
+                    val roomRef = db().collection("groups").document(id)
+                    val actualCount = runCatching {
+                        roomRef.collection("members").get().await()
+                            .count { it.getBoolean("quit") != true }
+                    }.getOrDefault(room.memberCount)
+                    val decided = if (actualCount >= GroupPolicy.MIN_MEMBERS_TO_START) "active" else "cancelled"
+                    // compare-and-set — 아직 scheduled일 때만 바꾼다(여러 기기 동시 판정 방지) + 카운터 보정
+                    val finalStatus = runCatching {
+                        db().runTransaction { txn ->
+                            val snap = txn.get(roomRef)
+                            if (snap.getString("status") == "scheduled") {
+                                txn.update(roomRef, mapOf("status" to decided, "memberCount" to actualCount))
+                                decided
+                            } else (snap.getString("status") ?: decided)
+                        }.await()
+                    }.getOrDefault(decided)
+                    room = room.copy(status = finalStatus, memberCount = actualCount)
                 }
                 if (room.status == "cancelled") {
                     if (room.isHostMine) {
-                        cancelledNotices.value += "'${room.name}' — 참여자가 없어 그룹방이 삭제되었습니다."
+                        cancelledNotices.value += "'${room.name}' — 참여자가 부족해 그룹방이 취소되었습니다."
                     }
                     removeMembershipRef(id)
-                    deleteRoomDocuments(id)
+                    // mass-delete 금지 — 각자 자기 멤버 문서만 지우고, 마지막 참여자면 방 문서 삭제.
+                    // (한 기기가 전원 문서를 통째로 지우던 파괴적 경로 제거 — 오판이어도 폭파 안 됨)
+                    cleanupDisbandedRoom(id, myUid)
                     // 취소된 방은 예약 제거 + 그 예약에 잘못 찍힌 노쇼 기록까지 되돌린다
                     removeLocalReservation(context, id, purgeNoShows = true)
                     continue
@@ -191,7 +206,8 @@ object GroupStore {
             roomRef.set(data).await()
             roomRef.collection("members").document(uid).set(
                 mapOf("nickname" to nickname, "score" to 0, "quit" to false,
-                    "joinedAt" to Timestamp(Date()))
+                    "joinedAt" to Timestamp(Date()),
+                    "timeZoneID" to java.util.TimeZone.getDefault().id)   // 타임존 저장 (다른 나라 멤버 표시·기간 계산 기반)
             ).await()
             db().collection("users").document(uid)
                 .set(mapOf("groupIDs" to FieldValue.arrayUnion(roomRef.id)),
@@ -298,7 +314,8 @@ object GroupStore {
         try {
             roomRef.collection("members").document(uid).set(
                 mapOf("nickname" to nickname, "score" to 0, "quit" to false,
-                    "joinedAt" to Timestamp(Date()))
+                    "joinedAt" to Timestamp(Date()),
+                    "timeZoneID" to java.util.TimeZone.getDefault().id)   // 타임존 저장 (다른 나라 멤버 표시·기간 계산 기반)
             ).await()
             roomRef.update("memberCount", FieldValue.increment(1)).await()
             db().collection("users").document(uid)

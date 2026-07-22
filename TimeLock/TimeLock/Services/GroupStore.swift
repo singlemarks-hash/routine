@@ -140,24 +140,41 @@ final class GroupStore: ObservableObject {
                 await cleanupDisbandedRoom(roomID: id, uid: uid)
                 continue
             }
-            // 시작 시각 도래 — 2명 이상이면 활성화, 미만이면 취소
+            // 시작 시각 도래 — 실제 멤버 문서 수가 최소 인원 이상이면 활성화, 미만이면 취소.
+            // 판정 근거는 비정규화 카운터(memberCount)가 아니라 '실제 멤버 문서 수'다 —
+            // 카운터 드리프트로 멤버가 충분한 방이 잘못 취소·삭제되던 문제(#04)를 차단.
             if room.status == "scheduled", room.hasStarted {
-                if room.memberCount >= GroupPolicy.minMembersToStart {
-                    try? await db.collection("groups").document(id)
-                        .updateData(["status": "active"])
-                    room.status = "active"
+                let roomRef = db.collection("groups").document(id)
+                let actualCount: Int
+                if let snap = try? await roomRef.collection("members").getDocuments() {
+                    actualCount = snap.documents.filter { ($0.data()["quit"] as? Bool) != true }.count
                 } else {
-                    try? await db.collection("groups").document(id)
-                        .updateData(["status": "cancelled"])
-                    room.status = "cancelled"
+                    actualCount = room.memberCount
                 }
+                let decided = actualCount >= GroupPolicy.minMembersToStart ? "active" : "cancelled"
+                // compare-and-set — 아직 scheduled일 때만 바꾼다(여러 기기 동시 판정 방지) + 카운터 보정
+                let finalStatus = (try? await db.runTransaction { transaction, errorPointer -> Any? in
+                    let snap: DocumentSnapshot
+                    do { snap = try transaction.getDocument(roomRef) }
+                    catch let e as NSError { errorPointer?.pointee = e; return nil }
+                    if (snap.data()?["status"] as? String) == "scheduled" {
+                        transaction.updateData(["status": decided, "memberCount": actualCount],
+                                               forDocument: roomRef)
+                        return decided
+                    }
+                    return (snap.data()?["status"] as? String) ?? decided
+                }) as? String ?? decided
+                room.status = finalStatus
+                room.memberCount = actualCount
             }
             if room.status == "cancelled" {
                 if room.isHostMine {
-                    cancelledNotices.append("'\(room.name)' — 참여자가 없어 그룹방이 삭제되었습니다.")
+                    cancelledNotices.append("'\(room.name)' — 참여자가 부족해 그룹방이 취소되었습니다.")
                 }
                 await removeMembershipRef(roomID: id)
-                try? await deleteRoomDocuments(roomID: id)
+                // mass-delete 금지 — 각자 자기 멤버 문서만 지우고, 마지막 참여자면 방 문서 삭제.
+                // (한 기기가 전원 문서를 통째로 지우던 파괴적 경로 제거 — 오판이어도 폭파 안 됨)
+                await cleanupDisbandedRoom(roomID: id, uid: uid)
                 // 취소된 방은 예약 제거 + 그 예약에 잘못 찍힌 노쇼 기록까지 되돌린다
                 removeLocalReservation(roomID: id, purgeNoShows: true)
                 continue
@@ -224,6 +241,7 @@ final class GroupStore: ObservableObject {
             try await roomRef.collection("members").document(uid).setData([
                 "nickname": nickname, "score": 0, "quit": false,
                 "joinedAt": Timestamp(date: .now),
+                "timeZoneID": TimeZone.current.identifier,   // 타임존 저장 (다른 나라 멤버 표시·기간 계산 기반)
             ])
             try await db.collection("users").document(uid).setData(
                 ["groupIDs": FieldValue.arrayUnion([roomRef.documentID])], merge: true)
@@ -345,6 +363,7 @@ final class GroupStore: ObservableObject {
             try await roomRef.collection("members").document(uid).setData([
                 "nickname": nickname, "score": 0, "quit": false,
                 "joinedAt": Timestamp(date: .now),
+                "timeZoneID": TimeZone.current.identifier,   // 타임존 저장 (다른 나라 멤버 표시·기간 계산 기반)
             ])
             try await roomRef.updateData(["memberCount": FieldValue.increment(Int64(1))])
             try await db.collection("users").document(uid).setData(
