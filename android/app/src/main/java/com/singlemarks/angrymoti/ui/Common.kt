@@ -234,9 +234,16 @@ fun FocusDial(
         // 흰 시계판
         val faceR = s / 2 - dialInset
         drawCircle(Color.White, radius = faceR, center = c)
-        // 남은 시간 부채꼴 (12시 → 시계 방향) — iOS는 부채꼴만, 별도 시침 없음
+        // 남은 시간 부채꼴 (12시 → 시계 방향)
         drawArc(tint, startAngle = -90f, sweepAngle = 360f * clamped, useCenter = true,
             topLeft = Offset(c.x - faceR, c.y - faceR), size = Size(faceR * 2, faceR * 2))
+        // 흰 바늘 — 부채꼴의 진행 경계를 가리킨다 (iOS와 공통)
+        val handAngle = Math.toRadians(-90.0 + 360.0 * clamped)
+        drawLine(Color.White,
+            start = c,
+            end = Offset(c.x + faceR * kotlin.math.cos(handAngle).toFloat(),
+                         c.y + faceR * kotlin.math.sin(handAngle).toFloat()),
+            strokeWidth = maxOf(3f * density, s * 0.014f), cap = StrokeCap.Round)
         // 중심점
         drawCircle(TL.ink, radius = s * 0.035f, center = c)
     }

@@ -227,6 +227,12 @@ struct FocusDial: View {
                     .padding(dialInset)
                     .animation(TLMotion.progress, value: clamped)
 
+                // 흰 바늘 — 부채꼴의 진행 경계를 가리킨다 (안드로이드와 공통)
+                DialHand(angle: .degrees(-90 + 360 * clamped),
+                         length: size / 2 - dialInset,
+                         width: max(3, size * 0.014))
+                    .animation(TLMotion.progress, value: clamped)
+
                 // 중심점
                 Circle()
                     .fill(TL.ink)
@@ -243,6 +249,26 @@ struct FocusDial: View {
             .frame(width: width, height: len)
             .offset(y: -(outerTip - len / 2))
             .rotationEffect(.degrees(angle))
+    }
+}
+
+/// 다이얼 중심에서 진행 경계까지 뻗는 흰 바늘 (안드로이드 FocusDial과 공통)
+private struct DialHand: View {
+    let angle: Angle
+    let length: CGFloat
+    let width: CGFloat
+
+    var body: some View {
+        GeometryReader { geo in
+            let c = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+            Path { p in
+                p.move(to: c)
+                p.addLine(to: CGPoint(
+                    x: c.x + length * cos(angle.radians),
+                    y: c.y + length * sin(angle.radians)))
+            }
+            .stroke(Color.white, style: StrokeStyle(lineWidth: width, lineCap: .round))
+        }
     }
 }
 
