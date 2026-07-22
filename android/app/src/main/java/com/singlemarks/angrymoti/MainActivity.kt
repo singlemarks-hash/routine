@@ -31,6 +31,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 잠금 화면 위에 표시 + 화면 켜기 (매니페스트 플래그의 코드 버전 — 더 신뢰성 높음)
+        if (android.os.Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
         AppState.bootstrap()
         setContent { AngryMotiTheme { Root() } }
         handleIntent(intent)
@@ -55,7 +60,18 @@ class MainActivity : ComponentActivity() {
             val id = intent.getStringExtra("reservationId") ?: return
             val fireAt = intent.getLongExtra("fireAt", System.currentTimeMillis())
             AlarmScheduler.startAlarmSound(this)
+            // 키가드(잠금) 해제 요청 — 잠금 상태에서는 안드로이드가 카메라 접근을 막으므로,
+            // 촬영을 시작하려면 반드시 잠금을 풀어야 한다 (알람이 잠금 화면에서 울리는 게 정상 시나리오).
+            dismissKeyguardForCamera()
             AppState.route.value = Route.Alarm(id, fireAt)
+        }
+    }
+
+    /** 잠금 해제 요청 — 성공해야 카메라가 열린다. 실패(보안 잠금 미해제) 시 촬영 진입에서 재시도 가능. */
+    private fun dismissKeyguardForCamera() {
+        val km = getSystemService(android.app.KeyguardManager::class.java)
+        if (km != null && km.isKeyguardLocked && android.os.Build.VERSION.SDK_INT >= 26) {
+            km.requestDismissKeyguard(this, null)
         }
     }
 

@@ -91,23 +91,46 @@ object CameraRecorder {
     /** 거치 가이드 진입 시 1회 — 프리뷰+분석 파이프라인 시작 */
     fun startPreview(context: Context) {
         if (bound) return
+        // 카메라 권한이 없으면 바인딩이 조용히 실패한다 — 명시적으로 로그를 남긴다
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            android.util.Log.e("AngryMoti", "startPreview: CAMERA 권한 없음 — 프리뷰 시작 불가")
+            return
+        }
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
-            val p = future.get()
-            provider = p
-            val analysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-            analysis.setAnalyzer(analysisExecutor) { proxy -> onFrame(context, proxy) }
-            analysisUseCase = analysis
-            ContextCompat.getMainExecutor(context).execute {
-                camLifecycle.registry.currentState = Lifecycle.State.RESUMED
-                p.unbindAll()
-                frontFacing = true
-                p.bindToLifecycle(camLifecycle, CameraSelector.DEFAULT_FRONT_CAMERA, previewUseCase, analysis)
-                bound = true
+            try {
+                val p = future.get()
+                provider = p
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                analysis.setAnalyzer(analysisExecutor) { proxy -> onFrame(context, proxy) }
+                analysisUseCase = analysis
+                ContextCompat.getMainExecutor(context).execute {
+                    try {
+                        camLifecycle.registry.currentState = Lifecycle.State.RESUMED
+                        p.unbindAll()
+                        frontFacing = true
+                        p.bindToLifecycle(camLifecycle, CameraSelector.DEFAULT_FRONT_CAMERA,
+                            previewUseCase, analysis)
+                        bound = true
+                        android.util.Log.i("AngryMoti", "startPreview: 카메라 바인딩 성공")
+                    } catch (e: Exception) {
+                        // 잠금 상태에서 열거나 다른 앱이 카메라 점유 중이면 여기서 실패한다
+                        bound = false
+                        android.util.Log.e("AngryMoti", "startPreview: bindToLifecycle 실패", e)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AngryMoti", "startPreview: provider 획득 실패", e)
             }
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    /** 바인딩이 아직 안 됐으면 다시 시도 — 잠금 해제 직후 등에서 프리뷰를 살리는 재시도 경로 */
+    fun retryPreviewIfNeeded(context: Context) {
+        if (!bound) startPreview(context)
     }
 
     /** 전/후면 카메라 전환 — 프리뷰·분석 유스케이스를 유지한 채 재바인딩 */

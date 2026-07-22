@@ -165,7 +165,20 @@ fun MountGuideScreen(pending: PendingSession) {
     var countdown by remember { mutableStateOf<Int?>(null) }
     var waitingCamera by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { CameraRecorder.startPreview(context) }
+    LaunchedEffect(Unit) {
+        // 촬영 진입 시 잠금이 남아 있으면 카메라가 안 열린다 — 여기서 한 번 더 해제 요청
+        val activityForKeyguard = context as? android.app.Activity
+        val km = context.getSystemService(android.app.KeyguardManager::class.java)
+        if (activityForKeyguard != null && km?.isKeyguardLocked == true) {
+            km.requestDismissKeyguard(activityForKeyguard, object :
+                android.app.KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() {
+                    CameraRecorder.retryPreviewIfNeeded(context)   // 잠금 풀린 뒤 카메라 재바인딩
+                }
+            })
+        }
+        CameraRecorder.startPreview(context)
+    }
 
     // 가로 선택 시 화면도 가로로 잠가 iOS 분할 레이아웃과 동일하게 (세로면 세로 잠금)
     val activity = context as? android.app.Activity
