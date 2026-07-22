@@ -332,16 +332,19 @@ fun MountGuideScreen(pending: PendingSession) {
                     previewView(Modifier.fillMaxSize())
                     dashedGuide(Modifier.fillMaxSize().padding(20.dp))
                 }
+                // 가로에선 화면 높이가 낮아 컨트롤이 넘칠 수 있다 — 세로 스크롤을 허용해 '취소하기'까지 항상 닿게 한다
                 Column(
                     Modifier.width(360.dp).fillMaxHeight()
-                        .background(TL.ink).padding(horizontal = 24.dp),
+                        .background(TL.ink)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Spacer(Modifier.height(20.dp))
                     header()
                     Spacer(Modifier.height(16.dp))
                     orientationRow()
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.height(24.dp))
                     checklistAndStart()
                     Spacer(Modifier.height(20.dp))
                 }
@@ -623,28 +626,34 @@ fun SessionScreen() {
             }
             // iOS 브레이크 오버레이 1:1 — 앰버 링 카운트다운 + 하단 재촬영/포기 버튼
             Box(Modifier.fillMaxSize().background(TL.ink.copy(alpha = 0.96f))) {
+                // 가로 녹화 중엔 화면 높이가 낮아 링/여백을 줄이고 세로 스크롤을 허용한다
+                val ringSize = if (portraitSession) 300.dp else 190.dp
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                    modifier = Modifier.fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp),
                 ) {
-                    Spacer(Modifier.height(70.dp))
+                    Spacer(Modifier.height(if (portraitSession) 70.dp else 16.dp))
                     Text("촬영 일시중단", color = TL.amber, fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
                     Spacer(Modifier.height(6.dp))
                     Text("긴급 용무 중", color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
-                    Spacer(Modifier.height(36.dp))
+                    Spacer(Modifier.height(if (portraitSession) 36.dp else 18.dp))
                     // 남은 시간 비율만큼 줄어드는 프로그레스 아크 (iOS RECRingDial 1:1)
                     // 60초 이하면 빨강으로 전환. 12시 방향에서 시작해 시계 방향으로 그린다.
                     val fraction = (left.toFloat() / TimePolicy.RESUME_WINDOW_SECONDS)
                         .coerceIn(0f, 1f)
                     val ringColor = if (left <= 60) TL.rec else TL.amber
                     Box(
-                        Modifier.size(300.dp).drawBehind {
+                        Modifier.size(ringSize).drawBehind {
                             val stroke = 14.dp.toPx()
-                            val inset = stroke / 2
-                            val arcSize = androidx.compose.ui.geometry.Size(
-                                size.width - stroke, size.height - stroke)
-                            val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+                            // 박스가 세로로 눌려도(가로 녹화) 원형 유지 — 최소 변 기준 정사각형 안에 그린다
+                            val d = minOf(size.width, size.height)
+                            val arcSize = androidx.compose.ui.geometry.Size(d - stroke, d - stroke)
+                            val topLeft = androidx.compose.ui.geometry.Offset(
+                                (size.width - d) / 2f + stroke / 2f,
+                                (size.height - d) / 2f + stroke / 2f)
                             // 배경 트랙 (희미한 링)
                             drawArc(
                                 color = TL.raised, startAngle = 0f, sweepAngle = 360f,
@@ -664,13 +673,13 @@ fun SessionScreen() {
                             Text("안에 재촬영을 시작하세요", color = TL.muted, fontSize = 13.sp)
                         }
                     }
-                    Spacer(Modifier.height(32.dp))
+                    Spacer(Modifier.height(if (portraitSession) 32.dp else 18.dp))
                     Text("총 ${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.",
                         color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
                     Spacer(Modifier.height(12.dp))
                     Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다",
                         color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.height(if (portraitSession) 40.dp else 24.dp))
                     TLPrimaryButton("◉  지금 재촬영 시작") { SessionEngine.resumeFromBreak() }
                     Spacer(Modifier.height(10.dp))
                     // iOS와 동일 — 브레이크 중 포기는 확인 시트 없이 바로 종료 (사유는 고정 기록)
