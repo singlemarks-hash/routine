@@ -41,7 +41,11 @@ class SessionService : Service() {
             setReferenceCounted(false)
             acquire(10 * 60 * 60 * 1000L)   // 최대 세션(8h) + 여유
         }
-        return START_STICKY
+        // START_NOT_STICKY — 프로세스가 죽으면 세션 상태(SessionEngine)도 사라져 촬영을 이어갈 수
+        // 없으므로 서비스를 부활시키지 않는다. START_STICKY면 세션 없이 서비스만 되살아나
+        // '촬영 중' 알림 + 웨이크락이 좀비로 남아 배터리를 갉아먹는다(#14). 정상 종료 시엔
+        // cleanupRuntime이 stop()을 호출하고, 비정상 종료분은 앱 재실행 때 recoverOrphan이 기록한다.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {

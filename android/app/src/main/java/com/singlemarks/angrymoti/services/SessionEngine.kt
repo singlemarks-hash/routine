@@ -269,9 +269,20 @@ object SessionEngine {
 
     // MARK: 이탈 이벤트 (백그라운드/화면 잠금) — 통화 중이면 무시
 
+    /** 권한 없이 통화 감지 — READ_PHONE_STATE가 거부되면 TelephonyCallback이 안 붙어 isCallActive가
+     *  항상 false다. AudioManager.mode는 권한 불필요하므로, 수신 벨(RINGTONE)·통화중(IN_CALL)일 때
+     *  이를 폴백으로 본다. 이게 없으면 권한 거부 사용자는 걸려온 전화가 '이탈'로 오인돼
+     *  미친맛 세션이 부당하게 실패 처리된다(#21). iOS는 CallKit이 권한 불필요라 원래 안전. */
+    private fun isPhoneCallActive(): Boolean {
+        if (isCallActive) return true
+        val am = appContext.getSystemService(android.media.AudioManager::class.java) ?: return false
+        return am.mode == android.media.AudioManager.MODE_IN_CALL ||
+            am.mode == android.media.AudioManager.MODE_RINGTONE
+    }
+
     fun handleExitEvent() {
         val s = session ?: return
-        if (isFinalizing || isCallActive) return
+        if (isFinalizing || isPhoneCallActive()) return
         when (s.intensity) {
             Intensity.SPICY -> if (phase.value == Phase.Recording) startBreak()
             Intensity.INSANE -> {
