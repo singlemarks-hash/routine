@@ -40,8 +40,8 @@ struct HomeShellView: View {
     /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성
     private var bottomToggle: some View {
         HStack(spacing: 5) {
-            // 활동 = REC 아이콘(촬영이 곧 활동 — 앱 시그니처), 일정 = 시계, 그룹 = 사람들
-            toggleSegment("활동", icon: "record.circle", tab: .activity)
+            // 활동 = 불꽃(다짐을 불태운다), 일정 = 시계, 그룹 = 사람들
+            toggleSegment("활동", icon: "flame.fill", tab: .activity)
             toggleSegment("일정", icon: "clock.fill", tab: .schedule)
             if showsGroupTab {
                 toggleSegment("그룹", icon: "person.3.fill", tab: .group)
