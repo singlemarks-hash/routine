@@ -45,22 +45,31 @@ object AlarmScheduler {
         )
     }
 
-    /** 현재 계정의 모든 활성 예약에 대해 다음 발생 알람을 다시 건다 */
+    /** 현재 계정의 모든 활성 예약에 대해 다음 발생 알람을 다시 건다 (액티비티에서 호출 — fire&forget) */
     fun rescheduleAll(context: Context) {
+        scope.launch { rescheduleAllNow(context) }
+    }
+
+    /** 재등록 후 완료 콜백을 부른다 — 리시버가 goAsync().finish()로 프로세스 조기 종료를 막도록.
+     *  (BroadcastReceiver는 onReceive 반환 즉시 프로세스가 죽을 수 있어 DB 작업이 유실될 수 있다) */
+    fun rescheduleAllAsync(context: Context, onDone: () -> Unit) {
         scope.launch {
-            val owner = AccountStore.currentUserID
-            val reservations = AppDb.get(context).reservations().active(owner)
-            for (r in reservations) {
-                val fire = r.nextOccurrence() ?: continue
-                scheduleExact(context, r.id, fire)
-            }
+            try { rescheduleAllNow(context) } finally { onDone() }
+        }
+    }
+
+    private suspend fun rescheduleAllNow(context: Context) {
+        val owner = AccountStore.currentUserID
+        val reservations = AppDb.get(context).reservations().active(owner)
+        for (r in reservations) {
+            val fire = r.nextOccurrence() ?: continue
+            scheduleExact(context, r.id, fire)
         }
     }
 
     @SuppressLint("MissingPermission")
     fun scheduleExact(context: Context, reservationId: String, fireAt: Long) {
         val am = context.getSystemService(AlarmManager::class.java)
-        if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) return
         val intent = Intent(context, AlarmReceiver::class.java)
             .putExtra("reservationId", reservationId)
             .putExtra("fireAt", fireAt)
@@ -68,7 +77,29 @@ object AlarmScheduler {
             context, reservationId.hashCode(), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        // 정확 알람 권한이 없으면(API 31~32에서 사용자 회수 가능) 조용히 버리지 않고
+        // 부정확이라도 반드시 건다 — setAndAllowWhileIdle는 Doze 중에도 발화한다(창이 다소 넓어질 뿐).
+        if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pi)
+            return
+        }
         am.setAlarmClock(AlarmManager.AlarmClockInfo(fireAt, pi), pi)
+    }
+
+    /** 정확 알람을 걸 수 있는가 (API 31~32에서만 회수 가능, 33+는 USE_EXACT_ALARM으로 항상 true) */
+    fun canScheduleExact(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < 31) return true
+        return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    }
+
+    /** 정확 알람 권한 요청 화면 — 설정/온보딩에서 사용자에게 안내할 때 연다 */
+    fun openExactAlarmSettings(context: Context) {
+        if (Build.VERSION.SDK_INT >= 31) runCatching {
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                    android.net.Uri.parse("package:${context.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 
     fun cancel(context: Context, reservationId: String) {
@@ -123,15 +154,22 @@ object AlarmScheduler {
         if (alarmPlayer != null) return
         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE) ?: return
-        alarmPlayer = MediaPlayer().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-            )
-            setDataSource(context, uri)
-            isLooping = true
-            prepare(); start()
+        // prepare()는 일부 기기/코덱에서 예외를 던질 수 있다 — 알람 화면 진입 크래시를 막기 위해 가드.
+        runCatching {
+            alarmPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+                )
+                setDataSource(context, uri)
+                isLooping = true
+                prepare(); start()
+            }
+        }.onFailure {
+            android.util.Log.e("AngryMoti", "startAlarmSound 실패", it)
+            runCatching { alarmPlayer?.release() }
+            alarmPlayer = null
         }
     }
 
@@ -184,15 +222,21 @@ object AlarmScheduler {
         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) ?: return
         chimePlayer?.release()
-        chimePlayer = MediaPlayer().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-            )
-            setDataSource(context, uri)
-            setOnCompletionListener { it.release(); if (chimePlayer == it) chimePlayer = null }
-            prepare(); start()
+        runCatching {
+            chimePlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+                )
+                setDataSource(context, uri)
+                setOnCompletionListener { it.release(); if (chimePlayer == it) chimePlayer = null }
+                prepare(); start()
+            }
+        }.onFailure {
+            android.util.Log.e("AngryMoti", "playChime 실패", it)
+            runCatching { chimePlayer?.release() }
+            chimePlayer = null
         }
     }
 }

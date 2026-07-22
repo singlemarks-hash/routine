@@ -139,6 +139,13 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 other.oneOffDayStart == todayStart())
                     }
                     if (overlap) { error = "같은 시간대에 이미 다른 활동이 있어요."; return@save }
+                    // 일회성 예약은 발생 시각이 미래여야 한다 — 과거면 알람이 아예 안 걸리므로 차단 (iOS 통일)
+                    if (repeatDays.isEmpty()) {
+                        val oneOffStart = oneOffDay ?: nextOneOffDay(sm)
+                        if (oneOffStart + sm * 60_000L <= System.currentTimeMillis()) {
+                            error = "이미 지난 시각입니다. 미래 날짜·시각으로 선택해주세요."; return@save
+                        }
+                    }
 
                     scope.launch(Dispatchers.IO) {
                         val r = (existing ?: Reservation(
@@ -357,8 +364,20 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
 
     // 일회성 날짜 선택 다이얼로그
     if (showDatePicker) {
+        // 오늘(로컬) 이전 날짜는 선택 불가 — 과거 일회성 예약을 애초에 못 만들게 (iOS in: Date()... 통일).
+        // DatePicker는 UTC 기준이므로 로컬 오늘의 Y/M/D를 UTC 자정으로 환산해 하한으로 쓴다.
+        val todayUtcMidnight = remember {
+            val local = Calendar.getInstance()
+            Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+                clear()
+                set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+            }.timeInMillis
+        }
         val dateState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute))
+            initialSelectedDateMillis = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute),
+            selectableDates = object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= todayUtcMidnight
+            })
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
