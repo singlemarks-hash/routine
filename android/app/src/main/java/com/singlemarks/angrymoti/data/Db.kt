@@ -46,9 +46,6 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE ownerUserID = :owner")
     suspend fun all(owner: String): List<FocusSession>
 
-    @Query("SELECT * FROM sessions")
-    suspend fun allOwners(): List<FocusSession>
-
     @Query("SELECT * FROM sessions WHERE id = :id")
     suspend fun byId(id: String): FocusSession?
 

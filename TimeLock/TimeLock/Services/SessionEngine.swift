@@ -651,6 +651,9 @@ final class SessionEngine: NSObject, ObservableObject {
             defaults.removeObject(forKey: Key.activeSessionID)
             return
         }
+        // 계정 스코프 — 다른 계정의 미완료 세션은 지금 로그인한 계정으로 마감/노출하지 않는다.
+        // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단)
+        guard orphan.ownerUserID == AccountStore.shared.currentUserID else { return }
         let wasOnBreak = defaults.object(forKey: Key.breakDeadline) != nil
         let wasInCall = defaults.bool(forKey: Key.callActive)
         let outcome: SessionOutcome

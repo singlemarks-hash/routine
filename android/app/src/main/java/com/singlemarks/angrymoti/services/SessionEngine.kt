@@ -78,6 +78,10 @@ object SessionEngine {
     fun start(activityName: String, tag: String, intensity: Intensity,
               scheduledAt: Long?, targetSeconds: Int, reservationId: String?,
               portrait: Boolean, isPro: Boolean) {
+        // 재진입 방지 — 이미 진행 중인 세션이 있으면 무시한다 (iOS guard phase==.idle 통일).
+        // 겹치는 알람·이중 탭으로 새 start()가 진행 중 세션을 결과 없이 덮어써 유실되던 결함 차단.
+        val current = phase.value
+        if (current != Phase.Idle && current !is Phase.Finished) return
         AlarmScheduler.sessionMuted = true   // 촬영 시작과 함께 알림차단 기본 활성화 (iOS 동일)
         if (AlarmScheduler.hasDndAccess(appContext)) AlarmScheduler.setDnd(appContext, true)   // 권한 있으면 시스템 방해 금지도 자동 ON
         val owner = AccountStore.currentUserID
@@ -550,6 +554,9 @@ object SessionEngine {
         if (orphan == null || orphan.outcome != null) {
             Prefs.activeSessionId = null; return
         }
+        // 계정 스코프 — 다른 계정의 미완료 세션은 지금 로그인한 계정으로 마감/노출하지 않는다.
+        // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단)
+        if (orphan.ownerUserID != AccountStore.currentUserID) return
         val wasOnBreak = Prefs.breakDeadline != 0L
         val wasInCall = Prefs.callActive
         val outcome = when {
