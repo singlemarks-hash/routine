@@ -148,13 +148,32 @@ object CameraRecorder {
         }
     }
 
+    // 타임랩스 결과 길이 앵커 (촬영 분 → 결과 초) — iOS lengthAnchors와 1:1.
+    // 10분→10초, 2시간→40초, 4시간→50초, 8시간→60초. 사이는 선형 보간.
+    private val lengthAnchors = listOf(10.0 to 10.0, 120.0 to 40.0, 240.0 to 50.0, 480.0 to 60.0)
+
+    private fun targetOutputSeconds(plannedSeconds: Double): Double {
+        val minutes = plannedSeconds / 60.0
+        val first = lengthAnchors.first(); val last = lengthAnchors.last()
+        if (minutes <= first.first) return first.second
+        if (minutes >= last.first) return last.second
+        for (i in 1 until lengthAnchors.size) {
+            val a = lengthAnchors[i - 1]; val b = lengthAnchors[i]
+            if (minutes <= b.first) {
+                val t = (minutes - a.first) / (b.first - a.first)
+                return a.second + (b.second - a.second) * t
+            }
+        }
+        return last.second
+    }
+
     /** 촬영 시작 — 세션 길이에 맞춰 캡처 간격을 동적으로 정한다 (재생 30fps) */
     fun startRecording(context: Context, sessionId: String, portrait: Boolean, plannedSeconds: Double, watermark: Boolean) {
         this.sessionId = sessionId
         this.portrait = portrait
         portraitSession.value = portrait
-        val outMinutes = plannedSeconds / 60.0
-        val outSeconds = outMinutes.coerceIn(15.0, 60.0)      // 결과 영상 길이 앵커: 15초~60초
+        // iOS와 동일한 앵커 보간으로 결과 길이 산출 (10분→10초 …)
+        val outSeconds = targetOutputSeconds(plannedSeconds)
         val targetFrames = (outSeconds * TimelapseEncoder.FPS).coerceAtLeast(1.0)
         captureIntervalMs = ((plannedSeconds / targetFrames) * 1000).toLong()
             .coerceAtLeast(1000L / TimelapseEncoder.FPS)

@@ -177,14 +177,17 @@ object AlarmScheduler {
         }
     }
 
+    /** 앱 자체 경고음(1분 전 예고·자리비움) — iOS의 '띵동'과 동일한 의도적 알림 사운드.
+     *  sessionMuted/시스템 DND는 '외부 알림'을 막는 기능이지 앱 자체 경고까지 막는 게 아니므로,
+     *  USAGE_ALARM으로 재생해 방해 금지 상태에서도 반드시 들리게 한다. */
     fun playChime(context: Context) {
-        if (sessionMuted) return
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION) ?: return
+        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) ?: return
         chimePlayer?.release()
         chimePlayer = MediaPlayer().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                    .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
             )
             setDataSource(context, uri)

@@ -421,6 +421,7 @@ fun SessionScreen() {
     val budget by SessionEngine.breakBudgetRemaining.collectAsStateWithLifecycle()
     val absenceWarning by SessionEngine.absenceWarning.collectAsStateWithLifecycle()
     val episodes by SessionEngine.absenceEpisodeCount.collectAsStateWithLifecycle()
+    val oneMinuteWarning by SessionEngine.oneMinuteWarningFired.collectAsStateWithLifecycle()
     var showEmergency by remember { mutableStateOf(false) }
 
     val s = SessionEngine.currentSession
@@ -511,10 +512,17 @@ fun SessionScreen() {
                 // 프리뷰는 남는 공간을 채워(9:16 유지) 어떤 화면에서도 버튼까지 한 화면에 들어온다.
                 Spacer(Modifier.height(14.dp))
                 Text(s?.activityName ?: "", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                if (oneMinuteWarning) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("1분 뒤 자동 종료됩니다", color = TL.jade, fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold)
+                }
                 Spacer(Modifier.weight(1f))
                 FocusDial(
                     remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
                     totalMinutes = target / 60,
+                    // 종료 1분 전부터 부채꼴이 빨강→초록 (iOS 동일)
+                    tint = if (target - recorded <= 60) TL.jade else TL.rec,
                     modifier = Modifier.size(230.dp),
                 )
                 Spacer(Modifier.height(14.dp))
@@ -540,6 +548,7 @@ fun SessionScreen() {
                     FocusDial(
                         remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
                         totalMinutes = target / 60,
+                        tint = if (target - recorded <= 60) TL.jade else TL.rec,   // 1분 전 초록 (iOS 동일)
                         modifier = Modifier.size(190.dp),
                     )
                     Spacer(Modifier.height(8.dp))
