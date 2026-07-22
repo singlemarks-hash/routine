@@ -290,15 +290,17 @@ fun MountGuideScreen(pending: PendingSession) {
             }
         }
     }
-    val header: @Composable () -> Unit = {
-        Text("거치 가이드", color = TL.amber, fontSize = 13.sp,
+    // compact = 가로용 축소 타이포 (한 화면에 담기 위한 리밸런싱)
+    val header: @Composable (Boolean) -> Unit = { compact ->
+        Text("거치 가이드", color = TL.amber, fontSize = if (compact) 12.sp else 13.sp,
             fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
         Spacer(Modifier.height(4.dp))
-        Text(pending.activityName, color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Text(pending.activityName, color = TL.paper,
+            fontSize = if (compact) 20.sp else 24.sp, fontWeight = FontWeight.Black)
         if (pending.scheduledAt != null) {
             Spacer(Modifier.height(4.dp))
             Text("${TimePolicy.START_WINDOW_MINUTES}분 안에 시작하지 않으면 노쇼 처리됩니다",
-                color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                color = TL.rec, fontSize = if (compact) 12.sp else 14.sp, fontWeight = FontWeight.Bold)
         }
     }
     val checklistAndStart: @Composable () -> Unit = {
@@ -334,7 +336,7 @@ fun MountGuideScreen(pending: PendingSession) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(18.dp))
-                header()
+                header(false)
                 Spacer(Modifier.height(16.dp))
                 orientationRow()
                 Spacer(Modifier.height(20.dp))
@@ -350,21 +352,48 @@ fun MountGuideScreen(pending: PendingSession) {
                     previewView(Modifier.fillMaxSize())
                     dashedGuide(Modifier.fillMaxSize().padding(20.dp))
                 }
-                // 가로에선 화면 높이가 낮아 컨트롤이 넘칠 수 있다 — 세로 스크롤을 허용해 '취소하기'까지 항상 닿게 한다
+                // 우측 컨트롤 — 스크롤 없이 한 화면에 담기도록 타이포·간격을 축소하고,
+                // 촬영/취소를 한 줄로 배치해 세로 여백을 확보한다. SpaceBetween으로 여백감 유지.
                 Column(
                     Modifier.width(360.dp).fillMaxHeight()
-                        .background(TL.ink)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp),
+                        .background(TL.ink).padding(horizontal = 22.dp, vertical = 18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Spacer(Modifier.height(20.dp))
-                    header()
-                    Spacer(Modifier.height(16.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) { header(true) }
                     orientationRow()
-                    Spacer(Modifier.height(24.dp))
-                    checklistAndStart()
-                    Spacer(Modifier.height(20.dp))
+                    Column(Modifier.fillMaxWidth()) {
+                        MountCheckRow("거치대에 폰을 고정했어요", check1, compact = true) {
+                            if (countdown == null) check1 = !check1
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        MountCheckRow("구도 안에 내가 보여요", check2, compact = true) {
+                            if (countdown == null) check2 = !check2
+                        }
+                    }
+                    // 취소 · 촬영 시작 나란히 (iOS 가로 하단 액션 바)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier.weight(1f)
+                                .background(Color.White.copy(alpha = 0.14f), TL.cornerM)
+                                .clickable(enabled = countdown == null) { AppState.cancelMountGuide(pending) }
+                                .padding(vertical = 15.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("취소하기", color = if (countdown == null) TL.paper else TL.faint,
+                                fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Box(Modifier.weight(1.4f)) {
+                            TLPrimaryButton(
+                                if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
+                                enabled = check1 && check2 && countdown == null,
+                            ) { countdown = 3 }
+                        }
+                    }
                 }
             }
         }
@@ -388,29 +417,29 @@ fun MountGuideScreen(pending: PendingSession) {
     }
 }
 
-/** 거치 가이드 체크리스트 행 — 원형 라디오 + 라벨 (iOS 1:1) */
+/** 거치 가이드 체크리스트 행 — 원형 라디오 + 라벨 (iOS 1:1). compact = 가로용 축소. */
 @Composable
-private fun MountCheckRow(label: String, checked: Boolean, onClick: () -> Unit) {
+private fun MountCheckRow(label: String, checked: Boolean, compact: Boolean = false, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
             .background(TL.ink.copy(alpha = 0.6f), TL.cornerM)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 15.dp),
+            .padding(horizontal = 16.dp, vertical = if (compact) 11.dp else 15.dp),
     ) {
         Box(
-            Modifier.size(24.dp)
+            Modifier.size(if (compact) 22.dp else 24.dp)
                 .background(if (checked) TL.jade else Color.Transparent, CircleShape)
                 .border(2.dp, if (checked) TL.jade else TL.muted, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             if (checked) {
                 androidx.compose.material3.Icon(AppIcon.Check, null,
-                    tint = TL.ink, modifier = Modifier.size(15.dp))
+                    tint = TL.ink, modifier = Modifier.size(if (compact) 14.dp else 15.dp))
             }
         }
         Spacer(Modifier.width(12.dp))
-        Text(label, color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = TL.paper, fontSize = if (compact) 14.sp else 16.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -647,69 +676,103 @@ fun SessionScreen() {
                     delay(500)
                 }
             }
-            // iOS 브레이크 오버레이 1:1 — 앰버 링 카운트다운 + 하단 재촬영/포기 버튼
-            Box(Modifier.fillMaxSize().background(TL.ink.copy(alpha = 0.96f))) {
-                // 가로 녹화 중엔 화면 높이가 낮아 링/여백을 줄이고 세로 스크롤을 허용한다
-                val ringSize = if (portraitSession) 300.dp else 190.dp
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp),
+            // iOS 브레이크 오버레이 1:1 — 앰버 링 카운트다운 + 재촬영/포기 버튼
+            val fraction = (left.toFloat() / TimePolicy.RESUME_WINDOW_SECONDS).coerceIn(0f, 1f)
+            val ringColor = if (left <= 60) TL.rec else TL.amber
+            // 링(정원 유지) — 세로/가로 공용 조각. 크기와 타이머 폰트를 방향별로 받는다.
+            val breakRing: @Composable (androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.TextUnit) -> Unit = { sz, timerFont ->
+                Box(
+                    Modifier.size(sz).drawBehind {
+                        val stroke = 14.dp.toPx()
+                        // 최소 변 기준 정사각형 안 중앙에 그려 어떤 비율에서도 정원 유지
+                        val d = minOf(size.width, size.height)
+                        val arcSize = androidx.compose.ui.geometry.Size(d - stroke, d - stroke)
+                        val topLeft = androidx.compose.ui.geometry.Offset(
+                            (size.width - d) / 2f + stroke / 2f,
+                            (size.height - d) / 2f + stroke / 2f)
+                        drawArc(color = TL.raised, startAngle = 0f, sweepAngle = 360f,
+                            useCenter = false, topLeft = topLeft, size = arcSize,
+                            style = Stroke(width = stroke, cap = StrokeCap.Round))
+                        drawArc(color = ringColor, startAngle = -90f, sweepAngle = 360f * fraction,
+                            useCenter = false, topLeft = topLeft, size = arcSize,
+                            style = Stroke(width = stroke, cap = StrokeCap.Round))
+                    },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Spacer(Modifier.height(if (portraitSession) 70.dp else 16.dp))
-                    Text("촬영 일시중단", color = TL.amber, fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Text("긴급 용무 중", color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
-                    Spacer(Modifier.height(if (portraitSession) 36.dp else 18.dp))
-                    // 남은 시간 비율만큼 줄어드는 프로그레스 아크 (iOS RECRingDial 1:1)
-                    // 60초 이하면 빨강으로 전환. 12시 방향에서 시작해 시계 방향으로 그린다.
-                    val fraction = (left.toFloat() / TimePolicy.RESUME_WINDOW_SECONDS)
-                        .coerceIn(0f, 1f)
-                    val ringColor = if (left <= 60) TL.rec else TL.amber
-                    Box(
-                        Modifier.size(ringSize).drawBehind {
-                            val stroke = 14.dp.toPx()
-                            // 박스가 세로로 눌려도(가로 녹화) 원형 유지 — 최소 변 기준 정사각형 안에 그린다
-                            val d = minOf(size.width, size.height)
-                            val arcSize = androidx.compose.ui.geometry.Size(d - stroke, d - stroke)
-                            val topLeft = androidx.compose.ui.geometry.Offset(
-                                (size.width - d) / 2f + stroke / 2f,
-                                (size.height - d) / 2f + stroke / 2f)
-                            // 배경 트랙 (희미한 링)
-                            drawArc(
-                                color = TL.raised, startAngle = 0f, sweepAngle = 360f,
-                                useCenter = false, topLeft = topLeft, size = arcSize,
-                                style = Stroke(width = stroke, cap = StrokeCap.Round))
-                            // 남은 시간 진행 아크
-                            drawArc(
-                                color = ringColor, startAngle = -90f, sweepAngle = 360f * fraction,
-                                useCenter = false, topLeft = topLeft, size = arcSize,
-                                style = Stroke(width = stroke, cap = StrokeCap.Round))
-                        },
-                        contentAlignment = Alignment.Center,
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(TLFormat.hms(left.toLong()), color = TL.paper,
+                            fontSize = timerFont, fontWeight = FontWeight.Black)
+                        Text("안에 재촬영을 시작하세요", color = TL.muted, fontSize = 13.sp)
+                    }
+                }
+            }
+            val resumeButton: @Composable () -> Unit = {
+                TLPrimaryButton("◉  지금 재촬영 시작") { SessionEngine.resumeFromBreak() }
+            }
+            // iOS와 동일 — 브레이크 중 포기는 확인 시트 없이 바로 종료 (사유는 고정 기록)
+            val quitButton: @Composable () -> Unit = {
+                TLGhostButton("세션 포기 — 벌점 받기", tint = TL.muted) {
+                    SessionEngine.emergencyEnd("긴급 용무 지속")
+                }
+            }
+
+            Box(Modifier.fillMaxSize().background(TL.ink.copy(alpha = 0.96f))) {
+                if (portraitSession) {
+                    // 세로 — 위에서 아래로 수직 배치 (스크롤 없이 한 화면)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(TLFormat.hms(left.toLong()), color = TL.paper,
-                                fontSize = 56.sp, fontWeight = FontWeight.Black)
-                            Text("안에 재촬영을 시작하세요", color = TL.muted, fontSize = 13.sp)
+                        Text("촬영 일시중단", color = TL.amber, fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
+                        Spacer(Modifier.height(6.dp))
+                        Text("긴급 용무 중", color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.height(36.dp))
+                        breakRing(300.dp, 56.sp)
+                        Spacer(Modifier.height(32.dp))
+                        Text("총 ${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.",
+                            color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다",
+                            color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(36.dp))
+                        resumeButton()
+                        Spacer(Modifier.height(10.dp))
+                        quitButton()
+                    }
+                } else {
+                    // 가로 — 좌측 링 / 우측 설명+버튼 두 칸 배치로 한 화면에 담는다
+                    Row(
+                        Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    ) {
+                        Column(
+                            Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text("촬영 일시중단", color = TL.amber, fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
+                            Spacer(Modifier.height(6.dp))
+                            Text("긴급 용무 중", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                            Spacer(Modifier.height(16.dp))
+                            breakRing(178.dp, 40.sp)
+                        }
+                        Column(
+                            Modifier.weight(1f), verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text("총 ${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하면 벌점이 없습니다. 시간이 지나면 벌점과 함께 세션이 종료됩니다.",
+                                color = TL.muted, fontSize = 13.sp, lineHeight = 20.sp)
+                            Spacer(Modifier.height(10.dp))
+                            Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다",
+                                color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(20.dp))
+                            resumeButton()
+                            Spacer(Modifier.height(10.dp))
+                            quitButton()
                         }
                     }
-                    Spacer(Modifier.height(if (portraitSession) 32.dp else 18.dp))
-                    Text("총 ${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.",
-                        color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다",
-                        color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(if (portraitSession) 40.dp else 24.dp))
-                    TLPrimaryButton("◉  지금 재촬영 시작") { SessionEngine.resumeFromBreak() }
-                    Spacer(Modifier.height(10.dp))
-                    // iOS와 동일 — 브레이크 중 포기는 확인 시트 없이 바로 종료 (사유는 고정 기록)
-                    TLGhostButton("세션 포기 — 벌점 받기", tint = TL.muted) {
-                        SessionEngine.emergencyEnd("긴급 용무 지속")
-                    }
-                    Spacer(Modifier.height(28.dp))
                 }
             }
         }
