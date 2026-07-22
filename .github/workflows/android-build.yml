@@ -1,0 +1,31 @@
+name: Android Build
+
+# 푸시(main)/PR마다 우분투 러너에서 릴리스 변이 컴파일을 수행해 컴파일 오류를 즉시 잡는다.
+# compileReleaseKotlin은 Room KSP(엔티티/DAO 쿼리 검증)까지 함께 돌려 데이터 계층 오류도 잡는다.
+# 서명 불필요 — 컴파일만 하므로 upload 키스토어 없이도 동작(없으면 debug 서명으로 폴백).
+# iOS(macOS 러너, 분당 10배)와 달리 우분투는 저렴하므로 push+PR 모두 검증한다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Gradle 컴파일 검증
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 설정
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 설정 (래퍼 + 캐시)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: 릴리스 Kotlin 컴파일 (+ Room KSP 검증)
+        working-directory: android
+        run: ./gradlew compileReleaseKotlin --no-daemon --stacktrace
