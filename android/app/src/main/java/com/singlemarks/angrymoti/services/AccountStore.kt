@@ -164,8 +164,47 @@ object AccountStore {
     suspend fun syncFromCloud() {
         syncScoreEventsFromCloud()
         syncReservationsFromCloud()
+        syncSessionSummariesFromCloud()
+        syncBonusStateFromCloud()
         syncMembershipFromCloud()
         syncHomeGoalFromCloud()
+    }
+
+    // 보너스 지급 dedup 상태 동기화 — 세션 이력을 동기화하면 새 기기에서 streak·완주수가
+    // 복원되므로, 슬롯/해제 보너스가 이미 지급됐다는 사실도 함께 옮겨야 중복 지급되지 않는다.
+    fun mirrorSlotBonusTier(uid: String, tier: Int) {
+        if (!firebaseAvailable || uid == "guest") return
+        runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(uid)
+                .set(mapOf("slotBonusAwardedTier" to tier),
+                    com.google.firebase.firestore.SetOptions.merge())
+        }
+    }
+    fun mirrorUnlockBonusAwarded(uid: String) {
+        if (!firebaseAvailable || uid == "guest") return
+        runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(uid)
+                .set(mapOf("unlockBonusAwarded" to true),
+                    com.google.firebase.firestore.SetOptions.merge())
+        }
+    }
+    private suspend fun syncBonusStateFromCloud() {
+        val uid = currentUserID
+        if (!firebaseAvailable || uid == "guest") return
+        val doc = runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(uid).get().await()
+        }.getOrNull() ?: return
+        val prefs = com.singlemarks.angrymoti.data.Prefs
+        // 양방향 — 큰 쪽이 이긴다. 기존 사용자(클라우드에 상태 없음)는 로컬을 올려 다음 기기가 받게 한다.
+        val localTier = prefs.slotBonusAwardedTier(uid)
+        val cloudTier = doc.getLong("slotBonusAwardedTier")?.toInt() ?: 0
+        if (cloudTier > localTier) prefs.setSlotBonusAwardedTier(uid, cloudTier)
+        else if (localTier > cloudTier) mirrorSlotBonusTier(uid, localTier)
+
+        val localUnlock = prefs.unlockBonusAwarded(uid)
+        val cloudUnlock = doc.getBoolean("unlockBonusAwarded") == true
+        if (cloudUnlock && !localUnlock) prefs.setUnlockBonusAwarded(uid)
+        else if (localUnlock && !cloudUnlock) mirrorUnlockBonusAwarded(uid)
     }
 
     /** 홈 다짐(목표) 문구 업로드 — 마이페이지 편집 저장 시 호출 */
@@ -273,6 +312,73 @@ object AccountStore {
         }
         // 클라우드에 아직 없는 로컬 개인 예약 → 최초 업로드 (기존 사용자 마이그레이션)
         localByID.filterKeys { it !in cloudIDs }.values.forEach(::mirrorReservation)
+    }
+
+    // MARK: 세션 요약 동기화 — 기기 변경 시 진척 보존
+    // 완료 세션의 '요약'(영상 제외: 활동명·태그·강도·시각·성공여부)을 계정 클라우드에 미러한다.
+    // 새 기기는 이 요약을 내려받아 연속 달성일·미친맛 해제·활동 슬롯·성공 캘린더를 이력 기준으로
+    // 다시 계산한다 → 기기를 바꿔도 0으로 리셋되지 않는다. 영상 파일은 기기 로컬에만 남는다.
+
+    /** Firestore 시간 필드를 밀리초로 — iOS(Int64)·안드로이드(Long)·구형(Timestamp) 모두 수용 */
+    private fun docMillis(doc: com.google.firebase.firestore.DocumentSnapshot, key: String): Long? =
+        when (val v = doc.get(key)) {
+            is com.google.firebase.Timestamp -> v.toDate().time
+            is Number -> v.toLong()
+            else -> null
+        }
+
+    /** 완료 세션 요약 클라우드 미러 (영상 제외) — best-effort. outcome이 있어야 올린다. */
+    fun mirrorSession(s: com.singlemarks.angrymoti.data.FocusSession) {
+        if (!firebaseAvailable || s.ownerUserID == "guest" || s.outcomeRaw == null) return
+        runCatching {
+            FirebaseFirestore.getInstance().collection("users").document(s.ownerUserID)
+                .collection("sessionSummaries").document(s.id.lowercase())
+                .set(mapOf(
+                    "activityName" to s.activityName, "tag" to s.tag,
+                    "intensity" to s.intensityRaw,
+                    "scheduledAt" to s.scheduledAt, "startedAt" to s.startedAt, "endedAt" to s.endedAt,
+                    "targetSeconds" to s.targetSeconds, "recordedSeconds" to s.recordedSeconds,
+                    "outcome" to s.outcomeRaw, "reservationID" to s.reservationID,
+                    "updatedAt" to (s.endedAt ?: System.currentTimeMillis()),
+                ), com.google.firebase.firestore.SetOptions.merge())
+        }
+    }
+
+    /** 세션 요약 병합 — 다른 기기(iOS 포함)에서 쌓인 완료 세션을 로컬에 생성(영상 없이).
+     *  로컬에 이미 있으면(영상 포함 가능) 건드리지 않는다 → 영상 참조 보존. */
+    private suspend fun syncSessionSummariesFromCloud() {
+        val uid = currentUserID
+        if (!firebaseAvailable || uid == "guest") return
+        val snapshot = runCatching {
+            FirebaseFirestore.getInstance()
+                .collection("users").document(uid).collection("sessionSummaries").get().await()
+        }.getOrNull() ?: return
+
+        val dao = com.singlemarks.angrymoti.data.AppDb.get(appContext).sessions()
+        val existing = dao.all(uid).map { it.id.lowercase() }.toSet()
+        val cloudIDs = mutableSetOf<String>()
+        for (doc in snapshot.documents) {
+            val key = doc.id.lowercase()
+            cloudIDs.add(key)
+            if (key in existing) continue   // 로컬 우선 — 영상 참조 보존
+            val outcome = doc.getString("outcome")?.takeIf { it.isNotEmpty() } ?: continue
+            dao.upsert(com.singlemarks.angrymoti.data.FocusSession(
+                id = key, ownerUserID = uid,
+                activityName = doc.getString("activityName") ?: "",
+                tag = doc.getString("tag") ?: "",
+                intensityRaw = doc.getString("intensity") ?: "spicy",
+                scheduledAt = docMillis(doc, "scheduledAt"),
+                startedAt = docMillis(doc, "startedAt"),
+                endedAt = docMillis(doc, "endedAt"),
+                targetSeconds = (doc.getLong("targetSeconds") ?: 0L).toInt(),
+                recordedSeconds = (doc.getLong("recordedSeconds") ?: 0L).toInt(),
+                outcomeRaw = outcome,
+                reservationID = doc.getString("reservationID")?.takeIf { it.isNotEmpty() }?.lowercase(),
+            ))
+        }
+        // 클라우드에 아직 없는 로컬 완료 세션 → 최초 업로드 (기존 사용자 이력 마이그레이션)
+        dao.all(uid).filter { it.outcomeRaw != null && it.id.lowercase() !in cloudIDs }
+            .forEach(::mirrorSession)
     }
 
     /** 구독 상태 클라우드 기록 — 반대 플랫폼(iOS)에서도 멤버십이 인정되도록 */

@@ -428,6 +428,7 @@ final class SessionEngine: NSObject, ObservableObject {
         defaults.set(awardedTier, forKey: key)
         if totalBonus > 0 {
             lastSlotBonus = (days: crossedDays, points: totalBonus)
+            AccountStore.shared.mirrorSlotBonusTier(awardedTier)   // 기기 변경 시 중복 지급 방지
         }
     }
 
@@ -454,6 +455,7 @@ final class SessionEngine: NSObject, ObservableObject {
         context.insert(event)
         AccountStore.shared.mirror(event: event)
         defaults.set(true, forKey: key)
+        AccountStore.shared.mirrorUnlockBonusAwarded()   // 기기 변경 시 중복 지급 방지
         lastUnlockBonus = 5
     }
 
@@ -507,6 +509,7 @@ final class SessionEngine: NSObject, ObservableObject {
             awardUnlockBonusIfJustUnlocked(session: s, context: context)
         }
         try? context.save()
+        AccountStore.shared.mirrorSession(s)   // 세션 요약 클라우드 미러 (기기 변경 시 진척 보존)
 
         // 결과 데이터를 모두 준비한 뒤에 딱 한 번 phase를 바꾸고, 라우팅 콜백을 쏜다.
         lastFinishedSession = s
@@ -632,6 +635,7 @@ final class SessionEngine: NSObject, ObservableObject {
                     AccountStore.shared.mirror(event: event)
                     GroupStore.shared.reportScore(reservation: reservation, points: points)
                 }
+                AccountStore.shared.mirrorSession(noShow)   // 노쇼 요약도 클라우드 미러
                 existing.insert(key)
             }
         }
@@ -674,6 +678,7 @@ final class SessionEngine: NSObject, ObservableObject {
             reportGroupScoreIfNeeded(session: orphan, points: points, context: context)
         }
         try? context.save()
+        AccountStore.shared.mirrorSession(orphan)   // 복구된 세션 요약도 클라우드 미러
         // 크래시로 남은 파셜 영상은 재생 불가(moov 미기록)하고 어떤 세션도 참조하지 않는다 —
         // 디스크만 차지하므로 정리한다.
         let partial = SessionStorage.directory.appendingPathComponent("\(orphan.id.uuidString).mov")

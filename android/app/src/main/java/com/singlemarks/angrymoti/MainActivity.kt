@@ -41,7 +41,8 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         lifecycleScope.launch(Dispatchers.IO) {
             SessionEngine.recoverOrphanIfNeeded()
-            AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
+            AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십·세션 이력 병합
+            AppState.refreshSpicyCompletions(this@MainActivity)   // 동기화된 이력으로 미친맛 해제 상태 갱신
             com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
             SessionEngine.sweepNoShows()
         }

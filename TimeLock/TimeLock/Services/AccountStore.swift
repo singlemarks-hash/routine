@@ -548,8 +548,49 @@ final class AccountStore: ObservableObject {
     func syncFromCloud() async {
         await syncScoreEventsFromCloud()
         await syncReservationsFromCloud()
+        await syncSessionSummariesFromCloud()
+        await syncBonusStateFromCloud()
         await syncMembershipFromCloud()
         await syncHomeGoalFromCloud()
+    }
+
+    // 보너스 지급 dedup 상태 동기화 — 세션 이력을 동기화하면 새 기기에서 streak·완주수가
+    // 복원되므로, 슬롯/해제 보너스가 이미 지급됐다는 사실도 함께 옮겨야 중복 지급되지 않는다.
+    func mirrorSlotBonusTier(_ tier: Int) {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return }
+        Firestore.firestore().collection("users").document(user.id)
+            .setData(["slotBonusAwardedTier": tier], merge: true)
+        #endif
+    }
+    func mirrorUnlockBonusAwarded() {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return }
+        Firestore.firestore().collection("users").document(user.id)
+            .setData(["unlockBonusAwarded": true], merge: true)
+        #endif
+    }
+    private func syncBonusStateFromCloud() async {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return }
+        let uid = user.id
+        guard let doc = try? await Firestore.firestore()
+            .collection("users").document(uid).getDocument() else { return }
+        let data = doc.data() ?? [:]
+        let d = UserDefaults.standard
+        // 양방향 — 큰 쪽이 이긴다. 기존 사용자(클라우드에 상태 없음)는 로컬을 올려 다음 기기가 받게 한다.
+        let slotKey = "slotBonus.awardedTier.\(uid)"
+        let localTier = d.integer(forKey: slotKey)
+        let cloudTier = data["slotBonusAwardedTier"] as? Int ?? 0
+        if cloudTier > localTier { d.set(cloudTier, forKey: slotKey) }
+        else if localTier > cloudTier { mirrorSlotBonusTier(localTier) }
+
+        let unlockKey = "unlockBonus.awarded.\(uid)"
+        let localUnlock = d.bool(forKey: unlockKey)
+        let cloudUnlock = data["unlockBonusAwarded"] as? Bool ?? false
+        if cloudUnlock, !localUnlock { d.set(true, forKey: unlockKey) }
+        else if localUnlock, !cloudUnlock { mirrorUnlockBonusAwarded() }
+        #endif
     }
 
     /// 홈 다짐(목표) 문구 업로드 — 홈 화면 편집 저장 시 호출
@@ -712,6 +753,87 @@ final class AccountStore: ObservableObject {
         // 클라우드에 아직 없는 로컬 개인 예약 → 최초 업로드 (기존 사용자 마이그레이션)
         for (key, local) in localByID where !cloudIDs.contains(key) {
             mirrorReservation(local)
+        }
+        if touched { try? context.save() }
+        #endif
+    }
+
+    // MARK: 세션 요약 동기화 — 기기 변경 시 진척 보존
+    // 완료된 세션의 '요약'(영상 제외: 활동명·태그·강도·시각·성공여부)을 계정 클라우드에 미러한다.
+    // 새 기기는 이 요약을 내려받아 연속 달성일·미친맛 해제·활동 슬롯·성공 캘린더를 이력 기준으로
+    // 다시 계산한다 → 기기를 바꿔도 0으로 리셋되지 않는다. 영상 파일 자체는 기기 로컬에만 남는다.
+
+    /// 완료 세션 1건의 요약을 클라우드에 미러 (best-effort, 영상 제외). outcome이 있어야 올린다.
+    func mirrorSession(_ s: FocusSession) {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest,
+              s.outcomeRaw != nil else { return }
+        func ms(_ date: Date?) -> Any { date.map { Int64($0.timeIntervalSince1970 * 1000) } ?? NSNull() }
+        Firestore.firestore().collection("users").document(user.id)
+            .collection("sessionSummaries").document(s.id.uuidString.lowercased())
+            .setData([
+                "activityName": s.activityName, "tag": s.tag,
+                "intensity": s.intensityRaw,
+                "scheduledAt": ms(s.scheduledAt),
+                "startedAt": ms(s.startedAt),
+                "endedAt": ms(s.endedAt),
+                "targetSeconds": s.targetSeconds,
+                "recordedSeconds": s.recordedSeconds,
+                "outcome": s.outcomeRaw ?? "",
+                "reservationID": s.reservationID?.uuidString ?? "",
+                "updatedAt": ms(s.endedAt ?? .now),
+            ], merge: true)
+        #endif
+    }
+
+    /// 세션 요약 병합 — 다른 기기(안드로이드 포함)에서 쌓인 완료 세션을 로컬에 생성한다(영상 없이).
+    /// 로컬에 이미 있는 세션(내 영상 포함 가능)은 절대 덮어쓰지 않는다 → 영상 참조 보존.
+    private func syncSessionSummariesFromCloud() async {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest,
+              let context = modelContext else { return }
+        let uid = user.id
+        guard let snapshot = try? await Firestore.firestore()
+            .collection("users").document(uid).collection("sessionSummaries").getDocuments()
+        else { return }
+
+        func ms(_ any: Any?) -> Date? {
+            (any as? Int64).map { Date(timeIntervalSince1970: Double($0) / 1000) }
+        }
+
+        let locals = (try? context.fetch(FetchDescriptor<FocusSession>(
+            predicate: #Predicate { $0.ownerUserID == uid }))) ?? []
+        let localIDs = Set(locals.map { $0.id.uuidString.lowercased() })
+
+        var cloudIDs = Set<String>()
+        var touched = false
+        for doc in snapshot.documents {
+            let key = doc.documentID.lowercased()
+            cloudIDs.insert(key)
+            if localIDs.contains(key) { continue }   // 로컬 우선 — 영상 참조 보존
+            let data = doc.data()
+            guard let id = UUID(uuidString: key),
+                  let outcome = data["outcome"] as? String, !outcome.isEmpty,
+                  let intensityRaw = data["intensity"] as? String else { continue }
+            let s = FocusSession(
+                activityName: data["activityName"] as? String ?? "",
+                tag: data["tag"] as? String ?? "",
+                intensity: Intensity(rawValue: intensityRaw) ?? .spicy,
+                scheduledAt: ms(data["scheduledAt"]),
+                targetSeconds: data["targetSeconds"] as? Int ?? 0,
+                reservationID: (data["reservationID"] as? String).flatMap { UUID(uuidString: $0) },
+                ownerUserID: uid)
+            s.id = id
+            s.startedAt = ms(data["startedAt"])
+            s.endedAt = ms(data["endedAt"])
+            s.recordedSeconds = data["recordedSeconds"] as? Int ?? 0
+            s.outcomeRaw = outcome
+            context.insert(s)
+            touched = true
+        }
+        // 클라우드에 아직 없는 로컬 완료 세션 → 최초 업로드 (기존 사용자 이력 마이그레이션)
+        for s in locals where s.outcomeRaw != nil && !cloudIDs.contains(s.id.uuidString.lowercased()) {
+            mirrorSession(s)
         }
         if touched { try? context.save() }
         #endif

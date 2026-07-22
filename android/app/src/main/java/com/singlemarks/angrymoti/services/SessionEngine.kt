@@ -380,6 +380,7 @@ object SessionEngine {
         val db = AppDb.get(appContext)
         val s = s0.copy(outcomeRaw = outcome.raw, endedAt = System.currentTimeMillis())
         db.sessions().upsert(s)
+        AccountStore.mirrorSession(s)   // 세션 요약 클라우드 미러 (기기 변경 시 진척 보존)
 
         ScoreRules.points(outcome, s.intensity, s.targetSeconds / 60)?.let { (type, points) ->
             val e = ScoreEvent(ownerUserID = s.ownerUserID, typeRaw = type.raw, points = points,
@@ -427,7 +428,10 @@ object SessionEngine {
             }
         }
         Prefs.setSlotBonusAwardedTier(s.ownerUserID, awarded)
-        if (total > 0) lastSlotBonus.value = crossedDays to total
+        if (total > 0) {
+            lastSlotBonus.value = crossedDays to total
+            AccountStore.mirrorSlotBonusTier(s.ownerUserID, awarded)   // 기기 변경 시 중복 지급 방지
+        }
     }
 
     /** 매운맛 완주 3회째 — 미친 매운맛 잠금 해제 보너스 +5 (계정당 평생 1회) */
@@ -441,6 +445,7 @@ object SessionEngine {
             note = "매운맛 완주 3회 — 미친 매운맛 잠금 해제 보너스")
         db.scores().insert(e); AccountStore.mirror(e)
         Prefs.setUnlockBonusAwarded(s.ownerUserID)
+        AccountStore.mirrorUnlockBonusAwarded(s.ownerUserID)   // 기기 변경 시 중복 지급 방지
         lastUnlockBonus.value = 5
     }
 
@@ -519,6 +524,7 @@ object SessionEngine {
                     outcomeRaw = SessionOutcome.NO_SHOW.raw, reservationID = r.id,
                 )
                 db.sessions().upsert(noShow)
+                AccountStore.mirrorSession(noShow)   // 노쇼 요약도 클라우드 미러
                 ScoreRules.points(SessionOutcome.NO_SHOW, effIntensity, r.durationMinutes)?.let { (type, pts) ->
                     // 결정적 ID — 예약 동기화로 두 기기가 같은 노쇼를 각자 스윕해도
                     // 클라우드 문서가 하나로 합쳐져 이중 벌점이 되지 않는다 (iOS와 동일 해시)
@@ -567,6 +573,7 @@ object SessionEngine {
         }
         val s = orphan.copy(outcomeRaw = outcome.raw, endedAt = System.currentTimeMillis())
         db.sessions().upsert(s)
+        AccountStore.mirrorSession(s)   // 복구된 세션 요약도 클라우드 미러
         ScoreRules.points(outcome, s.intensity, s.targetSeconds / 60)?.let { (type, pts) ->
             val e = ScoreEvent(ownerUserID = s.ownerUserID, typeRaw = type.raw, points = pts,
                 sessionID = s.id, intensityRaw = s.intensityRaw,
