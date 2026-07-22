@@ -43,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.*
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.models.ActivityTag
@@ -248,7 +247,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 Text(TLFormat.durationLabel(durationMinutes),
                                     color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.width(6.dp))
-                                androidx.compose.material3.Icon(Lucide.ChevronsUpDown, null,
+                                androidx.compose.material3.Icon(AppIcon.ChevronsUpDown, null,
                                     tint = TL.muted, modifier = Modifier.size(15.dp))
                             }
                             androidx.compose.material3.DropdownMenu(

@@ -43,7 +43,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.*
 import com.singlemarks.angrymoti.models.GroupPolicy
 import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScoreRules
@@ -141,7 +140,7 @@ fun GroupTab() {
         (cancelled + disbanded).forEach { notice ->
             TLCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.Icon(Lucide.Info, null,
+                    androidx.compose.material3.Icon(AppIcon.Info, null,
                         tint = TL.amber, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(10.dp))
                     Text(notice, color = TL.paper, fontSize = 13.sp, modifier = Modifier.weight(1f))
@@ -162,7 +161,7 @@ fun GroupTab() {
             ) {
                 Box(Modifier.size(64.dp).background(TL.raised, CircleShape),
                     contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.Icon(Lucide.Lock, null,
+                    androidx.compose.material3.Icon(AppIcon.Lock, null,
                         tint = TL.amber, modifier = Modifier.size(26.dp))
                 }
                 Spacer(Modifier.height(16.dp))
@@ -232,7 +231,7 @@ private fun GroupRoomCard(room: GroupRoom, onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(GroupFormat.period(room.startDate, room.endDate),
                 color = TL.faint, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            androidx.compose.material3.Icon(Lucide.Users, null,
+            androidx.compose.material3.Icon(AppIcon.Users, null,
                 tint = TL.faint, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(4.dp))
             Text("${room.memberCount}/${GroupPolicy.MAX_MEMBERS}", color = TL.faint, fontSize = 12.sp)
@@ -264,7 +263,7 @@ private fun InviteCodeCard(code: String) {
             fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.Icon(Lucide.Copy, null,
+            androidx.compose.material3.Icon(AppIcon.Copy, null,
                 tint = TL.muted, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(5.dp))
             Text("탭해서 복사", color = TL.muted, fontSize = 12.sp)
@@ -423,7 +422,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                             Text(GroupFormat.duration(durationMinutes), color = TL.paper,
                                 fontSize = 15.sp, fontWeight = FontWeight.Black)
                             Spacer(Modifier.width(6.dp))
-                            androidx.compose.material3.Icon(Lucide.ChevronsUpDown, null,
+                            androidx.compose.material3.Icon(AppIcon.ChevronsUpDown, null,
                                 tint = TL.muted, modifier = Modifier.size(14.dp))
                         }
                         androidx.compose.material3.DropdownMenu(
@@ -553,7 +552,7 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.size(64.dp).background(TL.jade, CircleShape),
                         contentAlignment = Alignment.Center) {
-                        androidx.compose.material3.Icon(Lucide.Check, null,
+                        androidx.compose.material3.Icon(AppIcon.Check, null,
                             tint = TL.ink, modifier = Modifier.size(28.dp))
                     }
                     Spacer(Modifier.height(16.dp))
@@ -668,7 +667,7 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                             Row(Modifier.padding(vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 androidx.compose.material3.Icon(
-                                    if (m.id == room.hostUID) Lucide.Crown else Lucide.UserRound,
+                                    if (m.id == room.hostUID) AppIcon.Crown else AppIcon.UserRound,
                                     null, tint = if (m.id == room.hostUID) TL.amber else TL.muted,
                                     modifier = Modifier.size(15.dp))
                                 Spacer(Modifier.width(8.dp))

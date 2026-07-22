@@ -26,9 +26,67 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Emergency
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.HowToReg
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.TabletAndroid
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.WorkspacePremium
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlin.math.min
+
+/**
+ * 앱 전역 아이콘 세트 — Filled(솔리드) 아이콘으로 통일 (아웃라인은 잘 안 보여서 교체).
+ * 이전에 쓰던 Lucide 이름을 그대로 유지해 호출부 변경을 최소화한다.
+ */
+object AppIcon {
+    val ChevronRight = Icons.Filled.ChevronRight
+    val ChevronLeft = Icons.Filled.ChevronLeft
+    val ChevronUp = Icons.Filled.KeyboardArrowUp
+    val ChevronDown = Icons.Filled.KeyboardArrowDown
+    val ChevronsUpDown = Icons.Filled.UnfoldMore
+    val Check = Icons.Filled.Check
+    val Users = Icons.Filled.Groups
+    val UserRound = Icons.Filled.Person
+    val UserRoundCheck = Icons.Filled.HowToReg
+    val Clock = Icons.Filled.Schedule
+    val CircleDot = Icons.Filled.LocalFireDepartment   // 활동 탭 = 불 아이콘
+    val Tablet = Icons.Filled.TabletAndroid
+    val SwitchCamera = Icons.Filled.Cameraswitch
+    val Smartphone = Icons.Filled.Smartphone
+    val Siren = Icons.Filled.Emergency
+    val Lock = Icons.Filled.Lock
+    val Info = Icons.Filled.Info
+    val Heart = Icons.Filled.Favorite
+    val Headphones = Icons.Filled.Headphones
+    val Crown = Icons.Filled.WorkspacePremium
+    val Copy = Icons.Filled.ContentCopy
+    val CalendarDays = Icons.Filled.CalendarMonth
+    val BellOff = Icons.Filled.NotificationsOff
+    val BadgeCheck = Icons.Filled.Verified
+    val ArrowDownToLine = Icons.Filled.Download
+}
 
 object TLFormat {
     fun durationLabel(minutes: Int): String {
@@ -145,7 +203,7 @@ fun TLCircleBack(onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.material3.Icon(
-            Lucide.ChevronLeft,
+            AppIcon.ChevronLeft,
             contentDescription = "뒤로", tint = TL.paper,
             modifier = Modifier.size(22.dp))
     }

@@ -33,9 +33,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.ChevronDown
-import com.composables.icons.lucide.ChevronUp
-import com.composables.icons.lucide.Lucide
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.FocusSession
 import com.singlemarks.angrymoti.models.ScoreRules
@@ -241,7 +238,7 @@ private fun SessionRow(s: FocusSession) {
                 Spacer(Modifier.width(8.dp))
             }
             androidx.compose.material3.Icon(
-                if (expanded) Lucide.ChevronUp else Lucide.ChevronDown, null,
+                if (expanded) AppIcon.ChevronUp else AppIcon.ChevronDown, null,
                 tint = TL.faint, modifier = Modifier.size(15.dp))
         }
 

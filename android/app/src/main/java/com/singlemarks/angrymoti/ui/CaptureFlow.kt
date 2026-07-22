@@ -67,7 +67,6 @@ import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScoreRules
 import com.singlemarks.angrymoti.models.SessionOutcome
 import com.singlemarks.angrymoti.models.TimePolicy
-import com.composables.icons.lucide.*
 import com.singlemarks.angrymoti.services.AlarmScheduler
 import com.singlemarks.angrymoti.services.CameraRecorder
 import com.singlemarks.angrymoti.services.SessionEngine
@@ -253,7 +252,7 @@ fun MountGuideScreen(pending: PendingSession) {
                             .padding(horizontal = 20.dp, vertical = 11.dp),
                     ) {
                         androidx.compose.material3.Icon(
-                            if (isPortrait) Lucide.Smartphone else Lucide.Tablet, null,
+                            if (isPortrait) AppIcon.Smartphone else AppIcon.Tablet, null,
                             tint = if (selected) TL.ink else TL.paper,
                             modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
@@ -268,7 +267,7 @@ fun MountGuideScreen(pending: PendingSession) {
                     .clickable { if (countdown == null) CameraRecorder.flipCamera(context) },
                 contentAlignment = Alignment.Center,
             ) {
-                androidx.compose.material3.Icon(Lucide.SwitchCamera, "카메라 전환",
+                androidx.compose.material3.Icon(AppIcon.SwitchCamera, "카메라 전환",
                     tint = TL.paper, modifier = Modifier.size(20.dp))
             }
         }
@@ -378,7 +377,7 @@ private fun MountCheckRow(label: String, checked: Boolean, onClick: () -> Unit) 
             contentAlignment = Alignment.Center,
         ) {
             if (checked) {
-                androidx.compose.material3.Icon(Lucide.Check, null,
+                androidx.compose.material3.Icon(AppIcon.Check, null,
                     tint = TL.ink, modifier = Modifier.size(15.dp))
             }
         }
@@ -471,7 +470,7 @@ fun SessionScreen() {
     val buttonsRow: @Composable () -> Unit = {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             SessionSquareButton(
-                icon = Lucide.BellOff,
+                icon = AppIcon.BellOff,
                 label = if (muted) "차단 중" else "알림 허용",
                 active = muted,
             ) {
@@ -491,7 +490,7 @@ fun SessionScreen() {
                     }
                 }
             }
-            SessionSquareButton(icon = Lucide.Siren, label = "긴급중단", active = false) {
+            SessionSquareButton(icon = AppIcon.Siren, label = "긴급중단", active = false) {
                 if (intensity == Intensity.SPICY && phase == SessionEngine.Phase.Recording) {
                     SessionEngine.startBreak()
                 } else {
@@ -845,7 +844,7 @@ fun SessionResultScreen() {
                                     strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
                             } else {
                                 androidx.compose.material3.Icon(
-                                    if (saved) Lucide.Check else Lucide.ArrowDownToLine,
+                                    if (saved) AppIcon.Check else AppIcon.ArrowDownToLine,
                                     "갤러리에 저장",
                                     tint = TL.ink,
                                     modifier = Modifier.size(21.dp))
