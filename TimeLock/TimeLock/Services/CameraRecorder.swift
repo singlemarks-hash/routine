@@ -23,6 +23,9 @@ final class CameraRecorder: NSObject, ObservableObject {
 
     @Published var isAuthorized = false
     @Published private(set) var frameCount: Int = 0
+    /// 마지막으로 프레임이 '실제로 인코딩된' 시각 — 촬영 정지 감지의 기준(SessionEngine이 사용).
+    /// 시작 시각을 앵커로 두어 카메라가 첫 프레임을 못 주는 경우도 정지로 잡힌다.
+    @Published private(set) var lastFrameAt: Date = .distantPast
     /// 현재 카메라 (기본 전면 — selfie 카드의 전환 버튼으로 변경)
     @Published private(set) var position: AVCaptureDevice.Position = .front
 
@@ -70,6 +73,10 @@ final class CameraRecorder: NSObject, ObservableObject {
     /// 순수 촬영 시간(초) ≈ 캡처한 프레임 수 × 캡처 간격.
     /// 일시정지 중엔 프레임을 버리므로 자연히 촬영 시간에서 제외된다.
     var capturedSeconds: Int { Int((Double(frameCount) * captureInterval).rounded()) }
+
+    /// 촬영 정지 판정 기준 시간 — 이 시간 넘게 새 프레임이 없으면 정지로 본다.
+    /// 캡처 간격의 3배 또는 최소 15초. (긴 세션은 캡처 간격이 커 그만큼 여유를 준다)
+    var captureStallLimit: TimeInterval { max(captureInterval * 3, 15) }
 
     /// 세션 길이(초)에 맞는 최종 타임랩스 목표 길이(초)를 앵커 구간 선형 보간으로 산출.
     /// 앵커를 정확히 통과하고, 그 사이는 부드러운 직선으로 이어 각 옵션이 고유 길이를 갖는다.
@@ -249,6 +256,7 @@ final class CameraRecorder: NSObject, ObservableObject {
         DispatchQueue.main.async {
             self.frameCount = 0
             self.absentSeconds = 0
+            self.lastFrameAt = Date()   // 정지 감지 앵커 — 첫 프레임 미도착도 잡는다
         }
         startPreview()
     }
@@ -297,7 +305,10 @@ final class CameraRecorder: NSObject, ObservableObject {
             self.absenceStartedAt = nil
             self.lastPresenceCheckAt = 0
         }
-        DispatchQueue.main.async { self.absentSeconds = 0 }
+        DispatchQueue.main.async {
+            self.absentSeconds = 0
+            self.lastFrameAt = Date()   // 재개 직후 정지 오탐 방지
+        }
     }
 
     struct RecordingResult {
@@ -333,6 +344,13 @@ final class CameraRecorder: NSObject, ObservableObject {
         input.markAsFinished()
         await w.finishWriting()
         stopPreview()
+
+        // 저장 실패(디스크 풀 등)로 writer가 .failed거나 프레임이 없으면 파일이 손상/무의미하다 —
+        // 손상 영상을 결과로 내보내지 않고, 파일을 지운 뒤 nil을 반환한다(엔진이 안전 종료로 강등).
+        if frames == 0 || w.status == .failed {
+            try? FileManager.default.removeItem(at: url)
+            return nil
+        }
 
         var thumbName: String?
         if let thumb = localThumb, let data = thumb.jpegData(compressionQuality: 0.8) {
@@ -393,7 +411,10 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
             if thumbnailImage == nil {
                 thumbnailImage = Self.image(from: buffer)   // 이미 정립된 버퍼
             }
-            DispatchQueue.main.async { self.frameCount = count }
+            DispatchQueue.main.async {
+                self.frameCount = count
+                self.lastFrameAt = Date()   // 실제 인코딩된 시각 갱신 (append 실패 시엔 갱신 안 됨 → 정지로 잡힘)
+            }
         }
     }
 

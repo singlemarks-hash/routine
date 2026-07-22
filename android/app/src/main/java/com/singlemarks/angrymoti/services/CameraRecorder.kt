@@ -49,6 +49,9 @@ object CameraRecorder {
     private var encoder: TimelapseEncoder? = null
     private var captureIntervalMs = 1000L
     private var lastCaptureAt = 0L
+    // 마지막으로 프레임이 '실제로 인코딩된' 시각 — 촬영 정지 감지의 기준.
+    // 시작 시각을 앵커로 두어 카메라가 아예 첫 프레임을 못 주는 경우도 정지로 잡힌다.
+    @Volatile private var lastFrameAt = 0L
     private var sessionId: String = ""
     private var portrait = true
 
@@ -182,6 +185,7 @@ object CameraRecorder {
         frameCount.value = 0
         absentSeconds.value = 0
         absenceStartedAt = 0; lastPresenceCheckAt = 0; lastCaptureAt = 0
+        lastFrameAt = System.currentTimeMillis()   // 정지 감지 앵커 — 첫 프레임 미도착도 잡는다
         isPaused = false
         isRecording = true
     }
@@ -193,7 +197,15 @@ object CameraRecorder {
         absenceStartedAt = 0
         lastPresenceCheckAt = 0
         absentSeconds.value = 0
+        lastFrameAt = System.currentTimeMillis()   // 재개 직후 정지 오탐 방지
         isPaused = false
+    }
+
+    /** 촬영 신호 정지 감지 — 프레임이 (캡처 간격×3, 최소 15초)를 넘게 안 들어오면 정지로 본다.
+     *  카메라 미개시·세션 인터럽션·인코딩 저장 실패를 공통으로 잡는다. 일시정지 중엔 false. */
+    fun isCaptureStalled(): Boolean {
+        if (!isRecording || isPaused || lastFrameAt == 0L) return false
+        return System.currentTimeMillis() - lastFrameAt > maxOf(captureIntervalMs * 3, 15_000L)
     }
 
     // 핵심 원칙: 카메라 버퍼(ImageProxy)는 절대 붙잡지 않는다.
@@ -264,6 +276,7 @@ object CameraRecorder {
                     runCatching { e.addFrame(bitmap) }
                         .onFailure { android.util.Log.e("AngryMoti", "addFrame failed", it) }
                     frameCount.value = e.frameCount
+                    lastFrameAt = System.currentTimeMillis()   // 실제 인코딩된 시각 갱신
                 }
             }
         }

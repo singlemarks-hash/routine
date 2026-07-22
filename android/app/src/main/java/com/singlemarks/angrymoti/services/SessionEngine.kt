@@ -142,6 +142,10 @@ object SessionEngine {
         }
         if (p != Phase.Recording) return
 
+        // 촬영 신호 점검 — 프레임이 끊기면(카메라 미개시·인터럽션·저장 실패) 벽시계로 헛돌지 않도록
+        // 안전 종료한다. 실제 촬영 없이 완주(만점)로 오인하는 것을 원천 차단 (벌점 없음, 촬영분 보존).
+        if (CameraRecorder.isCaptureStalled()) { safetyEnd("촬영 신호 끊김"); return }
+
         recordedSeconds.value += 1
 
         // 자리비움 — 경고는 3번까지, 4번째는 경고 없이 즉시. 경고 후 2분 연속 부재도 동일 처리.
@@ -190,7 +194,14 @@ object SessionEngine {
         isFinalizing = true
         scope.launch(Dispatchers.IO) {
             val result = CameraRecorder.stopRecording(appContext)
-            finalize(applyRecording(s, result), SessionOutcome.COMPLETED, null)
+            if (result == null) {
+                // 목표 시간에 도달했지만 촬영된 영상이 없다 — 카메라 실패.
+                // 완주(만점)로 처리하지 않고 안전 종료로 기록한다 (앱의 유일한 약속 방어).
+                android.util.Log.e("AngryMoti", "완주 시점 영상 없음 — 안전 종료로 강등")
+                finalize(applyRecording(s, null), SessionOutcome.SAFETY_ENDED, "촬영 실패 — 영상 없음")
+            } else {
+                finalize(applyRecording(s, result), SessionOutcome.COMPLETED, null)
+            }
         }
     }
 
@@ -541,7 +552,12 @@ object SessionEngine {
         }
         val wasOnBreak = Prefs.breakDeadline != 0L
         val wasInCall = Prefs.callActive
-        val outcome = if (wasOnBreak && !wasInCall) SessionOutcome.EXIT_FAILED else SessionOutcome.SAFETY_ENDED
+        val outcome = when {
+            wasInCall -> SessionOutcome.SAFETY_ENDED                     // 통화 중 종료 — 벌점 없음
+            wasOnBreak -> SessionOutcome.EXIT_FAILED                     // 중단 창 도중 종료
+            orphan.intensity == Intensity.INSANE -> SessionOutcome.EXIT_FAILED  // 미친맛: 무단 종료도 이탈 실패 (봐주지 않음)
+            else -> SessionOutcome.SAFETY_ENDED                         // 매운맛 크래시 — 관대하게 무벌점
+        }
         val s = orphan.copy(outcomeRaw = outcome.raw, endedAt = System.currentTimeMillis())
         db.sessions().upsert(s)
         ScoreRules.points(outcome, s.intensity, s.targetSeconds / 60)?.let { (type, pts) ->
@@ -551,6 +567,9 @@ object SessionEngine {
             db.scores().insert(e); AccountStore.mirror(e)
             s.reservationID?.let { rid -> GroupStore.reportScore(db.reservations().byId(rid), pts) }
         }
+        // 크래시로 남은 파셜 영상은 재생 불가(moov 미기록)하고 어떤 세션도 참조하지 않는다 —
+        // 디스크만 차지하므로 정리한다.
+        CameraRecorder.deleteFiles(appContext, "${orphan.id}.mp4", "${orphan.id}.jpg")
         Prefs.activeSessionId = null
         Prefs.breakDeadline = 0
         Prefs.callActive = false

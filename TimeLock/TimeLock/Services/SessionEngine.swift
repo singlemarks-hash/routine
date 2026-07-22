@@ -154,6 +154,12 @@ final class SessionEngine: NSObject, ObservableObject {
             return
         }
         guard phase == .recording else { return }
+        // 촬영 신호 점검 — 프레임이 끊기면(카메라 미개시·인터럽션·저장 실패) 벽시계로 헛돌지 않도록
+        // 안전 종료한다. 실제 촬영 없이 완주(만점)로 오인하는 것을 원천 차단 (벌점 없음, 촬영분 보존).
+        if Date().timeIntervalSince(CameraRecorder.shared.lastFrameAt) > CameraRecorder.shared.captureStallLimit {
+            safetyEnd(note: "촬영 신호 끊김")
+            return
+        }
         // 표시·완주 판정용 촬영 시간은 틱(1초)으로 센다.
         // 프레임 기반(프레임 수 × 캡처 간격)은 캡처 간격이 동적이라 표시가
         // 간격 단위로 점프한다 — 통화/중단 동안은 틱이 멈추므로 순수 촬영 시간과 일치.
@@ -212,7 +218,13 @@ final class SessionEngine: NSObject, ObservableObject {
         isFinalizing = true
         let result = await CameraRecorder.shared.stopRecording()
         applyRecording(result, to: s)
-        finalize(session: s, outcome: .completed, note: nil)
+        if result == nil {
+            // 목표 시간에 도달했지만 촬영된 영상이 없다 — 카메라 실패.
+            // 완주(만점)로 처리하지 않고 안전 종료로 기록한다 (앱의 유일한 약속 방어).
+            finalize(session: s, outcome: .safetyEnded, note: "촬영 실패 — 영상 없음")
+        } else {
+            finalize(session: s, outcome: .completed, note: nil)
+        }
     }
 
     // MARK: 긴급 용무 중단 — 10분 재촬영 창 (매운맛)
@@ -641,7 +653,11 @@ final class SessionEngine: NSObject, ObservableObject {
         }
         let wasOnBreak = defaults.object(forKey: Key.breakDeadline) != nil
         let wasInCall = defaults.bool(forKey: Key.callActive)
-        let outcome: SessionOutcome = (wasOnBreak && !wasInCall) ? .exitFailed : .safetyEnded
+        let outcome: SessionOutcome
+        if wasInCall { outcome = .safetyEnded }                     // 통화 중 종료 — 벌점 없음
+        else if wasOnBreak { outcome = .exitFailed }               // 중단 창 도중 종료
+        else if orphan.intensity == .insane { outcome = .exitFailed }  // 미친맛: 무단 종료도 이탈 실패 (봐주지 않음)
+        else { outcome = .safetyEnded }                            // 매운맛 크래시 — 관대하게 무벌점
         orphan.outcome = outcome
         orphan.endedAt = .now
         if let (type, points) = ScoreRules.points(for: outcome, intensity: orphan.intensity,
@@ -655,6 +671,10 @@ final class SessionEngine: NSObject, ObservableObject {
             reportGroupScoreIfNeeded(session: orphan, points: points, context: context)
         }
         try? context.save()
+        // 크래시로 남은 파셜 영상은 재생 불가(moov 미기록)하고 어떤 세션도 참조하지 않는다 —
+        // 디스크만 차지하므로 정리한다.
+        let partial = SessionStorage.directory.appendingPathComponent("\(orphan.id.uuidString).mov")
+        try? FileManager.default.removeItem(at: partial)
         defaults.removeObject(forKey: Key.activeSessionID)
         defaults.removeObject(forKey: Key.breakDeadline)
         defaults.removeObject(forKey: Key.callActive)
