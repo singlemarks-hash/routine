@@ -106,7 +106,7 @@ private sealed class GroupNav {
 }
 
 @Composable
-fun GroupTab() {
+fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
     val context = LocalContext.current
     val rooms by GroupStore.rooms.collectAsState()
     val cancelled by GroupStore.cancelledNotices.collectAsState()
@@ -116,6 +116,14 @@ fun GroupTab() {
     var nav by remember { mutableStateOf<GroupNav>(GroupNav.List) }
 
     LaunchedEffect(Unit) { GroupStore.refresh(context) }
+
+    // 외부(주간 일정 등)에서 특정 방으로 바로 진입 요청 — 방 목록에 로드되면 상세로 이동
+    LaunchedEffect(openRoomId, rooms) {
+        if (openRoomId != null && rooms.any { it.id == openRoomId }) {
+            nav = GroupNav.Detail(openRoomId)
+            onRoomOpened()
+        }
+    }
 
     // 기존 방은 구독이 끊겨도 계속 볼 수 있다 — 새 생성·참여만 잠금 (iOS 동일)
     val locked = !isPro

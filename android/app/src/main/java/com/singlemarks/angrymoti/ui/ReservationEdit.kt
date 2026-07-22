@@ -469,53 +469,118 @@ fun WeeklyScheduleTab(
     reservations: List<Reservation>,
     onAdd: () -> Unit,
     onEdit: (Reservation) -> Unit,
+    onOpenGroup: (String) -> Unit = {},
 ) {
     val todayDow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
+    val weekdays = listOf(2 to "월요일", 3 to "화요일", 4 to "수요일", 5 to "목요일",
+        6 to "금요일", 7 to "토요일", 1 to "일요일")
+
+    fun itemsOn(dow: Int): List<Reservation> = reservations.filter { r ->
+        if (r.isRepeating) dow in r.repeatWeekdays
+        else r.oneOffDayStart?.let {
+            Calendar.getInstance().apply { timeInMillis = it }.get(Calendar.DAY_OF_WEEK) == dow
+        } == true
+    }.sortedBy { it.startMinute }
+
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        // 상단 — '주간 일정' 타이틀 + '+추가' 버튼 (iOS 1:1)
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TLEyebrow("주간 타임테이블")
+            Row(verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                Text("주간 일정", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.weight(1f))
-                Text("+ 추가", color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable(onClick = onAdd).padding(4.dp))
-            }
-        }
-        listOf(2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토", 1 to "일").forEach { (dow, label) ->
-            val dayItems = reservations
-                .filter { it.isRepeating && dow in it.repeatWeekdays }
-                .sortedBy { it.startMinute }
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, color = if (dow == todayDow) TL.rec else TL.muted,
-                        fontSize = 15.sp, fontWeight = FontWeight.Black)
-                    if (dow == todayDow) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("오늘", color = TL.rec, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .background(TL.surface, CircleShape)
+                        .border(1.dp, TL.hairline, CircleShape)
+                        .clickable(onClick = onAdd)
+                        .padding(horizontal = 16.dp, vertical = 9.dp)) {
+                    Text("+ 추가", color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            if (dayItems.isEmpty()) {
-                item { Text("—", color = TL.faint, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp)) }
-            } else {
-                dayItems.forEach { r ->
-                    item {
-                        TLCard(onClick = { onEdit(r) }) {
-                            Row {
-                                Text(TLFormat.timeLabel(r.startMinute), color = TL.amber,
-                                    fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.width(10.dp))
-                                Text(r.name, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.weight(1f))
-                                Text(TLFormat.durationLabel(r.durationMinutes), color = TL.muted, fontSize = 12.sp)
+        }
+
+        weekdays.forEach { (dow, label) ->
+            val dayItems = itemsOn(dow)
+            val isToday = dow == todayDow
+            item(key = "day-$dow") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // 요일 헤더 + '오늘' 빨강 캡슐
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, color = if (isToday) TL.rec else TL.paper,
+                            fontSize = 16.sp, fontWeight = FontWeight.Black)
+                        if (isToday) {
+                            Spacer(Modifier.width(8.dp))
+                            Text("오늘", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Black,
+                                modifier = Modifier.background(TL.rec, CircleShape)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp))
+                        }
+                    }
+                    if (dayItems.isEmpty()) {
+                        Text("일정 없음", color = TL.faint, fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 2.dp))
+                    } else {
+                        // 그 날 예약들을 하나의 카드로 묶고, 오늘이면 빨강 테두리 강조 (iOS 1:1)
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .background(if (isToday) TL.raised else TL.surface, TL.cornerL)
+                                .border(1.dp,
+                                    if (isToday) TL.rec.copy(alpha = 0.35f) else TL.hairline.copy(alpha = 0.6f),
+                                    TL.cornerL)
+                                .padding(horizontal = 14.dp),
+                        ) {
+                            dayItems.forEachIndexed { index, r ->
+                                ScheduleRow(r,
+                                    onClick = {
+                                        if (r.groupId != null) onOpenGroup(r.groupId!!) else onEdit(r)
+                                    })
+                                if (index != dayItems.lastIndex) {
+                                    androidx.compose.material3.HorizontalDivider(
+                                        color = TL.hairline.copy(alpha = 0.5f))
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        item { Spacer(Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(110.dp)) }
+    }
+}
+
+/** 주간 일정 한 줄 — 시각 · (그룹아이콘)활동명 · 길이/매주·일회성 · 태그칩 (iOS timetableRow 1:1) */
+@Composable
+private fun ScheduleRow(r: Reservation, onClick: () -> Unit) {
+    val meta = if (r.isRepeating) "매주" else r.oneOffDayStart?.let {
+        val c = Calendar.getInstance().apply { timeInMillis = it }
+        "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 하루"
+    } ?: "매주"
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 11.dp),
+    ) {
+        Text(TLFormat.timeLabel(r.startMinute), color = TL.paper, fontSize = 14.sp,
+            fontWeight = FontWeight.Black, modifier = Modifier.width(78.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (r.groupId != null) {
+                    androidx.compose.material3.Icon(AppIcon.Users, null,
+                        tint = TL.amber, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(r.name, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1)
+            }
+            Text("${TLFormat.durationLabel(r.durationMinutes)} · $meta",
+                color = TL.muted, fontSize = 11.sp)
+        }
+        // 태그 칩
+        Text(r.tag, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.background(TL.surface, CircleShape)
+                .border(1.dp, TL.hairline, CircleShape)
+                .padding(horizontal = 12.dp, vertical = 6.dp))
     }
 }

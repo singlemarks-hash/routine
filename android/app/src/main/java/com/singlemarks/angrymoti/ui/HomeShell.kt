@@ -68,7 +68,8 @@ fun HomeShell() {
     val owner = AccountStore.currentUserID
     val db = remember { AppDb.get(context) }
     var nav by remember { mutableStateOf<HomeNav>(HomeNav.Home) }
-    var tab by remember { mutableStateOf("activity") }   // activity | schedule
+    var tab by remember { mutableStateOf("activity") }   // activity | schedule | group
+    var pendingGroupRoomId by remember { mutableStateOf<String?>(null) }   // 일정→그룹방 직접 진입
     var showQuickStart by remember { mutableStateOf(false) }
     var showGoalEditor by remember { mutableStateOf(false) }
     var goalText by remember { mutableStateOf(com.singlemarks.angrymoti.data.Prefs.homeGoal(owner)) }
@@ -144,14 +145,22 @@ fun HomeShell() {
                     onEditGoal = { showGoalEditor = true },
                     onQuickStart = { showQuickStart = true },
                     onAdd = { nav = HomeNav.ReservationEdit(null) },
-                    // 그룹 예약은 개인 편집 불가 — 그룹 탭에서 관리
-                    onEdit = { if (it.groupId == null) nav = HomeNav.ReservationEdit(it.id) else tab = "group" },
+                    // 그룹 예약은 개인 편집 불가 — 그 그룹방 상세로 바로 진입
+                    onEdit = {
+                        if (it.groupId == null) nav = HomeNav.ReservationEdit(it.id)
+                        else { pendingGroupRoomId = it.groupId; tab = "group" }
+                    },
                 )
-                "group" -> GroupTab()
+                "group" -> GroupTab(
+                    openRoomId = pendingGroupRoomId,
+                    onRoomOpened = { pendingGroupRoomId = null },
+                )
                 else -> WeeklyScheduleTab(
                     reservations = reservations,
                     onAdd = { nav = HomeNav.ReservationEdit(null) },
-                    onEdit = { if (it.groupId == null) nav = HomeNav.ReservationEdit(it.id) else tab = "group" },
+                    onEdit = { nav = HomeNav.ReservationEdit(it.id) },
+                    // 그룹 예약은 그 그룹방 상세로 바로 진입
+                    onOpenGroup = { groupId -> pendingGroupRoomId = groupId; tab = "group" },
                 )
             }
         }

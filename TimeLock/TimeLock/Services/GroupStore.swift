@@ -22,7 +22,11 @@ import FirebaseFirestore
 
 // MARK: - 모델
 
-struct GroupRoom: Identifiable, Equatable {
+struct GroupRoom: Identifiable, Equatable, Hashable {
+    // navigationDestination(item:)에서 요구. == 는 합성(전체 필드)을 유지하되 hash는 id만 —
+    // "a == b ⇒ hash 동일" 규칙을 만족(동일 id)하면서 field 변경도 SwiftUI가 정상 감지한다.
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
     var id: String
     var name: String
     var code: String

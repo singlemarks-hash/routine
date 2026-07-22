@@ -17,6 +17,7 @@ struct WeeklyScheduleView: View {
 
     @State private var showEditor = false
     @State private var editing: Reservation?
+    @State private var groupRoomToOpen: GroupRoom?
 
     private var reservations: [Reservation] {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
@@ -57,14 +58,23 @@ struct WeeklyScheduleView: View {
                         editing = nil
                         showEditor = true
                     } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(TL.paper)
+                        // 아이콘만이 아니라 '+ 추가' 라벨 (안드로이드와 통일)
+                        HStack(spacing: 3) {
+                            Image(systemName: "plus").font(.system(size: 13, weight: .bold))
+                            Text("추가").font(.system(size: 14, weight: .bold))
+                        }
+                        .foregroundStyle(TL.paper)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(TL.surface))
+                        .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
                     }
                 }
             }
             .sheet(isPresented: $showEditor) {
                 ReservationEditView(reservation: editing)
+            }
+            .navigationDestination(item: $groupRoomToOpen) { room in
+                GroupRoomDetailView(room: room)
             }
         }
     }
@@ -131,10 +141,16 @@ struct WeeklyScheduleView: View {
 
     private func timetableRow(_ reservation: Reservation) -> some View {
         Button {
-            // 그룹 예약은 편집 잠금 — 그룹 탭에서 탈퇴로만 정리 가능
-            guard !reservation.isGroupReservation else { return }
-            editing = reservation
-            showEditor = true
+            if reservation.isGroupReservation {
+                // 그룹 예약은 편집 대신 그 그룹방 상세로 이동
+                if let gid = reservation.groupID,
+                   let room = GroupStore.shared.rooms.first(where: { $0.id == gid }) {
+                    groupRoomToOpen = room
+                }
+            } else {
+                editing = reservation
+                showEditor = true
+            }
         } label: {
             HStack(spacing: 12) {
                 Text(timeLabel(reservation.startMinute))
