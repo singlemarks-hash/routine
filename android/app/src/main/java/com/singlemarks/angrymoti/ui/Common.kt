@@ -113,10 +113,13 @@ object TLFormat {
 
     fun scoreLabel(points: Int): String = if (points >= 0) "+$points" else "$points"
 
-    /** 시:분 (예: 오전/오후 없이 24시간제 "HH:mm") — 기록 캘린더 시작 시각 표시 */
+    /** 오전/오후 12시간제 "a h:mm" (예: "오후 7:00") — iOS TLFormat.clock 1:1 */
     fun clock(epochMillis: Long): String {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
-        return "%02d:%02d".format(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+        val h = cal.get(java.util.Calendar.HOUR_OF_DAY); val m = cal.get(java.util.Calendar.MINUTE)
+        val ampm = if (h < 12) "오전" else "오후"
+        val h12 = if (h % 12 == 0) 12 else h % 12
+        return "$ampm $h12:${"%02d".format(m)}"
     }
 }
 

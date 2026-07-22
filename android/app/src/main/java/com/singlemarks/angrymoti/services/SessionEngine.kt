@@ -136,10 +136,10 @@ object SessionEngine {
         val p = phase.value
         if (p is Phase.PausedForBreak) {
             val remain = p.deadline - System.currentTimeMillis()
-            if (!breakWarnPosted && remain in 1..60_000) {
+            if (!breakWarnPosted && remain in 1..120_000) {   // 마감 2분 전 (iOS 통일)
                 breakWarnPosted = true
-                AlarmScheduler.postStatus(appContext, 2001, "재촬영 1분 전",
-                    "1분 안에 재촬영을 시작하지 않으면 세션이 실패로 기록됩니다.")
+                AlarmScheduler.postStatus(appContext, 2001, "재촬영까지 2분",
+                    "2분 안에 재촬영을 시작하지 않으면 세션이 실패로 기록됩니다.")
             }
             if (remain <= 0) failBreakExpired(s)
             return
@@ -312,7 +312,7 @@ object SessionEngine {
         val bm = appContext.getSystemService(BatteryManager::class.java)
         val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
         val charging = bm.isCharging
-        if (level in 1..5 && !charging) { safetyEnd("배터리 부족"); return }
+        if (level in 0..5 && !charging) { safetyEnd("배터리 부족"); return }   // 0% 포함 (iOS 0~5% 통일, -1=미상 제외)
         val stat = StatFs(appContext.filesDir.absolutePath)
         if (stat.availableBytes < 500_000_000L) safetyEnd("저장 공간 부족")
     }

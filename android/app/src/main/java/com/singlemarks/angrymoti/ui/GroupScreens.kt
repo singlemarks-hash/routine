@@ -60,10 +60,17 @@ import java.util.Calendar
 private object GroupFormat {
     private val weekdayNames = listOf("", "일", "월", "화", "수", "목", "금", "토")
 
+    // iOS: "매주 월 화 수" (공백 구분, '매일' 축약 없음) 1:1
     fun weekdays(days: List<Int>): String =
-        if (days.size == 7) "매일" else "매주 " + days.sorted().joinToString("·") { weekdayNames[it] }
+        "매주 " + days.sorted().joinToString(" ") { weekdayNames[it] }
 
-    fun time(startMinute: Int): String = "%d:%02d".format(startMinute / 60, startMinute % 60)
+    // iOS: "오후 7시" / "오전 9:30" (12시간 한국어) 1:1
+    fun time(startMinute: Int): String {
+        val h = startMinute / 60; val m = startMinute % 60
+        val ampm = if (h >= 12) "오후" else "오전"
+        val h12 = if (h % 12 == 0) 12 else h % 12
+        return if (m == 0) "$ampm ${h12}시" else "$ampm $h12:${"%02d".format(m)}"
+    }
 
     fun duration(minutes: Int): String = when {
         minutes % 60 == 0 -> "${minutes / 60}시간"
@@ -71,17 +78,16 @@ private object GroupFormat {
         else -> "${minutes}분"
     }
 
-    fun day(millis: Long): String {
-        val c = Calendar.getInstance().apply { timeInMillis = millis }
-        return "${c.get(Calendar.MONTH) + 1}/${c.get(Calendar.DAY_OF_MONTH)}"
-    }
+    // iOS: "M월 d일 (E)" 1:1
+    fun day(millis: Long): String =
+        java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREA).format(java.util.Date(millis))
 
     fun period(start: Long, end: Long): String = "${day(start)} ~ ${day(end)}"
 
     fun schedule(room: GroupRoom): String =
         "${weekdays(room.repeatWeekdays)} · ${time(room.startMinute)} · ${duration(room.durationMinutes)}"
 
-    /** 시작일까지 남은 일수 라벨 (D-1 / D-DAY) — iOS dDay 1:1 */
+    /** 시작일까지 남은 일수 라벨 — iOS dDay 1:1 (시작일=오늘이면 "오늘", 이후 "D-N") */
     fun dDay(startMillis: Long): String {
         val today = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
@@ -93,7 +99,7 @@ private object GroupFormat {
             set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
         val days = ((startDay - today) / 86_400_000L).toInt()
-        return if (days <= 0) "D-DAY" else "D-$days"
+        return if (days <= 0) "오늘" else "D-$days"
     }
 }
 
@@ -312,9 +318,9 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var nickname by remember { mutableStateOf("") }
     var intensity by remember { mutableStateOf(Intensity.SPICY) }
-    var startMinute by remember { mutableStateOf(TimePolicy.defaultStartMinute()) }
-    var durationMinutes by remember { mutableStateOf(60) }
-    var repeatDays by remember { mutableStateOf(setOf(2, 3, 4, 5, 6)) }   // 기본 평일
+    var startMinute by remember { mutableStateOf(19 * 60) }               // 기본 19:00 (iOS 통일)
+    var durationMinutes by remember { mutableStateOf(30) }                // 기본 30분 (iOS 통일)
+    var repeatDays by remember { mutableStateOf(setOf(1, 2, 3, 4, 5, 6, 7)) }   // 기본 매일 (iOS 통일)
     val tomorrow = remember {
         Calendar.getInstance().apply {
             add(Calendar.DAY_OF_MONTH, 1)
@@ -323,7 +329,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
         }.timeInMillis
     }
     var startDay by remember { mutableStateOf(tomorrow) }
-    var endDay by remember { mutableStateOf(tomorrow + 29 * 86_400_000L) }
+    var endDay by remember { mutableStateOf(tomorrow + 27 * 86_400_000L) }   // 28일 창 (iOS today+28 통일)
     var showTimePicker by remember { mutableStateOf(false) }
     var showDurationMenu by remember { mutableStateOf(false) }
     var pickingDate by remember { mutableStateOf<String?>(null) }   // "start" | "end"
