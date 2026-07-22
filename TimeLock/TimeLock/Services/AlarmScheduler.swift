@@ -46,19 +46,29 @@ final class AlarmScheduler: NSObject, ObservableObject {
     // MARK: 스케줄링
 
     /// 모든 활성 예약의 알람/예고를 다시 스케줄한다. (예약 변경 시마다 호출)
+    /// 반복 예약의 메인 알람은 '주간 반복 트리거' 1건(요일당)으로 걸어 만료 없이 커버한다 —
+    /// 예전처럼 14일치 × 발생당 6건을 쌓아 iOS의 64개 대기 알림 상한을 넘겨 알람이 조용히
+    /// 누락되던 문제를 없앤다. 예고·재알림은 임박한 발생(다음 36시간)에만 구체 예약해 총량을 묶는다.
     func rescheduleAll(reservations: [Reservation]) {
         center.removeAllPendingNotificationRequests()
-        let calendar = Calendar.current
         let now = Date()
+        let calendar = Calendar.current
 
         for reservation in reservations where reservation.isActive {
-            // 향후 14일치 발생 시각을 개별 예약 (반복 규칙 갱신 포함)
-            for offset in 0..<14 {
-                guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
-                      let fire = reservation.occurrence(on: day, calendar: calendar),
-                      fire > now else { continue }
-                scheduleAlarm(for: reservation, at: fire)
+            if reservation.isRepeating {
+                for weekday in reservation.repeatWeekdays {
+                    scheduleRepeatingWeeklyAlarm(for: reservation, weekday: weekday)
+                }
+            } else if let day = reservation.oneOffDate,
+                      let fire = reservation.occurrence(on: day, calendar: calendar), fire > now {
+                // 실제 발화 시각은 그 날짜의 startMinute (oneOffDate는 날짜 매칭용, 자정일 수 있음)
+                scheduleMainAlarm(for: reservation, at: fire)
+            }
+            // 예고(10분 전)·재알림(2분 간격 4회)은 임박한 발생에만 구체 예약 —
+            // 반복이 쌓여도 알림 총량이 폭증하지 않고, 앱을 열 때마다 갱신된다.
+            for fire in upcomingOccurrences(of: reservation, within: 36 * 3600, now: now, calendar: calendar) {
                 schedulePreAlert(for: reservation, at: fire)
+                scheduleReAlarms(for: reservation, at: fire)
             }
         }
 
@@ -69,36 +79,76 @@ final class AlarmScheduler: NSObject, ObservableObject {
         #endif
     }
 
-    private func scheduleAlarm(for reservation: Reservation, at fire: Date) {
+    /// 알람 본문 콘텐츠 (구체·반복 공통). 라우팅은 kind·reservationID만 사용하며,
+    /// 실제 발생 시각은 앱이 checkDueAlarm에서 예약으로부터 재계산하므로 fireDate를 담지 않는다.
+    private func makeAlarmContent(for reservation: Reservation) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = "\(reservation.name) 시작"
         content.body = "알람을 끄는 방법은 하나뿐입니다 — \(TimePolicy.startWindowMinutes)분 안에 촬영을 시작하세요."
         content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
         content.interruptionLevel = .timeSensitive
-        content.userInfo = ["reservationID": reservation.id.uuidString,
-                            "fireDate": fire.timeIntervalSince1970,
-                            "kind": "alarm"]
+        content.userInfo = ["reservationID": reservation.id.uuidString, "kind": "alarm"]
         content.categoryIdentifier = "TIMELOCK_ALARM"
+        return content
+    }
 
+    /// 일회성 메인 알람 1건 (구체 시각, 반복 없음)
+    private func scheduleMainAlarm(for reservation: Reservation, at fire: Date) {
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         let request = UNNotificationRequest(
             identifier: "alarm-\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))",
-            content: content, trigger: trigger)
+            content: makeAlarmContent(for: reservation), trigger: trigger)
         center.add(request)
+    }
 
-        // 알람 무시 대비 2분 간격 재알림 4회 (10분 창 내)
+    /// 반복 예약의 주간 반복 메인 알람 (요일당 1건, 만료 없음 → 64개 상한 걱정 없이 무한 커버)
+    private func scheduleRepeatingWeeklyAlarm(for reservation: Reservation, weekday: Int) {
+        var comps = DateComponents()
+        comps.weekday = weekday
+        comps.hour = reservation.startMinute / 60
+        comps.minute = reservation.startMinute % 60
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+        let request = UNNotificationRequest(
+            identifier: "alarm-rep-\(reservation.id.uuidString)-\(weekday)",
+            content: makeAlarmContent(for: reservation), trigger: trigger)
+        center.add(request)
+    }
+
+    /// 알람 무시 대비 2분 간격 재알림 4회 (10분 창 내) — 임박한 발생에만 건다
+    private func scheduleReAlarms(for reservation: Reservation, at fire: Date) {
+        let base = makeAlarmContent(for: reservation)
         for repeatIndex in 1...4 {
-            guard let repeatFire = Calendar.current.date(byAdding: .second, value: repeatIndex * 120, to: fire) else { continue }
-            let rComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: repeatFire)
+            guard let repeatFire = Calendar.current.date(byAdding: .second, value: repeatIndex * 120, to: fire),
+                  repeatFire > .now else { continue }
+            let rComps = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute, .second], from: repeatFire)
             let rTrigger = UNCalendarNotificationTrigger(dateMatching: rComps, repeats: false)
-            let rContent = content.mutableCopy() as! UNMutableNotificationContent
+            let rContent = base.mutableCopy() as! UNMutableNotificationContent
             rContent.body = "아직 시작하지 않았습니다. \(TimePolicy.startWindowMinutes)분이 지나면 탈락 처리됩니다."
             let rRequest = UNNotificationRequest(
                 identifier: "alarm-r\(repeatIndex)-\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))",
                 content: rContent, trigger: rTrigger)
             center.add(rRequest)
         }
+    }
+
+    /// 앞으로 `within`초 안에 발생하는 예약 시각들 (반복은 요일 규칙으로 열거, 일회성은 그 날짜)
+    private func upcomingOccurrences(of reservation: Reservation, within: TimeInterval,
+                                     now: Date, calendar: Calendar) -> [Date] {
+        var result: [Date] = []
+        if reservation.isRepeating {
+            for offset in 0...2 {
+                guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
+                      let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
+                if fire > now, fire <= now.addingTimeInterval(within) { result.append(fire) }
+            }
+        } else if let day = reservation.oneOffDate,
+                  let fire = reservation.occurrence(on: day, calendar: calendar),
+                  fire > now, fire <= now.addingTimeInterval(within) {
+            result.append(fire)
+        }
+        return result
     }
 
     private func schedulePreAlert(for reservation: Reservation, at fire: Date) {
@@ -116,15 +166,20 @@ final class AlarmScheduler: NSObject, ObservableObject {
         center.add(request)
     }
 
-    /// 특정 발생 건의 남은 알람(재알림 포함)을 모두 취소 — 촬영 준비/일정 취소 시
+    /// 특정 발생 건의 남은 알람(재알림·예고 포함)을 모두 취소 — 촬영 준비/일정 취소 시.
+    /// 반복 예약의 주간 반복 트리거는 '다음 주'를 위해 유지하되, 지금 떠 있는 배너만 지운다.
     func cancelAlarmNotifications(reservationID: UUID, fireDate: Date) {
         let ts = Int(fireDate.timeIntervalSince1970)
-        var ids = ["alarm-\(reservationID.uuidString)-\(ts)"]
+        var ids = ["alarm-\(reservationID.uuidString)-\(ts)", "pre-\(reservationID.uuidString)-\(ts)"]
         for repeatIndex in 1...4 {
             ids.append("alarm-r\(repeatIndex)-\(reservationID.uuidString)-\(ts)")
         }
         center.removePendingNotificationRequests(withIdentifiers: ids)
         center.removeDeliveredNotifications(withIdentifiers: ids)
+        // 반복 메인 알람: 대기 트리거는 유지(다음 주 발화)하고, 이번에 배달된 배너만 제거
+        let weekday = Calendar.current.component(.weekday, from: fireDate)
+        center.removeDeliveredNotifications(
+            withIdentifiers: ["alarm-rep-\(reservationID.uuidString)-\(weekday)"])
     }
 
     // MARK: 재촬영 창 알림 (긴급 용무 중단 · 매운맛)
