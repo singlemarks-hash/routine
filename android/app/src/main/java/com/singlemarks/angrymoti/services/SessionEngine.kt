@@ -144,7 +144,24 @@ object SessionEngine {
             if (remain <= 0) failBreakExpired(s)
             return
         }
+
+        // 통화 일시정지 — 권한(READ_PHONE_STATE)이 없어도 AudioManager로 감지해 자동 일시정지/재개.
+        // TelephonyCallback(셀룰러)이 못 잡는 VoIP(보이스톡 등)도 여기서 잡힌다. 벌점 없음.
+        if (p == Phase.PausedForCall) {
+            if (!isPhoneCallActive()) {   // 통화 종료 → 자동 재개
+                CameraRecorder.resume()
+                Prefs.callActive = false
+                phase.value = Phase.Recording
+            }
+            return
+        }
         if (p != Phase.Recording) return
+        if (isPhoneCallActive()) {   // 통화 시작 → 벌점 없는 일시정지
+            CameraRecorder.pause()
+            Prefs.callActive = true
+            phase.value = Phase.PausedForCall
+            return
+        }
 
         // 촬영 신호 점검 — 프레임이 끊기면(카메라 미개시·인터럽션·저장 실패) 벽시계로 헛돌지 않도록
         // 안전 종료한다. 실제 촬영 없이 완주(만점)로 오인하는 것을 원천 차단 (벌점 없음, 촬영분 보존).
@@ -270,13 +287,15 @@ object SessionEngine {
     // MARK: 이탈 이벤트 (백그라운드/화면 잠금) — 통화 중이면 무시
 
     /** 권한 없이 통화 감지 — READ_PHONE_STATE가 거부되면 TelephonyCallback이 안 붙어 isCallActive가
-     *  항상 false다. AudioManager.mode는 권한 불필요하므로, 수신 벨(RINGTONE)·통화중(IN_CALL)일 때
-     *  이를 폴백으로 본다. 이게 없으면 권한 거부 사용자는 걸려온 전화가 '이탈'로 오인돼
-     *  미친맛 세션이 부당하게 실패 처리된다(#21). iOS는 CallKit이 권한 불필요라 원래 안전. */
+     *  항상 false다. AudioManager.mode는 권한 불필요하므로, 수신 벨(RINGTONE)·통화중(IN_CALL)·
+     *  VoIP 통화(IN_COMMUNICATION, 예: 카카오 보이스톡·줌)일 때 이를 폴백으로 본다.
+     *  이게 없으면 권한 거부 사용자는 걸려온 전화가 '이탈'로 오인돼 미친맛 세션이 부당하게
+     *  실패 처리되고(#21), 통화 일시정지 오버레이도 안 뜬다. iOS는 CallKit이 권한 불필요라 원래 안전. */
     private fun isPhoneCallActive(): Boolean {
         if (isCallActive) return true
         val am = appContext.getSystemService(android.media.AudioManager::class.java) ?: return false
         return am.mode == android.media.AudioManager.MODE_IN_CALL ||
+            am.mode == android.media.AudioManager.MODE_IN_COMMUNICATION ||
             am.mode == android.media.AudioManager.MODE_RINGTONE
     }
 
