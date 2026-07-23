@@ -152,7 +152,12 @@ final class SessionEngine: NSObject, ObservableObject {
         // '실제 촬영 없이 완주(만점)'로 오인하는 것은 막는다.
         if Date().timeIntervalSince(CameraRecorder.shared.lastFrameAt) > CameraRecorder.shared.captureStallLimit {
             checkSafety()                          // 배터리/저장공간 문제면 무벌점 안전종료
-            if !isFinalizing { handleExitEvent() } // 그 외 인터럽션은 이탈 — 매운맛 긴급용무·미친맛 즉시 실패
+            if !isFinalizing {
+                // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
+                // 찍히다 끊긴 거라면 제어센터·타앱 등 캡처 인터럽션 = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
+                if CameraRecorder.shared.frameCount == 0 { safetyEnd(note: "카메라 시작 실패") }
+                else { handleExitEvent() }
+            }
             return
         }
         // 표시·완주 판정용 촬영 시간은 틱(1초)으로 센다.
