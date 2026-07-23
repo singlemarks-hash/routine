@@ -361,7 +361,6 @@ struct SessionResultView: View {
     @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var subscription: SubscriptionManager
     @Environment(\.modelContext) private var context
-    @Environment(\.requestReview) private var requestReview
     @Query private var scoreEvents: [ScoreEvent]
 
     @State private var saving = false
@@ -406,12 +405,6 @@ struct SessionResultView: View {
             }
         }
         .interactiveDismissDisabled()
-        .onAppear {
-            // 완주 성공을 반복 경험한 사용자에게만 자연스러운 시점에 평점 프롬프트를 1회 노출
-            if outcome.isSuccess, ReviewPrompt.registerCompletionAndShouldAsk() {
-                requestReview()
-            }
-        }
     }
 
     // MARK: 상단 결과 요약 (컴팩트 — 원 아이콘 축소)

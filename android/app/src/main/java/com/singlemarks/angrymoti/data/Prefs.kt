@@ -58,21 +58,4 @@ object Prefs {
     var guestName: String?
         get() = sp.getString("guestName", null)
         set(v) = sp.edit().putString("guestName", v).apply()
-
-    // ── 앱 후기 요청 (완주 N회 후 1회 노출) — 기기 전역
-    private var reviewCount: Int
-        get() = sp.getInt("reviewCompletionCount", 0)
-        set(v) = sp.edit().putInt("reviewCompletionCount", v).apply()
-    var reviewAsked: Boolean
-        get() = sp.getBoolean("reviewAsked", false)
-        set(v) = sp.edit().putBoolean("reviewAsked", v).apply()
-
-    /** 완주 성공 시 호출. 임계치(3회) 도달 & 미요청이면 true(리뷰 유도 표시) 반환. */
-    fun registerCompletionAndShouldAskReview(): Boolean {
-        if (reviewAsked) return false
-        val n = reviewCount + 1
-        reviewCount = n
-        if (n >= 3) { reviewAsked = true; return true }
-        return false
-    }
 }
