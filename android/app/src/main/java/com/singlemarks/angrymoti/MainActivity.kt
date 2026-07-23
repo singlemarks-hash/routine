@@ -101,6 +101,9 @@ private fun Root() {
     val user by AccountStore.user.collectAsState()
     val phase by SessionEngine.phase.collectAsStateWithLifecycle()
 
+    // 계정 전환 시 그 계정의 강도·하향예약을 다시 불러온다 (#19 — 강도가 계정별이라 공유 기기 누수 차단)
+    LaunchedEffect(user?.uid) { AppState.reloadForAccount() }
+
     // 세션 종료 → 결과 화면 (iOS RootView.onChange(engine.phase) 대응)
     LaunchedEffect(phase) {
         if (phase is SessionEngine.Phase.Finished &&

@@ -93,7 +93,9 @@ fun OnboardingFlow() {
                     color = TL.faint, fontSize = 13.sp, textAlign = TextAlign.Center)
                 Spacer(Modifier.weight(1f))
                 TLPrimaryButton("매운맛으로 시작") {
-                    Prefs.intensityRaw = Intensity.SPICY.raw
+                    Prefs.setIntensityRaw(
+                        com.singlemarks.angrymoti.services.AccountStore.currentUserID,
+                        Intensity.SPICY.raw)
                     com.singlemarks.angrymoti.AppState.completeOnboarding()
                 }
             }

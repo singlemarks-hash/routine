@@ -390,8 +390,10 @@ fun LedgerScreen(onBack: () -> Unit) {
                         Column(Modifier.weight(1f)) {
                             Text(e.type.title, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             e.note?.let { Text(it, color = TL.faint, fontSize = 12.sp) }
-                            Text(java.text.SimpleDateFormat("M월 d일 HH:mm", java.util.Locale.KOREA)
-                                .format(java.util.Date(e.timestamp)), color = TL.faint, fontSize = 11.sp)
+                            // 12시간제로 통일 (iOS 점수 원장 .shortened 표기 기준)
+                            Text("${java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA)
+                                .format(java.util.Date(e.timestamp))} ${TLFormat.clock(e.timestamp)}",
+                                color = TL.faint, fontSize = 11.sp)
                         }
                         Text(TLFormat.scoreLabel(e.points),
                             color = if (e.points >= 0) TL.jade else TL.rec,

@@ -14,18 +14,19 @@ object Prefs {
         sp = context.getSharedPreferences("angrymoti", Context.MODE_PRIVATE)
     }
 
+    // 온보딩은 '앱/기기 최초 안내'라 기기 전역이 맞다 (계정별 아님).
     var onboarded: Boolean
         get() = sp.getBoolean("onboarded", false)
         set(v) = sp.edit().putBoolean("onboarded", v).apply()
 
-    var intensityRaw: String
-        get() = sp.getString("intensity", "spicy") ?: "spicy"
-        set(v) = sp.edit().putString("intensity", v).apply()
+    /** 강도는 계정별(#19) — 공유 기기에서 A의 미친맛 설정이 B에게 새지 않도록 owner로 분리 */
+    fun intensityRaw(owner: String): String = sp.getString("intensity.$owner", "spicy") ?: "spicy"
+    fun setIntensityRaw(owner: String, v: String) = sp.edit().putString("intensity.$owner", v).apply()
 
-    /** 하향 예약: 다음날 0시 이후 적용 (epoch millis of 적용 시각, 0 = 없음) */
-    var pendingDowngradeAt: Long
-        get() = sp.getLong("pendingDowngradeAt", 0L)
-        set(v) = sp.edit().putLong("pendingDowngradeAt", v).apply()
+    /** 하향 예약: 다음날 0시 이후 적용 (epoch millis, 0 = 없음) — 강도와 함께 계정별(#19) */
+    fun pendingDowngradeAt(owner: String): Long = sp.getLong("pendingDowngradeAt.$owner", 0L)
+    fun setPendingDowngradeAt(owner: String, v: Long) =
+        sp.edit().putLong("pendingDowngradeAt.$owner", v).apply()
 
     /** 진행 중 세션 복구용 */
     var activeSessionId: String?

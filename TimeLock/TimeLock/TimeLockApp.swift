@@ -142,28 +142,40 @@ final class AppState: ObservableObject {
         var intensityOverride: Intensity? = nil
     }
 
-    // 온보딩 & 강도 (앱 전역 단일 값)
+    // 온보딩은 '앱/기기 최초 안내'라 기기 전역이 맞다 (계정별 아님).
+    // 강도·하향예약은 계정별(#19) — 공유 기기에서 A의 미친맛 설정이 B에게 새지 않도록 owner로 분리.
     // 주의: ObservableObject 내부의 @AppStorage는 뷰 갱신을 트리거하지 않으므로
     // @Published + UserDefaults 백킹으로 구현한다.
     @Published var onboarded: Bool {
         didSet { UserDefaults.standard.set(onboarded, forKey: "onboarded") }
     }
     @Published private var intensityRaw: String {
-        didSet { UserDefaults.standard.set(intensityRaw, forKey: "intensity") }
+        didSet { UserDefaults.standard.set(intensityRaw, forKey: "intensity.\(AccountStore.shared.currentUserID)") }
     }
     @Published private var pendingDowngrade: Bool {
-        didSet { UserDefaults.standard.set(pendingDowngrade, forKey: "pendingDowngrade") }
+        didSet { UserDefaults.standard.set(pendingDowngrade, forKey: "pendingDowngrade.\(AccountStore.shared.currentUserID)") }
     }
     @Published private var downgradeEffectiveDay: Double {
-        didSet { UserDefaults.standard.set(downgradeEffectiveDay, forKey: "downgradeEffectiveDay") }
+        didSet { UserDefaults.standard.set(downgradeEffectiveDay, forKey: "downgradeEffectiveDay.\(AccountStore.shared.currentUserID)") }
     }
 
     private init() {
         let d = UserDefaults.standard
+        let owner = AccountStore.shared.currentUserID
         onboarded = d.bool(forKey: "onboarded")
-        intensityRaw = d.string(forKey: "intensity") ?? Intensity.spicy.rawValue
-        pendingDowngrade = d.bool(forKey: "pendingDowngrade")
-        downgradeEffectiveDay = d.double(forKey: "downgradeEffectiveDay")
+        intensityRaw = d.string(forKey: "intensity.\(owner)") ?? Intensity.spicy.rawValue
+        pendingDowngrade = d.bool(forKey: "pendingDowngrade.\(owner)")
+        downgradeEffectiveDay = d.double(forKey: "downgradeEffectiveDay.\(owner)")
+    }
+
+    /// 계정 전환(로그인·로그아웃) 시 그 계정의 강도·하향예약을 다시 불러온다 (#19 — 강도 계정별)
+    func reloadForAccount() {
+        let d = UserDefaults.standard
+        let owner = AccountStore.shared.currentUserID
+        intensityRaw = d.string(forKey: "intensity.\(owner)") ?? Intensity.spicy.rawValue
+        pendingDowngrade = d.bool(forKey: "pendingDowngrade.\(owner)")
+        downgradeEffectiveDay = d.double(forKey: "downgradeEffectiveDay.\(owner)")
+        applyPendingDowngradeIfDue()
     }
 
     private var modelContext: ModelContext?
@@ -296,6 +308,7 @@ final class AppState: ObservableObject {
     // MARK: 계정 전환
 
     private func handleUserChanged() {
+        reloadForAccount()   // #19 — 전환된 계정의 강도·하향예약 반영 (기기 전역 누수 차단)
         refreshDerived()
         rescheduleAlarmsForCurrentUser()
         Task {
