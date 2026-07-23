@@ -22,8 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -352,9 +350,7 @@ fun PaywallScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(10.dp))
         Text("구매 복원", color = TL.muted, fontSize = 13.sp,
             modifier = Modifier.clickable { SubscriptionManager.refresh() }.padding(6.dp))
-        Spacer(Modifier.height(18.dp))
-        CouponEntry()
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
         Text(Legal.SUBSCRIPTION_DISCLOSURE, color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -374,52 +370,6 @@ private fun Benefit(text: String) {
         Text("✓", color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.width(10.dp))
         Text(text, color = TL.paper, fontSize = 14.sp)
-    }
-}
-
-/** 프로모션 쿠폰 입력 — 결제 없이 앱 내부 권한(기간제)을 부여받는다. 만료 시 자동 강등. */
-@Composable
-private fun CouponEntry() {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var code by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth()) {
-        Text("프로모션 쿠폰이 있으신가요?", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = code, onValueChange = { code = it.uppercase() },
-                modifier = Modifier.weight(1f), singleLine = true,
-                placeholder = { Text("쿠폰 코드", color = TL.faint) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
-                    focusedBorderColor = TL.jade, unfocusedBorderColor = TL.hairline, cursorColor = TL.jade),
-            )
-            val enabled = !busy && code.isNotBlank()
-            Box(
-                Modifier.background(if (enabled) TL.jade else TL.raised, TL.cornerM)
-                    .clickable(enabled = enabled) {
-                        busy = true
-                        scope.launch {
-                            try {
-                                val days = AccountStore.redeemCoupon(code)
-                                android.widget.Toast.makeText(context,
-                                    "${days}일 이용권이 적용됐어요 🎉", android.widget.Toast.LENGTH_LONG).show()
-                                code = ""
-                            } catch (e: Exception) {
-                                android.widget.Toast.makeText(context,
-                                    e.message ?: "쿠폰 사용에 실패했어요", android.widget.Toast.LENGTH_LONG).show()
-                            } finally { busy = false }
-                        }
-                    }
-                    .padding(horizontal = 18.dp, vertical = 15.dp),
-            ) {
-                Text(if (busy) "확인 중…" else "적용",
-                    color = if (enabled) TL.ink else TL.muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 
