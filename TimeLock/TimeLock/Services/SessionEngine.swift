@@ -15,7 +15,6 @@
 import Foundation
 import SwiftUI
 import SwiftData
-import CallKit
 import UIKit
 import CryptoKit
 
@@ -25,7 +24,6 @@ final class SessionEngine: NSObject, ObservableObject {
     enum Phase: Equatable {
         case idle
         case recording
-        case pausedForCall
         case pausedForBreak(deadline: Date)   // 긴급 용무 중단 — 데드라인 안에 재촬영 시작
         case finished(SessionOutcome)
     }
@@ -63,8 +61,6 @@ final class SessionEngine: NSObject, ObservableObject {
     private(set) var session: FocusSession?
     private var modelContext: ModelContext?
     private var tick: Timer?
-    private var callObserver: CXCallObserver?
-    private var isCallActive = false
     private var safetyCheckCounter = 0
 
     private let defaults = UserDefaults.standard
@@ -73,7 +69,6 @@ final class SessionEngine: NSObject, ObservableObject {
     private enum Key {
         static let activeSessionID = "engine.activeSessionID"
         static let breakDeadline   = "engine.breakDeadline"   // 재촬영 창 마감 시각 (epoch)
-        static let callActive      = "engine.callActive"
     }
 
     func bind(context: ModelContext) {
@@ -116,7 +111,6 @@ final class SessionEngine: NSObject, ObservableObject {
         absenceEpisodeCount = 0
         breakBudgetRemaining = TimePolicy.resumeWindowSeconds   // 세션마다 긴급 예산 리필
         phase = .recording
-        isCallActive = false
         isFinalizing = false
         safetyCheckCounter = 0
 
@@ -126,7 +120,6 @@ final class SessionEngine: NSObject, ObservableObject {
         // 촬영 시작과 함께 '알림차단' 기본 활성화 (세션 화면 버튼으로 해제 가능)
         AlarmScheduler.shared.muteAllNotifications = true
 
-        startCallObserver()
         startTick()
         UIApplication.shared.isIdleTimerDisabled = true   // 화면 자동 꺼짐 방지
         UIDevice.current.isBatteryMonitoringEnabled = true
@@ -283,11 +276,12 @@ final class SessionEngine: NSObject, ObservableObject {
     }
 
     // MARK: 이탈 이벤트 (백그라운드 / 화면 잠금)
+    // 통화도 '앵그리모드 미사용'이므로 예외 두지 않는다 — 전화가 오면 앱이 백그라운드로 내려가
+    // 이 경로를 타고 매운맛은 긴급용무(수동 재개), 미친맛은 즉시 실패로 처리된다. (안드로이드와 통일)
 
     /// ScenePhase.background 또는 화면 잠금(protectedData) 시 호출
     func handleExitEvent() {
         guard let s = session, !isFinalizing else { return }
-        guard !isCallActive else { return }   // 통화 중 백그라운드는 이탈이 아님
 
         switch s.intensity {
         case .spicy:
@@ -323,7 +317,7 @@ final class SessionEngine: NSObject, ObservableObject {
 
     func emergencyEnd(reason: String?) {
         guard let s = session, !isFinalizing,
-              phase == .recording || phase == .pausedForCall || phaseIsBreak else { return }
+              phase == .recording || phaseIsBreak else { return }
         isFinalizing = true
         AlarmScheduler.shared.cancelBreakNotifications()
         s.emergencyReason = reason
@@ -353,38 +347,13 @@ final class SessionEngine: NSObject, ObservableObject {
 
     func safetyEnd(note: String) {
         guard let s = session, !isFinalizing,
-              phase == .recording || phase == .pausedForCall || phaseIsBreak else { return }
+              phase == .recording || phaseIsBreak else { return }
         isFinalizing = true
         Task {
             let result = await CameraRecorder.shared.stopPreservingFootage()
             self.applyRecording(result, to: s)
             self.finalize(session: s, outcome: .safetyEnded, note: note)
         }
-    }
-
-    // MARK: 통화 수신 — 벌점 없는 일시정지 / 자동 재개
-
-    private func startCallObserver() {
-        let observer = CXCallObserver()
-        observer.setDelegate(self, queue: .main)
-        callObserver = observer
-    }
-
-    private func callBegan() {
-        guard phase == .recording else { return }
-        isCallActive = true
-        defaults.set(true, forKey: Key.callActive)
-        CameraRecorder.shared.pause()
-        phase = .pausedForCall
-        // recordedSeconds가 멈추므로 종료 시각은 통화 시간만큼 자연히 밀린다.
-    }
-
-    private func callEnded() {
-        isCallActive = false
-        defaults.removeObject(forKey: Key.callActive)
-        guard phase == .pausedForCall else { return }
-        CameraRecorder.shared.resume()
-        phase = .recording
     }
 
     // MARK: 마무리 & 원장 기록
@@ -528,13 +497,10 @@ final class SessionEngine: NSObject, ObservableObject {
 
     private func cleanupRuntime() {
         tick?.invalidate(); tick = nil
-        callObserver = nil
-        isCallActive = false
         isFinalizing = false
         AlarmScheduler.shared.muteAllNotifications = false   // 세션 종료 시 알림차단 해제
         defaults.removeObject(forKey: Key.activeSessionID)
         defaults.removeObject(forKey: Key.breakDeadline)
-        defaults.removeObject(forKey: Key.callActive)
         UIApplication.shared.isIdleTimerDisabled = false
         session = nil
     }
@@ -659,10 +625,8 @@ final class SessionEngine: NSObject, ObservableObject {
         // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단)
         guard orphan.ownerUserID == AccountStore.shared.currentUserID else { return }
         let wasOnBreak = defaults.object(forKey: Key.breakDeadline) != nil
-        let wasInCall = defaults.bool(forKey: Key.callActive)
         let outcome: SessionOutcome
-        if wasInCall { outcome = .safetyEnded }                     // 통화 중 종료 — 벌점 없음
-        else if wasOnBreak { outcome = .exitFailed }               // 중단 창 도중 종료
+        if wasOnBreak { outcome = .exitFailed }                    // 중단 창 도중 종료
         else if orphan.intensity == .insane { outcome = .exitFailed }  // 미친맛: 무단 종료도 이탈 실패 (봐주지 않음)
         else { outcome = .safetyEnded }                            // 매운맛 크래시 — 관대하게 무벌점
         orphan.outcome = outcome
@@ -685,21 +649,6 @@ final class SessionEngine: NSObject, ObservableObject {
         try? FileManager.default.removeItem(at: partial)
         defaults.removeObject(forKey: Key.activeSessionID)
         defaults.removeObject(forKey: Key.breakDeadline)
-        defaults.removeObject(forKey: Key.callActive)
         AlarmScheduler.shared.cancelBreakNotifications()
-    }
-}
-
-// MARK: - CXCallObserverDelegate
-
-extension SessionEngine: CXCallObserverDelegate {
-    nonisolated func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
-        Task { @MainActor in
-            if call.hasEnded {
-                self.callEnded()
-            } else if call.hasConnected || (!call.isOutgoing && !call.hasEnded) {
-                self.callBegan()
-            }
-        }
     }
 }

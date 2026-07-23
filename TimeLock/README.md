@@ -103,7 +103,7 @@ TimeLock/
 | 긴급 용무 중단 → 10분 재촬영 창 (매운맛) | `SessionEngine.startBreak/resumeFromBreak`, 이탈도 동일 취급 |
 | 재촬영 창 초과·계속 이탈 = 벌점 | `failBreakExpired` + 결과 화면의 누적 벌점 표시 |
 | 미친 매운맛 즉시 실패·벌점 2배 | `handleExitEvent` insane 분기, `ScoreRules` |
-| 통화 = 무벌점 일시정지·종료 연장 | `CXCallObserver` → pause/resume, 완주는 '순수 촬영 초' 기준 |
+| 통화 = 이탈과 동일 (특별취급 없음) | 전화 오면 백그라운드 → `handleExitEvent`: 매운맛 긴급용무(수동 재개)·미친맛 즉시 실패 (안드로이드와 통일) |
 | 킬/크래시 복구 | `recoverOrphanIfNeeded` (breakDeadline 유무로 이탈/안전 종료 판별) |
 | 촬영본 저장 안 하면 자동 삭제 | `SessionResultView`(저장) + `AppState.dismissResult/purgeUnsavedVideos`(삭제) |
 | 회원별 상점·벌점 | 모든 모델의 `ownerUserID`, `AccountStore`(게스트 기록 자동 귀속, Firestore 백업) |
