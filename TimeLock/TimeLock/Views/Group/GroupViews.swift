@@ -229,7 +229,8 @@ struct GroupCreateView: View {
         Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now))!
     }
     private var maxEndDay: Date {
-        Calendar.current.date(byAdding: .day, value: GroupPolicy.maxDurationDays, to: startDay)!
+        // 포함 일수 기준(안드로이드 통일): startDay 당일 포함 최대 maxDurationDays일 → +(N-1)
+        Calendar.current.date(byAdding: .day, value: GroupPolicy.maxDurationDays - 1, to: startDay)!
     }
     private var formReady: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -409,8 +410,17 @@ struct GroupCreateView: View {
         let calendar = Calendar.current
         let startDate = calendar.date(byAdding: .minute, value: startMinute,
                                       to: calendar.startOfDay(for: startDay))!
-        let endDate = calendar.date(byAdding: .minute, value: startMinute + minutes,
-                                    to: calendar.startOfDay(for: endDay))!
+        // endDate = 종료일의 끝(23:59:59.999) — 안드로이드와 통일. 마지막 날 세션 시각이 아니라 그날 전체를 포함해
+        // 다른 시간대 참여자가 자기 로컬 마지막 세션을 마칠 여유를 준다.
+        let endDate = calendar.startOfDay(for: endDay).addingTimeInterval(86_400 - 0.001)
+        // 종료일·기간 검증 (안드로이드와 동일 — 시작일 포함 일수 기준)
+        guard endDay >= startDay else { errorMessage = "종료일이 시작일보다 빠를 수 없어요."; return }
+        let inclusiveDays = (calendar.dateComponents([.day],
+            from: calendar.startOfDay(for: startDay), to: calendar.startOfDay(for: endDay)).day ?? 0) + 1
+        guard inclusiveDays <= GroupPolicy.maxDurationDays else {
+            errorMessage = "기간은 최대 \(GroupPolicy.maxDurationDays)일(3개월)까지 가능해요."
+            return
+        }
         // 시작은 지금부터 최소 1시간 뒤 (참여자가 10분 전 알람을 받을 수 있게 여유를 둔다)
         guard startDate >= Date().addingTimeInterval(Double(GroupPolicy.minStartLeadMinutes) * 60) else {
             errorMessage = "시작은 지금부터 최소 \(GroupPolicy.minStartLeadMinutes / 60)시간 이후로 설정해주세요."

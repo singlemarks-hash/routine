@@ -310,7 +310,7 @@ private func guestCard(onLogin: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("게스트 모드")
                 .font(.tlTitle(16)).foregroundStyle(TL.paper)
-            Text("상점·벌점이 이 기기에만 저장됩니다. 로그인하면 지금까지의 기록이 계정으로 옮겨지고, 기기를 바꿔도 유지됩니다.")
+            Text("게스트 기록은 이 기기에만 저장되고 계정과는 분리됩니다. 계정을 만들면 이후의 기록이 계정에 저장돼 기기를 바꿔도 유지됩니다.")
                 .font(.system(size: 13)).foregroundStyle(TL.muted)
             Button("계정 만들기 · 로그인", action: onLogin)
                 .buttonStyle(TLPrimaryButtonStyle())
