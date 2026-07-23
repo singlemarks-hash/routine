@@ -42,7 +42,8 @@ object SessionEngine {
         data object Idle : Phase()
         data object Recording : Phase()
         data class PausedForBreak(val deadline: Long) : Phase()
-        data object PausedForCall : Phase()
+        // 통화도 '앵그리모드 미사용'이므로 긴급용무와 동일한 10분 예산·마감(deadline)을 갖는다.
+        data class PausedForCall(val deadline: Long) : Phase()
         data class Finished(val outcome: SessionOutcome) : Phase()
     }
 
@@ -145,23 +146,28 @@ object SessionEngine {
             return
         }
 
-        // 통화 일시정지 — 권한(READ_PHONE_STATE)이 없어도 AudioManager로 감지해 자동 일시정지/재개.
-        // TelephonyCallback(셀룰러)이 못 잡는 VoIP(보이스톡 등)도 여기서 잡힌다. 벌점 없음.
-        if (p == Phase.PausedForCall) {
-            if (!isPhoneCallActive()) {   // 통화 종료 → 자동 재개
+        // 통화 일시정지 — '앵그리모드 미사용'이므로 긴급용무와 같은 10분 예산 안에서만 허용.
+        // 권한 없어도 AudioManager로 감지(#21). 예산 초과 시 실패, 통화가 예산 안에 끝나면 자동 재개.
+        if (p is Phase.PausedForCall) {
+            val remain = p.deadline - System.currentTimeMillis()
+            if (!breakWarnPosted && remain in 1..120_000) {   // 마감 2분 전 경고
+                breakWarnPosted = true
+                AlarmScheduler.postStatus(appContext, 2001, "통화 2분 남음",
+                    "2분 안에 통화를 끝내지 않으면 세션이 실패로 기록됩니다.")
+            }
+            if (remain <= 0) { failBreakExpired(s); return }
+            if (!isPhoneCallActive()) {   // 통화 종료 → 남은 예산 반영하고 자동 재개
+                breakBudgetRemaining.value = (remain / 1000).coerceAtLeast(0)
                 CameraRecorder.resume()
+                breakWarnPosted = false
+                Prefs.breakDeadline = 0
                 Prefs.callActive = false
                 phase.value = Phase.Recording
             }
             return
         }
         if (p != Phase.Recording) return
-        if (isPhoneCallActive()) {   // 통화 시작 → 벌점 없는 일시정지
-            CameraRecorder.pause()
-            Prefs.callActive = true
-            phase.value = Phase.PausedForCall
-            return
-        }
+        if (isPhoneCallActive()) { enterCallPause(s); return }   // 통화 시작 → 10분 예산 일시정지
 
         // 촬영 신호 점검 — 프레임이 끊기면(카메라 미개시·인터럽션·저장 실패) 벽시계로 헛돌지 않도록
         // 안전 종료한다. 실제 촬영 없이 완주(만점)로 오인하는 것을 원천 차단 (벌점 없음, 촬영분 보존).
@@ -327,7 +333,7 @@ object SessionEngine {
         val s = session ?: return
         if (isFinalizing) return
         val p = phase.value
-        if (p != Phase.Recording && p !is Phase.PausedForBreak && p != Phase.PausedForCall) return
+        if (p != Phase.Recording && p !is Phase.PausedForBreak && p !is Phase.PausedForCall) return
         isFinalizing = true
         scope.launch(Dispatchers.IO) {
             val result = CameraRecorder.stopPreservingFootage(appContext)
@@ -378,23 +384,26 @@ object SessionEngine {
         }
     }
 
+    /** 통화 시작 → 긴급용무와 같은 10분 예산으로 일시정지. 예산이 이미 소진됐으면 즉시 실패. */
+    private fun enterCallPause(s: FocusSession) {
+        val budget = breakBudgetRemaining.value
+        if (budget < 1) { failBreakExpired(s); return }
+        val deadline = System.currentTimeMillis() + budget * 1000
+        CameraRecorder.pause()
+        breakWarnPosted = false
+        Prefs.breakDeadline = deadline   // 크래시로 앱이 죽어도 통화 예산이 이어지도록(복구=이탈 실패)
+        Prefs.callActive = true
+        phase.value = Phase.PausedForCall(deadline)
+    }
+
     private fun onCallState(state: Int) {
         val active = state != TelephonyManager.CALL_STATE_IDLE
         if (active == isCallActive) return
         isCallActive = active
-        Prefs.callActive = active
         if (session == null || isFinalizing) return
-        if (active) {
-            if (phase.value == Phase.Recording) {
-                CameraRecorder.pause()
-                phase.value = Phase.PausedForCall
-            }
-        } else {
-            if (phase.value == Phase.PausedForCall) {
-                CameraRecorder.resume()
-                phase.value = Phase.Recording
-            }
-        }
+        val s = session ?: return
+        // 셀룰러 통화는 즉시 예산 일시정지로 진입. 종료·마감·자동재개는 틱이 공통 처리(VoIP·권한없음과 통일).
+        if (active && phase.value == Phase.Recording) enterCallPause(s)
     }
 
     // MARK: 확정
@@ -593,11 +602,11 @@ object SessionEngine {
         // 계정 스코프 — 다른 계정의 미완료 세션은 지금 로그인한 계정으로 마감/노출하지 않는다.
         // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단)
         if (orphan.ownerUserID != AccountStore.currentUserID) return
+        // 통화도 긴급용무와 동일하게 breakDeadline을 세우므로 wasOnBreak가 통화 중단까지 포함한다.
+        // '앵그리모드 미사용 중 앱 종료'는 이탈 실패로 마감(철저히 10분 원칙).
         val wasOnBreak = Prefs.breakDeadline != 0L
-        val wasInCall = Prefs.callActive
         val outcome = when {
-            wasInCall -> SessionOutcome.SAFETY_ENDED                     // 통화 중 종료 — 벌점 없음
-            wasOnBreak -> SessionOutcome.EXIT_FAILED                     // 중단 창 도중 종료
+            wasOnBreak -> SessionOutcome.EXIT_FAILED                     // 중단·통화 창 도중 종료
             orphan.intensity == Intensity.INSANE -> SessionOutcome.EXIT_FAILED  // 미친맛: 무단 종료도 이탈 실패 (봐주지 않음)
             else -> SessionOutcome.SAFETY_ENDED                         // 매운맛 크래시 — 관대하게 무벌점
         }
