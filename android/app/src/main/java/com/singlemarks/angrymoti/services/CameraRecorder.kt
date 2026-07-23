@@ -56,7 +56,6 @@ object CameraRecorder {
     // 시작 시각을 앵커로 두어 카메라가 아예 첫 프레임을 못 주는 경우도 정지로 잡힌다.
     @Volatile private var lastFrameAt = 0L
     private var sessionId: String = ""
-    private var portrait = true
 
     // 사람 부재 감지 — 5초에 1회만 ML Kit 실행 (배터리·발열 최소화)
     private const val PRESENCE_CHECK_MS = 5000L
@@ -187,7 +186,6 @@ object CameraRecorder {
     /** 촬영 시작 — 세션 길이에 맞춰 캡처 간격을 동적으로 정한다 (재생 30fps) */
     fun startRecording(context: Context, sessionId: String, portrait: Boolean, plannedSeconds: Double, watermark: Boolean) {
         this.sessionId = sessionId
-        this.portrait = portrait
         portraitSession.value = portrait
         // iOS와 동일한 앵커 보간으로 결과 길이 산출 (10분→10초 …)
         val outSeconds = targetOutputSeconds(plannedSeconds)

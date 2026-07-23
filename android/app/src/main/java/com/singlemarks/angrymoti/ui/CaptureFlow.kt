@@ -870,10 +870,10 @@ fun SessionResultScreen() {
                         }
                     }
                     // 결과물 비율을 실제 촬영 프레임(썸네일)에서 그대로 가져와 프레임을 피팅한다 —
-                    // 가로 촬영이면 16:9 가로 프레임, 세로면 3:4 세로 프레임. (기본값은 세로)
+                    // 가로 촬영이면 16:9 가로 프레임, 세로면 9:16 세로 프레임. (썸네일 없을 때만 9:16 기본)
                     val previewAspect = thumb?.let {
                         it.width.toFloat() / it.height.coerceAtLeast(1)
-                    } ?: (3f / 4f)
+                    } ?: (9f / 16f)
                     val previewLandscape = previewAspect >= 1f
                     Box(
                         Modifier.fillMaxWidth(if (previewLandscape) 0.92f else 0.55f)

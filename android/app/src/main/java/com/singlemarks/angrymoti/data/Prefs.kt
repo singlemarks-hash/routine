@@ -37,10 +37,6 @@ object Prefs {
         get() = sp.getLong("breakDeadline", 0L)
         set(v) = sp.edit().putLong("breakDeadline", v).apply()
 
-    var callActive: Boolean
-        get() = sp.getBoolean("callActive", false)
-        set(v) = sp.edit().putBoolean("callActive", v).apply()
-
     /** 슬롯 보너스 최고 지급 단계 (계정별) */
     fun slotBonusAwardedTier(owner: String) = sp.getInt("slotBonus.awardedTier.$owner", 0)
     fun setSlotBonusAwardedTier(owner: String, tier: Int) =

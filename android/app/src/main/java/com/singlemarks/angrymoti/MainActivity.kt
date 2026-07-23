@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        // 백그라운드 전환 = 이탈 이벤트 (통화 중은 엔진이 무시)
+        // 백그라운드 전환 = 이탈 이벤트 (전화도 백그라운드로 내려가 동일 처리 — 매운맛 긴급용무·미친맛 실패)
         if (!isChangingConfigurations) SessionEngine.handleExitEvent()
     }
 
