@@ -352,15 +352,44 @@ struct SupportView: View {
 // MARK: - 개발자 응원하기 (뼈대)
 
 struct CheerDeveloperView: View {
+    @Environment(\.requestReview) private var requestReview
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 TLCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("앵그리모티를 만들어가고 있어요")
+                        Text("앵그리모티는 1인 개발로 만들어가고 있어요")
                             .font(.tlTitle(16)).foregroundStyle(TL.paper)
-                        Text("응원 메시지·리뷰·후원 기능은 준비 중입니다. 조금만 기다려주세요!")
+                        Text("여러분의 별점 한 줄이 다음 기능을 만드는 가장 큰 힘이 됩니다. 잠깐이면 충분해요!")
                             .font(.system(size: 13)).foregroundStyle(TL.muted)
+                    }
+                }
+
+                // 리뷰 남기기 — 딥링크가 있으면 App Store 작성 페이지, 없으면 시스템 평점 프롬프트
+                Button {
+                    if let url = Legal.writeReviewURL { openURL(url) }
+                    else { requestReview() }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "star.fill").foregroundStyle(TL.amber)
+                        Text("App Store에 별점·후기 남기기")
+                            .font(.system(size: 15, weight: .bold))
+                    }
+                }
+                .buttonStyle(TLPrimaryButtonStyle(tint: TL.amber))
+
+                TLCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("더 든든하게 응원하고 싶다면")
+                            .font(.tlTitle(15)).foregroundStyle(TL.paper)
+                        Text("앵그리모티 멤버십을 이용하면 개발을 직접 후원하면서 슬롯·워터마크 제거·미친 매운맛 같은 혜택도 함께 받을 수 있어요. 마이페이지 › 프로필 및 구독 관리에서 시작할 수 있습니다.")
+                            .font(.system(size: 13)).foregroundStyle(TL.muted)
+                        Link("문의·제안 보내기 — singlemarks@gmail.com",
+                             destination: URL(string: "mailto:singlemarks@gmail.com")!)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TL.jade)
                     }
                 }
             }
