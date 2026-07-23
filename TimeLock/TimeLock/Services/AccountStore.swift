@@ -99,6 +99,10 @@ final class AccountStore: ObservableObject {
     static let guestID = "guest"
 
     @Published private(set) var currentUser: UserAccount?
+
+    /// 홈 다짐(목표) 문구 — 편집·클라우드 병합·계정 전환이 모두 이 값을 갱신하고 홈이 구독한다.
+    /// (예전엔 홈이 UserDefaults를 화면 진입 때만 읽어, 머무는 중 동기화가 반영되지 않았다)
+    @Published var homeGoal: String = ""
     /// 이메일 인증 대기 중인 주소. 값이 있으면 인증을 마쳐야 앱에 입장할 수 있다.
     @Published private(set) var pendingVerificationEmail: String?
     /// 계정 상태가 바뀔 때 AppState가 알람/파생값을 갱신하도록 훅
@@ -401,6 +405,7 @@ final class AccountStore: ObservableObject {
         #endif
         currentUser = nil
         defaults.removeObject(forKey: sessionKey)
+        reloadHomeGoal()   // 계정 해제 후 다짐 문구 갱신 (빈 값)
         onUserChanged?()
     }
 
@@ -465,6 +470,7 @@ final class AccountStore: ObservableObject {
         // 4) 세션 종료 → 인증 화면으로 복귀 (onUserChanged가 라우팅)
         currentUser = nil
         defaults.removeObject(forKey: sessionKey)
+        reloadHomeGoal()   // 계정 해제 후 다짐 문구 갱신 (빈 값)
         onUserChanged?()
     }
 
@@ -496,6 +502,7 @@ final class AccountStore: ObservableObject {
         // 게스트 데이터는 로그인 계정과 철저히 분리한다(#16) — 절대 흡수하지 않는다.
         // 게스트로 쌓은 기록은 'guest' 소유로 남는 최하위 데이터이며(유실돼도 복구 불가),
         // 로그인 계정은 오직 자기 소유(ownerUserID) 데이터만 보고 다룬다. (안드로이드와 동일)
+        reloadHomeGoal()   // 전환된 계정의 다짐 문구를 화면에 반영
         onUserChanged?()
     }
 
@@ -576,6 +583,20 @@ final class AccountStore: ObservableObject {
         #endif
     }
 
+    /// 현재 계정의 다짐 문구를 UserDefaults에서 다시 읽어 published 값에 반영 (계정 전환·홈 진입 시)
+    func reloadHomeGoal() {
+        homeGoal = UserDefaults.standard.string(forKey: "homeGoal.\(currentUserID)") ?? ""
+    }
+
+    /// 홈 다짐 편집 저장 — 로컬 저장 + published 즉시 반영 + 클라우드 업로드를 한 번에
+    func saveHomeGoal(_ text: String) {
+        let uid = currentUserID
+        UserDefaults.standard.set(text, forKey: "homeGoal.\(uid)")
+        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "homeGoalUpdatedAt.\(uid)")
+        homeGoal = text
+        mirrorHomeGoal(text)
+    }
+
     /// 홈 다짐(목표) 문구 업로드 — 홈 화면 편집 저장 시 호출
     func mirrorHomeGoal(_ text: String) {
         #if canImport(FirebaseFirestore)
@@ -601,6 +622,7 @@ final class AccountStore: ObservableObject {
         if cloudUpdated > localUpdated {
             UserDefaults.standard.set(cloudText, forKey: goalKey)
             UserDefaults.standard.set(Double(cloudUpdated) / 1000, forKey: goalUpdatedKey)
+            await MainActor.run { self.homeGoal = cloudText }   // 화면 즉시 반영
         } else if localUpdated > cloudUpdated {
             mirrorHomeGoal(UserDefaults.standard.string(forKey: goalKey) ?? "")
         }

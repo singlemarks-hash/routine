@@ -160,12 +160,12 @@ struct HomeView: View {
                     .presentationDetents([.height(420)])
             }
             .sheet(isPresented: $showGoalEditor) {
-                GoalEditorSheet(goal: $goalText) { saveGoal() }
+                GoalEditorSheet(goal: $goalText) { account.saveHomeGoal(goalText) }
                     .presentationDetents([.height(260)])
             }
             .onReceive(clock) { now = $0 }
-            .onAppear { loadGoal() }
-            .onChange(of: account.currentUserID) { loadGoal() }
+            .onAppear { account.reloadHomeGoal() }
+            .onChange(of: account.currentUserID) { account.reloadHomeGoal() }
             .alert("그룹 일정이에요", isPresented: $showGroupLockNotice) {
                 Button("확인", role: .cancel) {}
             } message: {
@@ -239,17 +239,18 @@ struct HomeView: View {
 
     private var goalCard: some View {
         Button {
+            goalText = account.homeGoal   // 편집 시트 초안을 현재 값으로 시드
             showGoalEditor = true
         } label: {
             VStack(spacing: 6) {
-                if goalText.isEmpty {
+                if account.homeGoal.isEmpty {
                     Text("나의 다짐, 목표를 적어보세요")
                         .font(.tlTitle(17))
                         .foregroundStyle(TL.faint)
                     Text("탭해서 작성")
                         .font(.system(size: 12)).foregroundStyle(TL.faint)
                 } else {
-                    Text(goalText)
+                    Text(account.homeGoal)
                         .font(.tlTitle(18))
                         .foregroundStyle(TL.paper)
                         .multilineTextAlignment(.center)
@@ -266,14 +267,7 @@ struct HomeView: View {
         .pressableStyle()
     }
 
-    private var goalKey: String { "homeGoal.\(account.currentUserID)" }
-    private var goalUpdatedKey: String { "homeGoalUpdatedAt.\(account.currentUserID)" }
-    private func loadGoal() { goalText = UserDefaults.standard.string(forKey: goalKey) ?? "" }
-    private func saveGoal() {
-        UserDefaults.standard.set(goalText, forKey: goalKey)
-        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: goalUpdatedKey)
-        account.mirrorHomeGoal(goalText)   // 크로스 기기 동기화
-    }
+    // 다짐 저장/로드/동기화는 AccountStore(homeGoal published)로 일원화 — 여기선 편집 초안(goalText)만 다룬다.
 
     // MARK: 지금 바로 시작
 
