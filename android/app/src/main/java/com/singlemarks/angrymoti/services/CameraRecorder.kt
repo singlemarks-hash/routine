@@ -282,10 +282,14 @@ object CameraRecorder {
                     Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
                 } else raw
                 encoder?.let { e ->
+                    val before = e.frameCount
                     runCatching { e.addFrame(bitmap) }
                         .onFailure { android.util.Log.e("AngryMoti", "addFrame failed", it) }
                     frameCount.value = e.frameCount
-                    lastFrameAt = System.currentTimeMillis()   // 실제 인코딩된 시각 갱신
+                    // 프레임이 실제로 인코딩됐을 때만 정지 감지 기준 시각을 갱신한다.
+                    // 인코더가 막히거나(버퍼 busy) 실패하면 lastFrameAt이 멈춰 isCaptureStalled()가
+                    // 정상 작동 → #12의 '카메라 장애=무효' 경로가 동작한다 (iOS는 성공 append에서만 갱신).
+                    if (e.frameCount > before) lastFrameAt = System.currentTimeMillis()
                 }
             }
         }
