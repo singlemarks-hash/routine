@@ -92,7 +92,7 @@ final class SessionEngine: NSObject, ObservableObject {
 
         session.startedAt = .now
         context.insert(session)
-        try? context.save()
+        persist(context, "세션 시작 기록")
 
         do {
             try CameraRecorder.shared.startRecording(sessionID: session.id, orientation: orientation,
@@ -147,10 +147,12 @@ final class SessionEngine: NSObject, ObservableObject {
             return
         }
         guard phase == .recording else { return }
-        // 촬영 신호 점검 — 프레임이 끊기면(카메라 미개시·인터럽션·저장 실패) 벽시계로 헛돌지 않도록
-        // 안전 종료한다. 실제 촬영 없이 완주(만점)로 오인하는 것을 원천 차단 (벌점 없음, 촬영분 보존).
+        // 촬영 신호 점검 — 프레임이 끊기면(제어센터·타앱·카메라 뺏김 등 캡처 인터럽션) 이탈로 처리한다(#12).
+        // 단 배터리/저장공간이 원인이면 사용자 잘못이 아니므로 무벌점 안전종료(#11). 어느 쪽이든
+        // '실제 촬영 없이 완주(만점)'로 오인하는 것은 막는다.
         if Date().timeIntervalSince(CameraRecorder.shared.lastFrameAt) > CameraRecorder.shared.captureStallLimit {
-            safetyEnd(note: "촬영 신호 끊김")
+            checkSafety()                          // 배터리/저장공간 문제면 무벌점 안전종료
+            if !isFinalizing { handleExitEvent() } // 그 외 인터럽션은 이탈 — 매운맛 긴급용무·미친맛 즉시 실패
             return
         }
         // 표시·완주 판정용 촬영 시간은 틱(1초)으로 센다.
@@ -454,6 +456,18 @@ final class SessionEngine: NSObject, ObservableObject {
         }
     }
 
+    /// 점수·결과 저장 실패(디스크 등)를 조용히 삼키지 않는다(#20) — 로그로 표면화한다.
+    /// 실패하면 outcome이 영속되지 않아 세션이 오펀으로 남고, 다음 실행에서 recoverOrphanIfNeeded가
+    /// 재판정(무효 처리)한다. (안드로이드가 실패를 로그로 남기는 것과 통일)
+    @discardableResult
+    private func persist(_ context: ModelContext, _ note: String) -> Bool {
+        do { try context.save(); return true }
+        catch {
+            print("⚠️ [TimeLock] 저장 실패 — \(note): \(error.localizedDescription)")
+            return false
+        }
+    }
+
     private func finalize(session s: FocusSession, outcome: SessionOutcome, note: String?) {
         guard let context = modelContext else { return }
         s.outcome = outcome
@@ -477,7 +491,7 @@ final class SessionEngine: NSObject, ObservableObject {
             awardSlotBonusIfTierCrossed(session: s, context: context)
             awardUnlockBonusIfJustUnlocked(session: s, context: context)
         }
-        try? context.save()
+        persist(context, "세션 결과·점수 확정")
         AccountStore.shared.mirrorSession(s)   // 세션 요약 클라우드 미러 (기기 변경 시 진척 보존)
 
         // 결과 데이터를 모두 준비한 뒤에 딱 한 번 phase를 바꾸고, 라우팅 콜백을 쏜다.
@@ -605,7 +619,7 @@ final class SessionEngine: NSObject, ObservableObject {
                 existing.insert(key)
             }
         }
-        try? context.save()
+        persist(context, "노쇼 스위프 기록")
     }
 
     /// 앱 재실행 시, 종료되지 못한 세션(킬/크래시)을 판별해 기록한다.
@@ -641,7 +655,7 @@ final class SessionEngine: NSObject, ObservableObject {
             AccountStore.shared.mirror(event: event)
             reportGroupScoreIfNeeded(session: orphan, points: points, context: context)
         }
-        try? context.save()
+        persist(context, "오펀 세션 복구 기록")
         AccountStore.shared.mirrorSession(orphan)   // 복구된 세션 요약도 클라우드 미러
         // 크래시로 남은 파셜 영상은 재생 불가(moov 미기록)하고 어떤 세션도 참조하지 않는다 —
         // 디스크만 차지하므로 정리한다.
