@@ -42,7 +42,13 @@ object AppState {
 
     fun bootstrap() {
         onboarded.value = Prefs.onboarded
-        intensity.value = Intensity.from(Prefs.intensityRaw)
+        reloadForAccount()
+    }
+
+    /** 계정 전환(로그인·로그아웃·게스트) 시 그 계정의 강도·하향예약을 다시 불러온다 (#19 — 강도 계정별) */
+    fun reloadForAccount() {
+        intensity.value = Intensity.from(Prefs.intensityRaw(AccountStore.currentUserID))
+        applyPendingDowngradeIfDue()
     }
 
     fun completeOnboarding() {
@@ -58,10 +64,11 @@ object AppState {
 
     /** 상향은 즉시, 하향은 다음날 0시 적용 (당일 회피 방지) */
     fun requestIntensityChange(target: Intensity) {
+        val owner = AccountStore.currentUserID
         if (target == Intensity.INSANE) {
             if (!insaneUnlocked) return
-            Prefs.intensityRaw = target.raw
-            Prefs.pendingDowngradeAt = 0
+            Prefs.setIntensityRaw(owner, target.raw)
+            Prefs.setPendingDowngradeAt(owner, 0)
             intensity.value = target
         } else {
             if (intensity.value == Intensity.SPICY) return
@@ -70,17 +77,19 @@ object AppState {
                 set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
                 set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
             }.timeInMillis
-            Prefs.pendingDowngradeAt = midnight
+            Prefs.setPendingDowngradeAt(owner, midnight)
         }
     }
 
-    val pendingDowngrade: Boolean get() = Prefs.pendingDowngradeAt > System.currentTimeMillis()
+    val pendingDowngrade: Boolean
+        get() = Prefs.pendingDowngradeAt(AccountStore.currentUserID) > System.currentTimeMillis()
 
     fun applyPendingDowngradeIfDue() {
-        val at = Prefs.pendingDowngradeAt
+        val owner = AccountStore.currentUserID
+        val at = Prefs.pendingDowngradeAt(owner)
         if (at in 1..System.currentTimeMillis()) {
-            Prefs.intensityRaw = Intensity.SPICY.raw
-            Prefs.pendingDowngradeAt = 0
+            Prefs.setIntensityRaw(owner, Intensity.SPICY.raw)
+            Prefs.setPendingDowngradeAt(owner, 0)
             intensity.value = Intensity.SPICY
         }
     }

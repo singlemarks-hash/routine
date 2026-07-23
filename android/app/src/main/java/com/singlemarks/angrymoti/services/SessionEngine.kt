@@ -421,7 +421,7 @@ object SessionEngine {
         val db = AppDb.get(appContext)
         val owner = AccountStore.currentUserID
         val reservations = db.reservations().active(owner)
-        val intensity = Intensity.from(Prefs.intensityRaw)
+        val intensity = Intensity.from(Prefs.intensityRaw(owner))
         val now = System.currentTimeMillis()
         val grace = TimePolicy.START_WINDOW_SECONDS * 1000
 
