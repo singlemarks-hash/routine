@@ -72,7 +72,9 @@ fun HomeShell() {
     var pendingGroupRoomId by remember { mutableStateOf<String?>(null) }   // 일정→그룹방 직접 진입
     var showQuickStart by remember { mutableStateOf(false) }
     var showGoalEditor by remember { mutableStateOf(false) }
-    var goalText by remember { mutableStateOf(com.singlemarks.angrymoti.data.Prefs.homeGoal(owner)) }
+    // 다짐 문구는 AccountStore flow를 구독 — 계정 전환·다른 기기 동기화가 즉시 반영된다
+    val goalText by AccountStore.homeGoal.collectAsState()
+    LaunchedEffect(owner) { AccountStore.reloadHomeGoal() }   // 계정 전환·최초 진입 시 로컬값 로드
 
     // 뒤로가기: 홈이 아닌 화면에서는 홈으로 복귀, 홈에서는 시스템 기본 동작(배경으로) 그대로 둔다
     BackHandler(enabled = nav != HomeNav.Home) { nav = HomeNav.Home }
@@ -222,9 +224,7 @@ fun HomeShell() {
                 )
                 Spacer(Modifier.height(16.dp))
                 TLPrimaryButton("저장") {
-                    goalText = draft.trim()
-                    com.singlemarks.angrymoti.data.Prefs.setHomeGoal(owner, goalText)
-                    AccountStore.mirrorHomeGoal(goalText)   // 크로스 기기 동기화
+                    AccountStore.saveHomeGoal(draft.trim())   // 로컬+flow+클라우드 한 번에
                     showGoalEditor = false
                 }
             }

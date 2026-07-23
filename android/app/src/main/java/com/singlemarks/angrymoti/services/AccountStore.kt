@@ -27,6 +27,10 @@ object AccountStore {
     val user = MutableStateFlow<UserInfo?>(null)
     val pendingVerificationEmail = MutableStateFlow<String?>(null)
 
+    /** 홈 다짐(목표) 문구 — 편집·클라우드 병합·계정 전환이 모두 이 값을 갱신하고 홈이 구독한다.
+     *  (예전엔 홈이 Prefs를 1회만 읽어 계정 전환·동기화가 화면에 반영되지 않았다) */
+    val homeGoal = MutableStateFlow("")
+
     val firebaseAvailable: Boolean
         get() = FirebaseApp.getApps(appContext).isNotEmpty()
 
@@ -207,7 +211,20 @@ object AccountStore {
         else if (localUnlock && !cloudUnlock) mirrorUnlockBonusAwarded(uid)
     }
 
-    /** 홈 다짐(목표) 문구 업로드 — 마이페이지 편집 저장 시 호출 */
+    /** 현재 계정의 다짐 문구를 Prefs에서 다시 읽어 flow에 반영 (계정 전환·앱 시작 시 호출) */
+    fun reloadHomeGoal() {
+        homeGoal.value = com.singlemarks.angrymoti.data.Prefs.homeGoal(currentUserID)
+    }
+
+    /** 홈 다짐 편집 저장 — 로컬 저장 + flow 즉시 반영 + 클라우드 업로드를 한 번에 */
+    fun saveHomeGoal(text: String) {
+        val uid = currentUserID
+        com.singlemarks.angrymoti.data.Prefs.setHomeGoal(uid, text)
+        homeGoal.value = text
+        mirrorHomeGoal(text)
+    }
+
+    /** 홈 다짐(목표) 문구 업로드 — 편집 저장 시 호출 */
     fun mirrorHomeGoal(text: String) {
         val uid = currentUserID
         if (!firebaseAvailable || uid == "guest") return
@@ -230,6 +247,7 @@ object AccountStore {
         val localUpdated = com.singlemarks.angrymoti.data.Prefs.homeGoalUpdatedAt(uid)
         if (cloudUpdated > localUpdated) {
             com.singlemarks.angrymoti.data.Prefs.setHomeGoal(uid, cloudText, cloudUpdated)
+            homeGoal.value = cloudText   // 화면 즉시 반영
         } else if (localUpdated > cloudUpdated) {
             mirrorHomeGoal(com.singlemarks.angrymoti.data.Prefs.homeGoal(uid))
         }
