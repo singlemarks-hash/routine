@@ -10,6 +10,7 @@
 
 import SwiftUI
 import SwiftData
+import StoreKit   // CheerDeveloperView의 @Environment(\.requestReview)에 필요
 
 // MARK: - 마이페이지 (메뉴 허브)
 
