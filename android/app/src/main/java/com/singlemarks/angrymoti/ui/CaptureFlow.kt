@@ -655,33 +655,7 @@ fun SessionScreen() {
             }
         }
 
-        // 통화 일시정지 오버레이 — 긴급용무와 같은 10분 예산 카운트다운
-        (phase as? SessionEngine.Phase.PausedForCall)?.let { pc ->
-            var left by remember(pc.deadline) { mutableIntStateOf(0) }
-            LaunchedEffect(pc.deadline) {
-                while (true) {
-                    left = ((pc.deadline - System.currentTimeMillis()) / 1000).toInt().coerceAtLeast(0)
-                    delay(500)
-                }
-            }
-            Box(Modifier.fillMaxSize().background(TL.ink.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 28.dp)) {
-                    Text("📞", fontSize = 40.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Text("통화 중 — 일시정지", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                    Spacer(Modifier.height(10.dp))
-                    Text(TLFormat.hms(left.toLong()),
-                        color = if (left <= 60) TL.rec else TL.amber,
-                        fontSize = 40.sp, fontWeight = FontWeight.Black)
-                    Spacer(Modifier.height(8.dp))
-                    Text("긴급용무와 같은 10분 예산을 함께 씁니다.\n예산 안에 통화를 끝내면 자동 재개, 넘기면 벌점과 함께 종료됩니다.",
-                        color = TL.muted, fontSize = 13.sp, textAlign = TextAlign.Center, lineHeight = 19.sp)
-                }
-            }
-        }
-
-        // 긴급 용무 브레이크 오버레이 — 재촬영 카운트다운
+        // 긴급 용무 브레이크 오버레이 — 재촬영 카운트다운 (통화도 백그라운드 이탈로 이 화면에 진입)
         (phase as? SessionEngine.Phase.PausedForBreak)?.let { p ->
             var left by remember(p.deadline) { mutableIntStateOf(0) }
             LaunchedEffect(p.deadline) {

@@ -1,16 +1,9 @@
 package com.singlemarks.angrymoti.services
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.BatteryManager
-import android.os.Build
 import android.os.StatFs
-import android.telephony.PhoneStateListener
-import android.telephony.TelephonyCallback
-import android.telephony.TelephonyManager
-import androidx.core.content.ContextCompat
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.FocusSession
 import com.singlemarks.angrymoti.data.Prefs
@@ -42,8 +35,6 @@ object SessionEngine {
         data object Idle : Phase()
         data object Recording : Phase()
         data class PausedForBreak(val deadline: Long) : Phase()
-        // 통화도 '앵그리모드 미사용'이므로 긴급용무와 동일한 10분 예산·마감(deadline)을 갖는다.
-        data class PausedForCall(val deadline: Long) : Phase()
         data class Finished(val outcome: SessionOutcome) : Phase()
     }
 
@@ -65,9 +56,6 @@ object SessionEngine {
     private var isFinalizing = false
     private var safetyCounter = 0
     private var breakWarnPosted = false
-
-    @Volatile private var isCallActive = false
-    private var telephonyCallback: Any? = null
 
     private lateinit var appContext: Context
     fun init(context: Context) { appContext = context.applicationContext }
@@ -103,7 +91,6 @@ object SessionEngine {
         absencePenaltyApplied = false
         absenceEpisodeCount.value = 0
         breakBudgetRemaining.value = TimePolicy.RESUME_WINDOW_SECONDS
-        isCallActive = false
         isFinalizing = false
         safetyCounter = 0
         breakWarnPosted = false
@@ -111,9 +98,7 @@ object SessionEngine {
 
         Prefs.activeSessionId = s.id
         Prefs.breakDeadline = 0
-        Prefs.callActive = false
 
-        startCallObserver()
         startTick()
         SessionService.start(appContext)
     }
@@ -145,29 +130,7 @@ object SessionEngine {
             if (remain <= 0) failBreakExpired(s)
             return
         }
-
-        // 통화 일시정지 — '앵그리모드 미사용'이므로 긴급용무와 같은 10분 예산 안에서만 허용.
-        // 권한 없어도 AudioManager로 감지(#21). 예산 초과 시 실패, 통화가 예산 안에 끝나면 자동 재개.
-        if (p is Phase.PausedForCall) {
-            val remain = p.deadline - System.currentTimeMillis()
-            if (!breakWarnPosted && remain in 1..120_000) {   // 마감 2분 전 경고
-                breakWarnPosted = true
-                AlarmScheduler.postStatus(appContext, 2001, "통화 2분 남음",
-                    "2분 안에 통화를 끝내지 않으면 세션이 실패로 기록됩니다.")
-            }
-            if (remain <= 0) { failBreakExpired(s); return }
-            if (!isPhoneCallActive()) {   // 통화 종료 → 남은 예산 반영하고 자동 재개
-                breakBudgetRemaining.value = (remain / 1000).coerceAtLeast(0)
-                CameraRecorder.resume()
-                breakWarnPosted = false
-                Prefs.breakDeadline = 0
-                Prefs.callActive = false
-                phase.value = Phase.Recording
-            }
-            return
-        }
         if (p != Phase.Recording) return
-        if (isPhoneCallActive()) { enterCallPause(s); return }   // 통화 시작 → 10분 예산 일시정지
 
         // 촬영 신호 점검 — 프레임이 끊기면(카메라 미개시·인터럽션·저장 실패) 벽시계로 헛돌지 않도록
         // 안전 종료한다. 실제 촬영 없이 완주(만점)로 오인하는 것을 원천 차단 (벌점 없음, 촬영분 보존).
@@ -290,24 +253,13 @@ object SessionEngine {
         startBreak()
     }
 
-    // MARK: 이탈 이벤트 (백그라운드/화면 잠금) — 통화 중이면 무시
-
-    /** 권한 없이 통화 감지 — READ_PHONE_STATE가 거부되면 TelephonyCallback이 안 붙어 isCallActive가
-     *  항상 false다. AudioManager.mode는 권한 불필요하므로, 수신 벨(RINGTONE)·통화중(IN_CALL)·
-     *  VoIP 통화(IN_COMMUNICATION, 예: 카카오 보이스톡·줌)일 때 이를 폴백으로 본다.
-     *  이게 없으면 권한 거부 사용자는 걸려온 전화가 '이탈'로 오인돼 미친맛 세션이 부당하게
-     *  실패 처리되고(#21), 통화 일시정지 오버레이도 안 뜬다. iOS는 CallKit이 권한 불필요라 원래 안전. */
-    private fun isPhoneCallActive(): Boolean {
-        if (isCallActive) return true
-        val am = appContext.getSystemService(android.media.AudioManager::class.java) ?: return false
-        return am.mode == android.media.AudioManager.MODE_IN_CALL ||
-            am.mode == android.media.AudioManager.MODE_IN_COMMUNICATION ||
-            am.mode == android.media.AudioManager.MODE_RINGTONE
-    }
+    // MARK: 이탈 이벤트 (백그라운드/화면 잠금)
+    // 통화도 '앵그리모드 미사용'이므로 예외 두지 않는다 — 전화가 오면 앱이 백그라운드로 내려가
+    // 이 경로를 타고 매운맛은 긴급용무(수동 재개), 미친맛은 즉시 실패로 처리된다.
 
     fun handleExitEvent() {
         val s = session ?: return
-        if (isFinalizing || isPhoneCallActive()) return
+        if (isFinalizing) return
         when (s.intensity) {
             Intensity.SPICY -> if (phase.value == Phase.Recording) startBreak()
             Intensity.INSANE -> {
@@ -333,7 +285,7 @@ object SessionEngine {
         val s = session ?: return
         if (isFinalizing) return
         val p = phase.value
-        if (p != Phase.Recording && p !is Phase.PausedForBreak && p !is Phase.PausedForCall) return
+        if (p != Phase.Recording && p !is Phase.PausedForBreak) return
         isFinalizing = true
         scope.launch(Dispatchers.IO) {
             val result = CameraRecorder.stopPreservingFootage(appContext)
@@ -361,49 +313,6 @@ object SessionEngine {
             val result = CameraRecorder.stopPreservingFootage(appContext)
             finalize(applyRecording(s, result), SessionOutcome.SAFETY_ENDED, note)
         }
-    }
-
-    // MARK: 통화 — 벌점 없는 일시정지 / 자동 재개
-
-    private fun startCallObserver() {
-        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.READ_PHONE_STATE)
-            != PackageManager.PERMISSION_GRANTED) return
-        val tm = appContext.getSystemService(TelephonyManager::class.java)
-        if (Build.VERSION.SDK_INT >= 31) {
-            val cb = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
-                override fun onCallStateChanged(state: Int) { onCallState(state) }
-            }
-            telephonyCallback = cb
-            tm.registerTelephonyCallback(ContextCompat.getMainExecutor(appContext), cb)
-        } else {
-            @Suppress("DEPRECATION")
-            tm.listen(object : PhoneStateListener() {
-                @Deprecated("Deprecated in Java")
-                override fun onCallStateChanged(state: Int, phoneNumber: String?) { onCallState(state) }
-            }, PhoneStateListener.LISTEN_CALL_STATE)
-        }
-    }
-
-    /** 통화 시작 → 긴급용무와 같은 10분 예산으로 일시정지. 예산이 이미 소진됐으면 즉시 실패. */
-    private fun enterCallPause(s: FocusSession) {
-        val budget = breakBudgetRemaining.value
-        if (budget < 1) { failBreakExpired(s); return }
-        val deadline = System.currentTimeMillis() + budget * 1000
-        CameraRecorder.pause()
-        breakWarnPosted = false
-        Prefs.breakDeadline = deadline   // 크래시로 앱이 죽어도 통화 예산이 이어지도록(복구=이탈 실패)
-        Prefs.callActive = true
-        phase.value = Phase.PausedForCall(deadline)
-    }
-
-    private fun onCallState(state: Int) {
-        val active = state != TelephonyManager.CALL_STATE_IDLE
-        if (active == isCallActive) return
-        isCallActive = active
-        if (session == null || isFinalizing) return
-        val s = session ?: return
-        // 셀룰러 통화는 즉시 예산 일시정지로 진입. 종료·마감·자동재개는 틱이 공통 처리(VoIP·권한없음과 통일).
-        if (active && phase.value == Phase.Recording) enterCallPause(s)
     }
 
     // MARK: 확정
@@ -492,12 +401,9 @@ object SessionEngine {
         AlarmScheduler.sessionMuted = false
         AlarmScheduler.restoreDndIfNeeded(appContext)   // 세션이 켰던 방해 금지 자동 해제
         tickJob?.cancel(); tickJob = null
-        telephonyCallback = null
-        isCallActive = false
         isFinalizing = false
         Prefs.activeSessionId = null
         Prefs.breakDeadline = 0
-        Prefs.callActive = false
         session = null
         SessionService.stop(appContext)
         CameraRecorder.releaseCamera(appContext)
@@ -625,6 +531,5 @@ object SessionEngine {
         CameraRecorder.deleteFiles(appContext, "${orphan.id}.mp4", "${orphan.id}.jpg")
         Prefs.activeSessionId = null
         Prefs.breakDeadline = 0
-        Prefs.callActive = false
     }
 }

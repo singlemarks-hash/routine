@@ -75,15 +75,9 @@ fun OnboardingFlow() {
                     Text("🔔  알림", color = TL.paper, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Text("예약한 활동 시각에 알람을 울리기 위해 필요해요.", color = TL.muted, fontSize = 13.sp)
                 }
-                Spacer(Modifier.height(12.dp))
-                TLCard {
-                    Text("📞  전화 상태 (선택)", color = TL.paper, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("촬영 중 전화가 오면 벌점 없이 자동으로 일시정지해 드려요.",
-                        color = TL.muted, fontSize = 13.sp)
-                }
                 Spacer(Modifier.weight(1f))
                 TLPrimaryButton("권한 허용하기") {
-                    val perms = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.READ_PHONE_STATE)
+                    val perms = mutableListOf(Manifest.permission.CAMERA)
                     if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
                     permissionLauncher.launch(perms.toTypedArray())
                 }
