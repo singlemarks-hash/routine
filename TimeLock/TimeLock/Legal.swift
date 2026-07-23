@@ -34,27 +34,6 @@ enum Legal {
     }
 }
 
-/// 앱 후기 요청 관리 — 완주 N회 도달 시 시스템 평점 프롬프트를 1회 자동 노출한다.
-/// (Apple 가이드라인: 커스텀 버튼으로 표준 프롬프트를 강제하지 말 것 → 자연스러운 시점에 자동 호출)
-enum ReviewPrompt {
-    private static let countKey = "reviewCompletionCount"
-    private static let askedKey = "reviewAsked"
-    static let threshold = 3
-
-    /// 완주 성공 시 호출. 임계치 도달 & 아직 요청 안 했으면 true(요청해야 함) 반환.
-    static func registerCompletionAndShouldAsk() -> Bool {
-        let d = UserDefaults.standard
-        if d.bool(forKey: askedKey) { return false }
-        let n = d.integer(forKey: countKey) + 1
-        d.set(n, forKey: countKey)
-        if n >= threshold {
-            d.set(true, forKey: askedKey)
-            return true
-        }
-        return false
-    }
-}
-
 /// 이용약관·개인정보처리방침 링크 한 줄. 구독을 노출하는 화면에 공통으로 붙인다.
 struct LegalLinksRow: View {
     var body: some View {

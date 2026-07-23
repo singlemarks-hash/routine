@@ -104,6 +104,21 @@ private struct PermissionStep: View {
             }
             .padding(.top, 28)
 
+            // 저장공간 부족 경고 — 촬영 중단이 이탈로 간주될 수 있음을 미리 고지
+            TLCard {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text("💾").font(.system(size: 16))
+                        Text("저장공간 용량 확인")
+                            .font(.tlTitle(15)).foregroundStyle(TL.paper)
+                    }
+                    Text("저장공간이 부족하여 중간에 타임랩스가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 미리 충분한 저장공간을 꼭 확보해 주세요.")
+                        .font(.system(size: 13)).foregroundStyle(TL.amber)
+                        .lineSpacing(3)
+                }
+            }
+            .padding(.top, 12)
+
             if cameraGranted == false || notifGranted == false {
                 Text("거부된 권한은 iPhone 설정 › 앵그리모티에서 다시 켤 수 있습니다. 권한 없이는 알람 해제와 세션 기록이 동작하지 않습니다.")
                     .font(.system(size: 13))

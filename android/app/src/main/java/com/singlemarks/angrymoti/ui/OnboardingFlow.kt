@@ -75,6 +75,14 @@ fun OnboardingFlow() {
                     Text("🔔  알림", color = TL.paper, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Text("예약한 활동 시각에 알람을 울리기 위해 필요해요.", color = TL.muted, fontSize = 13.sp)
                 }
+                Spacer(Modifier.height(12.dp))
+                // 저장공간 부족 경고 — 촬영 중단이 이탈로 간주될 수 있음을 미리 고지
+                TLCard {
+                    Text("💾  저장공간 용량 확인", color = TL.paper, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("저장공간이 부족하여 중간에 타임랩스가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 미리 충분한 저장공간을 꼭 확보해 주세요.",
+                        color = TL.amber, fontSize = 13.sp, lineHeight = 19.sp)
+                }
                 Spacer(Modifier.weight(1f))
                 TLPrimaryButton("권한 허용하기") {
                     val perms = mutableListOf(Manifest.permission.CAMERA)

@@ -799,15 +799,7 @@ fun SessionResultScreen() {
     val session = s ?: return
     val outcome = session.outcome ?: return
     var pop by remember { mutableStateOf(false) }
-    var showReview by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        pop = true
-        // 완주를 반복 경험한 사용자에게만 자연스러운 시점에 1회 리뷰 유도
-        if (outcome.isSuccess &&
-            com.singlemarks.angrymoti.data.Prefs.registerCompletionAndShouldAskReview()) {
-            showReview = true
-        }
-    }
+    LaunchedEffect(Unit) { pop = true }
     val scale by animateFloatAsState(if (pop) 1f else 0.45f, tween(500), label = "pop")
 
     var showPlayer by remember { mutableStateOf(false) }
@@ -973,38 +965,6 @@ fun SessionResultScreen() {
             Spacer(Modifier.height(18.dp))
         }
     }
-
-    if (showReview) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showReview = false },
-            containerColor = TL.surface,
-            title = { Text("앵그리모티가 도움이 되었나요?", color = TL.paper, fontWeight = FontWeight.Black) },
-            text = { Text("별점 한 줄이 다음 기능을 만드는 가장 큰 힘이 돼요. 잠깐이면 충분해요!",
-                color = TL.muted) },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    showReview = false
-                    openPlayStoreReview(context)
-                }) { Text("리뷰 남기기", color = TL.jade, fontWeight = FontWeight.Black) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showReview = false }) {
-                    Text("다음에", color = TL.muted)
-                }
-            },
-        )
-    }
-}
-
-/** Play 스토어 리뷰 페이지로 이동 — market:// 우선, 실패 시 https 폴백 */
-private fun openPlayStoreReview(context: android.content.Context) {
-    val pkg = context.packageName
-    val market = android.content.Intent(android.content.Intent.ACTION_VIEW,
-        android.net.Uri.parse("market://details?id=$pkg"))
-    val web = android.content.Intent(android.content.Intent.ACTION_VIEW,
-        android.net.Uri.parse("https://play.google.com/store/apps/details?id=$pkg"))
-    runCatching { context.startActivity(market) }
-        .onFailure { runCatching { context.startActivity(web) } }
 }
 
 private fun saveToGallery(context: android.content.Context, file: File): Boolean {
