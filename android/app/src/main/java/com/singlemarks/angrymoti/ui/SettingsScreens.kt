@@ -74,6 +74,7 @@ fun MyPageScreen(onBack: () -> Unit) {
         "profile" -> { ProfileEditScreen(onBack = { sub = "menu" }, openPaywall = { sub = "paywall" }); return }
         "intensity" -> { IntensityScreen(onBack = { sub = "menu" }); return }
         "paywall" -> { PaywallScreen(onBack = { sub = "menu" }); return }
+        "cheer" -> { CheerDeveloperScreen(onBack = { sub = "menu" }, openPaywall = { sub = "paywall" }); return }
         "ledger" -> { LedgerScreen(onBack = { sub = "menu" }); return }
         "privacy" -> { PrivacyScreen(onBack = { sub = "menu" }); return }
     }
@@ -93,7 +94,7 @@ fun MyPageScreen(onBack: () -> Unit) {
         IconMenuRow(AppIcon.Headphones, "고객센터") {
             context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:singlemarks@gmail.com")))
         }
-        IconMenuRow(AppIcon.Heart, "개발자 응원하기") { sub = "paywall" }
+        IconMenuRow(AppIcon.Heart, "개발자 응원하기") { sub = "cheer" }
 
         androidx.compose.material3.HorizontalDivider(
             color = TL.hairline, modifier = Modifier.padding(vertical = 18.dp))
@@ -329,6 +330,13 @@ fun PaywallScreen(onBack: () -> Unit) {
         }
         Image(painterResource(R.drawable.moti_member), null, Modifier.size(140.dp))
         Text("앵그리모티 멤버십", color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        SubscriptionManager.freeTrialLabel?.let { trial ->
+            Spacer(Modifier.height(12.dp))
+            Text(trial, color = TL.jade, fontSize = 14.sp, fontWeight = FontWeight.Black,
+                modifier = Modifier
+                    .background(TL.jade.copy(alpha = 0.14f), androidx.compose.foundation.shape.RoundedCornerShape(50))
+                    .padding(horizontal = 14.dp, vertical = 6.dp))
+        }
         Spacer(Modifier.height(20.dp))
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Benefit("활동 슬롯 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 시작 (무료는 2개)")
@@ -341,7 +349,10 @@ fun PaywallScreen(onBack: () -> Unit) {
         if (isPro) {
             Text("멤버십 사용 중이에요 👑", color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         } else if (product != null) {
-            TLPrimaryButton("${SubscriptionManager.displayPrice} / 월 구독하기", tint = TL.jade) {
+            val label = if (SubscriptionManager.freeTrialLabel != null)
+                "무료로 시작하기 · 이후 ${SubscriptionManager.displayPrice}/월"
+            else "${SubscriptionManager.displayPrice} / 월 구독하기"
+            TLPrimaryButton(label, tint = TL.jade) {
                 (context as? Activity)?.let { SubscriptionManager.purchase(it) }
             }
         } else {
@@ -370,6 +381,56 @@ private fun Benefit(text: String) {
         Text("✓", color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.width(10.dp))
         Text(text, color = TL.paper, fontSize = 14.sp)
+    }
+}
+
+/** 개발자 응원하기 — 리뷰 유도 + 멤버십 후원 안내 + 문의 */
+@Composable
+fun CheerDeveloperScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
+    val context = LocalContext.current
+    fun openReview() {
+        val pkg = context.packageName
+        val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))
+        val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg"))
+        runCatching { context.startActivity(market) }
+            .onFailure { runCatching { context.startActivity(web) } }
+    }
+
+    Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
+        TLScreenHeader("개발자 응원하기", onBack = onBack)
+
+        TLCard {
+            Text("앵그리모티는 1인 개발로 만들어가고 있어요", color = TL.paper,
+                fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("여러분의 별점 한 줄이 다음 기능을 만드는 가장 큰 힘이 됩니다. 잠깐이면 충분해요!",
+                color = TL.muted, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        TLPrimaryButton("⭐  Play 스토어에 별점·후기 남기기", tint = TL.amber) { openReview() }
+
+        Spacer(Modifier.height(18.dp))
+        TLCard {
+            Text("더 든든하게 응원하고 싶다면", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("앵그리모티 멤버십을 이용하면 개발을 직접 후원하면서 슬롯·워터마크 제거·미친 매운맛 같은 혜택도 함께 받을 수 있어요.",
+                color = TL.muted, fontSize = 13.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("멤버십 보러가기", color = TL.jade, fontSize = 14.sp, fontWeight = FontWeight.Black,
+                modifier = Modifier.clickable { openPaywall() }.padding(vertical = 4.dp))
+        }
+        Spacer(Modifier.height(12.dp))
+        TLCard {
+            Text("문의·제안", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("singlemarks@gmail.com 으로 메일 보내기", color = TL.jade, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable {
+                    context.startActivity(Intent(Intent.ACTION_SENDTO,
+                        Uri.parse("mailto:singlemarks@gmail.com")))
+                }.padding(vertical = 4.dp))
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }
 

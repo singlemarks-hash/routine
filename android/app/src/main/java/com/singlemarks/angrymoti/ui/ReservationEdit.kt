@@ -113,6 +113,12 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     /** 시작 30분 전 편집 잠금 */
     val isLocked = existing?.nextOccurrence()?.let { it - System.currentTimeMillis() <= 30 * 60_000L } == true
 
+    /** 슬롯 초과(강등·연속 하락) — 보유 예약이 허용치를 넘으면 편집 잠그고 삭제만 허용(읽기 전용) */
+    val overSlotLimit = allowed != null && used > allowed
+    val editReadOnly = existing != null && overSlotLimit
+    /** 입력 필드·저장 잠금 = 시작 임박 ∨ 슬롯 초과 읽기 전용 (삭제는 예외로 isLocked만 적용) */
+    val fieldLocked = isLocked || editReadOnly
+
     val timeState = rememberTimePickerState(
         initialHour = startMinute / 60, initialMinute = startMinute % 60, is24Hour = false)
 
@@ -126,11 +132,13 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             Text(if (existing == null) "활동 예약" else "예약 편집",
                 color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
-            TLPillButton("저장", tint = TL.rec, enabled = !isLocked, onClick = save@{
+            TLPillButton("저장", tint = TL.rec, enabled = !fieldLocked, onClick = save@{
                     // 검증 — 오류는 최상단에 즉시 표시
                     val finalName = name.trim()
                     val finalTag = customTag.trim().ifEmpty { tag }
                     val sm = timeState.hour * 60 + timeState.minute
+                    // 슬롯 초과 읽기 전용 — 편집 저장 차단(삭제만 허용). 버튼도 비활성이지만 백스톱.
+                    if (editReadOnly) { error = "슬롯 한도를 초과해 편집이 잠겼어요. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."; return@save }
                     if (finalName.isEmpty()) { error = "활동명을 입력해주세요."; return@save }
                     if (slotFull) { error = "활동 슬롯이 가득 찼어요. 연속 달성일을 쌓으면 슬롯이 늘어나요."; return@save }
                     val overlap = allReservations.any { other ->
@@ -185,6 +193,12 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                         .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
             }
+            if (editReadOnly) {
+                Text("활동 슬롯이 ${allowed}개로 줄어 보유한 예약이 한도를 넘었어요. 초과한 동안에는 편집이 잠기고 삭제만 할 수 있어요. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요.",
+                    color = TL.amber, fontSize = 13.sp,
+                    modifier = Modifier.fillMaxWidth()
+                        .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
+            }
 
             // 활동 슬롯 현황 — 터치하면 정책 표 팝업
             Row(
@@ -207,7 +221,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             // ── 활동명 (필수) — 큰 서피스 입력 필드 (iOS 1:1)
             Column {
                 TLEyebrow("활동명 (필수)")
-                TLField(name, { name = it }, "예: 기출문제 3회분", enabled = !isLocked)
+                TLField(name, { name = it }, "예: 기출문제 3회분", enabled = !fieldLocked)
             }
 
             // ── 태그 — 프리셋 칩 + '직접 입력' 필드 (iOS 1:1)
@@ -217,12 +231,12 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     items(ActivityTag.presets.size) { i ->
                         val p = ActivityTag.presets[i]
                         TagChip(p, customTag.isBlank() && tag == p) {
-                            if (!isLocked) { tag = p; customTag = "" }
+                            if (!fieldLocked) { tag = p; customTag = "" }
                         }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                TLField(customTag, { customTag = it }, "직접 입력", enabled = !isLocked)
+                TLField(customTag, { customTag = it }, "직접 입력", enabled = !fieldLocked)
             }
 
             // ── 시작 시각 · 활동 시간 — 한 카드: 값 필 행 + 길이 드롭다운 + 점수 태그 (iOS 1:1)
@@ -235,7 +249,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         Text(TLFormat.timeLabel(timeState.hour * 60 + timeState.minute),
                             color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.background(TL.raised, CircleShape)
-                                .clickable(enabled = !isLocked) { showTimePicker = !showTimePicker }
+                                .clickable(enabled = !fieldLocked) { showTimePicker = !showTimePicker }
                                 .padding(horizontal = 16.dp, vertical = 9.dp))
                     }
                     if (showTimePicker) {
@@ -248,7 +262,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .clickable(enabled = !isLocked) { showDurationMenu = true }
+                                    .clickable(enabled = !fieldLocked) { showDurationMenu = true }
                                     .padding(vertical = 2.dp),
                             ) {
                                 Text(TLFormat.durationLabel(durationMinutes),
@@ -293,7 +307,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         Switch(
                             checked = repeatDays.isNotEmpty(),
                             onCheckedChange = { on ->
-                                if (isLocked) return@Switch
+                                if (fieldLocked) return@Switch
                                 repeatDays = if (on) setOf(2, 3, 4, 5, 6) else emptySet()
                             },
                             colors = SwitchDefaults.colors(checkedTrackColor = TL.jade),
@@ -309,7 +323,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                         modifier = Modifier.size(38.dp)
                                             .background(if (on) TL.paper else TL.raised, CircleShape)
                                             .clickable {
-                                                if (isLocked) return@clickable
+                                                if (fieldLocked) return@clickable
                                                 repeatDays = if (on) repeatDays - d else repeatDays + d
                                             },
                                         contentAlignment = Alignment.Center,
@@ -327,7 +341,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             val day = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
                             Text(dateLabel(day), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.background(TL.raised, CircleShape)
-                                    .clickable(enabled = !isLocked) { showDatePicker = true }
+                                    .clickable(enabled = !fieldLocked) { showDatePicker = true }
                                     .padding(horizontal = 16.dp, vertical = 9.dp))
                         }
                     }

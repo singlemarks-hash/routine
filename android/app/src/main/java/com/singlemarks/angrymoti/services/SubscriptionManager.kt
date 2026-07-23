@@ -100,9 +100,18 @@ object SubscriptionManager : PurchasesUpdatedListener {
         }
     }
 
+    /** 무료 체험 phase(가격 0)를 포함한 오퍼를 우선 선택 — 없으면 첫 오퍼로 폴백.
+     *  (Play Console에서 무료 체험을 등록하지 않으면 기존과 동일하게 첫 오퍼가 쓰인다) */
+    private fun bestOffer(details: ProductDetails): ProductDetails.SubscriptionOfferDetails? {
+        val offers = details.subscriptionOfferDetails ?: return null
+        return offers.firstOrNull { offer ->
+            offer.pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L }
+        } ?: offers.firstOrNull()
+    }
+
     fun purchase(activity: Activity) {
         val details = product.value ?: return
-        val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken ?: return
+        val offerToken = bestOffer(details)?.offerToken ?: return
         val flow = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(
                 listOf(
@@ -136,7 +145,34 @@ object SubscriptionManager : PurchasesUpdatedListener {
         ) {}
     }
 
+    /** 정기 결제가 — 무료 체험 오퍼일 때 첫 phase는 ₩0이므로, 가격이 있는 phase를 골라 표시한다 */
     val displayPrice: String
-        get() = product.value?.subscriptionOfferDetails?.firstOrNull()
-            ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice ?: "₩4,400"
+        get() {
+            val details = product.value ?: return "₩4,400"
+            val phases = bestOffer(details)?.pricingPhases?.pricingPhaseList ?: return "₩4,400"
+            return phases.lastOrNull { it.priceAmountMicros > 0L }?.formattedPrice
+                ?: phases.firstOrNull()?.formattedPrice ?: "₩4,400"
+        }
+
+    /** 무료 체험 문구("첫 14일 무료") — 무료 phase가 없으면 null → 페이월이 기존 문구로 폴백 */
+    val freeTrialLabel: String?
+        get() {
+            val details = product.value ?: return null
+            val trialPhase = bestOffer(details)?.pricingPhases?.pricingPhaseList
+                ?.firstOrNull { it.priceAmountMicros == 0L } ?: return null
+            return isoDurationToKorean(trialPhase.billingPeriod)?.let { "첫 $it 무료" }
+        }
+
+    /** ISO-8601 기간(P14D · P2W · P1M …)을 한국어로 — 파싱 실패 시 null */
+    private fun isoDurationToKorean(period: String): String? {
+        val m = Regex("""P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?""").matchEntire(period) ?: return null
+        val (y, mo, w, d) = m.destructured
+        return when {
+            y.isNotEmpty()  -> "${y}년"
+            mo.isNotEmpty() -> "${mo}개월"
+            w.isNotEmpty()  -> "${w.toInt() * 7}일"
+            d.isNotEmpty()  -> "${d}일"
+            else -> null
+        }
+    }
 }
