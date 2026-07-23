@@ -1,0 +1,45 @@
+{
+  "identifier" : "ANGRYMOTI_LOCAL",
+  "nonRenewingSubscriptions" : [],
+  "products" : [],
+  "settings" : {
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21901001",
+      "localizations" : [],
+      "name" : "AngryMoti Membership",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "4400",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "21901002",
+          "introductoryOffer" : {
+            "internalID" : "21901003",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P2W"
+          },
+          "localizations" : [
+            {
+              "description" : "활동 슬롯 확대 · 워터마크 제거 · 미친 매운맛",
+              "displayName" : "앵그리모티 멤버십",
+              "locale" : "ko_KR"
+            }
+          ],
+          "productID" : "com.timelock.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "AngryMoti Pro Monthly",
+          "subscriptionGroupID" : "21901001",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
