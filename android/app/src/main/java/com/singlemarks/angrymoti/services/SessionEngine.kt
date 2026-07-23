@@ -132,9 +132,14 @@ object SessionEngine {
         }
         if (p != Phase.Recording) return
 
-        // 촬영 신호 점검 — 프레임이 끊기면(카메라 미개시·인터럽션·저장 실패) 벽시계로 헛돌지 않도록
-        // 안전 종료한다. 실제 촬영 없이 완주(만점)로 오인하는 것을 원천 차단 (벌점 없음, 촬영분 보존).
-        if (CameraRecorder.isCaptureStalled()) { safetyEnd("촬영 신호 끊김"); return }
+        // 촬영 신호 점검 — 프레임이 끊기면(제어센터·타앱·카메라 뺏김 등 캡처 인터럽션) 이탈로 처리한다(#12).
+        // 단 배터리/저장공간이 원인이면 사용자 잘못이 아니므로 무벌점 안전종료(#11). 어느 쪽이든
+        // '실제 촬영 없이 완주(만점)'로 오인하는 것은 막는다.
+        if (CameraRecorder.isCaptureStalled()) {
+            checkSafety()                          // 배터리/저장공간 문제면 무벌점 안전종료
+            if (!isFinalizing) handleExitEvent()   // 그 외 인터럽션은 이탈 — 매운맛 긴급용무·미친맛 즉시 실패
+            return
+        }
 
         recordedSeconds.value += 1
 

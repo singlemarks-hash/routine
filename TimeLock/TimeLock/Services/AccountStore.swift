@@ -154,8 +154,7 @@ final class AccountStore: ObservableObject {
                 return
             }
             setUser(UserAccount(id: user.uid, email: user.email,
-                                displayName: user.displayName, provider: provider),
-                    adoptGuestData: false)
+                                displayName: user.displayName, provider: provider))
         }
         #endif
     }
@@ -390,8 +389,7 @@ final class AccountStore: ObservableObject {
     // MARK: 게스트 & 로그아웃
 
     func continueAsGuest() {
-        setUser(UserAccount(id: Self.guestID, email: nil, displayName: "게스트", provider: .guest),
-                adoptGuestData: false)
+        setUser(UserAccount(id: Self.guestID, email: nil, displayName: "게스트", provider: .guest))
     }
 
     func signOut() {
@@ -490,30 +488,15 @@ final class AccountStore: ObservableObject {
 
     // MARK: 내부
 
-    private func setUser(_ user: UserAccount, adoptGuestData adopt: Bool = true) {
+    private func setUser(_ user: UserAccount) {
         currentUser = user
         if let data = try? JSONEncoder().encode(user) {
             defaults.set(data, forKey: sessionKey)
         }
-        if adopt, user.provider != .guest { adoptGuestData(into: user.id) }
+        // 게스트 데이터는 로그인 계정과 철저히 분리한다(#16) — 절대 흡수하지 않는다.
+        // 게스트로 쌓은 기록은 'guest' 소유로 남는 최하위 데이터이며(유실돼도 복구 불가),
+        // 로그인 계정은 오직 자기 소유(ownerUserID) 데이터만 보고 다룬다. (안드로이드와 동일)
         onUserChanged?()
-    }
-
-    /// 게스트로 쌓은 예약·세션·점수를 방금 로그인한 계정으로 귀속
-    private func adoptGuestData(into userID: String) {
-        guard let context = modelContext else { return }
-        let guest = Self.guestID
-        var touched = false
-        if let list = try? context.fetch(FetchDescriptor<Reservation>(predicate: #Predicate { $0.ownerUserID == guest })) {
-            list.forEach { $0.ownerUserID = userID }; touched = touched || !list.isEmpty
-        }
-        if let list = try? context.fetch(FetchDescriptor<FocusSession>(predicate: #Predicate { $0.ownerUserID == guest })) {
-            list.forEach { $0.ownerUserID = userID }; touched = touched || !list.isEmpty
-        }
-        if let list = try? context.fetch(FetchDescriptor<ScoreEvent>(predicate: #Predicate { $0.ownerUserID == guest })) {
-            list.forEach { $0.ownerUserID = userID }; touched = touched || !list.isEmpty
-        }
-        if touched { try? context.save() }
     }
 
     // MARK: 클라우드 미러 (상점·벌점 백업)
