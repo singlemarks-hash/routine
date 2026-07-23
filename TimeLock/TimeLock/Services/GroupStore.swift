@@ -240,6 +240,7 @@ final class GroupStore: ObservableObject {
             "repeatWeekdays": repeatWeekdays,
             "startDate": Timestamp(date: startDate), "endDate": Timestamp(date: endDate),
             "status": "scheduled", "memberCount": 1,
+            "takenNicknames": [nickname.lowercased()],   // 닉네임 유일성 판정 기반(#15) — 방장 닉네임을 미리 등록
             "createdAt": Timestamp(date: .now),
         ]
         do {
@@ -352,37 +353,50 @@ final class GroupStore: ObservableObject {
         let db = Firestore.firestore()
         let uid = AccountStore.shared.currentUserID
         let roomRef = db.collection("groups").document(room.id)
+        let memberRef = roomRef.collection("members").document(uid)
+        let lowerNick = nickname.lowercased()
 
-        // 최신 상태 재확인
-        guard let fresh = try? await roomRef.getDocument(), fresh.exists,
-              let current = Self.room(from: fresh) else { throw GroupError.roomNotFound }
-        guard current.status == "scheduled" else { throw GroupError.alreadyStarted }
-        guard Date() < current.startDate.addingTimeInterval(-Double(GroupPolicy.joinCutoffMinutes) * 60) else {
-            throw GroupError.unknown("시작 \(GroupPolicy.joinCutoffMinutes)분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)")
-        }
-        guard current.memberCount < GroupPolicy.maxMembers else { throw GroupError.roomFull }
-
-        let members = try? await roomRef.collection("members").getDocuments()
-        let docs = members?.documents ?? []
-        guard !docs.contains(where: { $0.documentID == uid }) else { throw GroupError.alreadyJoined }
-        let taken = docs.contains {
-            ($0.data()["nickname"] as? String)?.lowercased()
-                == nickname.lowercased()
-        }
-        guard !taken else { throw GroupError.nicknameTaken }
-
-        do {
-            try await roomRef.collection("members").document(uid).setData([
+        // 정원 초과·닉네임 중복·중복 참여·마감을 '하나의 트랜잭션'으로 원자 확정(#15).
+        // 읽고-쓰기가 분리돼 있으면 동시 참여 2건이 같은 빈자리·같은 닉네임을 함께 통과해
+        // 정원 +1 초과나 동명이인이 생긴다 — 트랜잭션이 방 문서(memberCount·takenNicknames)를
+        // 원자적으로 검사·갱신해 이 경합을 막는다. (트랜잭션은 컬렉션 질의가 불가하므로
+        //  닉네임 유일성은 방 문서의 takenNicknames 배열로 판정한다.)
+        var rejection: GroupError? = nil
+        let result = try? await db.runTransaction { transaction, errorPointer -> Any? in
+            let snap: DocumentSnapshot
+            do { snap = try transaction.getDocument(roomRef) }
+            catch let e as NSError { errorPointer?.pointee = e; return nil }
+            let mine: DocumentSnapshot
+            do { mine = try transaction.getDocument(memberRef) }
+            catch let e as NSError { errorPointer?.pointee = e; return nil }
+            guard snap.exists else { rejection = .roomNotFound; return nil }
+            guard (snap.data()?["status"] as? String) == "scheduled" else { rejection = .alreadyStarted; return nil }
+            let startTS = (snap.data()?["startDate"] as? Timestamp)?.dateValue() ?? .distantPast
+            guard Date() < startTS.addingTimeInterval(-Double(GroupPolicy.joinCutoffMinutes) * 60) else {
+                rejection = .unknown("시작 \(GroupPolicy.joinCutoffMinutes)분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)")
+                return nil
+            }
+            guard !mine.exists else { rejection = .alreadyJoined; return nil }
+            let count = snap.data()?["memberCount"] as? Int ?? 0
+            guard count < GroupPolicy.maxMembers else { rejection = .roomFull; return nil }
+            let taken = (snap.data()?["takenNicknames"] as? [String]) ?? []
+            guard !taken.contains(where: { $0.lowercased() == lowerNick }) else { rejection = .nicknameTaken; return nil }
+            transaction.setData([
                 "nickname": nickname, "score": 0, "quit": false,
                 "joinedAt": Timestamp(date: .now),
                 "timeZoneID": TimeZone.current.identifier,   // 타임존 저장 (다른 나라 멤버 표시·기간 계산 기반)
-            ])
-            try await roomRef.updateData(["memberCount": FieldValue.increment(Int64(1))])
-            try await db.collection("users").document(uid).setData(
-                ["groupIDs": FieldValue.arrayUnion([room.id])], merge: true)
-        } catch {
-            throw GroupError.unknown("참여에 실패했어요 — \(error.localizedDescription)")
+            ], forDocument: memberRef)
+            transaction.updateData([
+                "memberCount": count + 1,
+                "takenNicknames": FieldValue.arrayUnion([lowerNick]),
+            ], forDocument: roomRef)
+            return true
         }
+        if let rejection { throw rejection }
+        guard result != nil else { throw GroupError.unknown("참여에 실패했어요 — 잠시 후 다시 시도해주세요.") }
+        // 내 계정 문서의 그룹 목록 — 경합 무관(merge)이라 트랜잭션 밖
+        try? await db.collection("users").document(uid).setData(
+            ["groupIDs": FieldValue.arrayUnion([room.id])], merge: true)
         // 예약을 지금 만들어 두어야 시작 시각 정각의 첫 알람이 울린다 (시작일 전엔 발생 없음)
         ensureLocalReservation(for: room)
         AppState.shared.rescheduleAlarmsForCurrentUser()
@@ -453,8 +467,13 @@ final class GroupStore: ObservableObject {
         let db = Firestore.firestore()
         let uid = AccountStore.shared.currentUserID
         let roomRef = db.collection("groups").document(room.id)
-        try? await roomRef.collection("members").document(uid).delete()
-        try? await roomRef.updateData(["memberCount": FieldValue.increment(Int64(-1))])
+        let memberRef = roomRef.collection("members").document(uid)
+        // 내 닉네임을 takenNicknames에서 풀어 재사용 가능하게(#15) — 삭제 전에 읽어 둔다
+        let myNick = (try? await memberRef.getDocument())?.data()?["nickname"] as? String
+        try? await memberRef.delete()
+        var updates: [String: Any] = ["memberCount": FieldValue.increment(Int64(-1))]
+        if let myNick { updates["takenNicknames"] = FieldValue.arrayRemove([myNick.lowercased()]) }
+        try? await roomRef.updateData(updates)
         await removeMembershipRef(roomID: room.id)
         removeLocalReservation(roomID: room.id)   // 미리 만들어 둔 예약 정리
         rooms.removeAll { $0.id == room.id }

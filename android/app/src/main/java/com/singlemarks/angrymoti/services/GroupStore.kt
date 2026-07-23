@@ -204,6 +204,7 @@ object GroupStore {
             "repeatWeekdays" to repeatWeekdays,
             "startDate" to Timestamp(Date(startDate)), "endDate" to Timestamp(Date(endDate)),
             "status" to "scheduled", "memberCount" to 1,
+            "takenNicknames" to listOf(nickname.lowercase()),   // 닉네임 유일성 판정 기반(#15) — 방장 닉네임을 미리 등록
             "createdAt" to Timestamp(Date()),
         )
         try {
@@ -301,36 +302,49 @@ object GroupStore {
     suspend fun join(context: Context, room: GroupRoom, nickname: String) {
         if (!signedInMember) throw GroupException("그룹 기능은 네트워크 연결과 로그인이 필요해요.")
         val roomRef = db().collection("groups").document(room.id)
+        val memberRef = roomRef.collection("members").document(uid)
+        val lowerNick = nickname.lowercase()
 
-        // 최신 상태 재확인
-        val fresh = runCatching { roomRef.get().await() }.getOrNull()
-        val current = fresh?.takeIf { it.exists() }?.let { roomFrom(it) }
-            ?: throw GroupException("초대코드에 해당하는 방을 찾지 못했어요.")
-        if (current.status != "scheduled")
-            throw GroupException("이미 시작됐거나 취소된 방이에요.")
-        if (System.currentTimeMillis() >= current.startDate - GroupPolicy.JOIN_CUTOFF_MINUTES * 60_000L)
-            throw GroupException("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)")
-        if (current.memberCount >= GroupPolicy.MAX_MEMBERS)
-            throw GroupException("이 방은 정원(${GroupPolicy.MAX_MEMBERS}명)이 가득 찼어요.")
-
-        val docs = runCatching { roomRef.collection("members").get().await() }
-            .getOrNull()?.documents ?: emptyList()
-        if (docs.any { it.id == uid }) throw GroupException("이미 참여 중인 방이에요.")
-        if (docs.any { (it.getString("nickname"))?.lowercase() == nickname.lowercase() })
-            throw GroupException("이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요.")
-
+        // 정원 초과·닉네임 중복·중복 참여·마감을 '하나의 트랜잭션'으로 원자 확정(#15).
+        // 읽고-쓰기가 분리돼 있으면 동시 참여 2건이 같은 빈자리·같은 닉네임을 함께 통과해
+        // 정원 +1 초과나 동명이인이 생긴다 — 트랜잭션이 방 문서(memberCount·takenNicknames)를
+        // 원자적으로 검사·갱신해 이 경합을 막는다. (Firestore 트랜잭션은 컬렉션 질의가 불가하므로
+        //  닉네임 유일성은 방 문서의 takenNicknames 배열로 판정한다.)
         try {
-            roomRef.collection("members").document(uid).set(
-                mapOf("nickname" to nickname, "score" to 0, "quit" to false,
+            db().runTransaction { txn ->
+                val snap = txn.get(roomRef)
+                val mine = txn.get(memberRef)   // 읽기는 모두 쓰기보다 앞
+                if (!snap.exists()) throw GroupException("초대코드에 해당하는 방을 찾지 못했어요.")
+                if (snap.getString("status") != "scheduled")
+                    throw GroupException("이미 시작됐거나 취소된 방이에요.")
+                val startDate = snap.getTimestamp("startDate")?.toDate()?.time ?: 0L
+                if (System.currentTimeMillis() >= startDate - GroupPolicy.JOIN_CUTOFF_MINUTES * 60_000L)
+                    throw GroupException("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)")
+                if (mine.exists()) throw GroupException("이미 참여 중인 방이에요.")
+                val count = (snap.getLong("memberCount") ?: 0L).toInt()
+                if (count >= GroupPolicy.MAX_MEMBERS)
+                    throw GroupException("이 방은 정원(${GroupPolicy.MAX_MEMBERS}명)이 가득 찼어요.")
+                @Suppress("UNCHECKED_CAST")
+                val taken = (snap.get("takenNicknames") as? List<String>) ?: emptyList()
+                if (taken.any { it.equals(lowerNick, ignoreCase = true) })
+                    throw GroupException("이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요.")
+                txn.set(memberRef, mapOf("nickname" to nickname, "score" to 0, "quit" to false,
                     "joinedAt" to Timestamp(Date()),
-                    "timeZoneID" to java.util.TimeZone.getDefault().id)   // 타임존 저장 (다른 나라 멤버 표시·기간 계산 기반)
-            ).await()
-            roomRef.update("memberCount", FieldValue.increment(1)).await()
+                    "timeZoneID" to java.util.TimeZone.getDefault().id))   // 타임존 저장 (다른 나라 멤버 표시·기간 계산 기반)
+                txn.update(roomRef, mapOf(
+                    "memberCount" to count + 1,
+                    "takenNicknames" to FieldValue.arrayUnion(lowerNick)))
+            }.await()
+        } catch (e: Exception) {
+            // 트랜잭션 함수가 던진 GroupException(친절한 사유)을 그대로 전달
+            throw (e as? GroupException) ?: (e.cause as? GroupException)
+                ?: GroupException("참여에 실패했어요 — ${e.localizedMessage}")
+        }
+        // 내 계정 문서의 그룹 목록 — 경합 무관(merge)이라 트랜잭션 밖
+        runCatching {
             db().collection("users").document(uid)
                 .set(mapOf("groupIDs" to FieldValue.arrayUnion(room.id)),
                     com.google.firebase.firestore.SetOptions.merge()).await()
-        } catch (e: Exception) {
-            throw GroupException("참여에 실패했어요 — ${e.localizedMessage}")
         }
         // 예약을 지금 만들어 두어야 시작 시각 정각의 첫 알람이 울린다 (시작일 전엔 발생 없음)
         ensureLocalReservation(context, room)
@@ -395,8 +409,13 @@ object GroupStore {
     suspend fun leaveBeforeStart(context: Context, room: GroupRoom) {
         if (!signedInMember) return
         val roomRef = db().collection("groups").document(room.id)
-        runCatching { roomRef.collection("members").document(uid).delete().await() }
-        runCatching { roomRef.update("memberCount", FieldValue.increment(-1)).await() }
+        val memberRef = roomRef.collection("members").document(uid)
+        // 내 닉네임을 takenNicknames에서 풀어 재사용 가능하게(#15) — 삭제 전에 읽어 둔다
+        val myNick = runCatching { memberRef.get().await().getString("nickname") }.getOrNull()
+        runCatching { memberRef.delete().await() }
+        val updates = mutableMapOf<String, Any>("memberCount" to FieldValue.increment(-1))
+        myNick?.let { updates["takenNicknames"] = FieldValue.arrayRemove(it.lowercase()) }
+        runCatching { roomRef.update(updates).await() }
         removeMembershipRef(room.id)
         removeLocalReservation(context, room.id)   // 미리 만들어 둔 예약 정리
         rooms.value = rooms.value.filterNot { it.id == room.id }
