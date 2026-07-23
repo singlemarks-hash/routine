@@ -1,0 +1,81 @@
+name: Android Release (AAB)
+
+# 수동 실행 전용 — Play 콘솔에 올릴 '서명된 App Bundle(.aab)'을 만들어 아티팩트로 업로드한다.
+# (평소 android-build.yml은 컴파일 검증만 하고 서명·번들은 하지 않는다)
+#
+# ── 실행 전 1회 세팅: 리포지토리 시크릿 등록 ─────────────────────────────
+#   Settings → Secrets and variables → Actions → New repository secret
+#     ANDROID_KEYSTORE_BASE64   업로드 키스토어(.jks)를 base64로 인코딩한 문자열
+#         Linux : base64 -w0 upload.jks > keystore.b64   (파일 내용 전체를 붙여넣기)
+#         macOS : base64 -i upload.jks | pbcopy
+#     ANDROID_KEYSTORE_PASSWORD 키스토어 비밀번호 (storePassword)
+#     ANDROID_KEY_ALIAS         키 별칭 (keyAlias)
+#     ANDROID_KEY_PASSWORD      키 비밀번호 (keyPassword)
+#
+# ── 사용법 ───────────────────────────────────────────────────────────
+#   Actions 탭 → "Android Release (AAB)" → Run workflow (main 기준)
+#   완료되면 실행 요약 하단 Artifacts의 angrymoti-release-aab 를 내려받아 Play 콘솔에 업로드.
+#
+# ⚠️ 키스토어를 새로 만들지 말 것 — Play에 이미 등록된 '업로드 키'와 반드시 같아야 한다.
+#    versionCode(현재 6)는 이전 업로드보다 항상 커야 Play가 받는다.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bundle:
+    name: 서명된 AAB 빌드
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 설정
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK 설정
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle 설정 (래퍼 + 캐시)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: 키스토어 복원 + keystore.properties 생성
+        working-directory: android
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KS_B64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 시크릿이 없습니다 — 워크플로 상단 주석의 세팅 절차를 먼저 진행하세요."
+            exit 1
+          fi
+          echo "$KS_B64" | base64 -d > upload.jks
+          # rootProject(=android/)의 keystore.properties를 build.gradle.kts가 읽어 upload 서명에 사용
+          {
+            echo "storeFile=upload.jks"
+            echo "storePassword=$KS_PW"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PW"
+          } > keystore.properties
+
+      - name: 릴리스 App Bundle 빌드 (서명 포함)
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: 키스토어·비밀 파일 정리
+        if: always()
+        working-directory: android
+        run: rm -f upload.jks keystore.properties
+
+      - name: AAB 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: angrymoti-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 7
