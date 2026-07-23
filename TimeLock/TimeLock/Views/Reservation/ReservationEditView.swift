@@ -68,6 +68,17 @@ struct ReservationEditView: View {
         return next.timeIntervalSinceNow <= 1800
     }
 
+    /// 슬롯 초과 상태 — 멤버십 강등·연속 하락으로 보유 예약이 허용치를 넘은 경우.
+    /// 기존 예약은 유지하되 편집을 잠그고 삭제만 허용한다(읽기 전용).
+    private var isOverSlotLimit: Bool {
+        guard let allowed = allowedSlots else { return false }   // 무제한이면 초과 없음
+        return allReservations.count > allowed
+    }
+    /// 편집 화면(기존 예약)에서 슬롯 초과면 읽기 전용
+    private var isEditReadOnly: Bool { reservation != nil && isOverSlotLimit }
+    /// 입력 필드·저장 비활성 조건 = 시작 임박 ∨ 슬롯 초과 읽기 전용 (삭제는 예외)
+    private var editingDisabled: Bool { isLocked || isEditReadOnly }
+
     /// 활동 슬롯 현황 (원띵 — 신규 생성 화면에만). 탭하면 정책 표 팝업.
     private var slotPolicyNotice: some View {
         let used = allReservations.count
@@ -126,6 +137,9 @@ struct ReservationEditView: View {
                     if isLocked {
                         lockNotice
                     }
+                    if isEditReadOnly {
+                        readOnlyNotice
+                    }
                     if reservation == nil {
                         slotPolicyNotice
                     }
@@ -136,7 +150,7 @@ struct ReservationEditView: View {
                     if reservation != nil {
                         Button("예약 삭제") { showDeleteConfirm = true }
                             .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
-                            .disabled(isLocked)
+                            .disabled(isLocked)   // 읽기 전용(슬롯 초과)에서도 삭제는 허용
                             .opacity(isLocked ? 0.4 : 1)
                     }
                 }
@@ -152,8 +166,8 @@ struct ReservationEditView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("저장") { save() }
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(isLocked ? TL.faint : TL.rec)
-                        .disabled(isLocked)
+                        .foregroundStyle(editingDisabled ? TL.faint : TL.rec)
+                        .disabled(editingDisabled)
                 }
             }
             .confirmationDialog("이 예약을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -183,6 +197,18 @@ struct ReservationEditView: View {
         }
     }
 
+    /// 슬롯 초과(강등·연속 하락)로 읽기 전용일 때의 안내 — 삭제만 가능
+    private var readOnlyNotice: some View {
+        TLCard {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "lock.slash.fill").foregroundStyle(TL.amber)
+                Text("활동 슬롯이 \(allowedSlots.map { "\($0)개" } ?? "무제한")로 줄어 현재 보유한 예약이 한도를 넘었습니다. 초과한 동안에는 편집이 잠기고 삭제만 할 수 있어요. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있습니다.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(TL.paper)
+            }
+        }
+    }
+
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             TLEyebrow(text: "활동명 (필수)")
@@ -190,7 +216,7 @@ struct ReservationEditView: View {
                 .font(.tlBody)
                 .padding(14)
                 .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
-                .disabled(isLocked)
+                .disabled(editingDisabled)
         }
     }
 
@@ -203,7 +229,7 @@ struct ReservationEditView: View {
                         Button { tag = preset; customTag = "" } label: {
                             TagChip(name: preset, selected: tag == preset && customTag.isEmpty)
                         }
-                        .disabled(isLocked)
+                        .disabled(editingDisabled)
                     }
                 }
             }
@@ -211,7 +237,7 @@ struct ReservationEditView: View {
                 .font(.system(size: 14))
                 .padding(10)
                 .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerS))
-                .disabled(isLocked)
+                .disabled(editingDisabled)
                 .onChange(of: customTag) { _, newValue in
                     if !newValue.trimmingCharacters(in: .whitespaces).isEmpty { tag = newValue }
                 }
@@ -225,7 +251,7 @@ struct ReservationEditView: View {
                 VStack(spacing: 4) {
                     DatePicker("시작 시각", selection: $startTime, displayedComponents: .hourAndMinute)
                         .font(.tlBody).foregroundStyle(TL.paper)
-                        .disabled(isLocked)
+                        .disabled(editingDisabled)
                     Divider().overlay(TL.hairline)
                     HStack(spacing: 10) {
                         Picker("활동 시간", selection: $durationMinutes) {
@@ -234,7 +260,7 @@ struct ReservationEditView: View {
                         .pickerStyle(.menu)
                         .tint(TL.paper)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .disabled(isLocked)
+                        .disabled(editingDisabled)
                         // 선택한 길이의 완주 상점 미리 보기
                         Text("완료 시 +\(ScoreRules.completionBase(forMinutes: durationMinutes))점")
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
@@ -256,7 +282,7 @@ struct ReservationEditView: View {
                         Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
                     }
                     .tint(TL.rec)
-                    .disabled(isLocked)
+                    .disabled(editingDisabled)
 
                     if isRepeating {
                         HStack(spacing: 8) {
@@ -272,13 +298,13 @@ struct ReservationEditView: View {
                                         .background(Circle().fill(weekdays.contains(value) ? TL.paper : TL.surface))
                                         .overlay(Circle().strokeBorder(weekdays.contains(value) ? .clear : TL.hairline))
                                 }
-                                .disabled(isLocked)
+                                .disabled(editingDisabled)
                             }
                         }
                     } else {
                         DatePicker("날짜", selection: $oneOffDate, in: Date()..., displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
-                            .disabled(isLocked)
+                            .disabled(editingDisabled)
                     }
                 }
             }
@@ -303,6 +329,13 @@ struct ReservationEditView: View {
     private func save() {
         errorMessage = nil
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
+
+        // 검증: 슬롯 초과 읽기 전용 — 강등·연속 하락으로 한도를 넘으면 편집 저장 차단(삭제만 허용).
+        // (버튼도 비활성이지만 백스톱으로 이중 방어)
+        if isEditReadOnly {
+            errorMessage = "슬롯 한도를 초과해 편집이 잠겼습니다. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."
+            return
+        }
 
         // 검증: 활동 슬롯 정책 (신규 생성만) — 연속 달성일 사다리. 기존 예약은 영향 없음.
         if reservation == nil, let allowed = allowedSlots, allReservations.count >= allowed {
