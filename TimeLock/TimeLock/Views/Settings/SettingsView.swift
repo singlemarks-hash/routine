@@ -562,6 +562,55 @@ struct PaywallView: View {
     @EnvironmentObject private var subscription: SubscriptionManager
     @Environment(\.dismiss) private var dismiss
     @State private var purchasing = false
+    @State private var couponCode = ""
+    @State private var couponBusy = false
+    @State private var couponAlertTitle = ""
+    @State private var couponAlertMessage = ""
+    @State private var showCouponAlert = false
+
+    /// 프로모션 쿠폰 입력 — 결제 없이 앱 내부 권한(기간제)을 부여받는다. 만료 시 자동 강등.
+    private var couponSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("프로모션 쿠폰이 있으신가요?")
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
+            HStack(spacing: 8) {
+                TextField("쿠폰 코드", text: $couponCode)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .foregroundStyle(TL.paper)
+                    .padding(12)
+                    .background(TL.surface, in: RoundedRectangle(cornerRadius: 10))
+                Button {
+                    redeemCoupon()
+                } label: {
+                    Text(couponBusy ? "확인 중…" : "적용").font(.system(size: 14, weight: .bold))
+                }
+                .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
+                .fixedSize()
+                .disabled(couponBusy || couponCode.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .alert(couponAlertTitle, isPresented: $showCouponAlert) {
+            Button("확인", role: .cancel) {}
+        } message: { Text(couponAlertMessage) }
+    }
+
+    private func redeemCoupon() {
+        couponBusy = true
+        Task {
+            defer { couponBusy = false }
+            do {
+                let days = try await AccountStore.shared.redeemCoupon(couponCode)
+                couponCode = ""
+                couponAlertTitle = "적용 완료 🎉"
+                couponAlertMessage = "\(days)일 이용권이 적용됐어요."
+            } catch {
+                couponAlertTitle = "쿠폰 사용 실패"
+                couponAlertMessage = error.localizedDescription
+            }
+            showCouponAlert = true
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -620,6 +669,9 @@ struct PaywallView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(TL.muted)
                 .padding(.top, 12)
+
+                couponSection
+                    .padding(.top, 18)
 
                 Text(Legal.subscriptionDisclosure)
                     .font(.system(size: 11)).foregroundStyle(TL.faint)
