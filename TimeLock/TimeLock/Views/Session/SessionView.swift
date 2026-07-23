@@ -47,12 +47,7 @@ struct SessionView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // 통화 일시정지 오버레이
-            if engine.phase == .pausedForCall {
-                pauseOverlay
-            }
-
-            // 긴급 용무 중단 오버레이 — 재촬영 카운트다운
+            // 긴급 용무 중단 오버레이 — 재촬영 카운트다운 (통화도 백그라운드 이탈로 이 오버레이에 진입)
             if case .pausedForBreak(let deadline) = engine.phase {
                 BreakOverlay(deadline: deadline)
             }
@@ -250,18 +245,6 @@ struct SessionView: View {
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous).fill(TL.amber))
         .shadow(color: .black.opacity(0.3), radius: 8, y: 3)
-    }
-
-    private var pauseOverlay: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "phone.fill").font(.system(size: 34)).foregroundStyle(TL.amber)
-            Text("통화 중 — 일시정지").font(.tlTitle(20)).foregroundStyle(TL.paper)
-            Text("벌점 없이 멈춰 있습니다.\n통화가 끝나면 자동으로 재개되고,\n통화 시간만큼 종료가 뒤로 밀립니다.")
-                .font(.system(size: 14)).foregroundStyle(TL.muted)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TL.ink.opacity(0.96).ignoresSafeArea())
     }
 
     // MARK: 긴급 시트 (미친 매운맛 전용 — 되돌릴 수 없어 확인을 거친다)

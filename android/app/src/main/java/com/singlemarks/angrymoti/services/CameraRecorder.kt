@@ -274,16 +274,13 @@ object CameraRecorder {
                 .addOnFailureListener { presenceBusy = false }
         }
 
-        // 타임랩스 프레임 — 회전·미러·인코딩은 전용 스레드에서
+        // 타임랩스 프레임 — 회전·인코딩은 전용 스레드에서.
+        // iOS 표준을 따라 '저장 영상은 미러링하지 않는다'(실제 방향 보존) — 전면 좌우반전을 굽지 않는다.
         if (captureDue) {
             lastCaptureAt = now
             encodeExecutor.execute {
-                val mirror = frontFacing
-                val bitmap = if (rotation != 0 || mirror) {
-                    val m = android.graphics.Matrix().apply {
-                        postRotate(rotation.toFloat())
-                        if (mirror) postScale(-1f, 1f)   // 전면 카메라만 미러 보정
-                    }
+                val bitmap = if (rotation != 0) {
+                    val m = android.graphics.Matrix().apply { postRotate(rotation.toFloat()) }
                     Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
                 } else raw
                 encoder?.let { e ->
