@@ -16,9 +16,10 @@ object TimePolicy {
 
     val durationOptionsMinutes = listOf(10, 15, 25, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480)
 
-    /** 기본 예약 시작 시각: 현재 + 2시간을 정각으로 반올림 (9:39→11:00, 9:00→11:00, 8:59→10:00) */
+    /** 기본 예약 시작 시각: 현재 + 2시간을 '시' 단위로 내림 (9:39→11:00, 9:00→11:00, 8:59→10:00).
+     *  iOS의 dateComponents([.hour]) 방식과 결과 동일 — 분을 버려 정각으로 맞춘다. */
     fun defaultStartMinute(now: Calendar = Calendar.getInstance()): Int {
-        // 지금+2시간을 '시' 단위로 내림 (iOS dateComponents 통일). 예: 9:39 → 11:00.
+        // 지금+2시간의 '시'만 취하고 분은 버린다(내림). iOS 기준으로 통일. 예: 9:39 → 11:00.
         val plus2h = (now.clone() as Calendar).apply { add(Calendar.HOUR_OF_DAY, 2) }
         return plus2h.get(Calendar.HOUR_OF_DAY) * 60
     }
