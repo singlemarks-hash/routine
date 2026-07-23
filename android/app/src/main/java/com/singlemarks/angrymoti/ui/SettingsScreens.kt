@@ -329,6 +329,13 @@ fun PaywallScreen(onBack: () -> Unit) {
         }
         Image(painterResource(R.drawable.moti_member), null, Modifier.size(140.dp))
         Text("앵그리모티 멤버십", color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        SubscriptionManager.freeTrialLabel?.let { trial ->
+            Spacer(Modifier.height(12.dp))
+            Text(trial, color = TL.jade, fontSize = 14.sp, fontWeight = FontWeight.Black,
+                modifier = Modifier
+                    .background(TL.jade.copy(alpha = 0.14f), androidx.compose.foundation.shape.RoundedCornerShape(50))
+                    .padding(horizontal = 14.dp, vertical = 6.dp))
+        }
         Spacer(Modifier.height(20.dp))
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Benefit("활동 슬롯 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 시작 (무료는 2개)")
@@ -341,7 +348,10 @@ fun PaywallScreen(onBack: () -> Unit) {
         if (isPro) {
             Text("멤버십 사용 중이에요 👑", color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         } else if (product != null) {
-            TLPrimaryButton("${SubscriptionManager.displayPrice} / 월 구독하기", tint = TL.jade) {
+            val label = if (SubscriptionManager.freeTrialLabel != null)
+                "무료로 시작하기 · 이후 ${SubscriptionManager.displayPrice}/월"
+            else "${SubscriptionManager.displayPrice} / 월 구독하기"
+            TLPrimaryButton(label, tint = TL.jade) {
                 (context as? Activity)?.let { SubscriptionManager.purchase(it) }
             }
         } else {

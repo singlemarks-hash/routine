@@ -581,6 +581,15 @@ struct PaywallView: View {
                     .font(.tlBody).foregroundStyle(TL.muted)
                     .padding(.top, 6)
 
+                if let trial = subscription.freeTrialDescription {
+                    Text(trial)
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundStyle(TL.jade)
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        .background(Capsule().fill(TL.jade.opacity(0.14)))
+                        .padding(.top, 12)
+                }
+
                 VStack(alignment: .leading, spacing: 12) {
                     benefit("활동 슬롯 최소 \(SlotPolicy.memberFloorSlots)개부터 시작 (무료는 2개)")
                     benefit("타임랩스 워터마크 제거")
@@ -602,7 +611,10 @@ struct PaywallView: View {
                             }
                         }
                     } label: {
-                        Text(purchasing ? "처리 중…" : "\(product.displayPrice) / 월 구독하기")
+                        Text(purchasing ? "처리 중…"
+                             : subscription.freeTrialDescription != nil
+                               ? "무료로 시작하기 · 이후 \(product.displayPrice)/월"
+                               : "\(product.displayPrice) / 월 구독하기")
                     }
                     .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
                     .disabled(purchasing)

@@ -137,10 +137,30 @@ final class SubscriptionManager: ObservableObject {
     @Published var isPro = false
     @Published var product: Product?
 
+    /// 무료 체험 자격 여부 — 이 계정/기기가 인트로 오퍼(첫 14일 무료)를 아직 쓸 수 있는지.
+    /// 이미 한 번 쓴 계정이면 false가 되어 체험 문구를 숨긴다.
+    @Published var isEligibleForIntro = false
+
     /// 반대 플랫폼(안드로이드)에서 구독한 경우의 만료 시각 — AccountStore 동기화가 채워준다.
     /// Pro 판정 = 이 기기 스토어 구독 ∨ 클라우드 기록이 아직 유효.
     var cloudProUntil: Date? { didSet { recomputeIsPro() } }
     private var storePro = false
+
+    /// 스토어 콘솔에 무료 체험(인트로 오퍼)이 설정돼 있고, 이 계정이 아직 자격이 있으면 문구를 노출한다.
+    /// (App Store Connect에서 인트로 오퍼를 등록하지 않으면 nil → 기존 문구로 자연 폴백)
+    var freeTrialDescription: String? {
+        guard isEligibleForIntro,
+              let offer = product?.subscription?.introductoryOffer,
+              offer.paymentMode == .freeTrial else { return nil }
+        let n = offer.period.value
+        switch offer.period.unit {
+        case .day:   return "첫 \(n)일 무료"
+        case .week:  return "첫 \(n * 7)일 무료"
+        case .month: return "첫 \(n)개월 무료"
+        case .year:  return "첫 \(n)년 무료"
+        @unknown default: return "무료 체험"
+        }
+    }
 
     private func recomputeIsPro() {
         isPro = storePro || (cloudProUntil ?? .distantPast) > .now
@@ -159,7 +179,13 @@ final class SubscriptionManager: ObservableObject {
     func loadProduct() async {
         do {
             product = try await Product.products(for: [Self.productID]).first
-        } catch { product = nil }
+            // 인트로 오퍼(무료 체험) 자격 확인 — 이미 쓴 계정이면 false로 내려가 문구를 숨긴다
+            if let sub = product?.subscription {
+                isEligibleForIntro = await sub.isEligibleForIntroOffer
+            } else {
+                isEligibleForIntro = false
+            }
+        } catch { product = nil; isEligibleForIntro = false }
     }
 
     func refreshEntitlement() async {
