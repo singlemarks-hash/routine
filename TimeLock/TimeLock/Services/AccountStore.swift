@@ -91,12 +91,6 @@ enum DeleteAccountError: LocalizedError {
 
 // MARK: - AccountStore
 
-/// 쿠폰 사용 실패 사유를 UI로 전달하는 에러
-enum CouponError: LocalizedError {
-    case message(String)
-    var errorDescription: String? { if case .message(let m) = self { return m }; return nil }
-}
-
 @MainActor
 final class AccountStore: ObservableObject {
     static let shared = AccountStore()
@@ -825,62 +819,6 @@ final class AccountStore: ObservableObject {
             mirrorSession(s)
         }
         if touched { try? context.save() }
-        #endif
-    }
-
-    /// 프로모션 쿠폰 사용 — 코드 검증 + 1회 사용 처리 + 프로 기간 부여를 하나의 트랜잭션으로.
-    /// 결제(스토어) 없이 앱 내부 권한만 부여: proExpiresAt에 기간을 얹고 proPlatform="coupon".
-    /// 만료 시 isPro 자동 false → 자동 강등. 계정당 1회, 최대사용횟수 초과 차단.
-    /// 쿠폰 문서는 Firebase 콘솔에서 coupons/{코드}로 발급한다(별도 관리페이지 불필요). 반환: 부여 일수.
-    @discardableResult
-    func redeemCoupon(_ rawCode: String) async throws -> Int {
-        #if canImport(FirebaseFirestore)
-        guard backendActive, let user = currentUser, user.provider != .guest else {
-            throw CouponError.message("쿠폰은 로그인 후 사용할 수 있어요.")
-        }
-        let code = rawCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !code.isEmpty else { throw CouponError.message("쿠폰 코드를 입력해주세요.") }
-        let db = Firestore.firestore()
-        let couponRef = db.collection("coupons").document(code)
-        let userRef = db.collection("users").document(user.id)
-        let nowMillis = Int64(Date().timeIntervalSince1970 * 1000)
-        var rejection: CouponError? = nil
-        var grantedDays = 0
-        var newUntilMillis: Int64 = 0
-        let result = try? await db.runTransaction { transaction, errorPointer -> Any? in
-            let cSnap: DocumentSnapshot
-            do { cSnap = try transaction.getDocument(couponRef) }
-            catch let e as NSError { errorPointer?.pointee = e; return nil }
-            let uSnap: DocumentSnapshot
-            do { uSnap = try transaction.getDocument(userRef) }
-            catch let e as NSError { errorPointer?.pointee = e; return nil }
-            guard cSnap.exists, let data = cSnap.data() else {
-                rejection = .message("유효하지 않은 쿠폰 코드예요."); return nil }
-            if (data["active"] as? Bool) == false { rejection = .message("지금은 사용할 수 없는 쿠폰이에요."); return nil }
-            if let exp = (data["expiresAt"] as? NSNumber)?.int64Value, nowMillis >= exp {
-                rejection = .message("만료된 쿠폰이에요."); return nil }
-            let redeemedBy = (data["redeemedBy"] as? [String]) ?? []
-            guard !redeemedBy.contains(user.id) else { rejection = .message("이미 사용한 쿠폰이에요."); return nil }
-            let maxR = (data["maxRedemptions"] as? NSNumber)?.intValue ?? 0   // 0/없음 = 무제한
-            if maxR > 0, redeemedBy.count >= maxR { rejection = .message("사용 횟수가 모두 소진된 쿠폰이에요."); return nil }
-            let days = (data["durationDays"] as? NSNumber)?.intValue ?? 0
-            guard days > 0 else { rejection = .message("잘못 설정된 쿠폰이에요."); return nil }
-            let current = (uSnap.data()?["proExpiresAt"] as? NSNumber)?.int64Value ?? 0
-            newUntilMillis = max(current, nowMillis) + Int64(days) * 86_400_000
-            grantedDays = days
-            transaction.updateData(["redeemedBy": FieldValue.arrayUnion([user.id])], forDocument: couponRef)
-            transaction.setData(["proExpiresAt": newUntilMillis, "proPlatform": "coupon"],
-                                forDocument: userRef, merge: true)
-            return true
-        }
-        if let rejection { throw rejection }
-        guard result != nil else { throw CouponError.message("쿠폰 사용에 실패했어요 — 잠시 후 다시 시도해주세요.") }
-        await MainActor.run {
-            SubscriptionManager.shared.cloudProUntil = Date(timeIntervalSince1970: Double(newUntilMillis) / 1000)
-        }
-        return grantedDays
-        #else
-        throw CouponError.message("네트워크 연결이 필요해요.")
         #endif
     }
 

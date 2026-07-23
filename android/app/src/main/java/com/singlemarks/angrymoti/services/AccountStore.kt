@@ -10,9 +10,6 @@ import com.singlemarks.angrymoti.data.ScoreEvent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.tasks.await
 
-/** 쿠폰 사용 실패 사유를 UI로 전달하는 예외 */
-class CouponException(message: String) : Exception(message)
-
 /**
  * 인증 — iOS AccountStore와 동일 전략:
  * google-services.json이 없으면 Firebase 없이 '기기 내 계정(게스트)'으로 동작한다.
@@ -385,58 +382,6 @@ object AccountStore {
     }
 
     /** 구독 상태 클라우드 기록 — 반대 플랫폼(iOS)에서도 멤버십이 인정되도록 */
-    /**
-     * 프로모션 쿠폰 사용 — 코드 검증 + 1회 사용 처리 + 프로 기간 부여를 하나의 트랜잭션으로.
-     * 결제(스토어) 없이 앱 내부 권한만 부여한다: proExpiresAt에 기간을 얹고 proPlatform="coupon".
-     * 만료되면 isPro가 자동 false → 무료로 자동 강등. 계정당 1회, 최대사용횟수 초과 차단.
-     * 쿠폰 문서는 Firebase 콘솔에서 coupons/{코드}로 직접 발급한다(별도 관리페이지 불필요).
-     * @return 부여된 일수 (성공 메시지용)
-     */
-    suspend fun redeemCoupon(rawCode: String): Int {
-        if (!firebaseAvailable || currentUserID == "guest")
-            throw CouponException("쿠폰은 로그인 후 사용할 수 있어요.")
-        val uid = currentUserID
-        val code = rawCode.trim().uppercase()
-        if (code.isEmpty()) throw CouponException("쿠폰 코드를 입력해주세요.")
-        val fs = FirebaseFirestore.getInstance()
-        val couponRef = fs.collection("coupons").document(code)
-        val userRef = fs.collection("users").document(uid)
-        val now = System.currentTimeMillis()
-        var newUntil = 0L
-        var grantedDays = 0
-        try {
-            fs.runTransaction { txn ->
-                val c = txn.get(couponRef)
-                val u = txn.get(userRef)
-                if (!c.exists()) throw CouponException("유효하지 않은 쿠폰 코드예요.")
-                if (c.getBoolean("active") == false) throw CouponException("지금은 사용할 수 없는 쿠폰이에요.")
-                val couponExpiresAt = c.getLong("expiresAt")
-                if (couponExpiresAt != null && now >= couponExpiresAt) throw CouponException("만료된 쿠폰이에요.")
-                @Suppress("UNCHECKED_CAST")
-                val redeemedBy = (c.get("redeemedBy") as? List<String>) ?: emptyList()
-                if (redeemedBy.contains(uid)) throw CouponException("이미 사용한 쿠폰이에요.")
-                val maxR = (c.getLong("maxRedemptions") ?: 0L).toInt()   // 0/없음 = 무제한
-                if (maxR > 0 && redeemedBy.size >= maxR) throw CouponException("사용 횟수가 모두 소진된 쿠폰이에요.")
-                val days = (c.getLong("durationDays") ?: 0L).toInt()
-                if (days <= 0) throw CouponException("잘못 설정된 쿠폰이에요.")
-                // 기존 프로 기간이 남아 있으면 이어붙인다(둘 중 큰 기준 + 기간)
-                val current = u.getLong("proExpiresAt") ?: 0L
-                newUntil = maxOf(current, now) + days * 86_400_000L
-                grantedDays = days
-                txn.update(couponRef, "redeemedBy",
-                    com.google.firebase.firestore.FieldValue.arrayUnion(uid))
-                txn.set(userRef, mapOf("proExpiresAt" to newUntil, "proPlatform" to "coupon"),
-                    com.google.firebase.firestore.SetOptions.merge())
-                days
-            }.await()
-        } catch (e: Exception) {
-            throw (e as? CouponException) ?: (e.cause as? CouponException)
-                ?: CouponException("쿠폰 사용에 실패했어요 — ${e.localizedMessage}")
-        }
-        SubscriptionManager.applyCloudPro(newUntil)   // 즉시 프로 반영
-        return grantedDays
-    }
-
     fun mirrorMembership(expiresAtMillis: Long, platform: String) {
         val uid = currentUserID
         if (!firebaseAvailable || uid == "guest") return
