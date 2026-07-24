@@ -181,6 +181,11 @@ final class AppState: ObservableObject {
     private var modelContext: ModelContext?
     private var sweepTimer: Timer?
 
+    /// 알림 탭으로 진입한 알람. 콜드 스타트에서 modelContext·계정 로딩이 늦어 즉시 라우팅에
+    /// 실패할 수 있으므로, 준비될 때까지(창이 끝날 때까지) 재시도하기 위해 보관한다.
+    private var pendingAlarmTapID: UUID?
+    private var pendingAlarmTapAt: Date?
+
     var intensity: Intensity {
         Intensity(rawValue: intensityRaw) ?? .spicy
     }
@@ -347,8 +352,10 @@ final class AppState: ObservableObject {
             predicate: #Predicate { $0.isActive && $0.ownerUserID == owner }))) ?? []
     }
 
-    /// 지금 알람 창(발생~+10분)에 들어와 있고 아직 시작 안 된 예약이 있으면 알람 화면 표시
+    /// 지금 알람 창(발생~+10분)에 들어와 있고 아직 시작 안 된 예약이 있으면 알람 화면 표시.
+    /// 알림 탭으로 보류된 알람이 있으면 그것을 '먼저·직접' 라우팅한다(경쟁 상태·계정 필터 회피).
     func checkDueAlarm() {
+        routePendingAlarmTapIfPossible()
         guard route == .none, engine.session == nil else { return }
         let now = Date()
         let calendar = Calendar.current
@@ -366,8 +373,48 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// 알림(배너)을 탭해 진입 — 그 예약을 보류로 걸고 즉시 라우팅을 시도한다.
+    /// 콜드 스타트로 준비가 안 됐으면 이후 bind·활성화·타이머·계정변경 때 재시도된다.
     func presentAlarm(reservationID: UUID) {
-        checkDueAlarm()
+        pendingAlarmTapID = reservationID
+        pendingAlarmTapAt = Date()
+        routePendingAlarmTapIfPossible()
+    }
+
+    /// 탭한 알람을 해당 예약으로 '직접' 라우팅. 준비 전이면 보류를 유지해 다음 기회에 재시도.
+    /// 사용자가 명시적으로 탭한 알람이므로 소유 계정 필터 없이 ID로 조회한다(계정 로딩 경쟁 회피).
+    private func routePendingAlarmTapIfPossible() {
+        guard let id = pendingAlarmTapID, let tappedAt = pendingAlarmTapAt else { return }
+        // 탭 후 창(10분)을 넉넉히 지난 보류는 폐기 — 무한 재시도 방지
+        if Date().timeIntervalSince(tappedAt) > TimePolicy.startWindowSeconds + 120 {
+            pendingAlarmTapID = nil; pendingAlarmTapAt = nil
+            return
+        }
+        guard route == .none, engine.session == nil else { return }   // 다른 화면 중이면 대기
+        guard modelContext != nil else { return }                     // 컨텍스트 준비 전 — 재시도
+        guard let reservation = reservationByID(id) else { return }   // 계정·동기화 대기 — 재시도
+        let now = Date()
+        let calendar = Calendar.current
+        for offset in [-1, 0] {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
+                  let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
+            let window = fire...fire.addingTimeInterval(TimePolicy.startWindowSeconds)
+            guard window.contains(now) else { continue }
+            pendingAlarmTapID = nil; pendingAlarmTapAt = nil
+            guard !sessionExists(reservationID: id, scheduledAt: fire) else { return }
+            route = .alarm(reservationID: id, fireDate: fire)
+            AlarmScheduler.shared.startAlarmSound()
+            return
+        }
+        // 예약은 찾았으나 어떤 창에도 안 들어옴 = 이미 창이 지남 → 보류 폐기
+        pendingAlarmTapID = nil; pendingAlarmTapAt = nil
+    }
+
+    /// 알림 탭 대상 예약을 소유 계정 무관하게 ID로 조회 (탭한 알람은 계정보다 우선).
+    private func reservationByID(_ id: UUID) -> Reservation? {
+        guard let context = modelContext else { return nil }
+        return (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.id == id && $0.isActive })))?.first
     }
 
     private func sessionExists(reservationID: UUID, scheduledAt: Date) -> Bool {
