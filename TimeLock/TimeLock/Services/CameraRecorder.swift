@@ -182,6 +182,11 @@ final class CameraRecorder: NSObject, ObservableObject {
     }
 
     private func applyCaptureRotation() {
+        // 녹화 중에는 각도를 절대 바꾸지 않는다. writer는 첫 프레임 치수로 한 번만 생성되므로,
+        // 수평 트래커가 촬영 중 각도를 90°↔0°로 틀면 이후 버퍼 치수가 writer 규격과 어긋나
+        // adaptor.append가 계속 실패한다 → lastFrameAt 정지 → 스톨 오탐 → 무음 긴급용무로 오진입.
+        // (세션 중엔 화면 방향이 잠겨 있어 각도를 바꿀 이유도 없다.)
+        guard !isRecording else { return }
         guard let coordinator = rotationCoordinator,
               let connection = videoOutput.connection(with: .video) else { return }
         let angle = coordinator.videoRotationAngleForHorizonLevelCapture

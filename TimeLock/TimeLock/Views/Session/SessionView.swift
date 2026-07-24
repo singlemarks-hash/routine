@@ -292,17 +292,27 @@ private struct BreakOverlay: View {
     private var compact: Bool { verticalSizeClass == .compact }
 
     var body: some View {
+        Group {
+            if compact { landscapeBody } else { portraitBody }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TL.ink.opacity(0.97).ignoresSafeArea())
+        .onReceive(clock) { now = $0 }
+    }
+
+    // MARK: 세로 — 위→아래로 상태·다이얼·안내·버튼
+    private var portraitBody: some View {
         VStack(spacing: 0) {
             Spacer()
 
             TLEyebrow(text: "촬영 일시중단", color: TL.amber)
             Text(engine.breakNote == nil ? "긴급 용무 중" : "촬영이 중단됐어요")
-                .font(.tlTitle(compact ? 18 : 24))
+                .font(.tlTitle(24))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 6)
             if let note = engine.breakNote {
                 Text(note)
-                    .font(.system(size: compact ? 13 : 15, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(TL.amber)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
@@ -310,55 +320,98 @@ private struct BreakOverlay: View {
                     .padding(.horizontal, 24)
             }
 
-            RECRingDial(progress: progress, live: false,
-                        tint: remaining <= 60 ? TL.rec : TL.amber) {
-                VStack(spacing: 2) {
-                    Text(TLFormat.hms(remaining))
-                        .font(.tlTimer(compact ? 30 : 48))
-                        .foregroundStyle(TL.paper)
-                    Text("안에 재촬영을 시작하세요")
-                        .font(.system(size: compact ? 10 : 13, weight: .semibold))
-                        .foregroundStyle(TL.muted)
-                }
-            }
-            .frame(width: compact ? 130 : 230, height: compact ? 130 : 230)
-            .padding(.top, compact ? 10 : 28)
+            ringDial(size: 230, timerSize: 48, captionSize: 13)
+                .padding(.top, 28)
 
-            Text("총 \(TimePolicy.resumeWindowMinutes)분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.")
-                .font(.system(size: compact ? 12 : 14))
-                .foregroundStyle(TL.muted)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .padding(.top, compact ? 8 : 22)
-
-            Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다")
-                .font(.system(size: compact ? 11 : 13, weight: .semibold))
-                .foregroundStyle(TL.amber)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .padding(.top, compact ? 6 : 12)
+            infoTexts(bodySize: 14, hintSize: 13, align: .center)
+                .padding(.top, 22)
+                .padding(.horizontal, 24)
 
             Spacer()
 
-            VStack(spacing: 12) {
-                Button {
-                    engine.resumeFromBreak()
-                } label: {
-                    Label("지금 재촬영 시작", systemImage: "record.circle.fill")
-                }
-                .buttonStyle(TLPrimaryButtonStyle())
-
-                Button("세션 포기 — 벌점 받기") {
-                    engine.emergencyEnd(reason: "긴급 용무 지속")
-                }
-                .buttonStyle(TLGhostButtonStyle(tint: TL.muted))
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
+            VStack(spacing: 12) { actionButtons }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TL.ink.opacity(0.97).ignoresSafeArea())
-        .onReceive(clock) { now = $0 }
+    }
+
+    // MARK: 가로 — 좌(큰 다이얼·상태) / 우(안내·액션 버튼). 세로로 잘리지 않게 좌우 분할.
+    private var landscapeBody: some View {
+        HStack(spacing: 28) {
+            VStack(spacing: 8) {
+                TLEyebrow(text: "촬영 일시중단", color: TL.amber)
+                Text(engine.breakNote == nil ? "긴급 용무 중" : "촬영이 중단됐어요")
+                    .font(.tlTitle(20))
+                    .foregroundStyle(TL.paper)
+                if let note = engine.breakNote {
+                    Text(note)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TL.amber)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .padding(.horizontal, 8)
+                }
+                ringDial(size: 176, timerSize: 38, captionSize: 11)
+                    .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 14) {
+                Spacer(minLength: 0)
+                infoTexts(bodySize: 13, hintSize: 12, align: .leading)
+                VStack(spacing: 10) { actionButtons }
+                Spacer(minLength: 0)
+            }
+            .frame(width: 320)
+        }
+        .padding(.horizontal, 36)
+        .padding(.vertical, 16)
+    }
+
+    // MARK: 공통 조각
+    private func ringDial(size: CGFloat, timerSize: CGFloat, captionSize: CGFloat) -> some View {
+        RECRingDial(progress: progress, live: false,
+                    tint: remaining <= 60 ? TL.rec : TL.amber) {
+            VStack(spacing: 2) {
+                Text(TLFormat.hms(remaining))
+                    .font(.tlTimer(timerSize))
+                    .foregroundStyle(TL.paper)
+                Text("안에 재촬영을 시작하세요")
+                    .font(.system(size: captionSize, weight: .semibold))
+                    .foregroundStyle(TL.muted)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    private func infoTexts(bodySize: CGFloat, hintSize: CGFloat,
+                           align: TextAlignment) -> some View {
+        VStack(alignment: align == .leading ? .leading : .center, spacing: 8) {
+            Text("총 \(TimePolicy.resumeWindowMinutes)분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.")
+                .font(.system(size: bodySize))
+                .foregroundStyle(TL.muted)
+                .multilineTextAlignment(align)
+                .lineSpacing(3)
+            Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다")
+                .font(.system(size: hintSize, weight: .semibold))
+                .foregroundStyle(TL.amber)
+                .multilineTextAlignment(align)
+                .lineSpacing(3)
+        }
+    }
+
+    @ViewBuilder private var actionButtons: some View {
+        Button {
+            engine.resumeFromBreak()
+        } label: {
+            Label("지금 재촬영 시작", systemImage: "record.circle.fill")
+        }
+        .buttonStyle(TLPrimaryButtonStyle())
+
+        Button("세션 포기 — 벌점 받기") {
+            engine.emergencyEnd(reason: "긴급 용무 지속")
+        }
+        .buttonStyle(TLGhostButtonStyle(tint: TL.muted))
     }
 }
 
