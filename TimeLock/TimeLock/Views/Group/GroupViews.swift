@@ -267,9 +267,14 @@ struct GroupCreateView: View {
                     TextField("예: 영어공부 매일 30분 도전!", text: $name)
                         .groupFieldStyle()
                 }
-                field("내 닉네임 (이 방에서만 사용)") {
+                field("내 닉네임 (이 방에서만 사용 · 최대 \(GroupPolicy.nicknameMaxLength)자)") {
                     TextField("예: 열공대장", text: $nickname)
                         .groupFieldStyle()
+                        .onChange(of: nickname) { _, new in
+                            if new.count > GroupPolicy.nicknameMaxLength {
+                                nickname = String(new.prefix(GroupPolicy.nicknameMaxLength))
+                            }
+                        }
                 }
 
                 field("강도 — 참여자 전원에게 동일 적용") {
@@ -526,11 +531,16 @@ struct GroupJoinView: View {
                             previewCard(room)
 
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("이 방에서 쓸 닉네임 (중복 불가 · 선착순)")
+                                Text("이 방에서 쓸 닉네임 (중복 불가 · 선착순 · 최대 \(GroupPolicy.nicknameMaxLength)자)")
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(TL.muted)
                                 TextField("예: 지지않는사람", text: $nickname)
                                     .groupFieldStyle()
+                                    .onChange(of: nickname) { _, new in
+                                        if new.count > GroupPolicy.nicknameMaxLength {
+                                            nickname = String(new.prefix(GroupPolicy.nicknameMaxLength))
+                                        }
+                                    }
                             }
                         }
 

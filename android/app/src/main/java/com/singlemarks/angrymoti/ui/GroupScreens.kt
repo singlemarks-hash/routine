@@ -409,7 +409,8 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
 
             GroupField(name, { name = it }, "방 이름 (예: 아침 공부방)")
             Spacer(Modifier.height(10.dp))
-            GroupField(nickname, { nickname = it }, "내 닉네임")
+            GroupField(nickname, { nickname = it.take(GroupPolicy.NICKNAME_MAX_LENGTH) },
+                "내 닉네임 (최대 ${GroupPolicy.NICKNAME_MAX_LENGTH}자)")
             Spacer(Modifier.height(14.dp))
 
             TLCard {
@@ -628,7 +629,8 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
                         color = TL.muted, fontSize = 13.sp)
                 }
                 Spacer(Modifier.height(12.dp))
-                GroupField(nickname, { nickname = it }, "이 방에서 쓸 닉네임")
+                GroupField(nickname, { nickname = it.take(GroupPolicy.NICKNAME_MAX_LENGTH) },
+                    "이 방에서 쓸 닉네임 (최대 ${GroupPolicy.NICKNAME_MAX_LENGTH}자)")
                 Spacer(Modifier.height(14.dp))
                 TLPrimaryButton(if (busy) "참여 중…" else "이 방에 참여하기",
                     enabled = !busy && nickname.isNotBlank()) {
