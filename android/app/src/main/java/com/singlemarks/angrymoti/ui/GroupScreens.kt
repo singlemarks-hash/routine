@@ -721,7 +721,7 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                 waiting -> {
                     // 최초 시작 전 '활동 인증' 카드 통일 — 카운트다운 + 코드(방장) + 참여 마감 안내 (iOS 1:1)
                     TLCard {
-                        TLEyebrow("활동 인증")
+                        TLEyebrow("초대하기")
                         Spacer(Modifier.height(10.dp))
                         val secs = (room.startDate - now) / 1000L
                         val urgent = secs <= 12 * 3600
@@ -737,7 +737,10 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                         }
                         Spacer(Modifier.height(10.dp))
                         Text("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있어요.",
-                            color = TL.faint, fontSize = 12.sp)
+                            color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(2.dp))
+                        Text("초대는 방장만 가능해요.",
+                            color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(16.dp))
                     TLEyebrow("참여자 ${members.size}/${GroupPolicy.MAX_MEMBERS}")

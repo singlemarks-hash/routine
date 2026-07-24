@@ -839,15 +839,19 @@ struct GroupRoomDetailView: View {
         let cd = startCountdown()
         return TLCard {
             VStack(alignment: .leading, spacing: 12) {
-                TLEyebrow(text: "활동 인증")
+                TLEyebrow(text: "초대하기")
                 Text(cd.text)
                     .font(.system(size: 22, weight: .black, design: .rounded))
                     .foregroundStyle(cd.urgent ? TL.amber : TL.paper)
                 if room.isHostMine {
                     InviteCodeCard(code: room.code)   // '활동 시작하기' 버튼 자리에 코드
                 }
-                Text("시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있어요.")
-                    .font(.system(size: 12)).foregroundStyle(TL.faint)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있어요.")
+                    Text("초대는 방장만 가능해요.")
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(TL.amber)
             }
         }
     }
