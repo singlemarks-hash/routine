@@ -68,6 +68,9 @@ struct WeeklyScheduleView: View {
                         .background(Capsule().fill(TL.surface))
                         .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
                     }
+                    // 시스템이 툴바 버튼에 자동으로 입히는 배경/테두리를 끈다 —
+                    // 커스텀 캡슐과 겹쳐 '버튼 프레임이 2개'로 보이던 현상 제거.
+                    .buttonStyle(.plain)
                 }
             }
             .sheet(isPresented: $showEditor) {
