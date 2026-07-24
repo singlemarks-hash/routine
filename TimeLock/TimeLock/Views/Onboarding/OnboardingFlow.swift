@@ -104,17 +104,21 @@ private struct PermissionStep: View {
             }
             .padding(.top, 28)
 
-            // 저장공간 부족 경고 — 촬영 중단이 이탈로 간주될 수 있음을 미리 고지
+            // 저장공간 부족 경고 — 촬영 중단이 이탈로 간주될 수 있음을 미리 고지.
+            // 위 권한 카드와 동일한 '아이콘(32) + 제목/설명' 레이아웃으로 통일 (기본 이모지 대신 SF Symbol).
             TLCard {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text("💾").font(.system(size: 16))
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "internaldrive.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(TL.amber)
+                        .frame(width: 32)
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("저장공간 용량 확인")
                             .font(.tlTitle(15)).foregroundStyle(TL.paper)
+                        Text("저장공간이 부족하여 중간에 타임랩스가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 미리 충분한 저장공간을 꼭 확보해 주세요.")
+                            .font(.system(size: 13)).foregroundStyle(TL.amber)
+                            .lineSpacing(3)
                     }
-                    Text("저장공간이 부족하여 중간에 타임랩스가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 미리 충분한 저장공간을 꼭 확보해 주세요.")
-                        .font(.system(size: 13)).foregroundStyle(TL.amber)
-                        .lineSpacing(3)
                 }
             }
             .padding(.top, 12)
