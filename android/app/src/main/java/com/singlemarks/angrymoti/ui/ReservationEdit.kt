@@ -67,6 +67,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     val owner = AccountStore.currentUserID
     val isPro by SubscriptionManager.isPro.collectAsState()
+    val spicyCompletions by com.singlemarks.angrymoti.AppState.spicyCompletions.collectAsState()
+    val insaneUnlocked = spicyCompletions >= 3 || isPro   // 미친맛: 매운맛 완주 3회 or 멤버십
 
     var loaded by remember { mutableStateOf(reservationId == null) }
     var existing by remember { mutableStateOf<Reservation?>(null) }
@@ -100,8 +102,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     if (r.tag in ActivityTag.presets) tag = r.tag else customTag = r.tag
                 }
             }
-            // 무료 사용자는 미친맛 불가 → 매운맛으로 (전역 기본이 미친맛이어도)
-            if (!isPro && intensity == Intensity.INSANE) intensity = Intensity.SPICY
+            // 미친맛 미해제면 매운맛으로 (전역 기본이 미친맛이어도)
+            if (!insaneUnlocked && intensity == Intensity.INSANE) intensity = Intensity.SPICY
             loaded = true
         }
     }
@@ -252,7 +254,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Intensity.entries.forEach { level ->
                         val selected = intensity == level
-                        val locked = level == Intensity.INSANE && !isPro   // 미친맛은 멤버십 전용
+                        // 미친맛: 매운맛 완주 3회(성실 경로) 또는 멤버십
+                        val locked = level == Intensity.INSANE && !insaneUnlocked
                         Column(
                             Modifier.weight(1f)
                                 .background(if (selected) TL.paper else TL.surface, TL.cornerM)
@@ -263,7 +266,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
                                 color = if (selected) TL.ink else if (locked) TL.faint else TL.muted,
                                 fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(if (locked) "멤버십 전용"
+                            Text(if (locked) "매운맛 완주 ${minOf(spicyCompletions, 3)}/3 · 멤버십 즉시"
                                  else if (level == Intensity.SPICY) "긴급 용무 10분 허용" else "이탈 즉시 실패 · 점수 2배",
                                 color = if (selected) TL.ink.copy(alpha = 0.7f) else TL.faint, fontSize = 10.sp)
                         }
@@ -480,6 +483,29 @@ private fun nextOneOffDay(startMinute: Int): Long {
     val today = todayStart()
     return if (today + startMinute * 60_000L > System.currentTimeMillis()) today
     else today + 86_400_000L
+}
+
+@Composable
+/** 활동 슬롯 현황 배지 — 활동 예약·그룹 생성·그룹 참여 공용. 그룹도 슬롯 1개를 차지함을 알린다. */
+@Composable
+fun SlotStatusBadge(used: Int, allowed: Int?, streak: Int, onClick: () -> Unit) {
+    val full = allowed != null && used >= allowed
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+            .background((if (full) TL.amber else TL.jade).copy(alpha = 0.10f), TL.cornerM)
+            .clickable(onClick = onClick).padding(12.dp),
+    ) {
+        Text(if (full) "🔒" else "🔥", fontSize = 14.sp)
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text("활동 슬롯 $used/${allowed?.toString() ?: "무제한"} · 연속 달성 ${streak}일",
+                color = TL.paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("그룹도 슬롯 1개를 사용해요 · 터치하면 정책", color = TL.faint, fontSize = 11.sp)
+        }
+        Spacer(Modifier.weight(1f))
+        Text("ⓘ", color = TL.muted, fontSize = 15.sp)
+    }
 }
 
 @Composable

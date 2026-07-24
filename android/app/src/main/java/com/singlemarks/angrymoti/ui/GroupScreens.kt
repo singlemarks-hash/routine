@@ -326,6 +326,21 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     val isPro by SubscriptionManager.isPro.collectAsState()
+    val spicyCompletions by com.singlemarks.angrymoti.AppState.spicyCompletions.collectAsState()
+    val insaneUnlocked = spicyCompletions >= 3 || isPro   // 미친맛: 매운맛 완주 3회 or 멤버십
+    // 그룹 예약도 슬롯 1개를 차지 — 상단 배지로 현황 노출
+    var slotReservations by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.Reservation>()) }
+    var slotSessions by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.FocusSession>()) }
+    var showSlotSheet by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val owner = AccountStore.currentUserID
+        slotReservations = com.singlemarks.angrymoti.data.AppDb.get(context).reservations().active(owner)
+        slotSessions = com.singlemarks.angrymoti.data.AppDb.get(context).sessions().all(owner)
+    }
+    val slotStreak = com.singlemarks.angrymoti.models.SlotPolicy.currentStreak(
+        slotSessions.filter { it.outcome != null }
+            .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) })
+    val slotAllowed = com.singlemarks.angrymoti.models.SlotPolicy.allowedSlots(slotStreak, isPro)
     var name by remember { mutableStateOf("") }
     var nickname by remember { mutableStateOf("") }
     var intensity by remember { mutableStateOf(Intensity.SPICY) }
@@ -417,6 +432,8 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
+            SlotStatusBadge(slotReservations.size, slotAllowed, slotStreak) { showSlotSheet = true }
+            Spacer(Modifier.height(14.dp))
             error?.let {
                 Text(it, color = TL.rec, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 10.dp))
@@ -434,7 +451,8 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 Row {
                     Intensity.entries.forEach { level ->
                         val selected = intensity == level
-                        val locked = level == Intensity.INSANE && !isPro   // 미친맛은 멤버십 전용
+                        // 미친맛: 매운맛 완주 3회(성실 경로) 또는 멤버십
+                        val locked = level == Intensity.INSANE && !insaneUnlocked
                         Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
                             color = if (selected) TL.ink else if (locked) TL.faint else TL.paper,
                             fontSize = 14.sp, fontWeight = FontWeight.Bold,
@@ -446,7 +464,8 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Text(if (!isPro && intensity == Intensity.SPICY) "미친 매운맛은 멤버십 전용이에요."
+                Text(if (!insaneUnlocked && intensity == Intensity.SPICY)
+                        "미친 매운맛은 매운맛 완주 ${minOf(spicyCompletions, 3)}/3 또는 멤버십으로 해제돼요."
                      else intensity.subtitle, color = TL.faint, fontSize = 12.sp)
             }
             Spacer(Modifier.height(10.dp))
@@ -558,7 +577,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Text("내일부터 시작 가능 · 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월) · " +
+                Text("시작은 지금부터 1시간 뒤부터 · 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월) · " +
                     "시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 자동 취소",
                     color = TL.faint, fontSize = 12.sp, lineHeight = 18.sp)
             }
@@ -595,10 +614,17 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
             },
         ) { androidx.compose.material3.DatePicker(state = dateState) }
     }
+
+    if (showSlotSheet) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showSlotSheet = false }, containerColor = TL.surface,
+        ) { SlotPolicySheet(streak = slotStreak, isPro = isPro) }
+    }
 }
 
 // MARK: 초대코드 참여 — iOS GroupJoinView 1:1
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GroupJoinScreen(onDone: () -> Unit) {
     val context = LocalContext.current
@@ -609,6 +635,20 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var joined by remember { mutableStateOf(false) }
+    // 참여도 그룹 예약(슬롯 1개)이 생기므로 상단에 슬롯 현황 노출
+    val isPro by SubscriptionManager.isPro.collectAsState()
+    var slotReservations by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.Reservation>()) }
+    var slotSessions by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.FocusSession>()) }
+    var showSlotSheet by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val owner = AccountStore.currentUserID
+        slotReservations = com.singlemarks.angrymoti.data.AppDb.get(context).reservations().active(owner)
+        slotSessions = com.singlemarks.angrymoti.data.AppDb.get(context).sessions().all(owner)
+    }
+    val slotStreak = com.singlemarks.angrymoti.models.SlotPolicy.currentStreak(
+        slotSessions.filter { it.outcome != null }
+            .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) })
+    val slotAllowed = com.singlemarks.angrymoti.models.SlotPolicy.allowedSlots(slotStreak, isPro)
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
         Row(
@@ -626,6 +666,10 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
+            if (!joined) {
+                SlotStatusBadge(slotReservations.size, slotAllowed, slotStreak) { showSlotSheet = true }
+                Spacer(Modifier.height(14.dp))
+            }
             error?.let {
                 Text(it, color = TL.rec, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 10.dp))
@@ -698,6 +742,12 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showSlotSheet) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showSlotSheet = false }, containerColor = TL.surface,
+        ) { SlotPolicySheet(streak = slotStreak, isPro = isPro) }
     }
 }
 

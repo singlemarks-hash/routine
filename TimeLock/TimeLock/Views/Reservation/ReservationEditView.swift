@@ -247,13 +247,13 @@ struct ReservationEditView: View {
     }
 
     /// 강도 — 활동별로 설정 (그룹 방 만들기와 동일한 세그먼트, 혼자 하는 활동이라 '참여자 전원' 문구는 뺀다).
-    /// 미친 매운맛은 멤버십 전용 — 무료 사용자에겐 잠금 표시.
+    /// 미친 매운맛은 매운맛 완주 3회로 해제(성실 경로) 또는 멤버십 — 그 전엔 잠금 표시.
     private var intensitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             TLEyebrow(text: "강도")
             HStack(spacing: 8) {
                 ForEach(Intensity.allCases) { candidate in
-                    let locked = candidate == .insane && !subscription.isPro
+                    let locked = candidate == .insane && !app.insaneUnlocked
                     Button {
                         guard !locked else { return }
                         intensity = candidate
@@ -264,7 +264,7 @@ struct ReservationEditView: View {
                                 Text("\(candidate.emoji) \(candidate.title)")
                                     .font(.system(size: 14, weight: .bold, design: .rounded))
                             }
-                            Text(locked ? "멤버십 전용"
+                            Text(locked ? "매운맛 완주 \(min(app.spicyCompletions, 3))/3 · 멤버십 즉시"
                                  : (candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배"))
                                 .font(.system(size: 10))
                         }
@@ -352,8 +352,8 @@ struct ReservationEditView: View {
 
     private func load() {
         guard let r = reservation else {
-            // 신규 예약 기본 강도 = 전역 설정 (무료 사용자는 미친맛 불가 → 매운맛으로)
-            intensity = subscription.isPro ? app.intensity : .spicy
+            // 신규 예약 기본 강도 = 전역 설정 (미친맛 미해제면 매운맛으로)
+            intensity = app.insaneUnlocked ? app.intensity : .spicy
             return
         }
         name = r.name
@@ -361,7 +361,7 @@ struct ReservationEditView: View {
         if !ActivityTag.presets.contains(r.tag) { customTag = r.tag }
         durationMinutes = r.durationMinutes
         intensity = r.intensityOverride ?? app.intensity
-        if !subscription.isPro && intensity == .insane { intensity = .spicy }
+        if !app.insaneUnlocked && intensity == .insane { intensity = .spicy }
         let base = Calendar.current.startOfDay(for: .now)
         startTime = Calendar.current.date(byAdding: .minute, value: r.startMinute, to: base) ?? .now
         isRepeating = r.isRepeating
@@ -486,9 +486,47 @@ struct ReservationEditView: View {
     }
 }
 
+// MARK: - 활동 슬롯 현황 배지 (활동 예약·그룹 생성·그룹 참여 공용)
+
+/// 최상단에 슬롯 현황을 보여주는 배지 — 터치하면 정책 표. 그룹 예약도 슬롯 1개를 차지하므로
+/// 방을 만들거나 참여할 때도 동일하게 노출해, 슬롯이 왜 줄어드는지 바로 알 수 있게 한다.
+struct SlotStatusBadge: View {
+    let used: Int
+    let allowed: Int?     // nil = 무제한
+    let streak: Int
+    var onTap: () -> Void
+
+    var body: some View {
+        let full = allowed.map { used >= $0 } ?? false
+        let label = allowed.map { "\(used)/\($0)" } ?? "\(used)/무제한"
+        Button(action: onTap) {
+            HStack(spacing: 10) {
+                Image(systemName: full ? "lock.fill" : "flame.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(full ? TL.amber : TL.jade)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("활동 슬롯 \(label) · 연속 달성 \(streak)일")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(TL.paper)
+                    Text("그룹도 슬롯 1개를 사용해요 · 터치하면 정책")
+                        .font(.system(size: 11)).foregroundStyle(TL.faint)
+                }
+                Spacer()
+                Image(systemName: "info.circle").font(.system(size: 15)).foregroundStyle(TL.muted)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                .fill((full ? TL.amber : TL.jade).opacity(0.10)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - 활동 슬롯 정책 팝업 (단계표)
 
-private struct SlotPolicySheet: View {
+struct SlotPolicySheet: View {
     let currentStreak: Int
     let usedSlots: Int
     let isMember: Bool

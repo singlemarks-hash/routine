@@ -212,6 +212,16 @@ struct GroupTabView: View {
 struct GroupCreateView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var store = GroupStore.shared
+    @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var subscription: SubscriptionManager
+    @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allActiveReservations: [Reservation]
+    @Query private var allSessions: [FocusSession]
+    @State private var showSlotPolicy = false
+
+    // 그룹 예약도 슬롯 1개를 차지 — 방 만들기 최상단에 현황 노출 (활동 예약과 동일)
+    private var slotUsed: Int { allActiveReservations.filter { $0.ownerUserID == account.currentUserID }.count }
+    private var slotStreak: Int { SlotPolicy.currentStreak(sessions: allSessions.filter { $0.ownerUserID == account.currentUserID }) }
+    private var slotAllowed: Int? { SlotPolicy.allowedSlots(forStreak: slotStreak, isMember: subscription.isPro) }
 
     @State private var name = ""
     @State private var nickname = ""
@@ -238,8 +248,8 @@ struct GroupCreateView: View {
             && !nickname.trimmingCharacters(in: .whitespaces).isEmpty
             && (!isRepeating || !weekdays.isEmpty)
     }
-    /// 미친 매운맛은 멤버십 전용
-    private var isPro: Bool { SubscriptionManager.shared.isPro }
+    /// 미친 매운맛 해제 여부 — 매운맛 완주 3회(성실 경로) 또는 멤버십
+    private var insaneUnlocked: Bool { AppState.shared.insaneUnlocked }
 
     var body: some View {
         NavigationStack {
@@ -259,6 +269,10 @@ struct GroupCreateView: View {
                         .foregroundStyle(TL.muted)
                 }
             }
+            .sheet(isPresented: $showSlotPolicy) {
+                SlotPolicySheet(currentStreak: slotStreak, usedSlots: slotUsed, isMember: subscription.isPro)
+                    .presentationDetents([.medium, .large])
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -266,6 +280,9 @@ struct GroupCreateView: View {
     private var form: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                SlotStatusBadge(used: slotUsed, allowed: slotAllowed, streak: slotStreak) {
+                    showSlotPolicy = true
+                }
                 field("방 이름 (참여자 전원의 활동명이 됩니다)") {
                     TextField("예: 영어공부 매일 30분 도전!", text: $name)
                         .groupFieldStyle()
@@ -283,7 +300,7 @@ struct GroupCreateView: View {
                 field("강도 — 참여자 전원에게 동일 적용") {
                     HStack(spacing: 8) {
                         ForEach(Intensity.allCases) { candidate in
-                            let locked = candidate == .insane && !isPro
+                            let locked = candidate == .insane && !insaneUnlocked
                             Button {
                                 guard !locked else { return }
                                 intensity = candidate
@@ -294,7 +311,7 @@ struct GroupCreateView: View {
                                         Text("\(candidate.emoji) \(candidate.title)")
                                             .font(.system(size: 14, weight: .bold, design: .rounded))
                                     }
-                                    Text(locked ? "멤버십 전용"
+                                    Text(locked ? "매운맛 완주 3회 · 멤버십 즉시"
                                          : (candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배"))
                                         .font(.system(size: 10))
                                 }
@@ -532,6 +549,16 @@ struct GroupCreateView: View {
 struct GroupJoinView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var store = GroupStore.shared
+    @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var subscription: SubscriptionManager
+    @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allActiveReservations: [Reservation]
+    @Query private var allSessions: [FocusSession]
+    @State private var showSlotPolicy = false
+
+    // 참여도 그룹 예약(슬롯 1개)이 생기므로 상단에 슬롯 현황 노출
+    private var slotUsed: Int { allActiveReservations.filter { $0.ownerUserID == account.currentUserID }.count }
+    private var slotStreak: Int { SlotPolicy.currentStreak(sessions: allSessions.filter { $0.ownerUserID == account.currentUserID }) }
+    private var slotAllowed: Int? { SlotPolicy.allowedSlots(forStreak: slotStreak, isMember: subscription.isPro) }
 
     @State private var code = ""
     @State private var nickname = ""
@@ -547,6 +574,9 @@ struct GroupJoinView: View {
                     if joined {
                         joinedPanel
                     } else {
+                        SlotStatusBadge(used: slotUsed, allowed: slotAllowed, streak: slotStreak) {
+                            showSlotPolicy = true
+                        }
                         Text("방장에게 받은 초대코드를 입력하세요.")
                             .font(.system(size: 14))
                             .foregroundStyle(TL.muted)
@@ -609,6 +639,10 @@ struct GroupJoinView: View {
                     Button("닫기") { dismiss() }
                         .foregroundStyle(TL.muted)
                 }
+            }
+            .sheet(isPresented: $showSlotPolicy) {
+                SlotPolicySheet(currentStreak: slotStreak, usedSlots: slotUsed, isMember: subscription.isPro)
+                    .presentationDetents([.medium, .large])
             }
         }
         .preferredColorScheme(.dark)
