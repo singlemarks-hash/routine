@@ -150,8 +150,10 @@ final class SessionEngine: NSObject, ObservableObject {
         // '실제 촬영 없이 완주(만점)'로 오인하는 것은 막는다.
         if Date().timeIntervalSince(CameraRecorder.shared.lastFrameAt) > CameraRecorder.shared.captureStallLimit {
             // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
-            // 찍히다 끊긴 거라면 제어센터·타앱 등 캡처 인터럽션 = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
             if CameraRecorder.shared.frameCount == 0 { safetyEnd(note: "카메라 시작 실패") }
+            // 저장공간이 꽉 차 프레임이 끊긴 경우 = 기기 사정 → 유예(일시중단)로 재개 기회를 준다.
+            else if isStorageCritical { enterStorageBreak(session: s) }
+            // 그 외(제어센터·타앱 등 캡처 인터럽션) = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
             else { handleExitEvent() }
             return
         }
@@ -237,6 +239,9 @@ final class SessionEngine: NSObject, ObservableObject {
     /// 소진되면 세션 화면이 긴급 버튼을 비활성화한다 (중단 중 00:00 도달은 틱이 자동 실패 처리).
     @Published private(set) var breakBudgetRemaining: TimeInterval = TimePolicy.resumeWindowSeconds
 
+    /// 저장공간 부족 등 '기기 사정'으로 자동 일시중단됐을 때 브레이크 화면에 띄우는 안내. (일반 긴급용무면 nil)
+    @Published var breakNote: String? = nil
+
     /// 촬영을 잠시 중단한다. 데드라인 안에 재촬영을 시작하면 벌점이 없다.
     /// 세션 화면의 '긴급 용무' 버튼과 앱 이탈(백그라운드/화면 잠금)이 공통으로 사용한다.
     func startBreak() {
@@ -248,9 +253,33 @@ final class SessionEngine: NSObject, ObservableObject {
         }
         let deadline = Date().addingTimeInterval(breakBudgetRemaining)
         CameraRecorder.shared.pause()
+        breakNote = nil   // 일반 긴급용무엔 안내문구 없음
         phase = .pausedForBreak(deadline: deadline)
         defaults.set(deadline.timeIntervalSince1970, forKey: Key.breakDeadline)
         AlarmScheduler.shared.scheduleBreakNotifications(deadline: deadline)
+    }
+
+    /// 저장공간이 실제로 임계 이하인지 (사전 차단이 아니라 촬영이 막힌 '실패 시점'에만 원인 분류용으로 확인)
+    private var isStorageCritical: Bool {
+        guard let values = try? SessionStorage.directory
+                .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+              let free = values.volumeAvailableCapacityForImportantUsage else { return false }
+        return free < 500_000_000   // 500MB
+    }
+
+    /// 저장공간 부족으로 촬영이 막힌 경우 — 강도와 무관하게 일시중단(유예)하고 안내를 띄운다.
+    /// 사용자가 공간을 확보하고 재촬영을 누르면 이어진다. 예산 소진/미재촬영 시 실패(기존 규칙).
+    private func enterStorageBreak(session s: FocusSession) {
+        guard phase == .recording, !isFinalizing else { return }
+        guard breakBudgetRemaining >= 1 else { failBreakExpired(session: s); return }
+        let deadline = Date().addingTimeInterval(breakBudgetRemaining)
+        CameraRecorder.shared.pause()
+        breakNote = "저장공간이 부족합니다. 저장공간을 확보 후 촬영을 재개하세요."
+        phase = .pausedForBreak(deadline: deadline)
+        defaults.set(deadline.timeIntervalSince1970, forKey: Key.breakDeadline)
+        AlarmScheduler.shared.scheduleBreakNotifications(deadline: deadline)
+        AlarmScheduler.shared.playChime()
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
     }
 
     /// 재촬영 시작 — 창 안이면 벌점 없이 촬영이 이어진다.
@@ -266,6 +295,7 @@ final class SessionEngine: NSObject, ObservableObject {
         // 재촬영 시작은 새 에피소드 — 남아 있던 부재 판정 상태를 비운다
         absenceWarning = false
         absencePenaltyApplied = false
+        breakNote = nil
         phase = .recording
         defaults.removeObject(forKey: Key.breakDeadline)
         AlarmScheduler.shared.cancelBreakNotifications()
@@ -346,13 +376,17 @@ final class SessionEngine: NSObject, ObservableObject {
     // → 오래 촬영하고 결과에서야 무효를 보고 절망하는 헛수고를 막는다.
 
     private func checkCaptureHealth() {
-        guard phase == .recording, !isFinalizing else { return }
+        guard let s = session, phase == .recording, !isFinalizing else { return }
         // 워밍업(첫 60초)은 표본이 적어 판단 보류
         guard recordedSeconds >= 60 else { return }
         if CameraRecorder.shared.capturedSeconds < recordedSeconds / 2 {
-            AlarmScheduler.shared.playChime()
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
-            safetyEnd(note: "촬영이 정상 진행되지 않음")
+            if isStorageCritical {
+                enterStorageBreak(session: s)   // 저장공간 부족 = 유예(일시중단)로 재개 기회를 준다
+            } else {
+                AlarmScheduler.shared.playChime()
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                safetyEnd(note: "촬영이 정상 진행되지 않음")   // 그 외 촬영 장애 = 무효
+            }
         }
     }
 
@@ -647,18 +681,16 @@ final class SessionEngine: NSObject, ObservableObject {
         // 계정 스코프 — 다른 계정의 미완료 세션은 지금 로그인한 계정으로 마감/노출하지 않는다.
         // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단)
         guard orphan.ownerUserID == AccountStore.shared.currentUserID else { return }
-        let wasOnBreak = defaults.object(forKey: Key.breakDeadline) != nil
-        let outcome: SessionOutcome
-        if wasOnBreak { outcome = .exitFailed }                    // 중단 창 도중 종료
-        else if orphan.intensity == .insane { outcome = .exitFailed }  // 미친맛: 무단 종료도 이탈 실패 (봐주지 않음)
-        else { outcome = .safetyEnded }                            // 매운맛 크래시 — 관대하게 무벌점
+        // 촬영 도중 앱이 죽으면(배터리 방전·강제 종료·크래시) 강도와 무관하게 이탈 실패로 본다.
+        // 모든 건 사용자 책임 — 저전력·강제종료로 세션이 날아가면 벌점 긴급이탈.
+        let outcome: SessionOutcome = .exitFailed
         orphan.outcome = outcome
         orphan.endedAt = .now
         if let (type, points) = ScoreRules.points(for: outcome, intensity: orphan.intensity,
                                                   durationMinutes: orphan.targetSeconds / 60) {
             let event = ScoreEvent(type: type, points: points, sessionID: orphan.id,
                                    intensity: orphan.intensity,
-                                   note: outcome == .exitFailed ? "이탈 후 앱 종료" : "비정상 종료 복구",
+                                   note: "촬영 중 앱 종료 (배터리·강제 종료 등)",
                                    ownerUserID: orphan.ownerUserID)
             context.insert(event)
             AccountStore.shared.mirror(event: event)
