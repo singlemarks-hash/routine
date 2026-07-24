@@ -771,11 +771,7 @@ struct GroupRoomDetailView: View {
                 infoCard
 
                 if room.status == "scheduled" && !room.hasStarted {
-                    if room.isHostMine {
-                        InviteCodeCard(code: room.code)
-                        Text("코드는 방장에게만 보여요. 시작 전까지 공유해 참여자를 모으세요.")
-                            .font(.system(size: 12)).foregroundStyle(TL.faint)
-                    }
+                    invitePreStartCard
                     waitingSection
                 } else if room.isFinished {
                     resultSection
@@ -821,18 +817,37 @@ struct GroupRoomDetailView: View {
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
                 Text("\(GroupFormat.day(room.startDate)) ~ \(GroupFormat.day(room.endDate)) · \(room.intensity.emoji) \(room.intensity.title) · \(room.memberCount)명")
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
-                if !room.hasStarted {
-                    // 시작이 12시간 이내로 임박했을 때만 노란색 카운트다운을 띄운다 —
-                    // 그보다 멀면 굳이 초조하게 만들지 않는다.
-                    let secs = Int(room.startDate.timeIntervalSince(now))
-                    if secs <= 12 * 3600 {
-                        Text(startRemainLabel(secs))
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(TL.amber)
-                    }
-                    Text("시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있어요.")
-                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
+            }
+        }
+    }
+
+    // MARK: 시작 전 — '활동 인증' 카드 통일 (활성 카드와 같은 틀: 카운트다운 + 코드 + 안내)
+
+    /// 시작 카운트다운 문구와 임박(노랑) 여부. 12시간 이내면 분단위 남은시간(임박),
+    /// 그보다 멀면 일/시간 단위로 담담하게.
+    private func startCountdown() -> (text: String, urgent: Bool) {
+        let secs = Int(room.startDate.timeIntervalSince(now))
+        if secs <= 12 * 3600 { return (startRemainLabel(secs), true) }
+        let m = max(1, secs / 60)
+        if m >= 1440 { return ("\(m / 1440)일 뒤 시작", false) }
+        return ("\(m / 60)시간 뒤 시작", false)
+    }
+
+    /// 최초 시작 전 — 활성 상태의 '활동 인증' 카드와 동일한 틀.
+    /// 버튼 자리에는 초대코드(방장만), 그 아래엔 참여 마감 안내.
+    private var invitePreStartCard: some View {
+        let cd = startCountdown()
+        return TLCard {
+            VStack(alignment: .leading, spacing: 12) {
+                TLEyebrow(text: "활동 인증")
+                Text(cd.text)
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .foregroundStyle(cd.urgent ? TL.amber : TL.paper)
+                if room.isHostMine {
+                    InviteCodeCard(code: room.code)   // '활동 시작하기' 버튼 자리에 코드
                 }
+                Text("시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있어요.")
+                    .font(.system(size: 12)).foregroundStyle(TL.faint)
             }
         }
     }
@@ -1034,18 +1049,17 @@ struct InviteCodeCard: View {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
         } label: {
-            VStack(spacing: 6) {
-                TLEyebrow(text: "초대코드", color: TL.rec)
+            VStack(spacing: 4) {
                 Text(code.map(String.init).joined(separator: " "))
-                    .font(.tlTimer(36))
+                    .font(.tlTimer(30))
                     .foregroundStyle(TL.paper)
                     .kerning(2)
-                Text(copied ? "복사됐어요!" : "탭해서 복사")
+                Text(copied ? "복사됐어요!" : "초대코드 · 탭해서 복사")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(copied ? TL.jade : TL.faint)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
+            .padding(.vertical, 14)
             .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.raised))
             .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
                 .strokeBorder(TL.rec.opacity(0.45), lineWidth: 1))

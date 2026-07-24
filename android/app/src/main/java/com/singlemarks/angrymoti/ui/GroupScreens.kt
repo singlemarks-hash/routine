@@ -293,24 +293,22 @@ private fun InviteCodeCard(code: String) {
     val context = LocalContext.current
     Column(
         Modifier.fillMaxWidth().background(TL.raised, TL.cornerL)
-            .border(1.dp, TL.hairline, TL.cornerL)
+            .border(1.dp, TL.rec.copy(alpha = 0.45f), TL.cornerL)
             .clickable {
                 clipboard.setText(AnnotatedString(code))
                 Toast.makeText(context, "초대코드를 복사했어요", Toast.LENGTH_SHORT).show()
             }
-            .padding(vertical = 18.dp),
+            .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        TLEyebrow("초대코드")
-        Spacer(Modifier.height(8.dp))
         Text(code.toCharArray().joinToString("  "), color = TL.paper,
             fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.material3.Icon(AppIcon.Copy, null,
                 tint = TL.muted, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(5.dp))
-            Text("탭해서 복사", color = TL.muted, fontSize = 12.sp)
+            Text("초대코드 · 탭해서 복사", color = TL.muted, fontSize = 12.sp)
         }
     }
 }
@@ -716,31 +714,32 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                 Text("${GroupFormat.period(room.startDate, room.endDate)} · " +
                     "${room.intensity.emoji} ${room.intensity.title} · ${room.memberCount}명",
                     color = TL.muted, fontSize = 13.sp)
-                if (!room.hasStarted) {
-                    // 시작이 12시간 이내로 임박했을 때만 노란색 카운트다운을 띄운다 (iOS 1:1).
-                    val secs = (room.startDate - now) / 1000L
-                    if (secs <= 12 * 3600) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(GroupFormat.startRemain(secs),
-                            color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있어요.",
-                        color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
             }
             Spacer(Modifier.height(16.dp))
 
             when {
                 waiting -> {
-                    // 초대코드는 방장에게만 (iOS 1:1)
-                    if (room.isHostMine) {
-                        InviteCodeCard(room.code)
-                        Spacer(Modifier.height(6.dp))
-                        Text("코드는 방장에게만 보여요. 시작 전까지 공유해 참여자를 모으세요.",
+                    // 최초 시작 전 '활동 인증' 카드 통일 — 카운트다운 + 코드(방장) + 참여 마감 안내 (iOS 1:1)
+                    TLCard {
+                        TLEyebrow("활동 인증")
+                        Spacer(Modifier.height(10.dp))
+                        val secs = (room.startDate - now) / 1000L
+                        val urgent = secs <= 12 * 3600
+                        val cd = if (urgent) GroupFormat.startRemain(secs) else {
+                            val m = maxOf(1L, secs / 60)
+                            if (m >= 1440) "${m / 1440}일 뒤 시작" else "${m / 60}시간 뒤 시작"
+                        }
+                        Text(cd, color = if (urgent) TL.amber else TL.paper,
+                            fontSize = 22.sp, fontWeight = FontWeight.Black)
+                        if (room.isHostMine) {
+                            Spacer(Modifier.height(12.dp))
+                            InviteCodeCard(room.code)   // '활동 시작하기' 버튼 자리에 코드
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Text("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있어요.",
                             color = TL.faint, fontSize = 12.sp)
-                        Spacer(Modifier.height(16.dp))
                     }
+                    Spacer(Modifier.height(16.dp))
                     TLEyebrow("참여자 ${members.size}/${GroupPolicy.MAX_MEMBERS}")
                     Spacer(Modifier.height(8.dp))
                     TLCard {
