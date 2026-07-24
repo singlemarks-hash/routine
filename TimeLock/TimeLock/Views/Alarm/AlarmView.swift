@@ -519,10 +519,14 @@ struct MountGuideView: View {
             Text(pending.activityName)
                 .font(.tlTitle(isLandscape ? 18 : 22))
                 .foregroundStyle(TL.paper)
-            Text("\(TimePolicy.startWindowMinutes)분 안에 시작하지 않으면 노쇼 처리됩니다")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(TL.rec)
-                .fixedSize(horizontal: false, vertical: true)
+            // 예약(scheduledAt)이 있을 때만 노쇼 경고를 보여준다 — '지금 바로 시작'은
+            // 예약과 무관해 취소해도 노쇼가 아니므로 이 문구가 사실과 다르게 겁을 준다.
+            if pending.scheduledAt != nil {
+                Text("\(TimePolicy.startWindowMinutes)분 안에 시작하지 않으면 노쇼 처리됩니다")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TL.rec)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: isLandscape ? .infinity : nil, alignment: isLandscape ? .leading : .center)
     }
