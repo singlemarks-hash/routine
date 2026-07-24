@@ -255,19 +255,19 @@ fun MountGuideScreen(pending: PendingSession) {
             Box(
                 Modifier.align(Alignment.Center).size(fw, fh).drawBehind {
                     drawRoundRect(
-                        color = Color.White.copy(alpha = 0.65f),
+                        color = Color.White.copy(alpha = 0.5f),
                         style = Stroke(
-                            width = 2.4.dp.toPx(),
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(22f, 18f)),
+                            width = 2.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 16f)),
                         ),
                         cornerRadius = CornerRadius(24.dp.toPx()),
                     )
                 },
-                contentAlignment = Alignment.TopCenter,
+                contentAlignment = Alignment.Center,   // 프레임 정중앙 — 헤더·타이머·패널과 겹치지 않음
             ) {
-                Text("영역 안에 내 모습이 모두 보이도록", color = Color.White,
+                Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
                     fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier
                         .background(Color.Black.copy(alpha = 0.55f), CircleShape)
                         .padding(horizontal = 12.dp, vertical = 6.dp))
             }
@@ -345,8 +345,10 @@ fun MountGuideScreen(pending: PendingSession) {
 
     Box(Modifier.fillMaxSize().background(TL.ink)) {
         if (portrait) {
-            // 세로 — 전체 화면 프리뷰 + 컨트롤, 그 위로 점선 프레임(맨 앞)을 크게 얹는다 (iOS 1:1)
+            // 세로 — 가로와 동일하게: 전체 화면 프리뷰 + 점선 프레임(맨 뒤) 위로 컨트롤이 덮는다.
+            //  프레임이 헤더·체크·버튼 위를 가로지르지 않아 화면이 깔끔하다 (iOS 1:1).
             previewView(Modifier.fillMaxSize())
+            dashedGuideOverlay()
             Column(
                 Modifier.fillMaxSize().padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -359,8 +361,6 @@ fun MountGuideScreen(pending: PendingSession) {
                 checklistAndStart()
                 Spacer(Modifier.height(14.dp))
             }
-            // 점선 프레임을 맨 위로 — 얇은 점선이라 헤더/체크와 겹쳐도 프레임이 또렷하게 보인다
-            dashedGuideOverlay()
         } else {
             // 가로 — 전체 화면 프리뷰 + 80% 점선 프레임(패널 뒤) 위로, 우측 '반투명' 컨트롤 패널.
             //  패널이 반투명이라 내 전신이 화면 어디까지 들어오는지 프레임과 함께 확인된다 (오버레이 느낌).
