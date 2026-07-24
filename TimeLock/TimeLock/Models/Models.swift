@@ -105,6 +105,7 @@ enum GroupPolicy {
     static let minStartLeadMinutes = 60   // 시작은 지금부터 최소 1시간 뒤
     static let joinCutoffMinutes = 11     // 시작 11분 전까지만 참여 (10분 전 알람을 받을 수 있게)
     static let codeLength = 5             // 초대코드 자릿수 (영문 대문자+숫자)
+    static let nicknameMaxLength = 8      // 방 닉네임 최대 글자수 (랭킹 한 줄 유지)
     static let resultRetentionDays = 30   // 종료 후 최종 결과 보존 기간
 }
 
