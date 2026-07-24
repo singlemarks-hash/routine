@@ -2,8 +2,6 @@ package com.singlemarks.angrymoti.services
 
 import android.content.Context
 import android.content.Intent
-import android.os.BatteryManager
-import android.os.StatFs
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.FocusSession
 import com.singlemarks.angrymoti.data.Prefs
@@ -54,7 +52,6 @@ object SessionEngine {
     private var session: FocusSession? = null
     private var absencePenaltyApplied = false
     private var isFinalizing = false
-    private var safetyCounter = 0
     private var breakWarnPosted = false
 
     private lateinit var appContext: Context
@@ -92,7 +89,6 @@ object SessionEngine {
         absenceEpisodeCount.value = 0
         breakBudgetRemaining.value = TimePolicy.RESUME_WINDOW_SECONDS
         isFinalizing = false
-        safetyCounter = 0
         breakWarnPosted = false
         phase.value = Phase.Recording
 
@@ -132,17 +128,12 @@ object SessionEngine {
         }
         if (p != Phase.Recording) return
 
-        // 촬영 신호 점검 — 프레임이 끊기면(제어센터·타앱·카메라 뺏김 등 캡처 인터럽션) 이탈로 처리한다(#12).
-        // 단 배터리/저장공간이 원인이면 사용자 잘못이 아니므로 무벌점 안전종료(#11). 어느 쪽이든
-        // '실제 촬영 없이 완주(만점)'로 오인하는 것은 막는다.
+        // 촬영 신호 점검 — 프레임이 끊기면 원인에 따라 갈린다.
         if (CameraRecorder.isCaptureStalled()) {
-            checkSafety()                          // 배터리/저장공간 문제면 무벌점 안전종료
-            if (!isFinalizing) {
-                // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
-                // 찍히다 끊긴 거라면 제어센터·타앱 등 캡처 인터럽션 = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
-                if (CameraRecorder.frameCount.value == 0) safetyEnd("카메라 시작 실패")
-                else handleExitEvent()
-            }
+            // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
+            // 찍히다 끊긴 거라면 제어센터·타앱 등 캡처 인터럽션 = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
+            if (CameraRecorder.frameCount.value == 0) safetyEnd("카메라 시작 실패")
+            else handleExitEvent()
             return
         }
 
@@ -182,9 +173,8 @@ object SessionEngine {
             finishCompleted(s)
             return
         }
-        // 30초마다 안전 점검
-        safetyCounter += 1
-        if (safetyCounter % 30 == 0) checkSafety()
+        // 매 틱 촬영 진행 상태 점검 — 실촬영량이 경과 대비 크게 뒤처지면 알람과 함께 조기 무효
+        checkCaptureHealth()
     }
 
     // MARK: 완주
@@ -311,15 +301,18 @@ object SessionEngine {
         }
     }
 
-    // MARK: 안전 종료 (배터리 ≤5% 미충전 / 저장공간 <500MB / 카메라 실패)
-
-    private fun checkSafety() {
-        val bm = appContext.getSystemService(BatteryManager::class.java)
-        val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-        val charging = bm.isCharging
-        if (level in 0..5 && !charging) { safetyEnd("배터리 부족"); return }   // 0% 포함 (iOS 0~5% 통일, -1=미상 제외)
-        val stat = StatFs(appContext.filesDir.absolutePath)
-        if (stat.availableBytes < 500_000_000L) safetyEnd("저장 공간 부족")
+    // MARK: 촬영 진행 상태 조기 감지
+    // 배터리·저장공간을 '미리' 차단하지 않는다 — 모든 건 사용자 책임이고, 낮은 배터리·용량으로도
+    // 일단 시작·진행할 수 있어야 한다. 대신 '실제로 촬영이 되고 있는지'를 본다:
+    // 실촬영량(캡처 프레임×간격)이 경과 시간의 절반에도 못 미치면 촬영이 사실상 실패 중인 것이므로
+    // (저장공간 참·인코더 정지·카메라 장애 등 원인 불문) 알람음과 함께 즉시 무효 종료한다.
+    private fun checkCaptureHealth() {
+        if (phase.value != Phase.Recording || isFinalizing) return
+        if (recordedSeconds.value < 60) return   // 워밍업(첫 60초)은 판단 보류
+        if (CameraRecorder.capturedSeconds < recordedSeconds.value / 2) {
+            AlarmScheduler.playChime(appContext)
+            safetyEnd("촬영이 정상 진행되지 않음")
+        }
     }
 
     fun safetyEnd(note: String) {
