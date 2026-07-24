@@ -244,7 +244,7 @@ private fun GroupRoomCard(room: GroupRoom, onClick: () -> Unit) {
     val (statusLabel, statusColor) = when {
         room.isFinished -> "종료" to TL.faint
         room.hasStarted -> "진행 중" to TL.jade
-        else -> "시작 ${GroupFormat.dDay(room.startDate)}" to TL.amber
+        else -> "${GroupFormat.dDay(room.startDate)} 시작" to TL.amber
     }
     Column(
         Modifier.fillMaxWidth().background(TL.surface, TL.cornerL)
