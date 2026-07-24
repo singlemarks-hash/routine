@@ -686,6 +686,7 @@ final class AccountStore: ObservableObject {
                 "startMinute": r.startMinute, "durationMinutes": r.durationMinutes,
                 "repeatWeekdays": r.repeatWeekdays,
                 "oneOffDate": ms(r.oneOffDate),
+                "intensityOverride": r.intensityOverrideRaw ?? "",
                 "createdAt": ms(r.createdAt),
                 "accountableFrom": ms(r.accountableFrom),
                 "isActive": r.isActive,
@@ -730,6 +731,7 @@ final class AccountStore: ObservableObject {
                     local.durationMinutes = data["durationMinutes"] as? Int ?? local.durationMinutes
                     local.repeatWeekdays = data["repeatWeekdays"] as? [Int] ?? local.repeatWeekdays
                     local.oneOffDate = ms(data["oneOffDate"])
+                    local.intensityOverrideRaw = (data["intensityOverride"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                     local.accountableFrom = ms(data["accountableFrom"]) ?? local.accountableFrom
                     local.isActive = data["isActive"] as? Bool ?? local.isActive
                     local.updatedAt = cloudUpdated
@@ -749,6 +751,7 @@ final class AccountStore: ObservableObject {
                 r.id = id
                 r.createdAt = ms(data["createdAt"]) ?? r.createdAt
                 r.accountableFrom = ms(data["accountableFrom"])
+                r.intensityOverrideRaw = (data["intensityOverride"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 r.isActive = data["isActive"] as? Bool ?? true
                 r.updatedAt = ms(data["updatedAt"])
                 context.insert(r)

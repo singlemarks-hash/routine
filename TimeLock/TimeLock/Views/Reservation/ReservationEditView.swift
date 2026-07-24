@@ -52,6 +52,7 @@ struct ReservationEditView: View {
         return cal.date(from: comps) ?? plus2h
     }()
     @State private var durationMinutes = 60
+    @State private var intensity: Intensity = .spicy
     @State private var isRepeating = false
     @State private var weekdays: Set<Int> = []
     @State private var oneOffDate = Date()
@@ -145,7 +146,9 @@ struct ReservationEditView: View {
                     }
                     nameSection
                     tagSection
-                    timeSection
+                    intensitySection
+                    startTimeSection
+                    durationSection
                     repeatSection
                     if reservation != nil {
                         Button("예약 삭제") { showDeleteConfirm = true }
@@ -244,29 +247,67 @@ struct ReservationEditView: View {
         }
     }
 
-    private var timeSection: some View {
+    /// 강도 — 활동별로 설정 (그룹 방 만들기와 동일한 세그먼트, 혼자 하는 활동이라 '참여자 전원' 문구는 뺀다)
+    private var intensitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "시작 시각 · 활동 시간")
-            TLCard {
-                VStack(spacing: 4) {
-                    DatePicker("시작 시각", selection: $startTime, displayedComponents: .hourAndMinute)
-                        .font(.tlBody).foregroundStyle(TL.paper)
-                        .disabled(editingDisabled)
-                    Divider().overlay(TL.hairline)
-                    HStack(spacing: 10) {
-                        Picker("활동 시간", selection: $durationMinutes) {
-                            ForEach(durations, id: \.self) { Text(TLFormat.durationLabel($0)).tag($0) }
+            TLEyebrow(text: "강도")
+            HStack(spacing: 8) {
+                ForEach(Intensity.allCases) { candidate in
+                    Button { intensity = candidate } label: {
+                        VStack(spacing: 3) {
+                            Text("\(candidate.emoji) \(candidate.title)")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                            Text(candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배")
+                                .font(.system(size: 10))
                         }
-                        .pickerStyle(.menu)
-                        .tint(TL.paper)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .foregroundStyle(intensity == candidate ? TL.ink : TL.muted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                            .fill(intensity == candidate ? TL.paper : TL.surface))
+                    }
+                    .disabled(editingDisabled)
+                }
+            }
+        }
+    }
+
+    /// 시작 시각 — 그룹 방 만들기와 동일한 휠 피커
+    private var startTimeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TLEyebrow(text: "몇 시에 시작하나요?")
+            DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .colorScheme(.dark)
+                .disabled(editingDisabled)
+        }
+    }
+
+    /// 활동 길이 — 그룹 방 만들기와 동일한 칩. 우측에 완주 상점 미리보기 유지.
+    private var durationSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                TLEyebrow(text: "활동 길이")
+                Spacer()
+                Text("완료 시 +\(ScoreRules.completionBase(forMinutes: durationMinutes))점")
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundStyle(TL.jade)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(TL.jade.opacity(0.14)))
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(durations, id: \.self) { option in
+                        Button { durationMinutes = option } label: {
+                            Text(TLFormat.durationLabel(option))
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(durationMinutes == option ? TL.ink : TL.muted)
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .background(Capsule().fill(durationMinutes == option ? TL.paper : TL.surface))
+                        }
                         .disabled(editingDisabled)
-                        // 선택한 길이의 완주 상점 미리 보기
-                        Text("완료 시 +\(ScoreRules.completionBase(forMinutes: durationMinutes))점")
-                            .font(.system(size: 12, weight: .heavy, design: .rounded))
-                            .foregroundStyle(TL.jade)
-                            .padding(.horizontal, 10).padding(.vertical, 5)
-                            .background(Capsule().fill(TL.jade.opacity(0.14)))
                     }
                 }
             }
@@ -314,11 +355,16 @@ struct ReservationEditView: View {
     // MARK: 로직
 
     private func load() {
-        guard let r = reservation else { return }
+        guard let r = reservation else {
+            // 신규 예약 기본 강도 = 전역 설정
+            intensity = app.intensity
+            return
+        }
         name = r.name
         tag = r.tag
         if !ActivityTag.presets.contains(r.tag) { customTag = r.tag }
         durationMinutes = r.durationMinutes
+        intensity = r.intensityOverride ?? app.intensity
         let base = Calendar.current.startOfDay(for: .now)
         startTime = Calendar.current.date(byAdding: .minute, value: r.startMinute, to: base) ?? .now
         isRepeating = r.isRepeating
@@ -399,6 +445,8 @@ struct ReservationEditView: View {
             r.durationMinutes = durationMinutes
             r.repeatWeekdays = isRepeating ? Array(weekdays) : []
             r.oneOffDate = isRepeating ? nil : Calendar.current.startOfDay(for: oneOffDate)
+            r.intensityOverrideRaw = intensity.rawValue   // 활동별 강도
+
             // 편집 시 책임 기준 시각을 지금으로 갱신 — 이걸 안 하면 시간을 더 이른
             // 시각으로 옮겼을 때 '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼가 된다.
             // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
@@ -411,6 +459,7 @@ struct ReservationEditView: View {
                                 repeatWeekdays: isRepeating ? Array(weekdays) : [],
                                 oneOffDate: isRepeating ? nil : Calendar.current.startOfDay(for: oneOffDate),
                                 ownerUserID: account.currentUserID)
+            r.intensityOverrideRaw = intensity.rawValue   // 활동별 강도
             r.updatedAt = .now
             context.insert(r)
             AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.models.ActivityTag
+import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScoreRules
 import com.singlemarks.angrymoti.models.SlotPolicy
 import com.singlemarks.angrymoti.models.TimePolicy
@@ -74,12 +75,12 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     var customTag by remember { mutableStateOf("") }
     var startMinute by remember { mutableStateOf(TimePolicy.defaultStartMinute()) }
     var durationMinutes by remember { mutableStateOf(60) }
+    var intensity by remember { mutableStateOf(com.singlemarks.angrymoti.AppState.intensity.value) }
     var repeatDays by remember { mutableStateOf(setOf<Int>()) }
     var oneOffDay by remember { mutableStateOf<Long?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var showSlotSheet by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-    var showDurationMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var allSessions by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.FocusSession>()) }
     var allReservations by remember { mutableStateOf(listOf<Reservation>()) }
@@ -94,6 +95,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     name = r.name; startMinute = r.startMinute
                     durationMinutes = r.durationMinutes; repeatDays = r.repeatWeekdays.toSet()
                     oneOffDay = r.oneOffDayStart
+                    intensity = r.intensityOverride ?: com.singlemarks.angrymoti.AppState.intensity.value
                     if (r.tag in ActivityTag.presets) tag = r.tag else customTag = r.tag
                 }
             }
@@ -164,6 +166,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             durationMinutes = durationMinutes,
                             repeatWeekdaysCsv = repeatDays.sorted().joinToString(","),
                             oneOffDayStart = if (repeatDays.isEmpty()) (oneOffDay ?: nextOneOffDay(sm)) else null,
+                            intensityOverrideRaw = intensity.raw,   // 활동별 강도
                             // 편집 시 책임 기준 시각 갱신 — 더 이른 시각으로 옮겨도
                             // '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼되지 않게.
                             // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
@@ -239,9 +242,33 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 TLField(customTag, { customTag = it }, "직접 입력", enabled = !fieldLocked)
             }
 
-            // ── 시작 시각 · 활동 시간 — 한 카드: 값 필 행 + 길이 드롭다운 + 점수 태그 (iOS 1:1)
+            // ── 강도 — 활동별 설정 (그룹 방 만들기와 동일, 혼자 하는 활동이라 '참여자 전원' 문구 제거)
             Column {
-                TLEyebrow("시작 시각 · 활동 시간")
+                TLEyebrow("강도")
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Intensity.entries.forEach { level ->
+                        val selected = intensity == level
+                        Column(
+                            Modifier.weight(1f)
+                                .background(if (selected) TL.paper else TL.surface, TL.cornerM)
+                                .clickable(enabled = !fieldLocked) { intensity = level }
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text("${level.emoji} ${level.title}",
+                                color = if (selected) TL.ink else TL.muted,
+                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(if (level == Intensity.SPICY) "긴급 용무 10분 허용" else "이탈 즉시 실패 · 점수 2배",
+                                color = if (selected) TL.ink.copy(alpha = 0.7f) else TL.faint, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+
+            // ── 몇 시에 시작하나요? — 인라인 타임 피커 (그룹 방 만들기와 동일)
+            Column {
+                TLEyebrow("몇 시에 시작하나요?")
                 TLCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("시작 시각", color = TL.paper, fontSize = 16.sp)
@@ -256,43 +283,31 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         Spacer(Modifier.height(10.dp))
                         TimePicker(state = timeState)
                     }
-                    Spacer(Modifier.height(14.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clickable(enabled = !fieldLocked) { showDurationMenu = true }
-                                    .padding(vertical = 2.dp),
-                            ) {
-                                Text(TLFormat.durationLabel(durationMinutes),
-                                    color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.width(6.dp))
-                                androidx.compose.material3.Icon(AppIcon.ChevronsUpDown, null,
-                                    tint = TL.muted, modifier = Modifier.size(15.dp))
-                            }
-                            androidx.compose.material3.DropdownMenu(
-                                expanded = showDurationMenu,
-                                onDismissRequest = { showDurationMenu = false },
-                                containerColor = TL.raised,
-                            ) {
-                                TimePolicy.durationOptionsMinutes.forEach { m ->
-                                    androidx.compose.material3.DropdownMenuItem(
-                                        text = {
-                                            Text(TLFormat.durationLabel(m),
-                                                color = if (m == durationMinutes) TL.paper else TL.muted,
-                                                fontWeight = if (m == durationMinutes) FontWeight.Bold else FontWeight.Normal)
-                                        },
-                                        onClick = { durationMinutes = m; showDurationMenu = false },
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
-                            color = TL.jade, fontSize = 13.sp, fontWeight = FontWeight.Black,
-                            modifier = Modifier.background(TL.jade.copy(alpha = 0.16f), CircleShape)
-                                .padding(horizontal = 12.dp, vertical = 6.dp))
+                }
+            }
+
+            // ── 활동 길이 — 칩 (그룹 방 만들기와 동일). 우측에 완주 상점 미리보기 유지.
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TLEyebrow("활동 길이")
+                    Spacer(Modifier.weight(1f))
+                    Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
+                        color = TL.jade, fontSize = 13.sp, fontWeight = FontWeight.Black,
+                        modifier = Modifier.background(TL.jade.copy(alpha = 0.16f), CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 6.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(TimePolicy.durationOptionsMinutes.size) { i ->
+                        val m = TimePolicy.durationOptionsMinutes[i]
+                        val selected = m == durationMinutes
+                        Text(TLFormat.durationLabel(m),
+                            color = if (selected) TL.ink else TL.muted,
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .background(if (selected) TL.paper else TL.surface, CircleShape)
+                                .clickable(enabled = !fieldLocked) { durationMinutes = m }
+                                .padding(horizontal = 14.dp, vertical = 8.dp))
                     }
                 }
             }
