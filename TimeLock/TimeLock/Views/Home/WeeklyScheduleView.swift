@@ -75,22 +75,15 @@ struct WeeklyScheduleView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    // 시스템 기본 툴바 버튼 하나만 — 커스텀 캡슐을 얹으면 iOS가 씌우는
+                    // 툴바 배경(iOS 26 글래스)과 겹쳐 '프레임 2겹'으로 보인다. 네이티브 칩 하나로 간다.
                     Button {
                         editorTarget = .new
                     } label: {
-                        // 아이콘만이 아니라 '+ 추가' 라벨 (안드로이드와 통일)
-                        HStack(spacing: 3) {
-                            Image(systemName: "plus").font(.system(size: 13, weight: .bold))
-                            Text("추가").font(.system(size: 14, weight: .bold))
-                        }
-                        .foregroundStyle(TL.paper)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(Capsule().fill(TL.surface))
-                        .overlay(Capsule().strokeBorder(TL.hairline, lineWidth: 1))
+                        Label("추가", systemImage: "plus")
+                            .font(.system(size: 15, weight: .semibold))
                     }
-                    // 시스템이 툴바 버튼에 자동으로 입히는 배경/테두리를 끈다 —
-                    // 커스텀 캡슐과 겹쳐 '버튼 프레임이 2개'로 보이던 현상 제거.
-                    .buttonStyle(.plain)
+                    .tint(TL.paper)
                 }
             }
             .sheet(item: $editorTarget) { target in
