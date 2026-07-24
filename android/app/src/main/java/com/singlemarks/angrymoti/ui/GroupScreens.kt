@@ -717,6 +717,25 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(16.dp))
 
+            // 시작 10분 이내인데 아직 2명 미만이면, 곧 폭파(자동 삭제)될 방임을 경고 (iOS 1:1)
+            if (!room.hasStarted && (room.startDate - now) <= 10 * 60_000L &&
+                room.memberCount < GroupPolicy.MIN_MEMBERS_TO_START) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(TL.rec.copy(alpha = 0.12f), TL.cornerL)
+                        .border(1.dp, TL.rec.copy(alpha = 0.4f), TL.cornerL)
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    androidx.compose.material3.Icon(AppIcon.Siren, null,
+                        tint = TL.rec, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("참여자가 2명 미만이 되어 방이 곧 삭제될 예정입니다.",
+                        color = TL.rec, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
             when {
                 waiting -> {
                     // 최초 시작 전 '활동 인증' 카드 통일 — 카운트다운 + 코드(방장) + 참여 마감 안내 (iOS 1:1)

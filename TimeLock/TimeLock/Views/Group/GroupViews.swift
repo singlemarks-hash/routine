@@ -770,6 +770,13 @@ struct GroupRoomDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 infoCard
 
+                // 시작 10분 이내인데 아직 2명 미만이면, 곧 폭파(자동 삭제)될 방임을 경고한다.
+                if !room.hasStarted,
+                   Int(room.startDate.timeIntervalSince(now)) <= 10 * 60,
+                   room.memberCount < GroupPolicy.minMembersToStart {
+                    disbandWarningCard
+                }
+
                 if room.status == "scheduled" && !room.hasStarted {
                     invitePreStartCard
                     waitingSection
@@ -819,6 +826,22 @@ struct GroupRoomDetailView: View {
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
             }
         }
+    }
+
+    // MARK: 폭파 임박 경고 (시작 10분 이내 · 2명 미만)
+
+    private var disbandWarningCard: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 15)).foregroundStyle(TL.rec)
+            Text("참여자가 2명 미만이 되어 방이 곧 삭제될 예정입니다.")
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.rec)
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.rec.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+            .strokeBorder(TL.rec.opacity(0.4), lineWidth: 1))
     }
 
     // MARK: 시작 전 — '활동 인증' 카드 통일 (활성 카드와 같은 틀: 카운트다운 + 코드 + 안내)

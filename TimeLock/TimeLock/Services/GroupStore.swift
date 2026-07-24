@@ -579,7 +579,9 @@ final class GroupStore: ObservableObject {
                     context.delete(session)
                 }
             }
-            reservation.isActive = false
+            // 폭파·취소·해체된 그룹 예약은 DB에서 완전 삭제 (소프트 삭제 아님) —
+            // 방 문서가 사라졌으니 재생성되지 않는다.
+            context.delete(reservation)
         }
         try? context.save()
     }
