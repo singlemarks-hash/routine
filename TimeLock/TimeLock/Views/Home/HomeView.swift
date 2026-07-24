@@ -341,8 +341,10 @@ struct HomeView: View {
                         Spacer()
                         if showsTimer {
                             Text(remainingMinuteLabel(remaining))
-                                .font(.tlTimer(18))
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
                                 .foregroundStyle(TL.amber)
+                                .lineLimit(1)
+                                .layoutPriority(1)   // 이름보다 카운트다운 문구를 우선 확보
                         } else {
                             TagChip(name: reservation.tag)
                         }
@@ -367,12 +369,13 @@ struct HomeView: View {
         .pressableStyle()
     }
 
-    /// 남은 시간을 분단위로 표시 — 초 카운트다운의 불안감을 줄인다 (12시간 이내만 노출).
-    /// 예) "59분" / "1시간 20분" / "3시간". 올림·최소 1분.
+    /// 남은 시간을 분단위 문구로 — 초 카운트다운의 불안감을 줄인다 (12시간 이내만 노출).
+    /// 1분 미만은 "곧 시작", 그 외 "시작까지 59분 / 1시간 20분 / 3시간 남음". 올림.
     private func remainingMinuteLabel(_ seconds: Int) -> String {
-        let m = max(1, Int((Double(seconds) / 60).rounded(.up)))
-        if m >= 60 { return m % 60 == 0 ? "\(m / 60)시간" : "\(m / 60)시간 \(m % 60)분" }
-        return "\(m)분"
+        if seconds < 60 { return "곧 시작" }
+        let m = Int((Double(seconds) / 60).rounded(.up))
+        let time = m >= 60 ? (m % 60 == 0 ? "\(m / 60)시간" : "\(m / 60)시간 \(m % 60)분") : "\(m)분"
+        return "시작까지 \(time) 남음"
     }
 
     private func nextLabel(_ fire: Date) -> String {
