@@ -15,9 +15,26 @@ struct WeeklyScheduleView: View {
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
     private var allActiveReservations: [Reservation]
 
-    @State private var showEditor = false
-    @State private var editing: Reservation?
+    @State private var editorTarget: EditorTarget?
     @State private var groupRoomToOpen: GroupRoom?
+
+    /// 편집 시트 대상 — .sheet(item:)으로 열어 항상 정확한 예약을 전달한다.
+    /// (.sheet(isPresented:)+별도 @State는 시트가 옛 값(nil)을 캡처해 '새 예약 빈 폼'으로
+    ///  뜨는 SwiftUI 타이밍 버그가 있었다.)
+    private enum EditorTarget: Identifiable {
+        case new
+        case edit(Reservation)
+        var id: String {
+            switch self {
+            case .new: return "new"
+            case .edit(let r): return r.id.uuidString
+            }
+        }
+        var reservation: Reservation? {
+            if case .edit(let r) = self { return r }
+            return nil
+        }
+    }
 
     private var reservations: [Reservation] {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
@@ -55,8 +72,7 @@ struct WeeklyScheduleView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        editing = nil
-                        showEditor = true
+                        editorTarget = .new
                     } label: {
                         // 아이콘만이 아니라 '+ 추가' 라벨 (안드로이드와 통일)
                         HStack(spacing: 3) {
@@ -73,8 +89,8 @@ struct WeeklyScheduleView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .sheet(isPresented: $showEditor) {
-                ReservationEditView(reservation: editing)
+            .sheet(item: $editorTarget) { target in
+                ReservationEditView(reservation: target.reservation)
             }
             .navigationDestination(item: $groupRoomToOpen) { room in
                 GroupRoomDetailView(room: room)
@@ -151,8 +167,7 @@ struct WeeklyScheduleView: View {
                     groupRoomToOpen = room
                 }
             } else {
-                editing = reservation
-                showEditor = true
+                editorTarget = .edit(reservation)
             }
         } label: {
             HStack(spacing: 12) {
