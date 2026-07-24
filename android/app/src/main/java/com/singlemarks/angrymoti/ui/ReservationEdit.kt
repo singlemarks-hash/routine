@@ -99,6 +99,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     if (r.tag in ActivityTag.presets) tag = r.tag else customTag = r.tag
                 }
             }
+            // 무료 사용자는 미친맛 불가 → 매운맛으로 (전역 기본이 미친맛이어도)
+            if (!isPro && intensity == Intensity.INSANE) intensity = Intensity.SPICY
             loaded = true
         }
     }
@@ -249,17 +251,19 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Intensity.entries.forEach { level ->
                         val selected = intensity == level
+                        val locked = level == Intensity.INSANE && !isPro   // 미친맛은 멤버십 전용
                         Column(
                             Modifier.weight(1f)
                                 .background(if (selected) TL.paper else TL.surface, TL.cornerM)
-                                .clickable(enabled = !fieldLocked) { intensity = level }
+                                .clickable(enabled = !fieldLocked && !locked) { intensity = level }
                                 .padding(vertical = 10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("${level.emoji} ${level.title}",
-                                color = if (selected) TL.ink else TL.muted,
+                            Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
+                                color = if (selected) TL.ink else if (locked) TL.faint else TL.muted,
                                 fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(if (level == Intensity.SPICY) "긴급 용무 10분 허용" else "이탈 즉시 실패 · 점수 2배",
+                            Text(if (locked) "멤버십 전용"
+                                 else if (level == Intensity.SPICY) "긴급 용무 10분 허용" else "이탈 즉시 실패 · 점수 2배",
                                 color = if (selected) TL.ink.copy(alpha = 0.7f) else TL.faint, fontSize = 10.sp)
                         }
                     }

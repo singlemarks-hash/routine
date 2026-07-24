@@ -237,6 +237,8 @@ struct GroupCreateView: View {
             && !nickname.trimmingCharacters(in: .whitespaces).isEmpty
             && !weekdays.isEmpty
     }
+    /// 미친 매운맛은 멤버십 전용
+    private var isPro: Bool { SubscriptionManager.shared.isPro }
 
     var body: some View {
         NavigationStack {
@@ -280,16 +282,22 @@ struct GroupCreateView: View {
                 field("강도 — 참여자 전원에게 동일 적용") {
                     HStack(spacing: 8) {
                         ForEach(Intensity.allCases) { candidate in
+                            let locked = candidate == .insane && !isPro
                             Button {
+                                guard !locked else { return }
                                 intensity = candidate
                             } label: {
                                 VStack(spacing: 3) {
-                                    Text("\(candidate.emoji) \(candidate.title)")
-                                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                                    Text(candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배")
+                                    HStack(spacing: 4) {
+                                        if locked { Image(systemName: "lock.fill").font(.system(size: 11)) }
+                                        Text("\(candidate.emoji) \(candidate.title)")
+                                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                                    }
+                                    Text(locked ? "멤버십 전용"
+                                         : (candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배"))
                                         .font(.system(size: 10))
                                 }
-                                .foregroundStyle(intensity == candidate ? TL.ink : TL.muted)
+                                .foregroundStyle(intensity == candidate ? TL.ink : (locked ? TL.faint : TL.muted))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                                 .background(
@@ -309,7 +317,19 @@ struct GroupCreateView: View {
                         .colorScheme(.dark)
                 }
 
-                field("활동 길이") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("활동 길이")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TL.muted)
+                        Spacer()
+                        // 선택한 길이의 완주 상점 미리보기 — 정책(10분~1시간 +10 · ~3시간 +20 · 그 이상 +30)에 맞춰 갱신
+                        Text("완료 시 +\(ScoreRules.completionBase(forMinutes: minutes))점")
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(TL.jade)
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Capsule().fill(TL.jade.opacity(0.14)))
+                    }
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(TimePolicy.durationOptionsMinutes, id: \.self) { option in

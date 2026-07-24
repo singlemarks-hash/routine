@@ -321,6 +321,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    val isPro by SubscriptionManager.isPro.collectAsState()
     var name by remember { mutableStateOf("") }
     var nickname by remember { mutableStateOf("") }
     var intensity by remember { mutableStateOf(Intensity.SPICY) }
@@ -425,18 +426,20 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 Row {
                     Intensity.entries.forEach { level ->
                         val selected = intensity == level
-                        Text("${level.emoji} ${level.title}",
-                            color = if (selected) TL.ink else TL.paper,
+                        val locked = level == Intensity.INSANE && !isPro   // 미친맛은 멤버십 전용
+                        Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
+                            color = if (selected) TL.ink else if (locked) TL.faint else TL.paper,
                             fontSize = 14.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier
                                 .background(if (selected) TL.paper else TL.raised, CircleShape)
-                                .clickable { intensity = level }
+                                .clickable(enabled = !locked) { intensity = level }
                                 .padding(horizontal = 16.dp, vertical = 10.dp))
                         Spacer(Modifier.width(8.dp))
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Text(intensity.subtitle, color = TL.faint, fontSize = 12.sp)
+                Text(if (!isPro && intensity == Intensity.SPICY) "미친 매운맛은 멤버십 전용이에요."
+                     else intensity.subtitle, color = TL.faint, fontSize = 12.sp)
             }
             Spacer(Modifier.height(10.dp))
 
@@ -458,6 +461,12 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("1회 길이", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    // 선택한 길이의 완주 상점 미리보기 — 정책에 맞춰 갱신
+                    Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
+                        color = TL.jade, fontSize = 12.sp, fontWeight = FontWeight.Black,
+                        modifier = Modifier.background(TL.jade.copy(alpha = 0.16f), CircleShape)
+                            .padding(horizontal = 10.dp, vertical = 5.dp))
+                    Spacer(Modifier.width(8.dp))
                     Box {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,

@@ -37,7 +37,7 @@ struct MyPageView: View {
 
                 // 일반 메뉴 그룹
                 VStack(spacing: 4) {
-                    plainRow(title: "강도 설정") { IntensitySettingsView() }
+                    // 강도는 활동/그룹별로 각각 설정 — 전역 강도 탭 제거
                     plainRow(title: "프라이버시") { PrivacySettingsView() }
                     plainRow(title: "점수 원장") { LedgerView() }
                     plainRow(title: "앱 언어") { AppLanguageView() }

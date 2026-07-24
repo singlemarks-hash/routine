@@ -99,8 +99,7 @@ fun MyPageScreen(onBack: () -> Unit) {
         androidx.compose.material3.HorizontalDivider(
             color = TL.hairline, modifier = Modifier.padding(vertical = 18.dp))
 
-        // 텍스트 메뉴 (투명 행)
-        PlainMenuRow("강도 설정") { sub = "intensity" }
+        // 텍스트 메뉴 (투명 행) — 강도는 활동/그룹별로 각각 설정하므로 전역 강도 탭 제거
         PlainMenuRow("프라이버시") { sub = "privacy" }
         PlainMenuRow("점수 원장") { sub = "ledger" }
         PlainMenuRow("앱 언어") {}

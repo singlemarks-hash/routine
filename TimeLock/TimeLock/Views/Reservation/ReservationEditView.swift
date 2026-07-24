@@ -247,20 +247,29 @@ struct ReservationEditView: View {
         }
     }
 
-    /// 강도 — 활동별로 설정 (그룹 방 만들기와 동일한 세그먼트, 혼자 하는 활동이라 '참여자 전원' 문구는 뺀다)
+    /// 강도 — 활동별로 설정 (그룹 방 만들기와 동일한 세그먼트, 혼자 하는 활동이라 '참여자 전원' 문구는 뺀다).
+    /// 미친 매운맛은 멤버십 전용 — 무료 사용자에겐 잠금 표시.
     private var intensitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             TLEyebrow(text: "강도")
             HStack(spacing: 8) {
                 ForEach(Intensity.allCases) { candidate in
-                    Button { intensity = candidate } label: {
+                    let locked = candidate == .insane && !subscription.isPro
+                    Button {
+                        guard !locked else { return }
+                        intensity = candidate
+                    } label: {
                         VStack(spacing: 3) {
-                            Text("\(candidate.emoji) \(candidate.title)")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                            Text(candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배")
+                            HStack(spacing: 4) {
+                                if locked { Image(systemName: "lock.fill").font(.system(size: 11)) }
+                                Text("\(candidate.emoji) \(candidate.title)")
+                                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                            }
+                            Text(locked ? "멤버십 전용"
+                                 : (candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배"))
                                 .font(.system(size: 10))
                         }
-                        .foregroundStyle(intensity == candidate ? TL.ink : TL.muted)
+                        .foregroundStyle(intensity == candidate ? TL.ink : (locked ? TL.faint : TL.muted))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
@@ -356,8 +365,8 @@ struct ReservationEditView: View {
 
     private func load() {
         guard let r = reservation else {
-            // 신규 예약 기본 강도 = 전역 설정
-            intensity = app.intensity
+            // 신규 예약 기본 강도 = 전역 설정 (무료 사용자는 미친맛 불가 → 매운맛으로)
+            intensity = subscription.isPro ? app.intensity : .spicy
             return
         }
         name = r.name
@@ -365,6 +374,7 @@ struct ReservationEditView: View {
         if !ActivityTag.presets.contains(r.tag) { customTag = r.tag }
         durationMinutes = r.durationMinutes
         intensity = r.intensityOverride ?? app.intensity
+        if !subscription.isPro && intensity == .insane { intensity = .spicy }
         let base = Calendar.current.startOfDay(for: .now)
         startTime = Calendar.current.date(byAdding: .minute, value: r.startMinute, to: base) ?? .now
         isRepeating = r.isRepeating
