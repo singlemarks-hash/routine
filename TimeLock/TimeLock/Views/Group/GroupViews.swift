@@ -659,21 +659,24 @@ private struct GroupStartActivityCard: View {
     let room: GroupRoom
     @EnvironmentObject private var app: AppState
     @State private var now = Date()
-    // 예약·창 정보는 초당 안 바뀌므로 캐시하고 3초마다만 재계산한다(매초 SwiftData fetch 방지). [P3-3]
+    // 분단위 표시라 초당 갱신이 필요 없다 — 15초 폴링으로 예약·창 재계산까지 함께 처리(부하·불안감↓). [P3-3]
     @State private var reservation: Reservation?
     @State private var windowFire: Date?
     @State private var nextFire: Date?
-    @State private var tick = 0
-    private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let clock = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
 
-    private func countdownText(_ seconds: Int) -> String {
-        if seconds >= 86_400 {
-            return "\(seconds / 86_400)일 \((seconds % 86_400) / 3600)시간"
-        }
-        return TLFormat.hms(seconds)
+    /// 남은 초 → 올림 분(최소 1). 초단위 카운트다운 대신 '분'만 보여 UI·심리 부하를 줄인다.
+    private func minutesUp(_ seconds: Int) -> Int { max(1, Int((Double(seconds) / 60).rounded(.up))) }
+
+    /// '다음 시작까지' 문구 — 예: "59분 뒤 시작", "2시간 5분 뒤 시작", "1분 뒤 시작".
+    private func startsInLabel(_ seconds: Int) -> String {
+        let m = minutesUp(seconds)
+        if m >= 1440 { return "\(m / 1440)일 뒤 시작" }
+        if m >= 60 { return "\(m / 60)시간 \(m % 60)분 뒤 시작" }
+        return "\(m)분 뒤 시작"
     }
 
-    /// 예약·시작 창·다음 발생 시각을 다시 조회한다 (fetch 포함 — 3초 간격·onAppear에서만 호출).
+    /// 예약·시작 창·다음 발생 시각을 다시 조회한다 (fetch 포함 — 15초 간격·onAppear에서만 호출).
     private func refresh() {
         let r = app.groupReservation(roomID: room.id)
         reservation = r
@@ -687,11 +690,13 @@ private struct GroupStartActivityCard: View {
                 TLEyebrow(text: "활동 인증")
 
                 if let fire = windowFire {
-                    // 창 안 — 지금 시작 가능. 남은 시간(노란색) 표시.
-                    let remain = max(0, Int(fire.addingTimeInterval(TimePolicy.startWindowSeconds).timeIntervalSince(now)))
+                    // 창 안 — 지금 시작 가능. 남은 시간을 분단위로(내림) 표시 — 초단위는 불안감만 키운다.
+                    // 안전 쪽으로 내림: "1분 미만"이 되어도 실제로는 아직 여유가 있을 수 있음.
+                    let remainSeconds = max(0, Int(fire.addingTimeInterval(TimePolicy.startWindowSeconds).timeIntervalSince(now)))
+                    let remainMinutes = remainSeconds / 60
                     Text("지금 활동을 시작할 수 있어요")
                         .font(.system(size: 16, weight: .bold)).foregroundStyle(TL.paper)
-                    Label("남은 시간 \(TLFormat.hms(remain))", systemImage: "timer")
+                    Label(remainMinutes >= 1 ? "남은 시간 \(remainMinutes)분" : "남은 시간 1분 미만", systemImage: "timer")
                         .font(.system(size: 14, weight: .heavy, design: .rounded))
                         .foregroundStyle(TL.amber)
                     Button {
@@ -702,11 +707,9 @@ private struct GroupStartActivityCard: View {
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
                 } else if let next = nextFire {
-                    // 창 밖 — 다음 시작까지 카운트다운. 버튼 비활성.
-                    Text("다음 시작까지")
-                        .font(.system(size: 13)).foregroundStyle(TL.muted)
-                    Text(countdownText(max(0, Int(next.timeIntervalSince(now)))))
-                        .font(.tlTimer(30)).foregroundStyle(TL.amber)
+                    // 창 밖 — 분단위 카운트다운("59분 뒤 시작" ~ "1분 뒤 시작"). 버튼 비활성.
+                    Text(startsInLabel(max(0, Int(next.timeIntervalSince(now)))))
+                        .font(.system(size: 22, weight: .black, design: .rounded)).foregroundStyle(TL.amber)
                     Button {} label: {
                         Label("활동 시작하기", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
                     }
@@ -723,9 +726,8 @@ private struct GroupStartActivityCard: View {
         }
         .onAppear { refresh() }
         .onReceive(clock) { d in
-            now = d               // 카운트다운 숫자는 매초 갱신
-            tick += 1
-            if tick % 3 == 0 { refresh() }   // 예약·창 재계산은 3초마다만
+            now = d       // 분단위 표시라 15초 간격이면 충분 — 매초 갱신·잦은 fetch가 필요 없다
+            refresh()
         }
     }
 }

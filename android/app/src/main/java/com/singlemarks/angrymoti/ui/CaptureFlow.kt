@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -366,21 +367,24 @@ fun MountGuideScreen(pending: PendingSession) {
             //  패널이 반투명이라 내 전신이 화면 어디까지 들어오는지 프레임과 함께 확인된다 (오버레이 느낌).
             previewView(Modifier.fillMaxSize())
             dashedGuideOverlay()
-            // 좌상단 안내 문구 — 우측 패널·버튼과 간섭 방지, 오프셋 넉넉히
-            Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
-                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 28.dp, top = 28.dp)
-                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                    .padding(horizontal = 12.dp, vertical = 6.dp))
             Row(Modifier.fillMaxSize()) {
-                Spacer(Modifier.weight(1f))   // 좌측은 프리뷰+프레임이 그대로 비친다
+                // 좌: 프리뷰 영역 — 상단 중앙에 안내 문구 (우측 패널과 간섭 없음)
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 44.dp)
+                            .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 6.dp))
+                }
                 // 우측 컨트롤 — 스크롤 없이 한 화면에 담기도록 타이포·간격을 축소하고,
                 // 촬영/취소를 한 줄로 배치해 세로 여백을 확보한다. SpaceBetween으로 여백감 유지.
                 Column(
                     Modifier.width(360.dp).fillMaxHeight()
-                        .background(TL.ink.copy(alpha = 0.55f)).padding(horizontal = 22.dp, vertical = 18.dp),
+                        .background(TL.ink.copy(alpha = 0.55f))
+                        .displayCutoutPadding()   // 가로 컷아웃·둥근 모서리로 버튼이 잘리지 않게
+                        .padding(horizontal = 22.dp, vertical = 18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {

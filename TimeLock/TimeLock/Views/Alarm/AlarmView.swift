@@ -471,19 +471,18 @@ struct MountGuideView: View {
 
     private var landscapeLayout: some View {
         HStack(spacing: 0) {
-            // 좌: 촬영 구도 영역 (점선 프레임은 별도 전체 레이어) + 좌상단 안내 문구.
-            //  우측 패널·버튼과 간섭되지 않도록 좌상단에 두고 오프셋을 넉넉히 준다.
+            // 좌: 촬영 구도 영역 (점선 프레임은 별도 전체 레이어) + 프리뷰 영역 상단 중앙 안내 문구.
             LinearGradient(colors: [TL.ink.opacity(0.5), .clear],
                            startPoint: .leading, endPoint: .trailing)
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .topLeading) {
+                .overlay(alignment: .top) {
                     Text("영역 안에 내 모습이 보이도록 고정")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(Capsule().fill(.black.opacity(0.55)))
-                        .padding(.top, 28).padding(.leading, 28)
+                        .padding(.top, 44)
                 }
 
             // 우: 불투명 컨트롤 패널 — 한 화면에 모두 들어오도록 압축.
@@ -497,8 +496,11 @@ struct MountGuideView: View {
                     startButton
                     cancelButton
                 }
-                .padding(.horizontal, 18)
+                .padding(.leading, 18)
+                .padding(.trailing, 22)
                 .padding(.vertical, 14)
+                // 가로에서 노치·홈 인디케이터·둥근 모서리로 버튼이 잘리지 않도록 안전영역만큼 더 들여쓴다.
+                .safeAreaPadding(.trailing)
             }
             .frame(width: 300)
             // 반투명 — 뒤의 점선 프레임(80%)이 패널 너머로 비쳐, 내 전신이 어디까지 담기는지 보인다
