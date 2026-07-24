@@ -319,8 +319,12 @@ private fun ActivityTab(
                     Text(r.name, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f))
                     if (showsTimer) {
-                        Text(TLFormat.hms((next!! - now) / 1000), color = TL.amber,
-                            fontSize = 18.sp, fontWeight = FontWeight.Black)
+                        // 분단위 표시 — 초 카운트다운의 불안감을 줄인다. "59분" / "1시간 20분" / "3시간"
+                        val mins = maxOf(1L, kotlin.math.ceil((next!! - now) / 60_000.0).toLong())
+                        val label = if (mins >= 60)
+                            (if (mins % 60 == 0L) "${mins / 60}시간" else "${mins / 60}시간 ${mins % 60}분")
+                        else "${mins}분"
+                        Text(label, color = TL.amber, fontSize = 18.sp, fontWeight = FontWeight.Black)
                     } else {
                         TagChip(r.tag, selected = false, onClick = { onEdit(r) })
                     }
