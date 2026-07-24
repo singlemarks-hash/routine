@@ -296,10 +296,19 @@ private struct BreakOverlay: View {
             Spacer()
 
             TLEyebrow(text: "촬영 일시중단", color: TL.amber)
-            Text("긴급 용무 중")
+            Text(engine.breakNote == nil ? "긴급 용무 중" : "촬영이 중단됐어요")
                 .font(.tlTitle(compact ? 18 : 24))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 6)
+            if let note = engine.breakNote {
+                Text(note)
+                    .font(.system(size: compact ? 13 : 15, weight: .semibold))
+                    .foregroundStyle(TL.amber)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .padding(.top, 8)
+                    .padding(.horizontal, 24)
+            }
 
             RECRingDial(progress: progress, live: false,
                         tint: remaining <= 60 ? TL.rec : TL.amber) {

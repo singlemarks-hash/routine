@@ -473,6 +473,7 @@ private fun SessionSquareButton(
 fun SessionScreen() {
     val context = LocalContext.current
     val phase by SessionEngine.phase.collectAsStateWithLifecycle()
+    val breakNote by SessionEngine.breakNote.collectAsStateWithLifecycle()
     val recorded by SessionEngine.recordedSeconds.collectAsStateWithLifecycle()
     val budget by SessionEngine.breakBudgetRemaining.collectAsStateWithLifecycle()
     val absenceWarning by SessionEngine.absenceWarning.collectAsStateWithLifecycle()
@@ -715,7 +716,13 @@ fun SessionScreen() {
                         Text("촬영 일시중단", color = TL.amber, fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
                         Spacer(Modifier.height(6.dp))
-                        Text("긴급 용무 중", color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                        Text(if (breakNote == null) "긴급 용무 중" else "촬영이 중단됐어요",
+                            color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                        breakNote?.let {
+                            Spacer(Modifier.height(10.dp))
+                            Text(it, color = TL.amber, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center, lineHeight = 21.sp)
+                        }
                         Spacer(Modifier.height(36.dp))
                         breakRing(300.dp, 56.sp)
                         Spacer(Modifier.height(32.dp))
@@ -743,7 +750,13 @@ fun SessionScreen() {
                             Text("촬영 일시중단", color = TL.amber, fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
                             Spacer(Modifier.height(6.dp))
-                            Text("긴급 용무 중", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                            Text(if (breakNote == null) "긴급 용무 중" else "촬영이 중단됐어요",
+                                color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                            breakNote?.let {
+                                Spacer(Modifier.height(8.dp))
+                                Text(it, color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center, lineHeight = 19.sp)
+                            }
                             Spacer(Modifier.height(16.dp))
                             breakRing(178.dp, 40.sp)
                         }

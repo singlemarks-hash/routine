@@ -39,6 +39,8 @@ object SessionEngine {
     val phase = MutableStateFlow<Phase>(Phase.Idle)
     val recordedSeconds = MutableStateFlow(0)
     val breakBudgetRemaining = MutableStateFlow(TimePolicy.RESUME_WINDOW_SECONDS)
+    /** 저장공간 부족 등 '기기 사정'으로 자동 일시중단됐을 때 브레이크 화면에 띄우는 안내. (일반 긴급용무면 null) */
+    val breakNote = MutableStateFlow<String?>(null)
     val absenceWarning = MutableStateFlow(false)
     val absenceEpisodeCount = MutableStateFlow(0)
     val oneMinuteWarningFired = MutableStateFlow(false)
@@ -131,8 +133,10 @@ object SessionEngine {
         // 촬영 신호 점검 — 프레임이 끊기면 원인에 따라 갈린다.
         if (CameraRecorder.isCaptureStalled()) {
             // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
-            // 찍히다 끊긴 거라면 제어센터·타앱 등 캡처 인터럽션 = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
             if (CameraRecorder.frameCount.value == 0) safetyEnd("카메라 시작 실패")
+            // 저장공간이 꽉 차 프레임이 끊긴 경우 = 기기 사정 → 유예(일시중단)로 재개 기회를 준다.
+            else if (isStorageCritical()) enterStorageBreak(s)
+            // 그 외(제어센터·타앱 등 캡처 인터럽션) = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
             else handleExitEvent()
             return
         }
@@ -212,10 +216,33 @@ object SessionEngine {
         val deadline = System.currentTimeMillis() + budget * 1000
         CameraRecorder.pause()
         breakWarnPosted = false
+        breakNote.value = null   // 일반 긴급용무엔 안내문구 없음
         phase.value = Phase.PausedForBreak(deadline)
         Prefs.breakDeadline = deadline
         AlarmScheduler.postStatus(appContext, 2000, "긴급 용무 중단",
             "${TimePolicy.RESUME_WINDOW_MINUTES}분 예산 안에 돌아와 재촬영을 시작하면 벌점이 없습니다.")
+    }
+
+    /** 저장공간이 실제로 임계 이하인지 (사전 차단이 아니라 촬영이 막힌 '실패 시점'에만 원인 분류용으로 확인) */
+    private fun isStorageCritical(): Boolean =
+        runCatching { android.os.StatFs(appContext.filesDir.absolutePath).availableBytes < 500_000_000L }
+            .getOrDefault(false)
+
+    /** 저장공간 부족으로 촬영이 막힌 경우 — 강도와 무관하게 일시중단(유예)하고 안내를 띄운다.
+     *  공간을 확보하고 재촬영을 누르면 이어진다. 예산 소진/미재촬영 시 실패(기존 규칙). */
+    private fun enterStorageBreak(s: FocusSession) {
+        if (phase.value != Phase.Recording || isFinalizing) return
+        val budget = breakBudgetRemaining.value
+        if (budget < 1) { failBreakExpired(s); return }
+        val deadline = System.currentTimeMillis() + budget * 1000
+        CameraRecorder.pause()
+        breakWarnPosted = false
+        breakNote.value = "저장공간이 부족합니다. 저장공간을 확보 후 촬영을 재개하세요."
+        phase.value = Phase.PausedForBreak(deadline)
+        Prefs.breakDeadline = deadline
+        AlarmScheduler.playChime(appContext)
+        AlarmScheduler.postStatus(appContext, 2000, "촬영 일시중단 — 저장공간 부족",
+            "저장공간을 확보한 뒤 앱으로 돌아와 재촬영을 시작하세요.")
     }
 
     fun resumeFromBreak() {
@@ -227,6 +254,7 @@ object SessionEngine {
         CameraRecorder.resume()
         absenceWarning.value = false
         absencePenaltyApplied = false
+        breakNote.value = null
         phase.value = Phase.Recording
         Prefs.breakDeadline = 0
     }
@@ -307,11 +335,16 @@ object SessionEngine {
     // 실촬영량(캡처 프레임×간격)이 경과 시간의 절반에도 못 미치면 촬영이 사실상 실패 중인 것이므로
     // (저장공간 참·인코더 정지·카메라 장애 등 원인 불문) 알람음과 함께 즉시 무효 종료한다.
     private fun checkCaptureHealth() {
+        val s = session ?: return
         if (phase.value != Phase.Recording || isFinalizing) return
         if (recordedSeconds.value < 60) return   // 워밍업(첫 60초)은 판단 보류
         if (CameraRecorder.capturedSeconds < recordedSeconds.value / 2) {
-            AlarmScheduler.playChime(appContext)
-            safetyEnd("촬영이 정상 진행되지 않음")
+            if (isStorageCritical()) {
+                enterStorageBreak(s)   // 저장공간 부족 = 유예(일시중단)로 재개 기회를 준다
+            } else {
+                AlarmScheduler.playChime(appContext)
+                safetyEnd("촬영이 정상 진행되지 않음")   // 그 외 촬영 장애 = 무효
+            }
         }
     }
 
@@ -518,21 +551,16 @@ object SessionEngine {
         // 계정 스코프 — 다른 계정의 미완료 세션은 지금 로그인한 계정으로 마감/노출하지 않는다.
         // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단)
         if (orphan.ownerUserID != AccountStore.currentUserID) return
-        // 통화도 긴급용무와 동일하게 breakDeadline을 세우므로 wasOnBreak가 통화 중단까지 포함한다.
-        // '앵그리모드 미사용 중 앱 종료'는 이탈 실패로 마감(철저히 10분 원칙).
-        val wasOnBreak = Prefs.breakDeadline != 0L
-        val outcome = when {
-            wasOnBreak -> SessionOutcome.EXIT_FAILED                     // 중단·통화 창 도중 종료
-            orphan.intensity == Intensity.INSANE -> SessionOutcome.EXIT_FAILED  // 미친맛: 무단 종료도 이탈 실패 (봐주지 않음)
-            else -> SessionOutcome.SAFETY_ENDED                         // 매운맛 크래시 — 관대하게 무벌점
-        }
+        // 촬영 도중 앱이 죽으면(배터리 방전·강제 종료·크래시) 강도와 무관하게 이탈 실패로 본다.
+        // 모든 건 사용자 책임 — 저전력·강제종료로 세션이 날아가면 벌점 긴급이탈.
+        val outcome = SessionOutcome.EXIT_FAILED
         val s = orphan.copy(outcomeRaw = outcome.raw, endedAt = System.currentTimeMillis())
         db.sessions().upsert(s)
         AccountStore.mirrorSession(s)   // 복구된 세션 요약도 클라우드 미러
         ScoreRules.points(outcome, s.intensity, s.targetSeconds / 60)?.let { (type, pts) ->
             val e = ScoreEvent(ownerUserID = s.ownerUserID, typeRaw = type.raw, points = pts,
                 sessionID = s.id, intensityRaw = s.intensityRaw,
-                note = if (outcome == SessionOutcome.EXIT_FAILED) "이탈 후 앱 종료" else "비정상 종료 복구")
+                note = "촬영 중 앱 종료 (배터리·강제 종료 등)")
             db.scores().insert(e); AccountStore.mirror(e)
             s.reservationID?.let { rid -> GroupStore.reportScore(db.reservations().byId(rid), pts) }
         }
