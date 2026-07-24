@@ -330,10 +330,10 @@ struct MountGuideView: View {
                 compositionGuideLayer
                 landscapeLayout
             } else {
-                // 세로: 컨트롤을 먼저 배치하고 → 점선 프레임을 맨 위로 올린다.
-                //  얇은 점선이라 다른 텍스트와 겹쳐도 프레임이 항상 또렷하게 보인다.
-                portraitLayout
+                // 세로도 가로와 동일하게: 점선 프레임을 먼저(맨 뒤) 깔고 → 컨트롤이 그 위를 덮는다.
+                //  프레임이 헤더·체크·버튼 위를 가로지르지 않아 화면이 깔끔하다.
                 compositionGuideLayer
+                portraitLayout
             }
 
             // 시작 카운트다운 — 이 화면의 라이브 프리뷰 위에서 진행 (프리뷰 레이어 1개 유지).
@@ -565,16 +565,16 @@ struct MountGuideView: View {
             let h: CGFloat = fitsWidth ? byWidthHeight : maxHeight
 
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(TL.paper.opacity(0.6),
-                              style: StrokeStyle(lineWidth: 2.4, dash: [11, 9]))
+                .strokeBorder(TL.paper.opacity(0.5),
+                              style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
                 .frame(width: w, height: h)
-                .overlay(alignment: .top) {
-                    Text("영역 안에 내 모습이 모두 보이도록")
+                .overlay {
+                    // 프레임 정중앙에 안내 문구 — 헤더·타이머·패널과 절대 겹치지 않는 위치
+                    Text("영역 안에 내 모습이 보이도록 고정")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(Capsule().fill(.black.opacity(0.55)))
-                        .padding(.top, 10)
                 }
                 .frame(width: geo.size.width, height: geo.size.height)   // 화면 중앙 배치
         }
