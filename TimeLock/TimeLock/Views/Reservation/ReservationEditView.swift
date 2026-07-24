@@ -448,15 +448,24 @@ private struct SlotPolicySheet: View {
     let isMember: Bool
     @Environment(\.dismiss) private var dismiss
 
-    /// 표 행: (라벨, 연속일 하한, 슬롯 표기)
-    private let rows: [(label: String, minDays: Int, slots: String)] = [
-        ("기본",       0,  "2개"),
-        ("연속 3일",   3,  "3개"),
-        ("연속 5일",   5,  "4개"),
-        ("연속 7일",   7,  "5개"),
-        ("연속 10일", 10,  "10개"),
-        ("연속 30일", 30,  "무제한")
-    ]
+    /// 표 행: (라벨, 연속일 하한, 슬롯 표기).
+    /// 멤버십 계정은 연속과 무관하게 기본 10개가 보장되므로 사다리를 접고 '기본 10개 / 연속 30일 무제한' 2줄만 보여준다.
+    private var rows: [(label: String, minDays: Int, slots: String)] {
+        if isMember {
+            return [
+                ("기본",       0,  "\(SlotPolicy.memberFloorSlots)개"),
+                ("연속 30일", 30,  "무제한")
+            ]
+        }
+        return [
+            ("기본",       0,  "2개"),
+            ("연속 3일",   3,  "3개"),
+            ("연속 5일",   5,  "4개"),
+            ("연속 7일",   7,  "5개"),
+            ("연속 10일", 10,  "10개"),
+            ("연속 30일", 30,  "무제한")
+        ]
+    }
 
     /// 현재 연속일이 속한 행 인덱스
     private var currentRow: Int {

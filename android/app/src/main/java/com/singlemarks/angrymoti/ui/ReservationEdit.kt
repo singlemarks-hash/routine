@@ -461,11 +461,16 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
             color = TL.muted, fontSize = 14.sp)
         Spacer(Modifier.height(16.dp))
 
-        val rows = listOf("기본" to "2개") + SlotPolicy.tiers.map { (d, s) ->
-            "연속 ${d}일" to (s?.let { "${it}개" } ?: "무제한")
-        }
+        // 멤버십 계정은 연속과 무관하게 기본 10개가 보장되므로 사다리를 접고 '기본 10개 / 연속 30일 무제한' 2줄만.
+        val rows = if (isPro)
+            listOf("기본" to "${SlotPolicy.MEMBER_FLOOR_SLOTS}개", "연속 30일" to "무제한")
+        else
+            listOf("기본" to "2개") + SlotPolicy.tiers.map { (d, s) ->
+                "연속 ${d}일" to (s?.let { "${it}개" } ?: "무제한")
+            }
         val currentLabel = when {
             streak >= 30 -> "연속 30일"
+            isPro -> "기본"   // 멤버는 30일 미만이면 항상 기본(10개) 행이 현재
             else -> SlotPolicy.tiers.lastOrNull { it.first <= streak }?.let { "연속 ${it.first}일" } ?: "기본"
         }
         rows.forEach { (label, slots) ->
