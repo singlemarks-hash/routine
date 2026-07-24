@@ -40,12 +40,16 @@ struct WeeklyScheduleView: View {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
     }
 
-    /// 월~일 표시 순서 (Calendar.weekday: 1=일 … 7=토)
-    private let weekdayOrder: [Int] = [2, 3, 4, 5, 6, 7, 1]
     private let weekdayNames = [1: "일요일", 2: "월요일", 3: "화요일", 4: "수요일",
                                 5: "목요일", 6: "금요일", 7: "토요일"]
 
     private var todayWeekday: Int { Calendar.current.component(.weekday, from: .now) }
+
+    /// 표시 순서 — 오늘 요일을 맨 위에 두고 요일 순으로 순환.
+    /// (Calendar.weekday: 1=일 … 7=토) 예) 오늘이 토(7)면 토·일·월·화·수·목·금, 화(3)면 화·수·목·금·토·일·월.
+    private var weekdayOrder: [Int] {
+        (0..<7).map { ((todayWeekday - 1 + $0) % 7) + 1 }
+    }
 
     var body: some View {
         NavigationStack {
