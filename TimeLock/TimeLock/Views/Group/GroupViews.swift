@@ -309,40 +309,27 @@ struct GroupCreateView: View {
                     }
                 }
 
-                field("매일 몇 시에 시작하나요?") {
-                    DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.wheel)
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
-                        .colorScheme(.dark)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("활동 길이")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(TL.muted)
-                        Spacer()
-                        // 선택한 길이의 완주 상점 미리보기 — 정책(10분~1시간 +10 · ~3시간 +20 · 그 이상 +30)에 맞춰 갱신
-                        Text("완료 시 +\(ScoreRules.completionBase(forMinutes: minutes))점")
-                            .font(.system(size: 12, weight: .heavy, design: .rounded))
-                            .foregroundStyle(TL.jade)
-                            .padding(.horizontal, 10).padding(.vertical, 5)
-                            .background(Capsule().fill(TL.jade.opacity(0.14)))
-                    }
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(TimePolicy.durationOptionsMinutes, id: \.self) { option in
-                                Button {
-                                    minutes = option
-                                } label: {
-                                    Text(TLFormat.durationLabel(option))
-                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(minutes == option ? TL.ink : TL.muted)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 8)
-                                        .background(Capsule().fill(minutes == option ? TL.paper : TL.surface))
+                // 시작 시각 + 길이 — 컴팩트 pill(탭하면 팝업) + 길이 메뉴 + 완주 상점. 활동 예약과 동일 형태.
+                field("몇시에 얼마나 진행하나요?") {
+                    TLCard {
+                        VStack(spacing: 4) {
+                            DatePicker("시작 시각", selection: $startTime, displayedComponents: .hourAndMinute)
+                                .font(.system(size: 15)).foregroundStyle(TL.paper)
+                            Divider().overlay(TL.hairline)
+                            HStack(spacing: 10) {
+                                Picker("활동 길이", selection: $minutes) {
+                                    ForEach(TimePolicy.durationOptionsMinutes, id: \.self) {
+                                        Text(TLFormat.durationLabel($0)).tag($0)
+                                    }
                                 }
+                                .pickerStyle(.menu)
+                                .tint(TL.paper)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Text("완료 시 +\(ScoreRules.completionBase(forMinutes: minutes))점")
+                                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(TL.jade)
+                                    .padding(.horizontal, 10).padding(.vertical, 5)
+                                    .background(Capsule().fill(TL.jade.opacity(0.14)))
                             }
                         }
                     }

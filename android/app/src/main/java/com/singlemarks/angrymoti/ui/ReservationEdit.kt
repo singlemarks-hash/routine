@@ -81,6 +81,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var showSlotSheet by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
+    var showDurationMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var allSessions by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.FocusSession>()) }
     var allReservations by remember { mutableStateOf(listOf<Reservation>()) }
@@ -270,9 +271,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 }
             }
 
-            // ── 몇 시에 시작하나요? — 인라인 타임 피커 (그룹 방 만들기와 동일)
+            // ── 몇시에 얼마나 진행하나요? — 시작 시각 pill(탭→인라인 피커) + 길이 드롭다운 + 완주 상점
             Column {
-                TLEyebrow("몇 시에 시작하나요?")
+                TLEyebrow("몇시에 얼마나 진행하나요?")
                 TLCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("시작 시각", color = TL.paper, fontSize = 16.sp)
@@ -287,31 +288,41 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         Spacer(Modifier.height(10.dp))
                         TimePicker(state = timeState)
                     }
-                }
-            }
-
-            // ── 활동 길이 — 칩 (그룹 방 만들기와 동일). 우측에 완주 상점 미리보기 유지.
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TLEyebrow("활동 길이")
-                    Spacer(Modifier.weight(1f))
-                    Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
-                        color = TL.jade, fontSize = 13.sp, fontWeight = FontWeight.Black,
-                        modifier = Modifier.background(TL.jade.copy(alpha = 0.16f), CircleShape)
-                            .padding(horizontal = 12.dp, vertical = 6.dp))
-                }
-                Spacer(Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(TimePolicy.durationOptionsMinutes.size) { i ->
-                        val m = TimePolicy.durationOptionsMinutes[i]
-                        val selected = m == durationMinutes
-                        Text(TLFormat.durationLabel(m),
-                            color = if (selected) TL.ink else TL.muted,
-                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .background(if (selected) TL.paper else TL.surface, CircleShape)
-                                .clickable(enabled = !fieldLocked) { durationMinutes = m }
-                                .padding(horizontal = 14.dp, vertical = 8.dp))
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable(enabled = !fieldLocked) { showDurationMenu = true }
+                                    .padding(vertical = 2.dp),
+                            ) {
+                                Text(TLFormat.durationLabel(durationMinutes),
+                                    color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(6.dp))
+                                androidx.compose.material3.Icon(AppIcon.ChevronsUpDown, null,
+                                    tint = TL.muted, modifier = Modifier.size(15.dp))
+                            }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = showDurationMenu,
+                                onDismissRequest = { showDurationMenu = false },
+                                containerColor = TL.raised,
+                            ) {
+                                TimePolicy.durationOptionsMinutes.forEach { m ->
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = {
+                                            Text(TLFormat.durationLabel(m),
+                                                color = if (m == durationMinutes) TL.paper else TL.muted,
+                                                fontWeight = if (m == durationMinutes) FontWeight.Bold else FontWeight.Normal)
+                                        },
+                                        onClick = { durationMinutes = m; showDurationMenu = false })
+                                }
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
+                            color = TL.jade, fontSize = 13.sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier.background(TL.jade.copy(alpha = 0.16f), CircleShape)
+                                .padding(horizontal = 12.dp, vertical = 6.dp))
                     }
                 }
             }

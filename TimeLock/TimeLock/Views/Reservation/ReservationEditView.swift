@@ -147,8 +147,7 @@ struct ReservationEditView: View {
                     nameSection
                     tagSection
                     intensitySection
-                    startTimeSection
-                    durationSection
+                    timeAndDurationSection
                     repeatSection
                     if reservation != nil {
                         Button("예약 삭제") { showDeleteConfirm = true }
@@ -281,42 +280,30 @@ struct ReservationEditView: View {
         }
     }
 
-    /// 시작 시각 — 그룹 방 만들기와 동일한 휠 피커
-    private var startTimeSection: some View {
+    /// 시작 시각 + 활동 길이 — 컴팩트 pill(탭하면 팝업) + 길이 메뉴 + 완주 상점 미리보기.
+    /// 가장 직관적이라 그룹 방 만들기와 동일한 형태로 통일.
+    private var timeAndDurationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "몇 시에 시작하나요?")
-            DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .colorScheme(.dark)
-                .disabled(editingDisabled)
-        }
-    }
-
-    /// 활동 길이 — 그룹 방 만들기와 동일한 칩. 우측에 완주 상점 미리보기 유지.
-    private var durationSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                TLEyebrow(text: "활동 길이")
-                Spacer()
-                Text("완료 시 +\(ScoreRules.completionBase(forMinutes: durationMinutes))점")
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
-                    .foregroundStyle(TL.jade)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(Capsule().fill(TL.jade.opacity(0.14)))
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(durations, id: \.self) { option in
-                        Button { durationMinutes = option } label: {
-                            Text(TLFormat.durationLabel(option))
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundStyle(durationMinutes == option ? TL.ink : TL.muted)
-                                .padding(.horizontal, 14).padding(.vertical, 8)
-                                .background(Capsule().fill(durationMinutes == option ? TL.paper : TL.surface))
-                        }
+            TLEyebrow(text: "몇시에 얼마나 진행하나요?")
+            TLCard {
+                VStack(spacing: 4) {
+                    DatePicker("시작 시각", selection: $startTime, displayedComponents: .hourAndMinute)
+                        .font(.tlBody).foregroundStyle(TL.paper)
                         .disabled(editingDisabled)
+                    Divider().overlay(TL.hairline)
+                    HStack(spacing: 10) {
+                        Picker("활동 시간", selection: $durationMinutes) {
+                            ForEach(durations, id: \.self) { Text(TLFormat.durationLabel($0)).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(TL.paper)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .disabled(editingDisabled)
+                        Text("완료 시 +\(ScoreRules.completionBase(forMinutes: durationMinutes))점")
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(TL.jade)
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Capsule().fill(TL.jade.opacity(0.14)))
                     }
                 }
             }
