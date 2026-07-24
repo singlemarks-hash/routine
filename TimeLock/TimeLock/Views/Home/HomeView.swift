@@ -340,7 +340,7 @@ struct HomeView: View {
                             .lineLimit(1)
                         Spacer()
                         if showsTimer {
-                            Text(TLFormat.hms(remaining))
+                            Text(remainingMinuteLabel(remaining))
                                 .font(.tlTimer(18))
                                 .foregroundStyle(TL.amber)
                         } else {
@@ -365,6 +365,14 @@ struct HomeView: View {
             }
         }
         .pressableStyle()
+    }
+
+    /// 남은 시간을 분단위로 표시 — 초 카운트다운의 불안감을 줄인다 (12시간 이내만 노출).
+    /// 예) "59분" / "1시간 20분" / "3시간". 올림·최소 1분.
+    private func remainingMinuteLabel(_ seconds: Int) -> String {
+        let m = max(1, Int((Double(seconds) / 60).rounded(.up)))
+        if m >= 60 { return m % 60 == 0 ? "\(m / 60)시간" : "\(m / 60)시간 \(m % 60)분" }
+        return "\(m)분"
     }
 
     private func nextLabel(_ fire: Date) -> String {
