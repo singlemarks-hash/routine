@@ -272,18 +272,25 @@ fun AuthScreen() {
     }
 }
 
-/** Google 로그인 버튼 — 흰 배경 + 잉크 텍스트 (Google 브랜드 가이드 라이트 버튼) */
+/** Google 로그인 버튼 — 흰 배경 + 공식 G 로고 + 텍스트 (Google 브랜드 가이드 라이트 버튼) */
 @Composable
 private fun GoogleButton(enabled: Boolean, onClick: () -> Unit) {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (enabled) Color.White else Color.White.copy(alpha = 0.5f), TL.cornerM)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 14.dp),
-        contentAlignment = Alignment.Center,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("G  Google로 계속하기", color = TL.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_google_logo),
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text("Google로 계속하기", color = TL.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
 
