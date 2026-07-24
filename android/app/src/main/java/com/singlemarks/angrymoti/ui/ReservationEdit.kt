@@ -488,7 +488,6 @@ private fun nextOneOffDay(startMinute: Int): Long {
     else today + 86_400_000L
 }
 
-@Composable
 /** 활동 슬롯 현황 배지 — 활동 예약·그룹 생성·그룹 참여 공용. 그룹도 슬롯 1개를 차지함을 알린다. */
 @Composable
 fun SlotStatusBadge(used: Int, allowed: Int?, streak: Int, onClick: () -> Unit) {
