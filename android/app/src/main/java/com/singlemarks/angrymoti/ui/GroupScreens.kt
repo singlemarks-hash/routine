@@ -736,10 +736,10 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                             InviteCodeCard(room.code)   // '활동 시작하기' 버튼 자리에 코드
                         }
                         Spacer(Modifier.height(10.dp))
-                        Text("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있어요.",
+                        Text("• 시작 10분 전까지만 참여할 수 있어요.",
                             color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(2.dp))
-                        Text("초대는 방장만 가능해요.",
+                        Text("• 초대는 방장만 가능해요.",
                             color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(16.dp))
