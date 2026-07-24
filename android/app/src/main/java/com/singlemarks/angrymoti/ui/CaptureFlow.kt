@@ -265,11 +265,14 @@ fun MountGuideScreen(pending: PendingSession) {
                 },
                 contentAlignment = Alignment.Center,   // 프레임 정중앙 — 헤더·타이머·패널과 겹치지 않음
             ) {
-                Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                        .padding(horizontal = 12.dp, vertical = 6.dp))
+                // 가로에선 프레임 중앙(좌측 프리뷰 영역)에 표시. 세로에선 아이콘 아래로 별도 배치.
+                if (!portrait) {
+                    Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 6.dp))
+                }
             }
         }
     }
@@ -357,6 +360,15 @@ fun MountGuideScreen(pending: PendingSession) {
                 header(false)
                 Spacer(Modifier.height(16.dp))
                 orientationRow()
+                // 안내 문구 — 방향·전환 아이콘 바로 아래, 왼쪽 정렬. 프레임(중앙)과 넉넉히 떨어져 간섭 없음.
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 6.dp))
+                }
                 Spacer(Modifier.weight(1f))   // 가운데는 점선 프레임(별도 레이어)이 차지한다
                 checklistAndStart()
                 Spacer(Modifier.height(14.dp))

@@ -444,6 +444,19 @@ struct MountGuideView: View {
                 controlsBar
                     .padding(.top, 14)
 
+                // 안내 문구 — 방향·전환 아이콘 바로 아래, 왼쪽 정렬.
+                // 프레임(중앙)과 넉넉히 떨어져 점선·다른 요소와 간섭이 없다.
+                HStack {
+                    Text("영역 안에 내 모습이 보이도록 고정")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(.black.opacity(0.55)))
+                    Spacer()
+                }
+                .padding(.top, 16)
+                .padding(.horizontal, 24)
+
                 Spacer()   // 가운데는 점선 프레임(별도 레이어)이 차지한다
 
                 VStack(spacing: 10) {
@@ -569,12 +582,15 @@ struct MountGuideView: View {
                               style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
                 .frame(width: w, height: h)
                 .overlay {
-                    // 프레임 정중앙에 안내 문구 — 헤더·타이머·패널과 절대 겹치지 않는 위치
-                    Text("영역 안에 내 모습이 보이도록 고정")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(Capsule().fill(.black.opacity(0.55)))
+                    // 가로에선 프레임 정중앙(좌측 프리뷰 영역)에 안내 문구를 둔다.
+                    // 세로에선 아이콘 아래로 별도 배치하므로 여기서는 표시하지 않는다.
+                    if isLandscape {
+                        Text("영역 안에 내 모습이 보이도록 고정")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Capsule().fill(.black.opacity(0.55)))
+                    }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)   // 화면 중앙 배치
         }
