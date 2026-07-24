@@ -218,12 +218,21 @@ final class SessionEngine: NSObject, ObservableObject {
         isFinalizing = true
         let result = await CameraRecorder.shared.stopRecording()
         applyRecording(result, to: s)
-        if result == nil {
-            // 목표 시간에 도달했지만 촬영된 영상이 없다 — 카메라 실패.
-            // 완주(만점)로 처리하지 않고 안전 종료로 기록한다 (앱의 유일한 약속 방어).
-            finalize(session: s, outcome: .safetyEnded, note: "촬영 실패 — 영상 없음")
-        } else {
+        // 완주(만점)는 '실제로 그 시간만큼 촬영됐을 때'만 인정한다.
+        // 영상이 없거나(nil), 유효 프레임이 없어 썸네일조차 못 만들었거나, 캡처된 실촬영
+        // 시간이 목표의 절반에도 못 미치면 = 카메라/인코딩 장애로 '헛완주'다.
+        // 이 경우 완주가 아니라 무효(무벌점·무점수) 안전종료로 강등한다. (#12를 완주 시점까지 확장)
+        let capturedSeconds = result?.recordedSeconds ?? 0
+        let recordedEnough = result != nil
+            && result?.thumbnailFileName != nil
+            && capturedSeconds >= s.targetSeconds / 2
+        if recordedEnough {
             finalize(session: s, outcome: .completed, note: nil)
+        } else {
+            #if DEBUG
+            print("[SessionEngine] 헛완주 방어 — captured=\(capturedSeconds)s/target=\(s.targetSeconds)s thumb=\(result?.thumbnailFileName != nil)")
+            #endif
+            finalize(session: s, outcome: .safetyEnded, note: "촬영 불완전 — 영상 손상/부족")
         }
     }
 
