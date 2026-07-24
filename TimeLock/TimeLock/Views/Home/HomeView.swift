@@ -121,14 +121,20 @@ struct HomeView: View {
 
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    /// '오늘' 발생하는 활동 — 시각순. 일정 탭의 오늘 칸과 동일하게 occurrence(오늘) 기준이라,
-    /// 그룹의 오늘치 시각이 이미 지나도(nextOccurrence는 다음 주를 가리켜 사라지던 버그) 그대로 노출된다.
-    /// 단, 오늘 이미 촬영을 시작(완료·실패·진행)한 활동은 '할 일'이 아니므로 목록에서 뺀다.
+    /// '오늘' 발생하는 활동 — 일정 탭의 오늘 칸과 완전히 같은 기준(요일/일회성 매칭)으로 판정한다.
+    /// 그룹 방 시작일 전이거나 오늘치 시각이 지났어도, 일정 탭에 보이면 홈에도 똑같이 보이게 한다.
+    /// 단, 오늘 이미 촬영을 시작(완료·실패·노쇼)한 활동은 '할 일'이 아니므로 목록에서 뺀다.
     private var upcoming: [(reservation: Reservation, fire: Date?)] {
-        let today = Calendar.current.startOfDay(for: now)
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        let weekday = cal.component(.weekday, from: today)
         return reservations
             .compactMap { r -> (Reservation, Date?)? in
-                guard let fire = r.occurrence(on: today), !startedToday(r) else { return nil }
+                let occursToday = r.isRepeating
+                    ? r.repeatWeekdays.contains(weekday)
+                    : (r.oneOffDate.map { cal.isDate($0, inSameDayAs: today) } ?? false)
+                guard occursToday, !startedToday(r) else { return nil }
+                let fire = cal.date(byAdding: .minute, value: r.startMinute, to: today)
                 return (r, fire)
             }
             .sorted { ($0.1 ?? .distantFuture) < ($1.1 ?? .distantFuture) }
