@@ -548,6 +548,9 @@ final class GroupStore: ObservableObject {
                                       startMinute: room.startMinute,
                                       durationMinutes: room.durationMinutes,
                                       repeatWeekdays: room.repeatWeekdays,
+                                      // 일회성 그룹(요일 없음)은 방 시작일 하루만 발생
+                                      oneOffDate: room.repeatWeekdays.isEmpty
+                                          ? Calendar.current.startOfDay(for: room.startDate) : nil,
                                       ownerUserID: owner)
         reservation.groupID = room.id
         reservation.endDate = room.endDate

@@ -475,10 +475,19 @@ object GroupStore {
         val dao = AppDb.get(context).reservations()
         val owner = AccountStore.currentUserID
         if (dao.byGroup(owner, room.id).any { it.isActive }) return
+        // 일회성 그룹(요일 없음)은 방 시작일 하루만 발생 → oneOffDayStart 지정
+        val oneOff = if (room.repeatWeekdays.isEmpty()) {
+            java.util.Calendar.getInstance().apply {
+                timeInMillis = room.startDate
+                set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        } else null
         dao.upsert(Reservation(
             ownerUserID = owner, name = room.name, tag = "그룹",
             startMinute = room.startMinute, durationMinutes = room.durationMinutes,
             repeatWeekdaysCsv = room.repeatWeekdays.joinToString(","),
+            oneOffDayStart = oneOff,
             createdAt = room.startDate,
             groupId = room.id, endAt = room.endDate,
             intensityOverrideRaw = room.intensityRaw,

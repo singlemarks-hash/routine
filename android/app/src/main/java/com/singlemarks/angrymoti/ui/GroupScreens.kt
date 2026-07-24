@@ -84,8 +84,12 @@ private object GroupFormat {
 
     fun period(start: Long, end: Long): String = "${day(start)} ~ ${day(end)}"
 
-    fun schedule(room: GroupRoom): String =
-        "${weekdays(room.repeatWeekdays)} · ${time(room.startMinute)} · ${duration(room.durationMinutes)}"
+    fun schedule(room: GroupRoom): String {
+        // 일회성 그룹(요일 없음)은 날짜 하나로 표시
+        val whenLabel = if (room.repeatWeekdays.isEmpty()) "${day(room.startDate)} 하루"
+                        else weekdays(room.repeatWeekdays)
+        return "$whenLabel · ${time(room.startMinute)} · ${duration(room.durationMinutes)}"
+    }
 
     /** 시작일까지 남은 일수 라벨 — iOS dDay 1:1 (시작일=오늘이면 "오늘", 이후 "D-N") */
     fun dDay(startMillis: Long): String {
@@ -327,6 +331,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
     var intensity by remember { mutableStateOf(Intensity.SPICY) }
     var startMinute by remember { mutableStateOf(19 * 60) }               // 기본 19:00 (iOS 통일)
     var durationMinutes by remember { mutableStateOf(30) }                // 기본 30분 (iOS 통일)
+    var isRepeating by remember { mutableStateOf(true) }                  // 끄면 일회성(단발성) 그룹
     var repeatDays by remember { mutableStateOf(setOf(1, 2, 3, 4, 5, 6, 7)) }   // 기본 매일 (iOS 통일)
     val tomorrow = remember {
         Calendar.getInstance().apply {
@@ -358,14 +363,17 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
             Spacer(Modifier.weight(1f))
             TLPillButton("만들기", tint = TL.rec,
                 enabled = !busy && created == null && name.isNotBlank()
-                    && nickname.isNotBlank() && repeatDays.isNotEmpty()) {
+                    && nickname.isNotBlank() && (!isRepeating || repeatDays.isNotEmpty())) {
                 error = null; busy = true
                 val chosenStartMinute = timeState.hour * 60 + timeState.minute
                 val startMoment = startDay + chosenStartMinute * 60_000L   // 실제 시작 순간
+                // 일회성이면 요일 없음 + 종료일 = 시작일(그날 하루)
+                val effectiveDays = if (isRepeating) repeatDays.toList().sorted() else emptyList()
+                val effectiveEndDay = if (isRepeating) endDay else startDay
                 scope.launch {
                     try {
-                        val days = ((endDay - startDay) / 86_400_000L).toInt() + 1
-                        if (endDay < startDay) throw GroupStore.GroupException("종료일이 시작일보다 빠를 수 없어요.")
+                        val days = ((effectiveEndDay - startDay) / 86_400_000L).toInt() + 1
+                        if (effectiveEndDay < startDay) throw GroupStore.GroupException("종료일이 시작일보다 빠를 수 없어요.")
                         if (days > GroupPolicy.MAX_DURATION_DAYS)
                             throw GroupStore.GroupException("기간은 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월)까지 가능해요.")
                         // 시작은 지금부터 최소 1시간 뒤 (참여자가 10분 전 알람을 받을 수 있게 여유를 둔다)
@@ -374,11 +382,11 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                                 "시작은 지금부터 최소 ${GroupPolicy.MIN_START_LEAD_MINUTES / 60}시간 이후로 설정해주세요.")
                         GroupStore.checkSlotAvailable(context)
                         GroupStore.checkScheduleConflict(context, chosenStartMinute, durationMinutes,
-                            repeatDays.toList(), startDay, endDay + 86_400_000L - 1)
+                            effectiveDays, startDay, effectiveEndDay + 86_400_000L - 1)
                         created = GroupStore.createRoom(
                             context, name.trim(), nickname.trim(), intensity,
-                            chosenStartMinute, durationMinutes, repeatDays.toList().sorted(),
-                            startMoment, endDay + 86_400_000L - 1,   // startDate = 실제 시작 순간(iOS 통일)
+                            chosenStartMinute, durationMinutes, effectiveDays,
+                            startMoment, effectiveEndDay + 86_400_000L - 1,   // startDate = 실제 시작 순간(iOS 통일)
                         )
                     } catch (e: Exception) {
                         error = e.message ?: "방 생성에 실패했어요."
@@ -493,39 +501,61 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Text("반복 요일", color = TL.paper, fontSize = 15.sp)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
-                        .forEach { (day, label) ->
-                            val selected = day in repeatDays
-                            Box(
-                                Modifier.size(38.dp)
-                                    .background(if (selected) TL.paper else TL.raised, CircleShape)
-                                    .clickable {
-                                        repeatDays = if (selected) repeatDays - day else repeatDays + day
-                                    },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(label, color = if (selected) TL.ink else TL.muted,
-                                    fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                }
-                Spacer(Modifier.height(12.dp))
+                // 요일 반복 토글 — 끄면 일회성(단발성) 그룹
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("기간", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Text(GroupFormat.day(startDay), color = TL.paper, fontSize = 14.sp,
-                        fontWeight = FontWeight.Black,
-                        modifier = Modifier.background(TL.raised, CircleShape)
-                            .clickable { pickingDate = "start" }
-                            .padding(horizontal = 12.dp, vertical = 7.dp))
-                    Text("  ~  ", color = TL.muted, fontSize = 14.sp)
-                    Text(GroupFormat.day(endDay), color = TL.paper, fontSize = 14.sp,
-                        fontWeight = FontWeight.Black,
-                        modifier = Modifier.background(TL.raised, CircleShape)
-                            .clickable { pickingDate = "end" }
-                            .padding(horizontal = 12.dp, vertical = 7.dp))
+                    Text("요일 반복", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = isRepeating,
+                        onCheckedChange = { isRepeating = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
+                    )
+                }
+                if (isRepeating) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
+                            .forEach { (day, label) ->
+                                val selected = day in repeatDays
+                                Box(
+                                    Modifier.size(38.dp)
+                                        .background(if (selected) TL.paper else TL.raised, CircleShape)
+                                        .clickable {
+                                            repeatDays = if (selected) repeatDays - day else repeatDays + day
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(label, color = if (selected) TL.ink else TL.muted,
+                                        fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("기간 — 시작은 1시간 뒤부터, 최대 3개월", color = TL.muted, fontSize = 13.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("시작일 ~ 종료일", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        Text(GroupFormat.day(startDay), color = TL.paper, fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.background(TL.raised, CircleShape)
+                                .clickable { pickingDate = "start" }
+                                .padding(horizontal = 12.dp, vertical = 7.dp))
+                        Text("  ~  ", color = TL.muted, fontSize = 14.sp)
+                        Text(GroupFormat.day(endDay), color = TL.paper, fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.background(TL.raised, CircleShape)
+                                .clickable { pickingDate = "end" }
+                                .padding(horizontal = 12.dp, vertical = 7.dp))
+                    }
+                } else {
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("날짜", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        Text(GroupFormat.day(startDay), color = TL.paper, fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.background(TL.raised, CircleShape)
+                                .clickable { pickingDate = "start" }
+                                .padding(horizontal = 12.dp, vertical = 7.dp))
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 Text("내일부터 시작 가능 · 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월) · " +

@@ -218,6 +218,7 @@ struct GroupCreateView: View {
     @State private var intensity: Intensity = .spicy
     @State private var startTime = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: .now)!
     @State private var minutes = 30
+    @State private var isRepeating = true          // 끄면 일회성(단발성) 그룹
     @State private var weekdays: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
     @State private var startDay = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now))!
     @State private var endDay = Calendar.current.date(byAdding: .day, value: 28, to: Calendar.current.startOfDay(for: .now))!
@@ -235,7 +236,7 @@ struct GroupCreateView: View {
     private var formReady: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
             && !nickname.trimmingCharacters(in: .whitespaces).isEmpty
-            && !weekdays.isEmpty
+            && (!isRepeating || !weekdays.isEmpty)
     }
     /// 미친 매운맛은 멤버십 전용
     private var isPro: Bool { SubscriptionManager.shared.isPro }
@@ -335,40 +336,62 @@ struct GroupCreateView: View {
                     }
                 }
 
-                field("반복 요일") {
-                    HStack(spacing: 8) {
-                        ForEach(1...7, id: \.self) { day in
-                            let selected = weekdays.contains(day)
-                            Button {
-                                if selected { weekdays.remove(day) } else { weekdays.insert(day) }
-                            } label: {
-                                Text(GroupFormat.weekdayNames[day] ?? "")
-                                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                                    .foregroundStyle(selected ? TL.ink : TL.muted)
-                                    .frame(width: 38, height: 38)
-                                    .background(Circle().fill(selected ? TL.paper : TL.surface))
+                // 반복 — 요일 반복 토글. 끄면 일회성(단발성) 그룹: 날짜 하나만 고른다.
+                field("반복") {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Toggle(isOn: $isRepeating) {
+                            Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                        }
+                        .tint(TL.rec)
+
+                        if isRepeating {
+                            HStack(spacing: 8) {
+                                ForEach(1...7, id: \.self) { day in
+                                    let selected = weekdays.contains(day)
+                                    Button {
+                                        if selected { weekdays.remove(day) } else { weekdays.insert(day) }
+                                    } label: {
+                                        Text(GroupFormat.weekdayNames[day] ?? "")
+                                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                                            .foregroundStyle(selected ? TL.ink : TL.muted)
+                                            .frame(width: 38, height: 38)
+                                            .background(Circle().fill(selected ? TL.paper : TL.surface))
+                                    }
+                                }
                             }
+                        } else {
+                            DatePicker("날짜", selection: $startDay,
+                                       in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
+                                .font(.system(size: 14)).foregroundStyle(TL.paper).colorScheme(.dark)
                         }
                     }
-                }
-
-                field("기간 — 시작은 1시간 뒤부터, 최대 3개월") {
-                    VStack(spacing: 0) {
-                        DatePicker("시작일", selection: $startDay,
-                                   in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
-                        Divider().overlay(TL.hairline)
-                            .padding(.vertical, 6)
-                        DatePicker("종료일", selection: $endDay, in: startDay...maxEndDay, displayedComponents: .date)
-                    }
-                    .font(.system(size: 14))
-                    .foregroundStyle(TL.paper)
-                    .colorScheme(.dark)
                     .padding(14)
                     .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
-                    .onChange(of: startDay) {
-                        if endDay < startDay { endDay = startDay }
-                        if endDay > maxEndDay { endDay = maxEndDay }
+                }
+
+                if isRepeating {
+                    field("기간 — 시작은 1시간 뒤부터, 최대 3개월") {
+                        VStack(spacing: 0) {
+                            DatePicker("시작일", selection: $startDay,
+                                       in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
+                            Divider().overlay(TL.hairline)
+                                .padding(.vertical, 6)
+                            DatePicker("종료일", selection: $endDay, in: startDay...maxEndDay, displayedComponents: .date)
+                        }
+                        .font(.system(size: 14))
+                        .foregroundStyle(TL.paper)
+                        .colorScheme(.dark)
+                        .padding(14)
+                        .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+                        .onChange(of: startDay) {
+                            if endDay < startDay { endDay = startDay }
+                            if endDay > maxEndDay { endDay = maxEndDay }
+                        }
                     }
+                } else {
+                    Text("일회성 — 고른 날짜에 한 번만 진행하는 그룹이에요. 시작은 지금부터 최소 1시간 뒤여야 해요.")
+                        .font(.system(size: 12)).foregroundStyle(TL.faint)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 summaryCard
@@ -404,12 +427,14 @@ struct GroupCreateView: View {
     }
 
     private var summaryText: String {
-        let start = GroupFormat.day(startDay)
-        let end = GroupFormat.day(endDay)
         let time = GroupFormat.time(startMinute)
+        let common = "\(time) 시작 · \(TLFormat.durationLabel(minutes)) · \(intensity.title)\n시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있고, 시작 시각에 \(GroupPolicy.minMembersToStart)명 미만이면 방이 자동 삭제됩니다."
+        if !isRepeating {
+            return "\(GroupFormat.day(startDay)) 하루 · \(common)"
+        }
         let days = weekdays.isEmpty ? "요일 미선택"
             : "매주 " + weekdays.sorted().compactMap { GroupFormat.weekdayNames[$0] }.joined(separator: " ")
-        return "\(start) ~ \(end)\n\(days) · \(time) 시작 · \(TLFormat.durationLabel(minutes)) · \(intensity.title)\n시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있고, 시작 시각에 \(GroupPolicy.minMembersToStart)명 미만이면 방이 자동 삭제됩니다."
+        return "\(GroupFormat.day(startDay)) ~ \(GroupFormat.day(endDay))\n\(days) · \(common)"
     }
 
     private var startMinute: Int {
@@ -420,15 +445,18 @@ struct GroupCreateView: View {
     private func create() {
         errorMessage = nil
         let calendar = Calendar.current
+        // 일회성이면 요일 없음 + 종료일 = 시작일(그날 하루)
+        let effectiveWeekdays = isRepeating ? weekdays.sorted() : []
+        let effectiveEndDay = isRepeating ? endDay : startDay
         let startDate = calendar.date(byAdding: .minute, value: startMinute,
                                       to: calendar.startOfDay(for: startDay))!
         // endDate = 종료일의 끝(23:59:59.999) — 안드로이드와 통일. 마지막 날 세션 시각이 아니라 그날 전체를 포함해
         // 다른 시간대 참여자가 자기 로컬 마지막 세션을 마칠 여유를 준다.
-        let endDate = calendar.startOfDay(for: endDay).addingTimeInterval(86_400 - 0.001)
+        let endDate = calendar.startOfDay(for: effectiveEndDay).addingTimeInterval(86_400 - 0.001)
         // 종료일·기간 검증 (안드로이드와 동일 — 시작일 포함 일수 기준)
-        guard endDay >= startDay else { errorMessage = "종료일이 시작일보다 빠를 수 없어요."; return }
+        guard effectiveEndDay >= startDay else { errorMessage = "종료일이 시작일보다 빠를 수 없어요."; return }
         let inclusiveDays = (calendar.dateComponents([.day],
-            from: calendar.startOfDay(for: startDay), to: calendar.startOfDay(for: endDay)).day ?? 0) + 1
+            from: calendar.startOfDay(for: startDay), to: calendar.startOfDay(for: effectiveEndDay)).day ?? 0) + 1
         guard inclusiveDays <= GroupPolicy.maxDurationDays else {
             errorMessage = "기간은 최대 \(GroupPolicy.maxDurationDays)일(3개월)까지 가능해요."
             return
@@ -442,7 +470,7 @@ struct GroupCreateView: View {
         do {
             try store.checkSlotAvailable()
             try store.checkScheduleConflict(startMinute: startMinute, durationMinutes: minutes,
-                                            repeatWeekdays: weekdays.sorted(),
+                                            repeatWeekdays: effectiveWeekdays,
                                             startDate: startDate, endDate: endDate)
         } catch {
             errorMessage = error.localizedDescription
@@ -457,7 +485,7 @@ struct GroupCreateView: View {
                     nickname: nickname.trimmingCharacters(in: .whitespaces),
                     intensity: intensity,
                     startMinute: startMinute, durationMinutes: minutes,
-                    repeatWeekdays: weekdays.sorted(),
+                    repeatWeekdays: effectiveWeekdays,
                     startDate: startDate, endDate: endDate)
             } catch {
                 errorMessage = error.localizedDescription
@@ -1129,9 +1157,11 @@ enum GroupFormat {
     }
 
     static func scheduleLine(_ room: GroupRoom) -> String {
-        let days = "매주 " + room.repeatWeekdays.sorted()
-            .compactMap { weekdayNames[$0] }.joined(separator: " ")
-        return "\(days) · \(time(room.startMinute)) · \(TLFormat.durationLabel(room.durationMinutes))"
+        // 일회성 그룹(요일 없음)은 날짜 하나로 표시
+        let when = room.repeatWeekdays.isEmpty
+            ? "\(day(room.startDate)) 하루"
+            : "매주 " + room.repeatWeekdays.sorted().compactMap { weekdayNames[$0] }.joined(separator: " ")
+        return "\(when) · \(time(room.startMinute)) · \(TLFormat.durationLabel(room.durationMinutes))"
     }
 }
 
