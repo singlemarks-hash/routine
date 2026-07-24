@@ -55,6 +55,9 @@ object CameraRecorder {
     // 마지막으로 프레임이 '실제로 인코딩된' 시각 — 촬영 정지 감지의 기준.
     // 시작 시각을 앵커로 두어 카메라가 아예 첫 프레임을 못 주는 경우도 정지로 잡힌다.
     @Volatile private var lastFrameAt = 0L
+    // 마지막으로 프레임이 '도착한' 시각 — 일시정지로 버려지는 프레임도 포함(카메라 생존 신호).
+    // lastFrameAt(인코딩 성공)과 달리, 통화·백그라운드로 카메라가 끊기면 이 값이 멈춘다.
+    @Volatile private var lastFrameArrivedAt = 0L
     private var sessionId: String = ""
 
     // 사람 부재 감지 — 5초에 1회만 ML Kit 실행 (배터리·발열 최소화)
@@ -205,12 +208,42 @@ object CameraRecorder {
     fun pause() { isPaused = true }
 
     fun resume() {
+        // 카메라가 지금도 프레임을 주고 있는지 (통화·백그라운드로 끊기면 pause와 무관하게 끊긴다).
+        // 살아 있으면 재바인딩하지 않아 불필요한 프리뷰 깜빡임이 없다.
+        val cameraDelivering = lastFrameArrivedAt != 0L &&
+            System.currentTimeMillis() - lastFrameArrivedAt < 3_000L
         // 중단 동안 감지가 멈춰 부재 시간이 묵는다 — 재개 직후 오탐을 막기 위해 초기화
         absenceStartedAt = 0
         lastPresenceCheckAt = 0
         absentSeconds.value = 0
         lastFrameAt = System.currentTimeMillis()   // 재개 직후 정지 오탐 방지
         isPaused = false
+        // 통화 등으로 카메라가 끊겨 있었다면 같은 유스케이스로 재바인딩해 프레임을 되살린다.
+        // (CameraX 자동 복구가 안 된 케이스 대비 — iOS의 세션 startRunning 복구와 동일 취지)
+        if (!cameraDelivering) reassertCameraBinding()
+    }
+
+    /** 통화(VoIP)·백그라운드로 카메라가 닫힌 뒤 CameraX가 자동 복구하지 못한 경우,
+     *  저장된 프로바이더/유스케이스로 다시 바인딩해 프레임 전달을 되살린다. 인코더는 그대로 이어진다. */
+    private fun reassertCameraBinding() {
+        val p = provider ?: return
+        val analysis = analysisUseCase ?: return
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try {
+                camLifecycle.registry.currentState = Lifecycle.State.RESUMED
+                p.unbindAll()
+                p.bindToLifecycle(
+                    camLifecycle,
+                    if (frontFacing) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA,
+                    previewUseCase, analysis,
+                )
+                bound = true
+                android.util.Log.i("AngryMoti", "resume: 카메라 재바인딩 (통화 등 인터럽트 복구)")
+            } catch (e: Exception) {
+                bound = false
+                android.util.Log.e("AngryMoti", "resume: 카메라 재바인딩 실패", e)
+            }
+        }
     }
 
     /** 실촬영 시간(초) ≈ 캡처 프레임 수 × 캡처 간격. 세션엔진의 조기 감지가 경과 시간과 비교한다. */
@@ -228,6 +261,9 @@ object CameraRecorder {
     // 얼굴 인식·회전·인코딩 같은 무거운 일은 전부 파이프라인 밖(별도 스레드/비동기)에서 한다.
     // "촬영은 정상, 결과물만 타임랩스"가 되는 구조.
     private fun onFrame(context: Context, proxy: ImageProxy) {
+        // 카메라 생존 신호 — 일시정지로 프레임을 버리더라도 '도착'은 기록한다.
+        // (통화·백그라운드로 카메라가 끊기면 이 값이 멈춰, 재개 시 재바인딩 필요를 판별한다)
+        lastFrameArrivedAt = System.currentTimeMillis()
         if (!isRecording || isPaused) { proxy.close(); return }
         val now = System.currentTimeMillis()
         val captureDue = now - lastCaptureAt >= captureIntervalMs
