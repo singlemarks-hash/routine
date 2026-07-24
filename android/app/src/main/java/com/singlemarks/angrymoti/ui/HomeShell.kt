@@ -91,6 +91,7 @@ fun HomeShell() {
 
     val total by db.scores().totalFlow(owner).collectAsState(initial = 0)
     val reservations by db.reservations().activeFlow(owner).collectAsState(initial = emptyList())
+    val sessions by db.sessions().allFlow(owner).collectAsState(initial = emptyList())
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
         // 헤더 — 점수 배지 필(→기록) · 캘린더 원형 버튼 · 마이페이지 원형 버튼 (iOS 홈 헤더 1:1)
@@ -143,6 +144,7 @@ fun HomeShell() {
             when (tab) {
                 "activity" -> ActivityTab(
                     reservations = reservations,
+                    sessions = sessions,
                     goal = goalText,
                     onEditGoal = { showGoalEditor = true },
                     onQuickStart = { showQuickStart = true },
@@ -244,6 +246,7 @@ fun HomeShell() {
 @Composable
 private fun ActivityTab(
     reservations: List<Reservation>,
+    sessions: List<com.singlemarks.angrymoti.data.FocusSession>,
     goal: String,
     onEditGoal: () -> Unit,
     onQuickStart: () -> Unit,
@@ -302,16 +305,21 @@ private fun ActivityTab(
         }
         item { Text("오늘 예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
             modifier = Modifier.padding(top = 6.dp)) }
-        // 오늘 발생하는(아직 시작 전) 예정만 — 시각순. 미래·이번주 계획은 일정 탭에서.
-        // 이미 완료·실패했거나 시각이 지난 활동은 다음 발생이 내일 이후로 넘어가 자연히 빠진다.
+        // 오늘 발생하는 활동 — 일정 탭 오늘 칸과 동일한 occurrenceOn() 기준.
+        // 그룹의 오늘치 시각이 이미 지나도(nextOccurrence는 다음 주를 가리켜 사라지던 버그) 그대로 노출.
+        // 단, 오늘 이미 촬영을 시작(완료·실패·진행)한 활동은 '할 일'이 아니므로 뺀다.
         val todayStart = java.util.Calendar.getInstance().apply {
             timeInMillis = now
             set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
             set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
         }.timeInMillis
+        val dayEnd = todayStart + 86_400_000L
+        fun startedToday(r: Reservation) = sessions.any { s ->
+            s.reservationID == r.id && s.scheduledAt?.let { it in todayStart until dayEnd } == true
+        }
         val todayReservations = reservations
-            .mapNotNull { r -> r.nextOccurrence(now)?.let { r to it } }
-            .filter { it.second in todayStart until (todayStart + 86_400_000L) }
+            .mapNotNull { r -> r.occurrenceOn(todayStart)?.let { r to it } }
+            .filter { !startedToday(it.first) }
             .sortedBy { it.second }.map { it.first }
         if (todayReservations.isEmpty()) {
             item {
@@ -322,7 +330,7 @@ private fun ActivityTab(
             }
         }
         items(todayReservations) { r ->
-            val next = r.nextOccurrence(now)
+            val next = r.occurrenceOn(todayStart)   // 오늘치 시각(지났으면 과거값 → 타이머 자동 off)
             // iOS 예약 카드 1:1 — 1행: 이름 + (12시간 내 타이머 or 태그 칩) / 2행: 🔔 시각 + (타이머면 칩)
             val showsTimer = next != null && next - now in 1..(12 * 3600_000L)
             TLCard(onClick = { onEdit(r) }) {

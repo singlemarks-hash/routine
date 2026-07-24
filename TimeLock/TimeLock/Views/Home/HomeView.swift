@@ -94,6 +94,7 @@ struct HomeView: View {
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
     private var allActiveReservations: [Reservation]
     @Query private var allEvents: [ScoreEvent]
+    @Query private var allSessions: [FocusSession]
 
     /// 현재 계정의 예약만
     private var reservations: [Reservation] {
@@ -120,14 +121,28 @@ struct HomeView: View {
 
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    /// '오늘' 발생하는(아직 시작 전인) 예정 활동만 — 시각순. 미래·이번주 계획은 일정 탭에서 확인.
-    /// 이미 완료·실패했거나 시작 시각이 지난 활동은 다음 발생이 내일 이후로 넘어가 자연히 목록에서 빠진다.
+    /// '오늘' 발생하는 활동 — 시각순. 일정 탭의 오늘 칸과 동일하게 occurrence(오늘) 기준이라,
+    /// 그룹의 오늘치 시각이 이미 지나도(nextOccurrence는 다음 주를 가리켜 사라지던 버그) 그대로 노출된다.
+    /// 단, 오늘 이미 촬영을 시작(완료·실패·진행)한 활동은 '할 일'이 아니므로 목록에서 뺀다.
     private var upcoming: [(reservation: Reservation, fire: Date?)] {
-        let cal = Calendar.current
+        let today = Calendar.current.startOfDay(for: now)
         return reservations
-            .map { ($0, $0.nextOccurrence(after: now)) }
-            .filter { $0.1.map { cal.isDateInToday($0) } ?? false }
+            .compactMap { r -> (Reservation, Date?)? in
+                guard let fire = r.occurrence(on: today), !startedToday(r) else { return nil }
+                return (r, fire)
+            }
             .sorted { ($0.1 ?? .distantFuture) < ($1.1 ?? .distantFuture) }
+    }
+
+    /// 오늘 이 예약으로 이미 세션을 시작(또는 노쇼 확정)했는가 — 완료·실패·진행 중이면 '오늘 할 일'에서 제외.
+    private func startedToday(_ r: Reservation) -> Bool {
+        let cal = Calendar.current
+        let rid = r.id
+        let owner = account.currentUserID
+        return allSessions.contains { s in
+            s.ownerUserID == owner && s.reservationID == rid &&
+            (s.scheduledAt.map { cal.isDateInToday($0) } ?? false)
+        }
     }
 
     var body: some View {
