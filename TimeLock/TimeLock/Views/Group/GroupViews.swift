@@ -197,7 +197,7 @@ struct GroupTabView: View {
         let (label, color): (String, Color) =
             room.isFinished ? ("종료", TL.faint)
             : room.hasStarted ? ("진행 중", TL.jade)
-            : ("시작 \(GroupFormat.dDay(room.startDate))", TL.amber)
+            : ("\(GroupFormat.dDay(room.startDate)) 시작", TL.amber)
         return Text(label)
             .font(.system(size: 12, weight: .bold, design: .rounded))
             .foregroundStyle(color)
