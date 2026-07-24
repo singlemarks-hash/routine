@@ -81,11 +81,11 @@ private struct PermissionStep: View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer().frame(height: 60)
             TLEyebrow(text: "권한 설정")
-            Text("두 가지가 필요합니다")
+            Text("두 가지 권한을 허용해 주세요")
                 .font(.tlTitle(28))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 8)
-            Text("앵그리모티의 강제력은 카메라와 알람에서 나옵니다.")
+            Text("카메라와 알람에 사용됩니다. 지금 허용하지 않아도 앱을 둘러볼 수 있고, 촬영·알람을 쓸 때 다시 요청합니다.")
                 .font(.tlBody)
                 .foregroundStyle(TL.muted)
                 .padding(.top, 6)
@@ -119,10 +119,12 @@ private struct PermissionStep: View {
             }
             .padding(.top, 12)
 
+            // 권한은 선택 — 거부해도 온보딩을 진행할 수 있어야 한다(App Review 4.5.4/5.1.1).
+            // 설정 앱으로 강제 유도하지 않고, 실제로 촬영·알람을 사용할 때 다시 안내한다.
             if cameraGranted == false || notifGranted == false {
-                Text("거부된 권한은 iPhone 설정 › 앵그리모티에서 다시 켤 수 있습니다. 권한 없이는 알람 해제와 세션 기록이 동작하지 않습니다.")
+                Text("나중에 허용해도 괜찮아요. 촬영·알람 기능을 사용할 때 다시 안내해 드립니다.")
                     .font(.system(size: 13))
-                    .foregroundStyle(TL.amber)
+                    .foregroundStyle(TL.muted)
                     .padding(.top, 16)
             }
 
@@ -130,8 +132,6 @@ private struct PermissionStep: View {
 
             Button("다음") { next() }
                 .buttonStyle(TLPrimaryButtonStyle())
-                .disabled(cameraGranted != true || notifGranted != true)
-                .opacity(cameraGranted == true && notifGranted == true ? 1 : 0.4)
                 .padding(.bottom, 20)
         }
         .padding(.horizontal, 24)
