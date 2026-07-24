@@ -102,14 +102,11 @@ struct WeeklyScheduleView: View {
         Calendar.current.date(byAdding: .day, value: offset, to: Calendar.current.startOfDay(for: .now)) ?? .now
     }
 
-    /// 반복 예약은 요일 매칭, 일회성 예약은 그 날짜(date)와 정확히 같은 날만 — 미래 단발성도 제 날짜에 표시.
+    /// 그 날짜에 실제로 발생하는 예약만 — 홈 '오늘 예정된 활동'과 동일한 occurrence() 기준.
+    /// 그룹 예약은 방 시작일 전/종료일 후엔 발생이 없어, 요일만 맞으면 뜨던 유령 항목이 사라진다.
     private func items(on weekday: Int, date: Date) -> [Reservation] {
-        reservations.filter { r in
-            if r.isRepeating { return r.repeatWeekdays.contains(weekday) }
-            if let d = r.oneOffDate { return Calendar.current.isDate(d, inSameDayAs: date) }
-            return false
-        }
-        .sorted { $0.startMinute < $1.startMinute }
+        reservations.filter { $0.occurrence(on: date) != nil }
+            .sorted { $0.startMinute < $1.startMinute }
     }
 
     @ViewBuilder

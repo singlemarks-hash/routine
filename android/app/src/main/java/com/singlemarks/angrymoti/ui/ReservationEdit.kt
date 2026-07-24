@@ -515,11 +515,10 @@ fun WeeklyScheduleTab(
         5 to "목요일", 6 to "금요일", 7 to "토요일")
     val weekdays = (0..6).map { val dow = ((todayDow - 1 + it) % 7) + 1; dow to dayNames.getValue(dow) }
 
-    // 반복은 요일 매칭, 일회성은 그 날짜(dayStart)와 정확히 같은 날만 — 미래 단발성도 제 날짜에 표시.
-    fun itemsOn(dow: Int, dayStart: Long): List<Reservation> = reservations.filter { r ->
-        if (r.isRepeating) dow in r.repeatWeekdays
-        else r.oneOffDayStart?.let { it in dayStart until (dayStart + 86_400_000L) } == true
-    }.sortedBy { it.startMinute }
+    // 그 날짜에 실제 발생하는 예약만 — 홈과 동일한 occurrenceOn() 기준.
+    // 그룹 예약은 방 시작일 전/종료일 후엔 발생이 없어, 요일만 맞으면 뜨던 유령 항목이 사라진다.
+    fun itemsOn(dow: Int, dayStart: Long): List<Reservation> =
+        reservations.filter { it.occurrenceOn(dayStart) != null }.sortedBy { it.startMinute }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 20.dp),
