@@ -750,8 +750,20 @@ struct GroupRoomDetailView: View {
     @State private var confirmQuit = false
     @State private var confirmDisband = false
     @State private var working = false
+    @State private var now = Date()
+    // 시작 카운트다운은 '분' 단위 표시라 30초 폴링이면 충분(부하·불안감↓).
+    private let clock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var myUID: String { account.currentUserID }
+
+    /// 시작까지 남은 시간 문구 — 예: "시작까지 6시간 18분 남음", "시작까지 42분 남음", "곧 시작".
+    private func startRemainLabel(_ seconds: Int) -> String {
+        if seconds < 60 { return "곧 시작" }
+        let m = seconds / 60
+        let h = m / 60, mm = m % 60
+        if h > 0 { return "시작까지 \(h)시간 \(mm)분 남음" }
+        return "시작까지 \(mm)분 남음"
+    }
 
     var body: some View {
         ScrollView {
@@ -782,6 +794,7 @@ struct GroupRoomDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
+        .onReceive(clock) { now = $0 }
     }
 
     private func load() async {
@@ -809,8 +822,16 @@ struct GroupRoomDetailView: View {
                 Text("\(GroupFormat.day(room.startDate)) ~ \(GroupFormat.day(room.endDate)) · \(room.intensity.emoji) \(room.intensity.title) · \(room.memberCount)명")
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
                 if !room.hasStarted {
-                    Text("시작까지 \(GroupFormat.dDay(room.startDate)) — 시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있어요.")
-                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.amber)
+                    // 시작이 12시간 이내로 임박했을 때만 노란색 카운트다운을 띄운다 —
+                    // 그보다 멀면 굳이 초조하게 만들지 않는다.
+                    let secs = Int(room.startDate.timeIntervalSince(now))
+                    if secs <= 12 * 3600 {
+                        Text(startRemainLabel(secs))
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(TL.amber)
+                    }
+                    Text("시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있어요.")
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
                 }
             }
         }

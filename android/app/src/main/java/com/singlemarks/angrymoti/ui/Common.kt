@@ -182,18 +182,44 @@ fun TLGhostButton(text: String, tint: Color = TL.paper, onClick: () -> Unit) {
     }
 }
 
-/** 태그 칩 — 선택 시 종이색 캡슐 + 잉크 텍스트 (iOS TagChip) */
+/** 핵심 대주제 6개만 각각 고유 색. 그룹·직접 입력 태그는 null(회색 유지). iOS tagTint()와 1:1. */
+fun tagTint(name: String): Color? = when (name) {
+    "공부"        -> Color(0xFF5B8DEF)   // 블루
+    "독서"        -> Color(0xFFB07CF0)   // 바이올렛
+    "운동"        -> Color(0xFFFF7A66)   // 코랄
+    "작업"        -> Color(0xFFF2A93C)   // 골드
+    "연주", "악기" -> Color(0xFFF473B3)   // 핑크
+    "글쓰기"      -> Color(0xFF35C8AE)   // 틸
+    else         -> null
+}
+
+/** 태그 칩 — 프리셋 6개는 고유색, 그 외(그룹·커스텀)는 회색. 선택 시 종이색 캡슐 (iOS TagChip) */
 @Composable
 fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
+    val tint = tagTint(name)
+    val bg = when {
+        tint == null -> if (selected) TL.paper else TL.surface
+        selected -> tint
+        else -> tint.copy(alpha = 0.16f)
+    }
+    val border = when {
+        tint == null -> if (selected) Color.Transparent else TL.hairline
+        selected -> Color.Transparent
+        else -> tint.copy(alpha = 0.38f)
+    }
+    val fg = when {
+        tint == null -> if (selected) TL.ink else TL.muted
+        selected -> Color.White
+        else -> tint
+    }
     Box(
         modifier = Modifier
-            .background(if (selected) TL.paper else TL.surface, CircleShape)
-            .border(1.dp, if (selected) Color.Transparent else TL.hairline, CircleShape)
+            .background(bg, CircleShape)
+            .border(1.dp, border, CircleShape)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        Text(name, color = if (selected) TL.ink else TL.muted, fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold)
+        Text(name, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

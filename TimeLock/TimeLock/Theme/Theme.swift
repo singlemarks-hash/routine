@@ -327,19 +327,45 @@ struct TLCard<Content: View>: View {
 
 // MARK: - 태그 칩
 
+/// 핵심 대주제 6개 태그의 엄선 색상 (다크 배경에서 서로 뚜렷이 구분). 프리셋이 아니면 nil → 회색.
+/// '악기'는 '연주'로 이름이 바뀌었지만, 기존 데이터도 같은 색으로 보이도록 별칭 유지.
+func tagTint(_ name: String) -> Color? {
+    switch name {
+    case "공부":            return Color(hex: 0x5B8DEF)   // 블루
+    case "독서":            return Color(hex: 0xB07CF0)   // 바이올렛
+    case "운동":            return Color(hex: 0xFF7A66)   // 코랄
+    case "작업":            return Color(hex: 0xF2A93C)   // 골드
+    case "연주", "악기":     return Color(hex: 0xF473B3)   // 핑크
+    case "글쓰기":          return Color(hex: 0x35C8AE)   // 틸
+    default:               return nil
+    }
+}
+
 struct TagChip: View {
     let name: String
     var selected = false
     var body: some View {
+        // 프리셋 6개는 고유 색, 그 외(그룹·직접 입력 태그)는 기존 회색 유지.
+        let tint = tagTint(name)
         Text(name)
             .font(.system(size: 13, weight: .semibold, design: .rounded))
-            .foregroundStyle(selected ? TL.ink : TL.muted)
+            .foregroundStyle(textColor(tint))
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(
-                Capsule().fill(selected ? TL.paper : TL.surface)
-            )
-            .overlay(Capsule().strokeBorder(selected ? .clear : TL.hairline, lineWidth: 1))
+            .background(Capsule().fill(bgColor(tint)))
+            .overlay(Capsule().strokeBorder(borderColor(tint), lineWidth: 1))
+    }
+    private func textColor(_ tint: Color?) -> Color {
+        guard let tint else { return selected ? TL.ink : TL.muted }
+        return selected ? .white : tint
+    }
+    private func bgColor(_ tint: Color?) -> Color {
+        guard let tint else { return selected ? TL.paper : TL.surface }
+        return selected ? tint : tint.opacity(0.16)
+    }
+    private func borderColor(_ tint: Color?) -> Color {
+        guard let tint else { return selected ? .clear : TL.hairline }
+        return selected ? .clear : tint.opacity(0.38)
     }
 }
 

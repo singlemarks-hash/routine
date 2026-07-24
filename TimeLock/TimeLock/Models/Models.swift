@@ -128,7 +128,7 @@ enum Intensity: String, Codable, CaseIterable, Identifiable {
 // MARK: - 태그 프리셋
 
 enum ActivityTag {
-    static let presets = ["공부", "독서", "운동", "작업", "악기", "글쓰기"]
+    static let presets = ["공부", "독서", "운동", "작업", "연주", "글쓰기"]
 }
 
 // MARK: - 예약

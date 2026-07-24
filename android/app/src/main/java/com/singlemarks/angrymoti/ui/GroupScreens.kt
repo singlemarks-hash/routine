@@ -101,6 +101,14 @@ private object GroupFormat {
         val days = ((startDay - today) / 86_400_000L).toInt()
         return if (days <= 0) "오늘" else "D-$days"
     }
+
+    /** 시작까지 남은 시간 문구 — iOS startRemainLabel 1:1. 예: "시작까지 6시간 18분 남음", "시작까지 42분 남음", "곧 시작". */
+    fun startRemain(seconds: Long): String {
+        if (seconds < 60) return "곧 시작"
+        val m = seconds / 60
+        val h = m / 60; val mm = m % 60
+        return if (h > 0) "시작까지 ${h}시간 ${mm}분 남음" else "시작까지 ${mm}분 남음"
+    }
 }
 
 private sealed class GroupNav {
@@ -668,6 +676,12 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
 
     LaunchedEffect(room.id) { members = GroupStore.members(room.id) }
 
+    // 시작 카운트다운용 시계 — 분 단위 표시라 30초 폴링이면 충분.
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(30_000) }
+    }
+
     val waiting = room.status == "scheduled" && !room.hasStarted
     val finished = room.isFinished
 
@@ -703,9 +717,16 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                     "${room.intensity.emoji} ${room.intensity.title} · ${room.memberCount}명",
                     color = TL.muted, fontSize = 13.sp)
                 if (!room.hasStarted) {
+                    // 시작이 12시간 이내로 임박했을 때만 노란색 카운트다운을 띄운다 (iOS 1:1).
+                    val secs = (room.startDate - now) / 1000L
+                    if (secs <= 12 * 3600) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(GroupFormat.startRemain(secs),
+                            color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
                     Spacer(Modifier.height(4.dp))
-                    Text("시작까지 ${GroupFormat.dDay(room.startDate)} — 시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있어요.",
-                        color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있어요.",
+                        color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
             Spacer(Modifier.height(16.dp))

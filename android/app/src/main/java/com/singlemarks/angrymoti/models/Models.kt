@@ -176,7 +176,7 @@ object SlotPolicy {
 // MARK: 태그 프리셋
 
 object ActivityTag {
-    val presets = listOf("공부", "독서", "운동", "작업", "악기", "글쓰기")
+    val presets = listOf("공부", "독서", "운동", "작업", "연주", "글쓰기")
 }
 
 // MARK: 자리비움 정책 (SessionEngine과 배너가 공유)
