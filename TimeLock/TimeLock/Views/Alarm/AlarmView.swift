@@ -325,9 +325,15 @@ struct MountGuideView: View {
                 .ignoresSafeArea()
 
             if isLandscape {
+                // 가로: 점선 프레임을 먼저(뒤) 깔고 → 우측 불투명 패널이 그 위를 덮는다.
+                //  프레임이 버튼 영역까지 넓게 뻗지만 패널이 앞이라 조작에 방해되지 않는다.
+                compositionGuideLayer
                 landscapeLayout
             } else {
+                // 세로: 컨트롤을 먼저 배치하고 → 점선 프레임을 맨 위로 올린다.
+                //  얇은 점선이라 다른 텍스트와 겹쳐도 프레임이 항상 또렷하게 보인다.
                 portraitLayout
+                compositionGuideLayer
             }
 
             // 시작 카운트다운 — 이 화면의 라이브 프리뷰 위에서 진행 (프리뷰 레이어 1개 유지).
@@ -438,9 +444,7 @@ struct MountGuideView: View {
                 controlsBar
                     .padding(.top, 14)
 
-                Spacer()
-                compositionFrame(width: 200, height: 356)   // 9:16
-                Spacer()
+                Spacer()   // 가운데는 점선 프레임(별도 레이어)이 차지한다
 
                 VStack(spacing: 10) {
                     checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount)
@@ -458,29 +462,29 @@ struct MountGuideView: View {
 
     private var landscapeLayout: some View {
         HStack(spacing: 0) {
-            // 좌: 촬영 구도 영역 (프리뷰가 비치는 프레임)
-            ZStack {
-                LinearGradient(colors: [TL.ink.opacity(0.5), .clear],
-                               startPoint: .leading, endPoint: .trailing)
-                    .ignoresSafeArea()
-                compositionFrame(width: 300, height: 169)   // 16:9
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 좌: 촬영 구도 영역 (점선 프레임은 별도 전체 레이어가 그린다)
+            LinearGradient(colors: [TL.ink.opacity(0.5), .clear],
+                           startPoint: .leading, endPoint: .trailing)
+                .ignoresSafeArea()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // 우: 불투명 컨트롤 패널 — 프레임과 확실히 분리
+            // 우: 불투명 컨트롤 패널 — 한 화면에 모두 들어오도록 압축.
+            //  ScrollView는 아주 작은 기기용 안전장치일 뿐, 일반 기기에선 스크롤 없이 꽉 찬다.
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 10) {
                     header
                     controlsBar
-                    checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount)
-                    checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
+                    checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount, compact: true)
+                    checkRow("구도 안에 내가 보여요", isOn: $checkedFrame, compact: true)
                     startButton
                     cancelButton
                 }
-                .padding(20)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
             }
-            .frame(width: 320)
-            .background(TL.ink.opacity(0.94).ignoresSafeArea())
+            .frame(width: 300)
+            // 반투명 — 뒤의 점선 프레임(80%)이 패널 너머로 비쳐, 내 전신이 어디까지 담기는지 보인다
+            .background(TL.ink.opacity(0.6).ignoresSafeArea())
             .overlay(alignment: .leading) {
                 Rectangle().fill(TL.hairline).frame(width: 1).ignoresSafeArea()
             }
@@ -545,16 +549,37 @@ struct MountGuideView: View {
         .opacity(checkedMount && checkedFrame ? 1 : 0.4)
     }
 
-    /// 구도 프레임 가이드 — 실제 영상 비율(9:16 / 16:9)과 동일
-    private func compositionFrame(width: CGFloat, height: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .strokeBorder(TL.paper.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
-            .frame(width: width, height: height)
-            .overlay(
-                Text("얼굴과 책상이 프레임 안에")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(TL.paper.opacity(0.85))
-                    .padding(.top, 8), alignment: .top)
+    /// 구도 프레임 가이드 — 실제 촬영은 '전체 화면'이므로 점선 프레임도 화면의 ~80%를
+    /// 차지하도록 크게 그린다(작은 중앙 박스 ✕). 영상 비율(세로 9:16 / 가로 16:9)에 맞춰
+    /// 잘림 없이 표시하고, 터치는 통과시켜 아래 컨트롤 조작을 방해하지 않는다.
+    private var compositionGuideLayer: some View {
+        GeometryReader { geo in
+            // ratio = 가로/세로. 세로영상 9:16, 가로영상 16:9
+            let ratio: CGFloat = isLandscape ? 16.0 / 9.0 : 9.0 / 16.0
+            // 폭 80% 우선 → 화면 높이를 넘으면 높이 88%로 제한
+            let byWidth = geo.size.width * 0.8
+            let byWidthHeight = byWidth / ratio
+            let maxHeight = geo.size.height * 0.88
+            let fitsWidth = byWidthHeight <= maxHeight
+            let w: CGFloat = fitsWidth ? byWidth : maxHeight * ratio
+            let h: CGFloat = fitsWidth ? byWidthHeight : maxHeight
+
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(TL.paper.opacity(0.6),
+                              style: StrokeStyle(lineWidth: 2.4, dash: [11, 9]))
+                .frame(width: w, height: h)
+                .overlay(alignment: .top) {
+                    Text("영역 안에 내 모습이 모두 보이도록")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(.black.opacity(0.55)))
+                        .padding(.top, 10)
+                }
+                .frame(width: geo.size.width, height: geo.size.height)   // 화면 중앙 배치
+        }
+        .allowsHitTesting(false)   // 점선은 안내용 — 터치는 아래로 통과
+        .ignoresSafeArea()
     }
 
     /// 세로 ↔ 가로 방향 토글 (누르면 화면이 그 방향으로 부드럽게 회전)
@@ -592,18 +617,20 @@ struct MountGuideView: View {
         .pressableStyle()
     }
 
-    private func checkRow(_ title: String, isOn: Binding<Bool>) -> some View {
+    /// compact = 가로 모드용 — 텍스트·높이를 줄여 우측 패널이 한 화면에 들어오게 한다.
+    private func checkRow(_ title: String, isOn: Binding<Bool>, compact: Bool = false) -> some View {
         Button { isOn.wrappedValue.toggle() } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: compact ? 9 : 12) {
                 Image(systemName: isOn.wrappedValue ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
+                    .font(.system(size: compact ? 17 : 20))
                     .foregroundStyle(isOn.wrappedValue ? TL.jade : TL.muted)
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: compact ? 13 : 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(TL.paper)
                 Spacer()
             }
-            .padding(14)
+            .padding(.horizontal, compact ? 12 : 14)
+            .padding(.vertical, compact ? 10 : 14)
             .background(TL.surface.opacity(0.85), in: RoundedRectangle(cornerRadius: TL.cornerM))
         }
     }

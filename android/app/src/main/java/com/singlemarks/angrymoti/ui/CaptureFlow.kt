@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -239,22 +240,37 @@ fun MountGuideScreen(pending: PendingSession) {
             modifier = mod,
         )
     }
-    val dashedGuide: @Composable (Modifier) -> Unit = { mod ->
-        Box(
-            mod.drawBehind {
-                drawRoundRect(
-                    color = Color.White.copy(alpha = 0.65f),
-                    style = Stroke(
-                        width = 2.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 16f)),
-                    ),
-                    cornerRadius = CornerRadius(24.dp.toPx()),
-                )
-            },
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            Text("얼굴과 책상이 프레임 안에", color = Color.White.copy(alpha = 0.75f),
-                fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
+    // 점선 구도 가이드 — 실제 촬영은 '전체 화면'이므로 프레임도 화면의 ~80%를 차지하도록 크게
+    // 그린다(작은 중앙 박스 ✕). 영상 비율(세로 9:16 / 가로 16:9)에 맞춰 잘림 없이 중앙 배치하고,
+    // 전체 화면 위에 겹쳐 얹는다. 얇은 점선이라 세로에선 컨트롤 위(앞), 가로에선 패널 뒤로 둔다.
+    val dashedGuideOverlay: @Composable () -> Unit = {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val ratio = if (portrait) 9f / 16f else 16f / 9f   // 가로/세로
+            val byWidthW = maxWidth * 0.8f
+            val byWidthH = byWidthW / ratio
+            val maxH = maxHeight * 0.88f
+            val fitsWidth = byWidthH <= maxH
+            val fw = if (fitsWidth) byWidthW else maxH * ratio
+            val fh = if (fitsWidth) byWidthH else maxH
+            Box(
+                Modifier.align(Alignment.Center).size(fw, fh).drawBehind {
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.65f),
+                        style = Stroke(
+                            width = 2.4.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(22f, 18f)),
+                        ),
+                        cornerRadius = CornerRadius(24.dp.toPx()),
+                    )
+                },
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                Text("영역 안에 내 모습이 모두 보이도록", color = Color.White,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 12.dp)
+                        .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                        .padding(horizontal = 12.dp, vertical = 6.dp))
+            }
         }
     }
     val orientationRow: @Composable () -> Unit = {
@@ -329,7 +345,7 @@ fun MountGuideScreen(pending: PendingSession) {
 
     Box(Modifier.fillMaxSize().background(TL.ink)) {
         if (portrait) {
-            // 세로 — 전체 화면 프리뷰 위에 오버레이 (iOS 1:1)
+            // 세로 — 전체 화면 프리뷰 + 컨트롤, 그 위로 점선 프레임(맨 앞)을 크게 얹는다 (iOS 1:1)
             previewView(Modifier.fillMaxSize())
             Column(
                 Modifier.fillMaxSize().padding(horizontal = 20.dp),
@@ -339,24 +355,24 @@ fun MountGuideScreen(pending: PendingSession) {
                 header(false)
                 Spacer(Modifier.height(16.dp))
                 orientationRow()
-                Spacer(Modifier.height(20.dp))
-                dashedGuide(Modifier.fillMaxWidth(0.64f).weight(1f))
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.weight(1f))   // 가운데는 점선 프레임(별도 레이어)이 차지한다
                 checklistAndStart()
                 Spacer(Modifier.height(14.dp))
             }
+            // 점선 프레임을 맨 위로 — 얇은 점선이라 헤더/체크와 겹쳐도 프레임이 또렷하게 보인다
+            dashedGuideOverlay()
         } else {
-            // 가로 — 좌측 프리뷰(점선 가이드 오버레이) / 우측 컨트롤 패널 (iOS 분할 1:1)
+            // 가로 — 전체 화면 프리뷰 + 80% 점선 프레임(패널 뒤) 위로, 우측 '반투명' 컨트롤 패널.
+            //  패널이 반투명이라 내 전신이 화면 어디까지 들어오는지 프레임과 함께 확인된다 (오버레이 느낌).
+            previewView(Modifier.fillMaxSize())
+            dashedGuideOverlay()
             Row(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f).fillMaxHeight()) {
-                    previewView(Modifier.fillMaxSize())
-                    dashedGuide(Modifier.fillMaxSize().padding(20.dp))
-                }
+                Spacer(Modifier.weight(1f))   // 좌측은 프리뷰+프레임이 그대로 비친다
                 // 우측 컨트롤 — 스크롤 없이 한 화면에 담기도록 타이포·간격을 축소하고,
                 // 촬영/취소를 한 줄로 배치해 세로 여백을 확보한다. SpaceBetween으로 여백감 유지.
                 Column(
                     Modifier.width(360.dp).fillMaxHeight()
-                        .background(TL.ink).padding(horizontal = 22.dp, vertical = 18.dp),
+                        .background(TL.ink.copy(alpha = 0.55f)).padding(horizontal = 22.dp, vertical = 18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
