@@ -302,15 +302,16 @@ private fun ActivityTab(
         }
         item { Text("오늘 예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
             modifier = Modifier.padding(top = 6.dp)) }
-        // 오늘 발생하는(아직 시작 전) 예정만 — 시각순. 미래·이번주 계획은 일정 탭에서.
+        // 오늘 발생하는 활동 전체 — 시각순. 일정 탭의 오늘 칸과 동일 기준(요일/일회성 매칭).
+        // 시작 시각이 지난 것도 포함(그룹 매일 오전 예약처럼 오늘치가 지나면 nextOccurrence는
+        // 내일을 가리켜 목록에서 사라지던 버그 제거). 타이머는 시작 전에만 뜬다.
         val todayStart = java.util.Calendar.getInstance().apply {
             timeInMillis = now
             set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
             set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
         }.timeInMillis
         val todayReservations = reservations
-            .mapNotNull { r -> r.nextOccurrence(now)?.let { r to it } }
-            .filter { it.second in todayStart until (todayStart + 86_400_000L) }
+            .mapNotNull { r -> r.occurrenceOn(todayStart)?.let { r to it } }
             .sortedBy { it.second }.map { it.first }
         if (todayReservations.isEmpty()) {
             item {
@@ -321,7 +322,7 @@ private fun ActivityTab(
             }
         }
         items(todayReservations) { r ->
-            val next = r.nextOccurrence(now)
+            val next = r.occurrenceOn(todayStart)   // 오늘치 시각(지났으면 과거값 → 타이머 자동 off)
             // iOS 예약 카드 1:1 — 1행: 이름 + (12시간 내 타이머 or 태그 칩) / 2행: 🔔 시각 + (타이머면 칩)
             val showsTimer = next != null && next - now in 1..(12 * 3600_000L)
             TLCard(onClick = { onEdit(r) }) {

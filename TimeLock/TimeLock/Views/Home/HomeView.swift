@@ -120,12 +120,16 @@ struct HomeView: View {
 
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    /// '오늘' 발생하는(아직 시작 전인) 예정 활동만 — 시각순. 미래·이번주 계획은 일정 탭에서 확인.
+    /// '오늘' 발생하는 활동 전체 — 시각순. 일정 탭의 오늘 칸과 동일 기준(요일/일회성 매칭).
+    /// 시작 시각이 이미 지난 것도 포함한다(그룹 매일 오전 예약처럼 오늘치가 지나면
+    /// nextOccurrence는 내일을 가리켜 목록에서 사라지던 버그 제거). 타이머는 시작 전에만 뜬다.
     private var upcoming: [(reservation: Reservation, fire: Date?)] {
-        let cal = Calendar.current
+        let today = Calendar.current.startOfDay(for: now)
         return reservations
-            .map { ($0, $0.nextOccurrence(after: now)) }
-            .filter { $0.1.map { cal.isDateInToday($0) } ?? false }
+            .compactMap { r -> (Reservation, Date?)? in
+                guard let fire = r.occurrence(on: today) else { return nil }
+                return (r, fire)
+            }
             .sorted { ($0.1 ?? .distantFuture) < ($1.1 ?? .distantFuture) }
     }
 
