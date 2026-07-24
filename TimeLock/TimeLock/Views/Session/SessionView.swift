@@ -284,6 +284,7 @@ private struct BreakOverlay: View {
 
     @EnvironmentObject private var engine: SessionEngine
     @State private var now = Date()
+    @State private var showQuitConfirm = false
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     private let clock = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
@@ -298,6 +299,15 @@ private struct BreakOverlay: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TL.ink.opacity(0.97).ignoresSafeArea())
         .onReceive(clock) { now = $0 }
+        // 실수로 종료되는 것 방지 — 재확인 후에만 세션 포기
+        .confirmationDialog("세션을 포기할까요?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
+            Button("세션 포기 — 벌점 받기", role: .destructive) {
+                engine.emergencyEnd(reason: "긴급 용무 지속")
+            }
+            Button("계속 진행", role: .cancel) {}
+        } message: {
+            Text("지금 포기하면 벌점이 부과되고 되돌릴 수 없습니다.")
+        }
     }
 
     // MARK: 세로 — 위→아래로 상태·다이얼·안내·버튼
@@ -409,7 +419,7 @@ private struct BreakOverlay: View {
         .buttonStyle(TLPrimaryButtonStyle())
 
         Button("세션 포기 — 벌점 받기") {
-            engine.emergencyEnd(reason: "긴급 용무 지속")
+            showQuitConfirm = true   // 즉시 종료 ✕ — 재확인 다이얼로그를 띄운다
         }
         .buttonStyle(TLGhostButtonStyle(tint: TL.muted))
     }

@@ -496,6 +496,7 @@ fun SessionScreen() {
     val episodes by SessionEngine.absenceEpisodeCount.collectAsStateWithLifecycle()
     val oneMinuteWarning by SessionEngine.oneMinuteWarningFired.collectAsStateWithLifecycle()
     var showEmergency by remember { mutableStateOf(false) }
+    var showQuitConfirm by remember { mutableStateOf(false) }   // 브레이크 세션 포기 재확인
 
     val s = SessionEngine.currentSession
     val target = s?.targetSeconds ?: 1
@@ -714,10 +715,10 @@ fun SessionScreen() {
             val resumeButton: @Composable () -> Unit = {
                 TLPrimaryButton("◉  지금 재촬영 시작") { SessionEngine.resumeFromBreak() }
             }
-            // iOS와 동일 — 브레이크 중 포기는 확인 시트 없이 바로 종료 (사유는 고정 기록)
+            // 실수로 종료되는 것 방지 — 재확인 다이얼로그 후에만 세션 포기
             val quitButton: @Composable () -> Unit = {
                 TLGhostButton("세션 포기 — 벌점 받기", tint = TL.muted) {
-                    SessionEngine.emergencyEnd("긴급 용무 지속")
+                    showQuitConfirm = true
                 }
             }
 
@@ -811,6 +812,25 @@ fun SessionScreen() {
                 }
                 Spacer(Modifier.height(10.dp))
                 TLGhostButton("계속 진행", tint = TL.muted) { showEmergency = false }
+            }
+        }
+    }
+
+    // 브레이크 세션 포기 재확인 — 실수로 종료되는 것 방지
+    if (showQuitConfirm) {
+        ModalBottomSheet(onDismissRequest = { showQuitConfirm = false }, containerColor = TL.ink) {
+            Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+                Text("세션을 포기할까요?", color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(10.dp))
+                Text("지금 포기하면 벌점이 부과되고 되돌릴 수 없습니다.",
+                    color = TL.muted, fontSize = 14.sp, lineHeight = 20.sp)
+                Spacer(Modifier.height(18.dp))
+                TLPrimaryButton("세션 포기 — 벌점 받기") {
+                    showQuitConfirm = false
+                    SessionEngine.emergencyEnd("긴급 용무 지속")
+                }
+                Spacer(Modifier.height(10.dp))
+                TLGhostButton("계속 진행", tint = TL.muted) { showQuitConfirm = false }
             }
         }
     }
