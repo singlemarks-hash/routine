@@ -105,6 +105,36 @@ final class CameraRecorder: NSObject, ObservableObject {
         captureInterval = max(1.0 / Double(playbackFPS), planned / targetFrames)
     }
 
+    // MARK: 세션 인터럽트 복구 (VoIP 통화·타앱 카메라 점유 등)
+
+    override init() {
+        super.init()
+        let nc = NotificationCenter.default
+        nc.addObserver(self, selector: #selector(sessionInterruptionEnded),
+                       name: .AVCaptureSessionInterruptionEnded, object: captureSession)
+        nc.addObserver(self, selector: #selector(sessionRuntimeError),
+                       name: .AVCaptureSessionRuntimeError, object: captureSession)
+    }
+
+    /// 보이스톡(VoIP)·다른 앱의 카메라 점유가 끝나면 iOS가 세션을 자동 재개하지 않을 수 있다.
+    /// 이때 세션을 되살리지 않으면, 재촬영을 눌러도 카메라가 죽어 있어 프레임이 안 들어오고
+    /// 15초 스톨 → 긴급용무 무한 반복이 된다. 인터럽트 종료 시 세션을 다시 살린다.
+    @objc private func sessionInterruptionEnded(_ note: Notification) {
+        resumeSessionIfNeeded()
+    }
+
+    /// 미디어 서비스 리셋 등 런타임 에러 — Apple 권장대로 세션 재기동을 시도한다.
+    @objc private func sessionRuntimeError(_ note: Notification) {
+        resumeSessionIfNeeded()
+    }
+
+    /// 세션이 멈춰 있으면 백그라운드 큐에서 다시 startRunning (통화·에러 후 복구용, 재호출 안전).
+    private func resumeSessionIfNeeded() {
+        processingQueue.async { [captureSession] in
+            if !captureSession.isRunning { captureSession.startRunning() }
+        }
+    }
+
     // MARK: 권한 & 세션 구성
 
     func requestAuthorization() async -> Bool {
@@ -303,6 +333,9 @@ final class CameraRecorder: NSObject, ObservableObject {
 
     func pause()  { processingQueue.async { self.isPaused = true } }
     func resume() {
+        // 통화(보이스톡)·타앱 카메라 점유로 세션이 죽어 있었다면 먼저 되살린다.
+        // (같은 processingQueue라 startRunning이 끝난 뒤 isPaused가 풀린다 → 프레임 유실 없음)
+        resumeSessionIfNeeded()
         // 중단 동안 감지가 멈추므로 부재 시간이 묵은 값으로 남아 있다 —
         // 그대로 두면 재개 직후 2분 판정이 곧바로 다시 발동하므로 초기화한다.
         processingQueue.async {
