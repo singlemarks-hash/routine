@@ -510,8 +510,10 @@ fun WeeklyScheduleTab(
     onOpenGroup: (String) -> Unit = {},
 ) {
     val todayDow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
-    val weekdays = listOf(2 to "월요일", 3 to "화요일", 4 to "수요일", 5 to "목요일",
-        6 to "금요일", 7 to "토요일", 1 to "일요일")
+    // 오늘 요일을 맨 위에 두고 순환 정렬 (1=일 … 7=토). 예) 오늘 토→토·일·월·화·수·목·금.
+    val dayNames = mapOf(1 to "일요일", 2 to "월요일", 3 to "화요일", 4 to "수요일",
+        5 to "목요일", 6 to "금요일", 7 to "토요일")
+    val weekdays = (0..6).map { val dow = ((todayDow - 1 + it) % 7) + 1; dow to dayNames.getValue(dow) }
 
     fun itemsOn(dow: Int): List<Reservation> = reservations.filter { r ->
         if (r.isRepeating) dow in r.repeatWeekdays
