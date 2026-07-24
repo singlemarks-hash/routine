@@ -209,6 +209,15 @@ struct GroupTabView: View {
 
 // MARK: - 방 만들기 (방장)
 
+/// 검증 실패 시 살짝 좌우로 떨리는 효과 (반복 요일 미선택 안내 등)
+struct Shake: GeometryEffect {
+    var animatableData: CGFloat
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(
+            translationX: 7 * sin(animatableData * .pi * 4), y: 0))
+    }
+}
+
 struct GroupCreateView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var store = GroupStore.shared
@@ -235,6 +244,8 @@ struct GroupCreateView: View {
     @State private var working = false
     @State private var errorMessage: String?
     @State private var createdRoom: GroupRoom?
+    @State private var weekdayError = false     // 요일 반복인데 요일 미선택
+    @State private var shakeCount = 0           // 흔들림 트리거
 
     private var tomorrow: Date {
         Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now))!
@@ -243,10 +254,10 @@ struct GroupCreateView: View {
         // 포함 일수 기준(안드로이드 통일): startDay 당일 포함 최대 maxDurationDays일 → +(N-1)
         Calendar.current.date(byAdding: .day, value: GroupPolicy.maxDurationDays - 1, to: startDay)!
     }
+    // 요일 미선택이어도 버튼은 활성 — 눌렀을 때 안내(빨간 박스 + 흔들림)를 보여주기 위함.
     private var formReady: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
             && !nickname.trimmingCharacters(in: .whitespaces).isEmpty
-            && (!isRepeating || !weekdays.isEmpty)
     }
     /// 미친 매운맛 해제 여부 — 매운맛 완주 3회(성실 경로) 또는 멤버십
     private var insaneUnlocked: Bool { AppState.shared.insaneUnlocked }
@@ -311,7 +322,7 @@ struct GroupCreateView: View {
                                         Text("\(candidate.emoji) \(candidate.title)")
                                             .font(.system(size: 14, weight: .bold, design: .rounded))
                                     }
-                                    Text(locked ? "매운맛 완주 3회 · 멤버십 즉시"
+                                    Text(locked ? "멤버십 전용"
                                          : (candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배"))
                                         .font(.system(size: 10))
                                 }
@@ -362,17 +373,20 @@ struct GroupCreateView: View {
                         .tint(TL.rec)
 
                         if isRepeating {
+                            // 개인 활동 요일 반복 UI와 통일 — 미선택 요일에도 헤어라인 테두리로 영역 표시
                             HStack(spacing: 8) {
                                 ForEach(1...7, id: \.self) { day in
                                     let selected = weekdays.contains(day)
                                     Button {
                                         if selected { weekdays.remove(day) } else { weekdays.insert(day) }
+                                        if !weekdays.isEmpty { weekdayError = false }
                                     } label: {
                                         Text(GroupFormat.weekdayNames[day] ?? "")
                                             .font(.system(size: 14, weight: .bold, design: .rounded))
                                             .foregroundStyle(selected ? TL.ink : TL.muted)
                                             .frame(width: 38, height: 38)
                                             .background(Circle().fill(selected ? TL.paper : TL.surface))
+                                            .overlay(Circle().strokeBorder(selected ? .clear : TL.hairline))
                                     }
                                 }
                             }
@@ -384,6 +398,16 @@ struct GroupCreateView: View {
                     }
                     .padding(14)
                     .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+                    // 요일 미선택 안내 시 얇은 빨간 테두리 + 살짝 흔들림
+                    .overlay(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                        .strokeBorder(weekdayError ? TL.rec : .clear, lineWidth: 1.5))
+                    .modifier(Shake(animatableData: CGFloat(shakeCount)))
+                }
+
+                if isRepeating && weekdayError {
+                    Text("반복할 요일을 하나 이상 선택하세요.")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TL.rec)
                 }
 
                 if isRepeating {
@@ -461,6 +485,12 @@ struct GroupCreateView: View {
 
     private func create() {
         errorMessage = nil
+        // 요일 반복인데 요일 미선택 → 빨간 박스 안내 + 흔들림 (버튼만 막지 않고 이유를 보여준다)
+        if isRepeating && weekdays.isEmpty {
+            withAnimation(.easeInOut(duration: 0.15)) { weekdayError = true }
+            withAnimation(.linear(duration: 0.5)) { shakeCount += 1 }
+            return
+        }
         let calendar = Calendar.current
         // 일회성이면 요일 없음 + 종료일 = 시작일(그날 하루)
         let effectiveWeekdays = isRepeating ? weekdays.sorted() : []

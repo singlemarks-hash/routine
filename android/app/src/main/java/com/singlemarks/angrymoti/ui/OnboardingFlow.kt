@@ -97,7 +97,7 @@ fun OnboardingFlow() {
                 Spacer(Modifier.height(12.dp))
                 IntensityCard(Intensity.INSANE, selected = false, locked = true) {}
                 Spacer(Modifier.height(14.dp))
-                Text("미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다.\n(멤버십은 조건 없이 바로 사용할 수 있어요)",
+                Text("미친 매운맛은 멤버십 전용이에요.\n무료로는 매운맛으로 시작하고, 멤버십에서 열 수 있어요.",
                     color = TL.faint, fontSize = 13.sp, textAlign = TextAlign.Center)
                 Spacer(Modifier.weight(1f))
                 TLPrimaryButton("매운맛으로 시작") {

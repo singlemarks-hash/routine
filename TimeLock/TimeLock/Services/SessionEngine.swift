@@ -446,31 +446,9 @@ final class SessionEngine: NSObject, ObservableObject {
         }
     }
 
-    /// 매운맛 완주 3회로 미친 매운맛이 '이번 완주로' 해제됐으면 보너스 상점 +5를 지급한다.
-    /// 해제는 되돌아가지 않으므로 계정별로 평생 1회만 지급한다.
+    /// (비활성) 미친 매운맛은 멤버십 전용으로 확정 — 완주 3회 '성실 경로'가 없어져 해제 보너스는 지급하지 않는다.
     private func awardUnlockBonusIfJustUnlocked(session s: FocusSession, context: ModelContext) {
-        guard s.intensity == .spicy else { return }   // 해제 조건은 '매운맛' 완주만 센다
-        let owner = s.ownerUserID
-        let key = "unlockBonus.awarded.\(owner)"
-        guard !defaults.bool(forKey: key) else { return }
-
-        let spicyRaw = Intensity.spicy.rawValue
-        let completedRaw = SessionOutcome.completed.rawValue
-        let count = (try? context.fetchCount(FetchDescriptor<FocusSession>(
-            predicate: #Predicate {
-                $0.ownerUserID == owner && $0.intensityRaw == spicyRaw && $0.outcomeRaw == completedRaw
-            }))) ?? 0
-        guard count >= 3 else { return }
-
-        let event = ScoreEvent(type: .unlockBonus, points: 5,
-                               sessionID: s.id, intensity: s.intensity,
-                               note: "매운맛 완주 3회 — 미친 매운맛 잠금 해제 보너스",
-                               ownerUserID: owner)
-        context.insert(event)
-        AccountStore.shared.mirror(event: event)
-        defaults.set(true, forKey: key)
-        AccountStore.shared.mirrorUnlockBonusAwarded()   // 기기 변경 시 중복 지급 방지
-        lastUnlockBonus = 5
+        // 유료 전용 확정: 잠금 해제 보너스 폐지 (아무것도 하지 않음)
     }
 
     /// 부재 확정 처리 (경고 3회 누적 또는 2분 연속 부재) — 부재 자체엔 벌점 없음.

@@ -58,9 +58,9 @@ object AppState {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** 미친 매운맛 잠금 해제: 매운맛 완주 3회 — 멤버십은 조건 없이 즉시 */
+    /** 미친 매운맛은 멤버십 전용 (유료 기능으로 확정 — 성실 경로 없음) */
     val insaneUnlocked: Boolean
-        get() = spicyCompletions.value >= 3 || SubscriptionManager.isPro.value
+        get() = SubscriptionManager.isPro.value
 
     /** 상향은 즉시, 하향은 다음날 0시 적용 (당일 회피 방지) */
     fun requestIntensityChange(target: Intensity) {

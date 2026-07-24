@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -328,8 +329,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     val isPro by SubscriptionManager.isPro.collectAsState()
-    val spicyCompletions by com.singlemarks.angrymoti.AppState.spicyCompletions.collectAsState()
-    val insaneUnlocked = spicyCompletions >= 3 || isPro   // 미친맛: 매운맛 완주 3회 or 멤버십
+    val insaneUnlocked = isPro   // 미친맛: 멤버십 전용 (유료 확정)
     // 그룹 예약도 슬롯 1개를 차지 — 상단 배지로 현황 노출
     var slotReservations by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.Reservation>()) }
     var slotSessions by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.FocusSession>()) }
@@ -350,6 +350,15 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
     var durationMinutes by remember { mutableStateOf(30) }                // 기본 30분 (iOS 통일)
     var isRepeating by remember { mutableStateOf(true) }                  // 끄면 일회성(단발성) 그룹
     var repeatDays by remember { mutableStateOf(setOf(1, 2, 3, 4, 5, 6, 7)) }   // 기본 매일 (iOS 통일)
+    var weekdayError by remember { mutableStateOf(false) }                // 요일 반복인데 미선택
+    var shakeTrigger by remember { mutableStateOf(0) }                    // 흔들림 트리거
+    val shakeX = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(shakeTrigger) {
+        if (shakeTrigger > 0) {
+            for (dx in listOf(-8f, 8f, -6f, 6f, -3f, 3f, 0f))
+                shakeX.animateTo(dx, androidx.compose.animation.core.tween(45))
+        }
+    }
     val tomorrow = remember {
         Calendar.getInstance().apply {
             add(Calendar.DAY_OF_MONTH, 1)
@@ -379,8 +388,13 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
             Text("그룹방 만들기", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
             TLPillButton("만들기", tint = TL.rec,
-                enabled = !busy && created == null && name.isNotBlank()
-                    && nickname.isNotBlank() && (!isRepeating || repeatDays.isNotEmpty())) {
+                // 요일 미선택이어도 버튼 활성 — 눌렀을 때 안내(빨간 박스 + 흔들림)를 보여준다
+                enabled = !busy && created == null && name.isNotBlank() && nickname.isNotBlank()) {
+                // 요일 반복인데 요일 미선택 → 안내 + 흔들림
+                if (isRepeating && repeatDays.isEmpty()) {
+                    weekdayError = true; shakeTrigger += 1
+                    return@TLPillButton
+                }
                 error = null; busy = true
                 val chosenStartMinute = timeState.hour * 60 + timeState.minute
                 val startMoment = startDay + chosenStartMinute * 60_000L   // 실제 시작 순간
@@ -467,7 +481,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(if (!insaneUnlocked && intensity == Intensity.SPICY)
-                        "미친 매운맛은 매운맛 완주 ${minOf(spicyCompletions, 3)}/3 또는 멤버십으로 해제돼요."
+                        "미친 매운맛은 멤버십 전용이에요."
                      else intensity.subtitle, color = TL.faint, fontSize = 12.sp)
             }
             Spacer(Modifier.height(10.dp))
@@ -533,15 +547,29 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 }
                 if (isRepeating) {
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // 요일 미선택 안내 시: 빨간 얇은 테두리 + 살짝 흔들림 (개인 활동 요일 반복과 통일)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .offset { androidx.compose.ui.unit.IntOffset(shakeX.value.toInt(), 0) }
+                            .border(1.5.dp,
+                                if (weekdayError) TL.rec else androidx.compose.ui.graphics.Color.Transparent,
+                                TL.cornerM)
+                            .padding(8.dp),
+                    ) {
                         listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
                             .forEach { (day, label) ->
                                 val selected = day in repeatDays
                                 Box(
                                     Modifier.size(38.dp)
                                         .background(if (selected) TL.paper else TL.raised, CircleShape)
+                                        // 미선택 요일에도 헤어라인 테두리로 영역 표시 (개인 활동과 통일)
+                                        .border(1.dp,
+                                            if (selected) androidx.compose.ui.graphics.Color.Transparent else TL.hairline,
+                                            CircleShape)
                                         .clickable {
                                             repeatDays = if (selected) repeatDays - day else repeatDays + day
+                                            if (repeatDays.isNotEmpty()) weekdayError = false
                                         },
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -549,6 +577,11 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                                         fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
+                    }
+                    if (weekdayError) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("반복할 요일을 하나 이상 선택하세요.",
+                            color = TL.rec, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(12.dp))
                     Text("기간 — 시작은 1시간 뒤부터, 최대 3개월", color = TL.muted, fontSize = 13.sp)

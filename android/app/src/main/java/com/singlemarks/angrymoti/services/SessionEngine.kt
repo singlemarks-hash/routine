@@ -425,19 +425,9 @@ object SessionEngine {
         }
     }
 
-    /** 매운맛 완주 3회째 — 미친 매운맛 잠금 해제 보너스 +5 (계정당 평생 1회) */
+    /** (비활성) 미친 매운맛은 멤버십 전용으로 확정 — 완주 3회 '성실 경로' 폐지로 해제 보너스는 지급하지 않는다. */
     private suspend fun awardUnlockBonusIfJustUnlocked(s: FocusSession) {
-        if (s.intensity != Intensity.SPICY) return
-        if (Prefs.unlockBonusAwarded(s.ownerUserID)) return
-        val db = AppDb.get(appContext)
-        if (db.sessions().spicyCompletions(s.ownerUserID) < 3) return
-        val e = ScoreEvent(ownerUserID = s.ownerUserID, typeRaw = ScoreEventType.UNLOCK_BONUS.raw,
-            points = 5, sessionID = s.id, intensityRaw = s.intensityRaw,
-            note = "매운맛 완주 3회 — 미친 매운맛 잠금 해제 보너스")
-        db.scores().insert(e); AccountStore.mirror(e)
-        Prefs.setUnlockBonusAwarded(s.ownerUserID)
-        AccountStore.mirrorUnlockBonusAwarded(s.ownerUserID)   // 기기 변경 시 중복 지급 방지
-        lastUnlockBonus.value = 5
+        // 유료 전용 확정: 잠금 해제 보너스 폐지 (아무것도 하지 않음)
     }
 
     private fun cleanupRuntime() {

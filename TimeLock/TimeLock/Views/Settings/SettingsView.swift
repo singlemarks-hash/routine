@@ -623,7 +623,7 @@ struct PaywallView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     benefit("활동 슬롯 최소 \(SlotPolicy.memberFloorSlots)개부터 시작 (무료는 2개)")
                     benefit("타임랩스 워터마크 제거")
-                    benefit("미친 매운맛 즉시 잠금 해제 (완주 3회 조건 없음)")
+                    benefit("미친 매운맛 모드 (멤버십 전용)")
                     benefit("그룹 챌린지 — 초대코드로 모여 같은 일정으로 랭킹 대결")
                     benefit("그 외 추가되는 멤버십 기능 모두 포함")
                 }

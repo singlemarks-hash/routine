@@ -67,8 +67,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     val owner = AccountStore.currentUserID
     val isPro by SubscriptionManager.isPro.collectAsState()
-    val spicyCompletions by com.singlemarks.angrymoti.AppState.spicyCompletions.collectAsState()
-    val insaneUnlocked = spicyCompletions >= 3 || isPro   // 미친맛: 매운맛 완주 3회 or 멤버십
+    val insaneUnlocked = isPro   // 미친맛: 멤버십 전용 (유료 확정)
 
     var loaded by remember { mutableStateOf(reservationId == null) }
     var existing by remember { mutableStateOf<Reservation?>(null) }
@@ -266,7 +265,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
                                 color = if (selected) TL.ink else if (locked) TL.faint else TL.muted,
                                 fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(if (locked) "매운맛 완주 ${minOf(spicyCompletions, 3)}/3 · 멤버십 즉시"
+                            Text(if (locked) "멤버십 전용"
                                  else if (level == Intensity.SPICY) "긴급 용무 10분 허용" else "이탈 즉시 실패 · 점수 2배",
                                 color = if (selected) TL.ink.copy(alpha = 0.7f) else TL.faint, fontSize = 10.sp)
                         }
@@ -355,6 +354,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                     Box(
                                         modifier = Modifier.size(38.dp)
                                             .background(if (on) TL.paper else TL.raised, CircleShape)
+                                            // 미선택 요일에도 헤어라인 테두리로 영역 표시
+                                            .border(1.dp,
+                                                if (on) androidx.compose.ui.graphics.Color.Transparent else TL.hairline,
+                                                CircleShape)
                                             .clickable {
                                                 if (fieldLocked) return@clickable
                                                 repeatDays = if (on) repeatDays - d else repeatDays + d

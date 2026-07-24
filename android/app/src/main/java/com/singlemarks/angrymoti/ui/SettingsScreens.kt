@@ -340,7 +340,7 @@ fun PaywallScreen(onBack: () -> Unit) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Benefit("활동 슬롯 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 시작 (무료는 2개)")
             Benefit("타임랩스 워터마크 제거")
-            Benefit("미친 매운맛 즉시 잠금 해제 (완주 3회 조건 없음)")
+            Benefit("미친 매운맛 모드 (멤버십 전용)")
             Benefit("멤버들과 함께: 랭킹게임 (준비 중)")
             Benefit("그 외 추가되는 멤버십 기능 모두 포함")
         }

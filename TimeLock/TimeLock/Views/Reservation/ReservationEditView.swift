@@ -264,7 +264,7 @@ struct ReservationEditView: View {
                                 Text("\(candidate.emoji) \(candidate.title)")
                                     .font(.system(size: 14, weight: .bold, design: .rounded))
                             }
-                            Text(locked ? "매운맛 완주 \(min(app.spicyCompletions, 3))/3 · 멤버십 즉시"
+                            Text(locked ? "멤버십 전용"
                                  : (candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배"))
                                 .font(.system(size: 10))
                         }

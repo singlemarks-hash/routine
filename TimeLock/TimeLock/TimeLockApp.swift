@@ -228,8 +228,8 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// 미친 매운맛 잠금 해제: 매운맛 완주 3회 — 멤버십 회원은 조건 없이 즉시 사용 가능
-    var insaneUnlocked: Bool { spicyCompletions >= 3 || SubscriptionManager.shared.isPro }
+    /// 미친 매운맛은 멤버십 전용 (유료 기능으로 확정 — 성실 경로 없음)
+    var insaneUnlocked: Bool { SubscriptionManager.shared.isPro }
     @Published private(set) var spicyCompletions = 0
 
     // MARK: 바인딩 & 라이프사이클
