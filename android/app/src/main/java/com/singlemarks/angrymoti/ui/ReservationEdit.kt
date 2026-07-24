@@ -515,11 +515,10 @@ fun WeeklyScheduleTab(
         5 to "목요일", 6 to "금요일", 7 to "토요일")
     val weekdays = (0..6).map { val dow = ((todayDow - 1 + it) % 7) + 1; dow to dayNames.getValue(dow) }
 
-    fun itemsOn(dow: Int): List<Reservation> = reservations.filter { r ->
+    // 반복은 요일 매칭, 일회성은 그 날짜(dayStart)와 정확히 같은 날만 — 미래 단발성도 제 날짜에 표시.
+    fun itemsOn(dow: Int, dayStart: Long): List<Reservation> = reservations.filter { r ->
         if (r.isRepeating) dow in r.repeatWeekdays
-        else r.oneOffDayStart?.let {
-            Calendar.getInstance().apply { timeInMillis = it }.get(Calendar.DAY_OF_WEEK) == dow
-        } == true
+        else r.oneOffDayStart?.let { it in dayStart until (dayStart + 86_400_000L) } == true
     }.sortedBy { it.startMinute }
 
     LazyColumn(
@@ -543,15 +542,25 @@ fun WeeklyScheduleTab(
             }
         }
 
-        weekdays.forEach { (dow, label) ->
-            val dayItems = itemsOn(dow)
+        weekdays.forEachIndexed { offset, (dow, label) ->
+            // 오늘부터 offset일 뒤 날짜 (요일 순환 순서와 1:1)
+            val dayCal = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, offset)
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }
+            val dayStart = dayCal.timeInMillis
+            val md = "${dayCal.get(Calendar.MONTH) + 1}월 ${dayCal.get(Calendar.DAY_OF_MONTH)}일"
+            val dayItems = itemsOn(dow, dayStart)
             val isToday = dow == todayDow
             item(key = "day-$dow") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 요일 헤더 + '오늘' 빨강 캡슐
+                    // 요일 헤더 + 실제 날짜 병기 + '오늘' 빨강 캡슐. 예) "토요일 (7월 25일)"
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(label, color = if (isToday) TL.rec else TL.paper,
                             fontSize = 16.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.width(6.dp))
+                        Text("($md)", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         if (isToday) {
                             Spacer(Modifier.width(8.dp))
                             Text("오늘", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Black,

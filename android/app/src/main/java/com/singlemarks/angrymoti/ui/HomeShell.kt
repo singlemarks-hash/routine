@@ -300,19 +300,29 @@ private fun ActivityTab(
                     null, tint = TL.paper, modifier = Modifier.size(18.dp))
             }
         }
-        item { Text("예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
+        item { Text("오늘 예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
             modifier = Modifier.padding(top = 6.dp)) }
-        if (reservations.isEmpty()) {
+        // 오늘 발생하는(아직 시작 전) 예정만 — 시각순. 미래·이번주 계획은 일정 탭에서.
+        val todayStart = java.util.Calendar.getInstance().apply {
+            timeInMillis = now
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val todayReservations = reservations
+            .mapNotNull { r -> r.nextOccurrence(now)?.let { r to it } }
+            .filter { it.second in todayStart until (todayStart + 86_400_000L) }
+            .sortedBy { it.second }.map { it.first }
+        if (todayReservations.isEmpty()) {
             item {
                 TLCard {
-                    Text("아직 예정된 활동이 없습니다. '활동 추가하기'로 첫 다짐을 만들어 보세요.",
+                    Text("오늘은 예정된 활동이 없어요. 이번 주 계획은 일정 탭에서 확인할 수 있어요.",
                         color = TL.muted, fontSize = 13.sp)
                 }
             }
         }
-        items(reservations.sortedBy { it.nextOccurrence() ?: Long.MAX_VALUE }) { r ->
+        items(todayReservations) { r ->
             val next = r.nextOccurrence(now)
-            // iOS 예약 카드 1:1 — 1행: 이름 + (12시간 내 타이머 or 태그 칩) / 2행: 🔔 일정 + (타이머면 칩)
+            // iOS 예약 카드 1:1 — 1행: 이름 + (12시간 내 타이머 or 태그 칩) / 2행: 🔔 시각 + (타이머면 칩)
             val showsTimer = next != null && next - now in 1..(12 * 3600_000L)
             TLCard(onClick = { onEdit(r) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -336,8 +346,11 @@ private fun ActivityTab(
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 오늘 것만 보여주므로 날짜(오늘·내일·M월 D일)는 생략하고 시각만.
+                    val t = java.util.Calendar.getInstance().apply { timeInMillis = next ?: now }
+                    val minute = t.get(java.util.Calendar.HOUR_OF_DAY) * 60 + t.get(java.util.Calendar.MINUTE)
                     Text(
-                        "🔔 ${nextLabel(next)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
+                        "🔔 ${TLFormat.timeLabel(minute)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
                             if (r.isRepeating) " · 매주 " + weekdayLabel(r.repeatWeekdays) else "",
                         color = TL.muted, fontSize = 13.sp,
                         modifier = Modifier.weight(1f),
