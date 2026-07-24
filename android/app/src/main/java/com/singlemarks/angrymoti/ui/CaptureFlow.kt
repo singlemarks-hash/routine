@@ -263,17 +263,7 @@ fun MountGuideScreen(pending: PendingSession) {
                         cornerRadius = CornerRadius(24.dp.toPx()),
                     )
                 },
-                contentAlignment = Alignment.Center,   // 프레임 정중앙 — 헤더·타이머·패널과 겹치지 않음
-            ) {
-                // 가로에선 프레임 중앙(좌측 프리뷰 영역)에 표시. 세로에선 아이콘 아래로 별도 배치.
-                if (!portrait) {
-                    Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                            .padding(horizontal = 12.dp, vertical = 6.dp))
-                }
-            }
+            )   // 안내 문구는 세로=아이콘 아래, 가로=좌상단으로 각 레이아웃이 직접 배치한다.
         }
     }
     val orientationRow: @Composable () -> Unit = {
@@ -360,15 +350,13 @@ fun MountGuideScreen(pending: PendingSession) {
                 header(false)
                 Spacer(Modifier.height(16.dp))
                 orientationRow()
-                // 안내 문구 — 방향·전환 아이콘 바로 아래, 왼쪽 정렬. 프레임(중앙)과 넉넉히 떨어져 간섭 없음.
+                // 안내 문구 — 방향·전환 아이콘 바로 아래, 가운데 정렬(Column 중앙). 프레임과 넉넉히 떨어져 간섭 없음.
                 Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth()) {
-                    Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                            .padding(horizontal = 12.dp, vertical = 6.dp))
-                }
+                Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                        .padding(horizontal = 12.dp, vertical = 6.dp))
                 Spacer(Modifier.weight(1f))   // 가운데는 점선 프레임(별도 레이어)이 차지한다
                 checklistAndStart()
                 Spacer(Modifier.height(14.dp))
@@ -378,6 +366,14 @@ fun MountGuideScreen(pending: PendingSession) {
             //  패널이 반투명이라 내 전신이 화면 어디까지 들어오는지 프레임과 함께 확인된다 (오버레이 느낌).
             previewView(Modifier.fillMaxSize())
             dashedGuideOverlay()
+            // 좌상단 안내 문구 — 우측 패널·버튼과 간섭 방지, 오프셋 넉넉히
+            Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
+                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 28.dp, top = 28.dp)
+                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                    .padding(horizontal = 12.dp, vertical = 6.dp))
             Row(Modifier.fillMaxSize()) {
                 Spacer(Modifier.weight(1f))   // 좌측은 프리뷰+프레임이 그대로 비친다
                 // 우측 컨트롤 — 스크롤 없이 한 화면에 담기도록 타이포·간격을 축소하고,

@@ -444,18 +444,14 @@ struct MountGuideView: View {
                 controlsBar
                     .padding(.top, 14)
 
-                // 안내 문구 — 방향·전환 아이콘 바로 아래, 왼쪽 정렬.
+                // 안내 문구 — 방향·전환 아이콘 바로 아래, 가운데 정렬(VStack 중앙).
                 // 프레임(중앙)과 넉넉히 떨어져 점선·다른 요소와 간섭이 없다.
-                HStack {
-                    Text("영역 안에 내 모습이 보이도록 고정")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(Capsule().fill(.black.opacity(0.55)))
-                    Spacer()
-                }
-                .padding(.top, 16)
-                .padding(.horizontal, 24)
+                Text("영역 안에 내 모습이 보이도록 고정")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(.black.opacity(0.55)))
+                    .padding(.top, 16)
 
                 Spacer()   // 가운데는 점선 프레임(별도 레이어)이 차지한다
 
@@ -475,11 +471,20 @@ struct MountGuideView: View {
 
     private var landscapeLayout: some View {
         HStack(spacing: 0) {
-            // 좌: 촬영 구도 영역 (점선 프레임은 별도 전체 레이어가 그린다)
+            // 좌: 촬영 구도 영역 (점선 프레임은 별도 전체 레이어) + 좌상단 안내 문구.
+            //  우측 패널·버튼과 간섭되지 않도록 좌상단에 두고 오프셋을 넉넉히 준다.
             LinearGradient(colors: [TL.ink.opacity(0.5), .clear],
                            startPoint: .leading, endPoint: .trailing)
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay(alignment: .topLeading) {
+                    Text("영역 안에 내 모습이 보이도록 고정")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(.black.opacity(0.55)))
+                        .padding(.top, 28).padding(.leading, 28)
+                }
 
             // 우: 불투명 컨트롤 패널 — 한 화면에 모두 들어오도록 압축.
             //  ScrollView는 아주 작은 기기용 안전장치일 뿐, 일반 기기에선 스크롤 없이 꽉 찬다.
@@ -581,17 +586,7 @@ struct MountGuideView: View {
                 .strokeBorder(TL.paper.opacity(0.5),
                               style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
                 .frame(width: w, height: h)
-                .overlay {
-                    // 가로에선 프레임 정중앙(좌측 프리뷰 영역)에 안내 문구를 둔다.
-                    // 세로에선 아이콘 아래로 별도 배치하므로 여기서는 표시하지 않는다.
-                    if isLandscape {
-                        Text("영역 안에 내 모습이 보이도록 고정")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(Capsule().fill(.black.opacity(0.55)))
-                    }
-                }
+                // 안내 문구는 세로=아이콘 아래, 가로=좌상단으로 각 레이아웃이 직접 배치한다.
                 .frame(width: geo.size.width, height: geo.size.height)   // 화면 중앙 배치
         }
         .allowsHitTesting(false)   // 점선은 안내용 — 터치는 아래로 통과
