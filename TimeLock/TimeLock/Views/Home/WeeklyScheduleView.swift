@@ -61,8 +61,8 @@ struct WeeklyScheduleView: View {
                                 .font(.system(size: 13)).foregroundStyle(TL.muted)
                         }
                     } else {
-                        ForEach(weekdayOrder, id: \.self) { weekday in
-                            daySection(weekday)
+                        ForEach(Array(weekdayOrder.enumerated()), id: \.element) { offset, weekday in
+                            daySection(weekday, date: date(forOffset: offset))
                         }
                     }
                 }
@@ -104,20 +104,24 @@ struct WeeklyScheduleView: View {
 
     // MARK: 요일 섹션
 
-    private func items(on weekday: Int) -> [Reservation] {
+    /// 오늘로부터 offset일 뒤 날짜 (요일 순환 순서와 1:1).
+    private func date(forOffset offset: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: offset, to: Calendar.current.startOfDay(for: .now)) ?? .now
+    }
+
+    /// 반복 예약은 요일 매칭, 일회성 예약은 그 날짜(date)와 정확히 같은 날만 — 미래 단발성도 제 날짜에 표시.
+    private func items(on weekday: Int, date: Date) -> [Reservation] {
         reservations.filter { r in
             if r.isRepeating { return r.repeatWeekdays.contains(weekday) }
-            if let date = r.oneOffDate {
-                return Calendar.current.component(.weekday, from: date) == weekday
-            }
+            if let d = r.oneOffDate { return Calendar.current.isDate(d, inSameDayAs: date) }
             return false
         }
         .sorted { $0.startMinute < $1.startMinute }
     }
 
     @ViewBuilder
-    private func daySection(_ weekday: Int) -> some View {
-        let dayItems = items(on: weekday)
+    private func daySection(_ weekday: Int, date: Date) -> some View {
+        let dayItems = items(on: weekday, date: date)
         let isToday = weekday == todayWeekday
 
         VStack(alignment: .leading, spacing: 8) {
@@ -125,6 +129,10 @@ struct WeeklyScheduleView: View {
                 Text(weekdayNames[weekday] ?? "")
                     .font(.tlTitle(16))
                     .foregroundStyle(isToday ? TL.rec : TL.paper)
+                // 실제 날짜 병기 — 미래 단발성 예약도 어느 날인지 바로 확인. 예) "토요일 (7월 25일)"
+                Text("(\(Calendar.current.component(.month, from: date))월 \(Calendar.current.component(.day, from: date))일)")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TL.muted)
                 if isToday {
                     Text("오늘")
                         .font(.system(size: 11, weight: .heavy, design: .rounded))

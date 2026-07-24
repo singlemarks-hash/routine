@@ -120,10 +120,12 @@ struct HomeView: View {
 
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    /// 다음 발생 시각 순으로 정렬한 예정된 활동
+    /// '오늘' 발생하는(아직 시작 전인) 예정 활동만 — 시각순. 미래·이번주 계획은 일정 탭에서 확인.
     private var upcoming: [(reservation: Reservation, fire: Date?)] {
-        reservations
+        let cal = Calendar.current
+        return reservations
             .map { ($0, $0.nextOccurrence(after: now)) }
+            .filter { $0.1.map { cal.isDateInToday($0) } ?? false }
             .sorted { ($0.1 ?? .distantFuture) < ($1.1 ?? .distantFuture) }
     }
 
@@ -295,13 +297,13 @@ struct HomeView: View {
     @ViewBuilder
     private var upcomingSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("예정된 활동")
+            Text("오늘 예정된 활동")
                 .font(.tlTitle(20))
                 .foregroundStyle(TL.paper)
 
             if upcoming.isEmpty {
                 TLCard {
-                    Text("아직 예정된 활동이 없습니다. '활동 추가하기'로 첫 다짐을 만들어 보세요.")
+                    Text("오늘은 예정된 활동이 없어요. 이번 주 계획은 일정 탭에서 확인할 수 있어요.")
                         .font(.system(size: 13)).foregroundStyle(TL.muted)
                 }
             } else {
@@ -352,7 +354,8 @@ struct HomeView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "bell.fill").font(.system(size: 11))
                         if let fire {
-                            Text("\(nextLabel(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes))\(reservation.isRepeating ? " · 매주 " + weekdayLabel(reservation.repeatWeekdays) : "")")
+                            // 오늘 것만 보여주므로 날짜(오늘·내일·M월 D일)는 생략하고 시각만.
+                            Text("\(TLFormat.clock(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes))\(reservation.isRepeating ? " · 매주 " + weekdayLabel(reservation.repeatWeekdays) : "")")
                         } else {
                             Text(TLFormat.durationLabel(reservation.durationMinutes))
                         }
@@ -376,16 +379,6 @@ struct HomeView: View {
         let m = Int((Double(seconds) / 60).rounded(.up))
         let time = m >= 60 ? (m % 60 == 0 ? "\(m / 60)시간" : "\(m / 60)시간 \(m % 60)분") : "\(m)분"
         return "시작까지 \(time) 남음"
-    }
-
-    private func nextLabel(_ fire: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(fire) { return "오늘 \(TLFormat.clock(fire))" }
-        if cal.isDateInTomorrow(fire) { return "내일 \(TLFormat.clock(fire))" }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "ko_KR")
-        f.dateFormat = "M월 d일 (E) a h:mm"
-        return f.string(from: fire)
     }
 
     private func weekdayLabel(_ weekdays: [Int]) -> String {
