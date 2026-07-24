@@ -61,7 +61,6 @@ final class SessionEngine: NSObject, ObservableObject {
     private(set) var session: FocusSession?
     private var modelContext: ModelContext?
     private var tick: Timer?
-    private var safetyCheckCounter = 0
 
     private let defaults = UserDefaults.standard
 
@@ -112,7 +111,6 @@ final class SessionEngine: NSObject, ObservableObject {
         breakBudgetRemaining = TimePolicy.resumeWindowSeconds   // 세션마다 긴급 예산 리필
         phase = .recording
         isFinalizing = false
-        safetyCheckCounter = 0
 
         defaults.set(session.id.uuidString, forKey: Key.activeSessionID)
         defaults.removeObject(forKey: Key.breakDeadline)
@@ -151,13 +149,10 @@ final class SessionEngine: NSObject, ObservableObject {
         // 단 배터리/저장공간이 원인이면 사용자 잘못이 아니므로 무벌점 안전종료(#11). 어느 쪽이든
         // '실제 촬영 없이 완주(만점)'로 오인하는 것은 막는다.
         if Date().timeIntervalSince(CameraRecorder.shared.lastFrameAt) > CameraRecorder.shared.captureStallLimit {
-            checkSafety()                          // 배터리/저장공간 문제면 무벌점 안전종료
-            if !isFinalizing {
-                // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
-                // 찍히다 끊긴 거라면 제어센터·타앱 등 캡처 인터럽션 = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
-                if CameraRecorder.shared.frameCount == 0 { safetyEnd(note: "카메라 시작 실패") }
-                else { handleExitEvent() }
-            }
+            // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
+            // 찍히다 끊긴 거라면 제어센터·타앱 등 캡처 인터럽션 = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
+            if CameraRecorder.shared.frameCount == 0 { safetyEnd(note: "카메라 시작 실패") }
+            else { handleExitEvent() }
             return
         }
         // 표시·완주 판정용 촬영 시간은 틱(1초)으로 센다.
@@ -206,9 +201,8 @@ final class SessionEngine: NSObject, ObservableObject {
             Task { await self.finishCompleted() }
             return
         }
-        // 30초마다 안전 점검 (배터리/저장공간)
-        safetyCheckCounter += 1
-        if safetyCheckCounter % 30 == 0 { checkSafety() }
+        // 매 틱 촬영 진행 상태 점검 — 실촬영량이 경과 대비 크게 뒤처지면 알람과 함께 조기 무효
+        checkCaptureHealth()
     }
 
     // MARK: 완주
@@ -344,20 +338,21 @@ final class SessionEngine: NSObject, ObservableObject {
         }
     }
 
-    // MARK: 안전 종료 (배터리/저장공간)
+    // MARK: 촬영 진행 상태 조기 감지
+    // 배터리·저장공간을 '미리' 차단하지 않는다 — 모든 건 사용자 책임이고, 낮은 배터리·용량으로도
+    // 일단 시작·진행할 수 있어야 한다. 대신 '실제로 촬영이 되고 있는지'를 본다:
+    // 실촬영량(캡처 프레임×간격)이 경과 시간의 절반에도 못 미치면 촬영이 사실상 실패 중인 것이므로
+    // (저장공간 참·인코더 정지·카메라 장애 등 원인 불문) 알람음과 함께 즉시 무효 종료한다.
+    // → 오래 촬영하고 결과에서야 무효를 보고 절망하는 헛수고를 막는다.
 
-    private func checkSafety() {
-        let battery = UIDevice.current.batteryLevel
-        let plugged = UIDevice.current.batteryState == .charging || UIDevice.current.batteryState == .full
-        if battery >= 0, battery <= 0.05, !plugged {
-            safetyEnd(note: "배터리 부족")
-            return
-        }
-        if let values = try? SessionStorage.directory
-            .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
-           let free = values.volumeAvailableCapacityForImportantUsage,
-           free < 500_000_000 {
-            safetyEnd(note: "저장 공간 부족")
+    private func checkCaptureHealth() {
+        guard phase == .recording, !isFinalizing else { return }
+        // 워밍업(첫 60초)은 표본이 적어 판단 보류
+        guard recordedSeconds >= 60 else { return }
+        if CameraRecorder.shared.capturedSeconds < recordedSeconds / 2 {
+            AlarmScheduler.shared.playChime()
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            safetyEnd(note: "촬영이 정상 진행되지 않음")
         }
     }
 

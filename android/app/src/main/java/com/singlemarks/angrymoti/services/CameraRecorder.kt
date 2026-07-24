@@ -213,6 +213,9 @@ object CameraRecorder {
         isPaused = false
     }
 
+    /** 실촬영 시간(초) ≈ 캡처 프레임 수 × 캡처 간격. 세션엔진의 조기 감지가 경과 시간과 비교한다. */
+    val capturedSeconds: Int get() = ((frameCount.value * captureIntervalMs) / 1000L).toInt()
+
     /** 촬영 신호 정지 감지 — 프레임이 (캡처 간격×3, 최소 15초)를 넘게 안 들어오면 정지로 본다.
      *  카메라 미개시·세션 인터럽션·인코딩 저장 실패를 공통으로 잡는다. 일시정지 중엔 false. */
     fun isCaptureStalled(): Boolean {
