@@ -55,7 +55,9 @@ struct ReservationEditView: View {
     @State private var intensity: Intensity = .spicy
     @State private var isRepeating = false
     @State private var weekdays: Set<Int> = []
-    @State private var oneOffDate = Date()
+    @State private var oneOffDate = Date()          // 요일 반복 OFF일 때의 '시작일'
+    @State private var noEndDate = true             // '종료일 없음' (기본 켜짐 = 무기한)
+    @State private var oneOffEndDate = Date()       // '종료일' (종료일 없음 끄면 사용)
     @State private var errorMessage: String?
     @State private var showDeleteConfirm = false
     @State private var showSlotPolicy = false
@@ -339,9 +341,22 @@ struct ReservationEditView: View {
                             }
                         }
                     } else {
-                        DatePicker("날짜", selection: $oneOffDate, in: Date()..., displayedComponents: .date)
+                        // 요일 미반복 = 매일(기간). 시작일 + '종료일 없음' 토글(기본 켜짐) + 종료일.
+                        DatePicker("시작일", selection: $oneOffDate, in: Date()..., displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
                             .disabled(editingDisabled)
+                        Divider().overlay(TL.hairline)
+                        Toggle(isOn: $noEndDate) {
+                            Text("종료일 없음").font(.tlBody).foregroundStyle(TL.paper)
+                        }
+                        .tint(TL.rec)
+                        .disabled(editingDisabled)
+                        if !noEndDate {
+                            DatePicker("종료일", selection: $oneOffEndDate,
+                                       in: oneOffDate..., displayedComponents: .date)
+                                .font(.tlBody).foregroundStyle(TL.paper)
+                                .disabled(editingDisabled)
+                        }
                     }
                 }
             }
@@ -364,9 +379,22 @@ struct ReservationEditView: View {
         if !app.insaneUnlocked && intensity == .insane { intensity = .spicy }
         let base = Calendar.current.startOfDay(for: .now)
         startTime = Calendar.current.date(byAdding: .minute, value: r.startMinute, to: base) ?? .now
-        isRepeating = r.isRepeating
+        // oneOffDate가 있으면 '요일 미반복(기간/단발성)' 모드 — 기간 반복이라도 시작일 마커로 저장됨.
+        let hasDate = r.oneOffDate != nil
+        isRepeating = r.isRepeating && !hasDate     // 주간 반복만 토글 ON
         weekdays = Set(r.repeatWeekdays)
-        oneOffDate = r.oneOffDate ?? .now
+        oneOffDate = r.oneOffDate ?? .now           // 시작일
+        if hasDate {
+            if r.isRepeating {
+                // 기간 반복(매일): 종료일 = endDate (없으면 무기한)
+                noEndDate = (r.endDate == nil)
+                oneOffEndDate = r.endDate ?? oneOffDate
+            } else {
+                // 레거시 단발성 → 시작일=종료일 하루로 표시
+                noEndDate = false
+                oneOffEndDate = r.oneOffDate ?? .now
+            }
+        }
     }
 
     private func save() {
@@ -396,7 +424,7 @@ struct ReservationEditView: View {
             errorMessage = "활동명을 입력하세요."
             return
         }
-        // 검증: 반복이면 요일 최소 1개
+        // 검증: 주간 반복이면 요일 최소 1개
         if isRepeating && weekdays.isEmpty {
             errorMessage = "반복할 요일을 선택하세요."
             return
@@ -404,30 +432,28 @@ struct ReservationEditView: View {
         let comps = Calendar.current.dateComponents([.hour, .minute], from: startTime)
         let startMinute = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
 
-        // 검증: 일회성이면 미래 시각
-        if !isRepeating {
-            let dayStart = Calendar.current.startOfDay(for: oneOffDate)
-            let fire = Calendar.current.date(byAdding: .minute, value: startMinute, to: dayStart) ?? .now
-            guard fire > .now else {
-                errorMessage = "이미 지난 시각입니다. 미래의 시각을 선택하세요."
-                return
-            }
+        // 요일 반복 OFF = 매일(기간). 시작일부터, 종료일 없으면 무기한.
+        let cal = Calendar.current
+        let startDay = cal.startOfDay(for: oneOffDate)
+        let resolvedWeekdays: [Int] = isRepeating ? Array(weekdays) : [1, 2, 3, 4, 5, 6, 7]
+        let resolvedOneOff: Date? = isRepeating ? nil : startDay          // OFF는 시작일을 마커로
+        let resolvedEnd: Date? = (!isRepeating && !noEndDate)
+            ? cal.startOfDay(for: oneOffEndDate).addingTimeInterval(86_400 - 0.001)
+            : nil
+
+        // 검증: 기간 반복이고 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남
+        if !isRepeating, !noEndDate {
+            let endDay = cal.startOfDay(for: oneOffEndDate)
+            guard endDay >= startDay else { errorMessage = "종료일은 시작일 이후여야 해요."; return }
+            guard endDay >= cal.startOfDay(for: .now) else { errorMessage = "종료일이 이미 지났어요."; return }
         }
-        // 검증: 겹치는 시간대 차단
-        let targetWeekdays: Set<Int> = isRepeating
-            ? weekdays
-            : [Calendar.current.component(.weekday, from: oneOffDate)]
+        // 검증: 겹치는 시간대 차단 (요일 교집합 + 시간대 겹침)
+        let targetWeekdays = Set(resolvedWeekdays)
         for other in allReservations where other.id != reservation?.id {
             let otherWeekdays: Set<Int> = other.isRepeating
                 ? Set(other.repeatWeekdays)
-                : Set([other.oneOffDate.map { Calendar.current.component(.weekday, from: $0) } ?? -1])
-            // 일회성끼리는 같은 날짜일 때만 충돌
-            if !isRepeating && !other.isRepeating {
-                guard let d = other.oneOffDate,
-                      Calendar.current.isDate(d, inSameDayAs: oneOffDate) else { continue }
-            } else {
-                guard !targetWeekdays.isDisjoint(with: otherWeekdays) else { continue }
-            }
+                : Set([other.oneOffDate.map { cal.component(.weekday, from: $0) } ?? -1])
+            guard !targetWeekdays.isDisjoint(with: otherWeekdays) else { continue }
             if other.overlaps(startMinute: startMinute, duration: durationMinutes) {
                 errorMessage = "\(TLFormat.clock(clockDate(other.startMinute))) '\(other.name)' 예약과 시간이 겹칩니다."
                 return
@@ -440,23 +466,33 @@ struct ReservationEditView: View {
             r.tag = finalTag
             r.startMinute = startMinute
             r.durationMinutes = durationMinutes
-            r.repeatWeekdays = isRepeating ? Array(weekdays) : []
-            r.oneOffDate = isRepeating ? nil : Calendar.current.startOfDay(for: oneOffDate)
+            r.repeatWeekdays = resolvedWeekdays
+            r.oneOffDate = resolvedOneOff
+            r.endDate = resolvedEnd
             r.intensityOverrideRaw = intensity.rawValue   // 활동별 강도
 
-            // 편집 시 책임 기준 시각을 지금으로 갱신 — 이걸 안 하면 시간을 더 이른
-            // 시각으로 옮겼을 때 '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼가 된다.
-            // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
-            r.accountableFrom = .now
+            if !isRepeating {
+                // 기간 반복(매일): 시작일이 곧 발생 시작 게이트(createdAt)이자 책임 기준.
+                r.createdAt = startDay
+                r.accountableFrom = startDay
+            } else {
+                // 주간 반복 편집 시 책임 기준을 지금으로 갱신 (더 이른 시각으로 옮겨도 소급 노쇼 방지).
+                r.accountableFrom = .now
+            }
             r.updatedAt = .now
             AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화
         } else {
             let r = Reservation(name: trimmedName, tag: finalTag,
                                 startMinute: startMinute, durationMinutes: durationMinutes,
-                                repeatWeekdays: isRepeating ? Array(weekdays) : [],
-                                oneOffDate: isRepeating ? nil : Calendar.current.startOfDay(for: oneOffDate),
+                                repeatWeekdays: resolvedWeekdays,
+                                oneOffDate: resolvedOneOff,
                                 ownerUserID: account.currentUserID)
+            r.endDate = resolvedEnd
             r.intensityOverrideRaw = intensity.rawValue   // 활동별 강도
+            if !isRepeating {
+                r.createdAt = startDay
+                r.accountableFrom = startDay
+            }
             r.updatedAt = .now
             context.insert(r)
             AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화

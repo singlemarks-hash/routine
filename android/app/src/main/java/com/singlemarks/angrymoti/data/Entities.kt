@@ -53,15 +53,14 @@ data class Reservation(
             if (oneOffDayStart != dayStart) return null
         }
         val fire = dayStart + startMinute * 60_000L
-        // 그룹 예약: 방 시작일(createdAt) 이전 날짜엔 발생 없음 — 미리 만들어 둔 예약이 미리 울리지 않게
-        if (groupId != null) {
-            val startDay = Calendar.getInstance().apply {
-                timeInMillis = createdAt
-                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-            }.timeInMillis
-            if (dayStart < startDay) return null
-        }
+        // 시작일(createdAt) 이전 날짜엔 발생 없음. 그룹=방 시작일, 개인 기간 반복=고른 시작일이
+        // createdAt이 된다. 일반 예약은 생성일 이전 날짜가 없으므로 무해.
+        val startDay = Calendar.getInstance().apply {
+            timeInMillis = createdAt
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        if (dayStart < startDay) return null
         // 종료일 이후 발생 없음
         if (endAt != null && fire > endAt) return null
         return fire

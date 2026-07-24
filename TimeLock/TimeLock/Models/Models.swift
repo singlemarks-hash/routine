@@ -191,9 +191,9 @@ final class Reservation {
     func occurrence(on day: Date, calendar: Calendar = .current) -> Date? {
         let dayStart = calendar.startOfDay(for: day)
         if let end = endDate, dayStart > end { return nil }   // 종료일 지난 반복은 발생 없음
-        // 그룹 예약은 참여 시점에 미리 만들어지고 createdAt = 방 시작일 —
-        // 시작일 전에는 발생(알람)이 없어야 한다.
-        if groupID != nil, dayStart < calendar.startOfDay(for: createdAt) { return nil }
+        // 시작일(createdAt) 전에는 발생(알람)이 없다. 그룹 예약은 방 시작일, 개인 기간 반복은
+        // 사용자가 고른 시작일이 createdAt이 된다. 일반 예약은 생성일 이전 날짜가 없으므로 무해.
+        if dayStart < calendar.startOfDay(for: createdAt) { return nil }
         if isRepeating {
             let weekday = calendar.component(.weekday, from: dayStart)
             guard repeatWeekdays.contains(weekday) else { return nil }

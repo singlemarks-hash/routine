@@ -78,12 +78,15 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     var durationMinutes by remember { mutableStateOf(60) }
     var intensity by remember { mutableStateOf(com.singlemarks.angrymoti.AppState.intensity.value) }
     var repeatDays by remember { mutableStateOf(setOf<Int>()) }
-    var oneOffDay by remember { mutableStateOf<Long?>(null) }
+    var oneOffDay by remember { mutableStateOf<Long?>(null) }        // 요일 반복 OFF일 때의 '시작일'
+    var noEndDate by remember { mutableStateOf(true) }              // '종료일 없음' (기본 켜짐 = 무기한)
+    var oneOffEndDay by remember { mutableStateOf<Long?>(null) }    // '종료일'
     var error by remember { mutableStateOf<String?>(null) }
     var showSlotSheet by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showDurationMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
     var allSessions by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.FocusSession>()) }
     var allReservations by remember { mutableStateOf(listOf<Reservation>()) }
 
@@ -95,8 +98,22 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 db.reservations().byId(id)?.let { r ->
                     existing = r
                     name = r.name; startMinute = r.startMinute
-                    durationMinutes = r.durationMinutes; repeatDays = r.repeatWeekdays.toSet()
-                    oneOffDay = r.oneOffDayStart
+                    durationMinutes = r.durationMinutes
+                    // oneOffDayStart가 있으면 '요일 미반복(기간/단발성)' 모드 — 기간 반복도 시작일 마커로 저장됨.
+                    val hasDate = r.oneOffDayStart != null
+                    repeatDays = if (hasDate) emptySet() else r.repeatWeekdays.toSet()
+                    oneOffDay = r.oneOffDayStart                // 시작일
+                    if (hasDate) {
+                        if (r.isRepeating) {
+                            // 기간 반복(매일): 종료일 = endAt (없으면 무기한)
+                            noEndDate = (r.endAt == null)
+                            oneOffEndDay = r.endAt?.let { startOfDayLocal(it) } ?: r.oneOffDayStart
+                        } else {
+                            // 레거시 단발성 → 시작일=종료일 하루로 표시
+                            noEndDate = false
+                            oneOffEndDay = r.oneOffDayStart
+                        }
+                    }
                     intensity = r.intensityOverride ?: com.singlemarks.angrymoti.AppState.intensity.value
                     if (r.tag in ActivityTag.presets) tag = r.tag else customTag = r.tag
                 }
@@ -153,13 +170,21 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 other.oneOffDayStart == todayStart())
                     }
                     if (overlap) { error = "같은 시간대에 이미 다른 활동이 있어요."; return@save }
-                    // 일회성 예약은 발생 시각이 미래여야 한다 — 과거면 알람이 아예 안 걸리므로 차단 (iOS 통일)
-                    if (repeatDays.isEmpty()) {
-                        val oneOffStart = oneOffDay ?: nextOneOffDay(sm)
-                        if (oneOffStart + sm * 60_000L <= System.currentTimeMillis()) {
-                            error = "이미 지난 시각입니다. 미래 날짜·시각으로 선택해주세요."; return@save
-                        }
+
+                    // 요일 반복 OFF = 매일(기간). 시작일부터, 종료일 없으면 무기한.
+                    val isOff = repeatDays.isEmpty()
+                    val startDay = oneOffDay ?: nextOneOffDay(sm)          // 시작일(자정)
+                    // 검증: 기간이고 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남
+                    if (isOff && !noEndDate) {
+                        val endDay = startOfDayLocal(oneOffEndDay ?: startDay)
+                        if (endDay < startDay) { error = "종료일은 시작일 이후여야 해요."; return@save }
+                        if (endDay < todayStart()) { error = "종료일이 이미 지났어요."; return@save }
                     }
+                    val resolvedDaysCsv = if (isOff) "1,2,3,4,5,6,7"
+                        else repeatDays.sorted().joinToString(",")
+                    val resolvedOneOff = if (isOff) startDay else null      // OFF는 시작일을 마커로
+                    val resolvedEnd = if (isOff && !noEndDate)
+                        startOfDayLocal(oneOffEndDay ?: startDay) + 86_400_000L - 1 else null
 
                     scope.launch(Dispatchers.IO) {
                         val r = (existing ?: Reservation(
@@ -168,13 +193,16 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         )).copy(
                             name = finalName, tag = finalTag, startMinute = sm,
                             durationMinutes = durationMinutes,
-                            repeatWeekdaysCsv = repeatDays.sorted().joinToString(","),
-                            oneOffDayStart = if (repeatDays.isEmpty()) (oneOffDay ?: nextOneOffDay(sm)) else null,
+                            repeatWeekdaysCsv = resolvedDaysCsv,
+                            oneOffDayStart = resolvedOneOff,
+                            endAt = resolvedEnd,
                             intensityOverrideRaw = intensity.raw,   // 활동별 강도
-                            // 편집 시 책임 기준 시각 갱신 — 더 이른 시각으로 옮겨도
-                            // '오늘 이미 지나간 새 시각' 발생분이 소급 노쇼되지 않게.
-                            // (createdAt은 복구 로직의 기준이므로 건드리지 않는다)
-                            accountableFrom = if (existing != null) System.currentTimeMillis() else null,
+                            // 기간(매일): 시작일이 곧 발생 시작 게이트(createdAt)이자 책임 기준.
+                            // 주간 반복 편집: 책임 기준만 지금으로 갱신(소급 노쇼 방지), createdAt은 보존.
+                            createdAt = if (isOff) startDay
+                                else (existing?.createdAt ?: System.currentTimeMillis()),
+                            accountableFrom = if (isOff) startDay
+                                else if (existing != null) System.currentTimeMillis() else null,
                             updatedAt = System.currentTimeMillis(),
                         )
                         db.reservations().upsert(r)
@@ -370,15 +398,42 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 }
                         }
                     } else {
+                        // 요일 미반복 = 매일(기간). 시작일 + '종료일 없음' 토글(기본 켜짐) + 종료일.
                         Spacer(Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("날짜", color = TL.paper, fontSize = 16.sp)
+                            Text("시작일", color = TL.paper, fontSize = 16.sp)
                             Spacer(Modifier.weight(1f))
                             val day = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
                             Text(dateLabel(day), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.background(TL.raised, CircleShape)
                                     .clickable(enabled = !fieldLocked) { showDatePicker = true }
                                     .padding(horizontal = 16.dp, vertical = 9.dp))
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        androidx.compose.material3.HorizontalDivider(color = TL.hairline)
+                        Spacer(Modifier.height(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("종료일 없음", color = TL.paper, fontSize = 16.sp)
+                            Spacer(Modifier.weight(1f))
+                            Switch(
+                                checked = noEndDate,
+                                onCheckedChange = { if (!fieldLocked) noEndDate = it },
+                                colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
+                            )
+                        }
+                        if (!noEndDate) {
+                            Spacer(Modifier.height(12.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("종료일", color = TL.paper, fontSize = 16.sp)
+                                Spacer(Modifier.weight(1f))
+                                val start = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
+                                val endDay = (oneOffEndDay ?: start).coerceAtLeast(start)
+                                Text(dateLabel(endDay), color = TL.paper, fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.background(TL.raised, CircleShape)
+                                        .clickable(enabled = !fieldLocked) { showEndDatePicker = true }
+                                        .padding(horizontal = 16.dp, vertical = 9.dp))
+                            }
                         }
                     }
                 }
@@ -452,7 +507,61 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             },
         ) { androidx.compose.material3.DatePicker(state = dateState) }
     }
+
+    // 종료일 선택 다이얼로그 — 하한은 시작일(로컬 자정)
+    if (showEndDatePicker) {
+        val startLocalMidnight = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
+        // 시작일(로컬 자정)을 UTC 자정으로 환산해 하한으로 사용
+        val startUtcMidnight = remember(startLocalMidnight) {
+            val local = Calendar.getInstance().apply { timeInMillis = startLocalMidnight }
+            Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+                clear()
+                set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+            }.timeInMillis
+        }
+        val endState = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = (oneOffEndDay ?: startLocalMidnight)
+                .let { d ->
+                    val local = Calendar.getInstance().apply { timeInMillis = maxOf(d, startLocalMidnight) }
+                    Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+                        clear()
+                        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+                    }.timeInMillis
+                },
+            selectableDates = object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= startUtcMidnight
+            })
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    endState.selectedDateMillis?.let { utc ->
+                        val u = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+                            .apply { timeInMillis = utc }
+                        val local = Calendar.getInstance().apply {
+                            set(u.get(Calendar.YEAR), u.get(Calendar.MONTH), u.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        oneOffEndDay = local.timeInMillis
+                    }
+                    showEndDatePicker = false
+                }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showEndDatePicker = false }) {
+                    Text("취소", color = TL.muted)
+                }
+            },
+        ) { androidx.compose.material3.DatePicker(state = endState) }
+    }
 }
+
+/** epoch millis → 그 날 로컬 자정 */
+private fun startOfDayLocal(millis: Long): Long = Calendar.getInstance().apply {
+    timeInMillis = millis
+    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+}.timeInMillis
 
 /** 큰 서피스 입력 필드 — iOS 텍스트필드 1:1 (배경 서피스, 테두리 없음) */
 @Composable
