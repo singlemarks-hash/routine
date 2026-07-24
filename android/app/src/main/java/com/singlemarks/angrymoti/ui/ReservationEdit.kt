@@ -77,8 +77,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     var startMinute by remember { mutableStateOf(TimePolicy.defaultStartMinute()) }
     var durationMinutes by remember { mutableStateOf(60) }
     var intensity by remember { mutableStateOf(com.singlemarks.angrymoti.AppState.intensity.value) }
-    var repeatDays by remember { mutableStateOf(setOf<Int>()) }
-    var oneOffDay by remember { mutableStateOf<Long?>(null) }        // 요일 반복 OFF일 때의 '시작일'
+    var weeklyRepeat by remember { mutableStateOf(false) }          // 요일 반복 토글 (ON=고른 요일, OFF=매일)
+    var repeatDays by remember { mutableStateOf(setOf<Int>()) }     // 요일 반복 ON일 때 고른 요일
+    var oneOffDay by remember { mutableStateOf<Long?>(null) }        // 시작일 (두 모드 공통)
     var noEndDate by remember { mutableStateOf(true) }              // '종료일 없음' (기본 켜짐 = 무기한)
     var oneOffEndDay by remember { mutableStateOf<Long?>(null) }    // '종료일'
     var error by remember { mutableStateOf<String?>(null) }
@@ -99,20 +100,20 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     existing = r
                     name = r.name; startMinute = r.startMinute
                     durationMinutes = r.durationMinutes
-                    // oneOffDayStart가 있으면 '요일 미반복(기간/단발성)' 모드 — 기간 반복도 시작일 마커로 저장됨.
+                    // oneOffDayStart 마커가 있으면 '매일(기간/단발성)' 모드, 없으면 '요일 반복' 모드.
+                    // 기간(시작일·종료일)은 두 모드 공통이므로 항상 복원한다.
                     val hasDate = r.oneOffDayStart != null
-                    repeatDays = if (hasDate) emptySet() else r.repeatWeekdays.toSet()
-                    oneOffDay = r.oneOffDayStart                // 시작일
-                    if (hasDate) {
-                        if (r.isRepeating) {
-                            // 기간 반복(매일): 종료일 = endAt (없으면 무기한)
-                            noEndDate = (r.endAt == null)
-                            oneOffEndDay = r.endAt?.let { startOfDayLocal(it) } ?: r.oneOffDayStart
-                        } else {
-                            // 레거시 단발성 → 시작일=종료일 하루로 표시
-                            noEndDate = false
-                            oneOffEndDay = r.oneOffDayStart
-                        }
+                    weeklyRepeat = !hasDate                     // 마커 없음 = 요일 반복 토글 ON
+                    repeatDays = r.repeatWeekdays.toSet()       // 요일 반복 모드에서만 UI에 노출
+                    // 시작일: 매일 모드는 마커, 요일 반복 모드는 시작 게이트(createdAt)
+                    oneOffDay = r.oneOffDayStart ?: startOfDayLocal(r.createdAt)
+                    if (hasDate && !r.isRepeating) {
+                        // 레거시 단발성 → 시작일=종료일 하루로 표시
+                        noEndDate = false
+                        oneOffEndDay = r.oneOffDayStart
+                    } else {
+                        noEndDate = (r.endAt == null)
+                        oneOffEndDay = r.endAt?.let { startOfDayLocal(it) } ?: oneOffDay
                     }
                     intensity = r.intensityOverride ?: com.singlemarks.angrymoti.AppState.intensity.value
                     if (r.tag in ActivityTag.presets) tag = r.tag else customTag = r.tag
@@ -166,24 +167,26 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     if (slotFull) { error = "활동 슬롯이 가득 찼어요. 연속 달성일을 쌓으면 슬롯이 늘어나요."; return@save }
                     val overlap = allReservations.any { other ->
                         other.id != existing?.id && other.overlaps(sm, durationMinutes) &&
-                            (other.isRepeating || repeatDays.isNotEmpty() ||
+                            (other.isRepeating || !weeklyRepeat ||
                                 other.oneOffDayStart == todayStart())
                     }
                     if (overlap) { error = "같은 시간대에 이미 다른 활동이 있어요."; return@save }
 
-                    // 요일 반복 OFF = 매일(기간). 시작일부터, 종료일 없으면 무기한.
-                    val isOff = repeatDays.isEmpty()
+                    // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
+                    val isWeekly = weeklyRepeat
                     val startDay = oneOffDay ?: nextOneOffDay(sm)          // 시작일(자정)
-                    // 검증: 기간이고 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남
-                    if (isOff && !noEndDate) {
+                    // 검증: 요일 반복이면 요일 최소 1개
+                    if (isWeekly && repeatDays.isEmpty()) { error = "반복할 요일을 선택하세요."; return@save }
+                    // 검증: 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남 (두 모드 공통)
+                    if (!noEndDate) {
                         val endDay = startOfDayLocal(oneOffEndDay ?: startDay)
                         if (endDay < startDay) { error = "종료일은 시작일 이후여야 해요."; return@save }
                         if (endDay < todayStart()) { error = "종료일이 이미 지났어요."; return@save }
                     }
-                    val resolvedDaysCsv = if (isOff) "1,2,3,4,5,6,7"
-                        else repeatDays.sorted().joinToString(",")
-                    val resolvedOneOff = if (isOff) startDay else null      // OFF는 시작일을 마커로
-                    val resolvedEnd = if (isOff && !noEndDate)
+                    val resolvedDaysCsv = if (isWeekly) repeatDays.sorted().joinToString(",")
+                        else "1,2,3,4,5,6,7"
+                    val resolvedOneOff = if (isWeekly) null else startDay   // 매일 모드만 시작일 마커
+                    val resolvedEnd = if (!noEndDate)
                         startOfDayLocal(oneOffEndDay ?: startDay) + 86_400_000L - 1 else null
 
                     scope.launch(Dispatchers.IO) {
@@ -197,12 +200,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             oneOffDayStart = resolvedOneOff,
                             endAt = resolvedEnd,
                             intensityOverrideRaw = intensity.raw,   // 활동별 강도
-                            // 기간(매일): 시작일이 곧 발생 시작 게이트(createdAt)이자 책임 기준.
-                            // 주간 반복 편집: 책임 기준만 지금으로 갱신(소급 노쇼 방지), createdAt은 보존.
-                            createdAt = if (isOff) startDay
-                                else (existing?.createdAt ?: System.currentTimeMillis()),
-                            accountableFrom = if (isOff) startDay
-                                else if (existing != null) System.currentTimeMillis() else null,
+                            // 시작일 = 발생 시작 게이트(createdAt). 책임 기준은 편집 시 지금으로 갱신해
+                            // 더 이른 시각으로 옮겨도 소급 노쇼가 나지 않게 (신규는 시작일). 두 모드 공통.
+                            createdAt = startDay,
+                            accountableFrom = if (existing != null) System.currentTimeMillis() else startDay,
                             updatedAt = System.currentTimeMillis(),
                         )
                         db.reservations().upsert(r)
@@ -357,7 +358,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 }
             }
 
-            // ── 반복 — 요일 반복 토글 + (꺼짐: 날짜 필 / 켜짐: 요일 원형) (iOS 1:1)
+            // ── 반복 — 요일 반복 토글(ON=고른 요일, OFF=매일) + 기간(시작일·종료일) 공통 (iOS 1:1)
             Column {
                 TLEyebrow("반복")
                 TLCard {
@@ -365,15 +366,18 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         Text("요일 반복", color = TL.paper, fontSize = 16.sp)
                         Spacer(Modifier.weight(1f))
                         Switch(
-                            checked = repeatDays.isNotEmpty(),
+                            checked = weeklyRepeat,
                             onCheckedChange = { on ->
                                 if (fieldLocked) return@Switch
-                                repeatDays = if (on) setOf(2, 3, 4, 5, 6) else emptySet()
+                                weeklyRepeat = on
+                                // 켤 때 선택된 요일이 없으면 평일 기본값
+                                if (on && repeatDays.isEmpty()) repeatDays = setOf(2, 3, 4, 5, 6)
                             },
                             colors = SwitchDefaults.colors(checkedTrackColor = TL.jade),
                         )
                     }
-                    if (repeatDays.isNotEmpty()) {
+                    // 요일 반복 ON → 요일 원형 선택
+                    if (weeklyRepeat) {
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
@@ -397,43 +401,43 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                     }
                                 }
                         }
-                    } else {
-                        // 요일 미반복 = 매일(기간). 시작일 + '종료일 없음' 토글(기본 켜짐) + 종료일.
+                    }
+
+                    // 기간 — 시작일 + '종료일 없음' 토글(기본 켜짐) + 종료일. (요일 반복·매일 공통)
+                    Spacer(Modifier.height(10.dp))
+                    androidx.compose.material3.HorizontalDivider(color = TL.hairline)
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("시작일", color = TL.paper, fontSize = 16.sp)
+                        Spacer(Modifier.weight(1f))
+                        val day = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
+                        Text(dateLabel(day), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.background(TL.raised, CircleShape)
+                                .clickable(enabled = !fieldLocked) { showDatePicker = true }
+                                .padding(horizontal = 16.dp, vertical = 9.dp))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("종료일 없음", color = TL.paper, fontSize = 16.sp)
+                        Spacer(Modifier.weight(1f))
+                        Switch(
+                            checked = noEndDate,
+                            onCheckedChange = { if (!fieldLocked) noEndDate = it },
+                            colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
+                        )
+                    }
+                    if (!noEndDate) {
                         Spacer(Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("시작일", color = TL.paper, fontSize = 16.sp)
+                            Text("종료일", color = TL.paper, fontSize = 16.sp)
                             Spacer(Modifier.weight(1f))
-                            val day = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
-                            Text(dateLabel(day), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            val start = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
+                            val endDay = (oneOffEndDay ?: start).coerceAtLeast(start)
+                            Text(dateLabel(endDay), color = TL.paper, fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier.background(TL.raised, CircleShape)
-                                    .clickable(enabled = !fieldLocked) { showDatePicker = true }
+                                    .clickable(enabled = !fieldLocked) { showEndDatePicker = true }
                                     .padding(horizontal = 16.dp, vertical = 9.dp))
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        androidx.compose.material3.HorizontalDivider(color = TL.hairline)
-                        Spacer(Modifier.height(10.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("종료일 없음", color = TL.paper, fontSize = 16.sp)
-                            Spacer(Modifier.weight(1f))
-                            Switch(
-                                checked = noEndDate,
-                                onCheckedChange = { if (!fieldLocked) noEndDate = it },
-                                colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
-                            )
-                        }
-                        if (!noEndDate) {
-                            Spacer(Modifier.height(12.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("종료일", color = TL.paper, fontSize = 16.sp)
-                                Spacer(Modifier.weight(1f))
-                                val start = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
-                                val endDay = (oneOffEndDay ?: start).coerceAtLeast(start)
-                                Text(dateLabel(endDay), color = TL.paper, fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.background(TL.raised, CircleShape)
-                                        .clickable(enabled = !fieldLocked) { showEndDatePicker = true }
-                                        .padding(horizontal = 16.dp, vertical = 9.dp))
-                            }
                         }
                     }
                 }

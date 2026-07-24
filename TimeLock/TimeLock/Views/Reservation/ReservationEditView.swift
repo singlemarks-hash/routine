@@ -323,6 +323,7 @@ struct ReservationEditView: View {
                     .tint(TL.rec)
                     .disabled(editingDisabled)
 
+                    // 요일 반복 ON = 고른 요일만, OFF = 매일. 어느 쪽이든 기간(시작일·종료일)은 공통.
                     if isRepeating {
                         HStack(spacing: 8) {
                             ForEach(weekdaySymbols, id: \.0) { (value, label) in
@@ -340,23 +341,23 @@ struct ReservationEditView: View {
                                 .disabled(editingDisabled)
                             }
                         }
-                    } else {
-                        // 요일 미반복 = 매일(기간). 시작일 + '종료일 없음' 토글(기본 켜짐) + 종료일.
-                        DatePicker("시작일", selection: $oneOffDate, in: Date()..., displayedComponents: .date)
+                    }
+
+                    // 기간 — 시작일 + '종료일 없음' 토글(기본 켜짐) + 종료일. (요일 반복·매일 공통)
+                    Divider().overlay(TL.hairline)
+                    DatePicker("시작일", selection: $oneOffDate, in: Date()..., displayedComponents: .date)
+                        .font(.tlBody).foregroundStyle(TL.paper)
+                        .disabled(editingDisabled)
+                    Toggle(isOn: $noEndDate) {
+                        Text("종료일 없음").font(.tlBody).foregroundStyle(TL.paper)
+                    }
+                    .tint(TL.rec)
+                    .disabled(editingDisabled)
+                    if !noEndDate {
+                        DatePicker("종료일", selection: $oneOffEndDate,
+                                   in: oneOffDate..., displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
                             .disabled(editingDisabled)
-                        Divider().overlay(TL.hairline)
-                        Toggle(isOn: $noEndDate) {
-                            Text("종료일 없음").font(.tlBody).foregroundStyle(TL.paper)
-                        }
-                        .tint(TL.rec)
-                        .disabled(editingDisabled)
-                        if !noEndDate {
-                            DatePicker("종료일", selection: $oneOffEndDate,
-                                       in: oneOffDate..., displayedComponents: .date)
-                                .font(.tlBody).foregroundStyle(TL.paper)
-                                .disabled(editingDisabled)
-                        }
                     }
                 }
             }
@@ -379,21 +380,20 @@ struct ReservationEditView: View {
         if !app.insaneUnlocked && intensity == .insane { intensity = .spicy }
         let base = Calendar.current.startOfDay(for: .now)
         startTime = Calendar.current.date(byAdding: .minute, value: r.startMinute, to: base) ?? .now
-        // oneOffDate가 있으면 '요일 미반복(기간/단발성)' 모드 — 기간 반복이라도 시작일 마커로 저장됨.
+        // oneOffDate 마커가 있으면 '매일(기간/단발성)' 모드, 없으면 '요일 반복' 모드.
+        // 기간(시작일·종료일)은 두 모드 공통이므로 항상 복원한다.
         let hasDate = r.oneOffDate != nil
-        isRepeating = r.isRepeating && !hasDate     // 주간 반복만 토글 ON
+        isRepeating = !hasDate                       // 마커 없음 = 요일 반복 토글 ON
         weekdays = Set(r.repeatWeekdays)
-        oneOffDate = r.oneOffDate ?? .now           // 시작일
-        if hasDate {
-            if r.isRepeating {
-                // 기간 반복(매일): 종료일 = endDate (없으면 무기한)
-                noEndDate = (r.endDate == nil)
-                oneOffEndDate = r.endDate ?? oneOffDate
-            } else {
-                // 레거시 단발성 → 시작일=종료일 하루로 표시
-                noEndDate = false
-                oneOffEndDate = r.oneOffDate ?? .now
-            }
+        // 시작일: 매일 모드는 마커, 요일 반복 모드는 시작 게이트(createdAt)
+        oneOffDate = r.oneOffDate ?? Calendar.current.startOfDay(for: r.createdAt)
+        if hasDate, !r.isRepeating {
+            // 레거시 단발성 → 시작일=종료일 하루로 표시
+            noEndDate = false
+            oneOffEndDate = r.oneOffDate ?? .now
+        } else {
+            noEndDate = (r.endDate == nil)
+            oneOffEndDate = r.endDate ?? oneOffDate
         }
     }
 
@@ -432,17 +432,17 @@ struct ReservationEditView: View {
         let comps = Calendar.current.dateComponents([.hour, .minute], from: startTime)
         let startMinute = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
 
-        // 요일 반복 OFF = 매일(기간). 시작일부터, 종료일 없으면 무기한.
+        // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
         let cal = Calendar.current
         let startDay = cal.startOfDay(for: oneOffDate)
         let resolvedWeekdays: [Int] = isRepeating ? Array(weekdays) : [1, 2, 3, 4, 5, 6, 7]
-        let resolvedOneOff: Date? = isRepeating ? nil : startDay          // OFF는 시작일을 마커로
-        let resolvedEnd: Date? = (!isRepeating && !noEndDate)
+        let resolvedOneOff: Date? = isRepeating ? nil : startDay          // 매일 모드만 시작일 마커
+        let resolvedEnd: Date? = (!noEndDate)
             ? cal.startOfDay(for: oneOffEndDate).addingTimeInterval(86_400 - 0.001)
             : nil
 
-        // 검증: 기간 반복이고 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남
-        if !isRepeating, !noEndDate {
+        // 검증: 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남 (두 모드 공통)
+        if !noEndDate {
             let endDay = cal.startOfDay(for: oneOffEndDate)
             guard endDay >= startDay else { errorMessage = "종료일은 시작일 이후여야 해요."; return }
             guard endDay >= cal.startOfDay(for: .now) else { errorMessage = "종료일이 이미 지났어요."; return }
@@ -471,14 +471,10 @@ struct ReservationEditView: View {
             r.endDate = resolvedEnd
             r.intensityOverrideRaw = intensity.rawValue   // 활동별 강도
 
-            if !isRepeating {
-                // 기간 반복(매일): 시작일이 곧 발생 시작 게이트(createdAt)이자 책임 기준.
-                r.createdAt = startDay
-                r.accountableFrom = startDay
-            } else {
-                // 주간 반복 편집 시 책임 기준을 지금으로 갱신 (더 이른 시각으로 옮겨도 소급 노쇼 방지).
-                r.accountableFrom = .now
-            }
+            // 시작일이 곧 발생 시작 게이트(createdAt). 책임 기준은 편집 시 지금으로 갱신해
+            // 더 이른 시각으로 옮겨도 소급 노쇼가 나지 않게 한다. (요일 반복·매일 공통)
+            r.createdAt = startDay
+            r.accountableFrom = .now
             r.updatedAt = .now
             AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화
         } else {
@@ -489,10 +485,9 @@ struct ReservationEditView: View {
                                 ownerUserID: account.currentUserID)
             r.endDate = resolvedEnd
             r.intensityOverrideRaw = intensity.rawValue   // 활동별 강도
-            if !isRepeating {
-                r.createdAt = startDay
-                r.accountableFrom = startDay
-            }
+            // 신규: 시작일 = 발생 시작 게이트이자 책임 기준 (요일 반복·매일 공통)
+            r.createdAt = startDay
+            r.accountableFrom = startDay
             r.updatedAt = .now
             context.insert(r)
             AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화
