@@ -78,9 +78,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         let kind = notification.request.content.userInfo["kind"] as? String
         if kind == "alarm" {
-            // 앱이 떠 있으면 배너 대신 알람 화면을 직접 띄운다
-            await MainActor.run { AppState.shared.checkDueAlarm() }
-            return []
+            // 앱이 떠 있으면 배너 대신 알람 화면을 직접 띄운다. 배달된 reservationID로 견고하게
+            // 라우팅(소유자 필터 우회)하고, 그래도 못 띄웠으면 최소한 배너·소리로 폴백한다. [P2-2]
+            let routed = await MainActor.run { () -> Bool in
+                if let idStr = notification.request.content.userInfo["reservationID"] as? String,
+                   let id = UUID(uuidString: idStr) {
+                    AppState.shared.presentAlarm(reservationID: id)
+                } else {
+                    AppState.shared.checkDueAlarm()
+                }
+                return AppState.shared.isShowingAlarm
+            }
+            return routed ? [] : [.banner, .sound]
         }
         if kind == "break" {
             // 앱이 화면에 떠 있으면 중단 오버레이가 이미 안내 중 — 배너 생략
@@ -140,6 +149,8 @@ final class AppState: ObservableObject {
         var reservationID: UUID?
         /// 그룹 예약은 방의 강도를 전역 설정 대신 사용
         var intensityOverride: Intensity? = nil
+        /// 알람 화면에서 진입했는가 — 취소 시 알람으로 되돌릴지(true) 홈/방으로 나갈지(false) 결정. [P3-4]
+        var enteredFromAlarm: Bool = false
     }
 
     // 온보딩은 '앱/기기 최초 안내'라 기기 전역이 맞다 (계정별 아님).
@@ -455,14 +466,22 @@ final class AppState: ObservableObject {
         activeReservations().first { $0.id == id }
     }
 
+    /// 지금 알람 화면을 띄우고 있는가 — willPresent 폴백 판정용. [P2-2]
+    var isShowingAlarm: Bool {
+        if case .alarm = route { return true }
+        return false
+    }
+
     // MARK: 세션 흐름
 
-    /// 알람 화면 → 거치 가이드
-    func proceedToMountGuide(reservation: Reservation, fireDate: Date) {
+    /// 알람 화면(fromAlarm=true) 또는 그룹 카드 등(false) → 거치 가이드.
+    /// fromAlarm은 취소 시 되돌아갈 화면을 정한다(알람으로 vs 홈/방으로). [P3-4]
+    func proceedToMountGuide(reservation: Reservation, fireDate: Date, fromAlarm: Bool = true) {
         let pending = PendingSession(activityName: reservation.name, tag: reservation.tag,
                                      targetSeconds: reservation.durationMinutes * 60,
                                      scheduledAt: fireDate, reservationID: reservation.id,
-                                     intensityOverride: reservation.intensityOverride)
+                                     intensityOverride: reservation.intensityOverride,
+                                     enteredFromAlarm: fromAlarm)
         route = .mountGuide(pending: pending)
         // 알람은 촬영 시작 시점에만 정지 → 여기서는 계속 울린다
     }
@@ -476,9 +495,9 @@ final class AppState: ObservableObject {
     }
 
     /// 거치 가이드 '취소하기' — 아직 시작 전이므로 아무 기록 없이 되돌아간다.
-    /// 예약 세션은 알람 화면으로(알람은 계속 울리는 중), 즉시 세션은 홈으로.
+    /// 알람에서 진입했으면 알람 화면으로(계속 울리는 중), 그룹 카드·즉시 세션이면 홈/방으로. [P3-4]
     func cancelMountGuide(pending: PendingSession) {
-        if let id = pending.reservationID, let fire = pending.scheduledAt {
+        if pending.enteredFromAlarm, let id = pending.reservationID, let fire = pending.scheduledAt {
             route = .alarm(reservationID: id, fireDate: fire)
         } else {
             route = .none
@@ -490,6 +509,11 @@ final class AppState: ObservableObject {
     /// (프리뷰 레이어가 항상 1개라 화면 멈춤·검은 화면이 구조적으로 불가능).
     func beginRecording(pending: PendingSession) {
         AlarmScheduler.shared.stopAlarmSound()
+        // 예약 세션이면 이 발생 건의 남은 알림(메인·예고·+5분 재알림)을 여기서 취소한다.
+        // 공통 경로라 알람 화면·그룹 카드 등 어느 진입점으로 시작해도 잔여 알림이 안 뜬다. [P2-1]
+        if let id = pending.reservationID, let fire = pending.scheduledAt {
+            AlarmScheduler.shared.cancelAlarmNotifications(reservationID: id, fireDate: fire)
+        }
         armedPending = pending
     }
 

@@ -659,6 +659,11 @@ private struct GroupStartActivityCard: View {
     let room: GroupRoom
     @EnvironmentObject private var app: AppState
     @State private var now = Date()
+    // 예약·창 정보는 초당 안 바뀌므로 캐시하고 3초마다만 재계산한다(매초 SwiftData fetch 방지). [P3-3]
+    @State private var reservation: Reservation?
+    @State private var windowFire: Date?
+    @State private var nextFire: Date?
+    @State private var tick = 0
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private func countdownText(_ seconds: Int) -> String {
@@ -668,11 +673,15 @@ private struct GroupStartActivityCard: View {
         return TLFormat.hms(seconds)
     }
 
-    var body: some View {
-        let reservation = app.groupReservation(roomID: room.id)
-        let windowFire = reservation.flatMap { app.startableWindowFire(for: $0) }
-        let nextFire = reservation?.nextOccurrence(after: now)
+    /// 예약·시작 창·다음 발생 시각을 다시 조회한다 (fetch 포함 — 3초 간격·onAppear에서만 호출).
+    private func refresh() {
+        let r = app.groupReservation(roomID: room.id)
+        reservation = r
+        windowFire = r.flatMap { app.startableWindowFire(for: $0) }
+        nextFire = r?.nextOccurrence(after: Date())
+    }
 
+    var body: some View {
         TLCard {
             VStack(alignment: .leading, spacing: 12) {
                 TLEyebrow(text: "활동 인증")
@@ -686,7 +695,8 @@ private struct GroupStartActivityCard: View {
                         .font(.system(size: 14, weight: .heavy, design: .rounded))
                         .foregroundStyle(TL.amber)
                     Button {
-                        if let r = reservation { app.proceedToMountGuide(reservation: r, fireDate: fire) }
+                        // 그룹 카드 진입 — 취소 시 알람이 아니라 방으로 돌아가도록 fromAlarm=false. [P3-4]
+                        if let r = reservation { app.proceedToMountGuide(reservation: r, fireDate: fire, fromAlarm: false) }
                     } label: {
                         Label("활동 시작하기", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
                     }
@@ -711,7 +721,12 @@ private struct GroupStartActivityCard: View {
                 }
             }
         }
-        .onReceive(clock) { now = $0 }
+        .onAppear { refresh() }
+        .onReceive(clock) { d in
+            now = d               // 카운트다운 숫자는 매초 갱신
+            tick += 1
+            if tick % 3 == 0 { refresh() }   // 예약·창 재계산은 3초마다만
+        }
     }
 }
 
