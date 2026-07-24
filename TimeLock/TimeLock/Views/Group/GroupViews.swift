@@ -653,10 +653,73 @@ struct GroupJoinView: View {
 
 // MARK: - 방 상세 (시작 전 대기실 / 진행 중 랭킹 / 종료 결과)
 
+/// 그룹 방에서 활동을 시작하는 보조 진입 — 알람을 놓쳐도 여기서 촬영을 시작할 수 있다.
+/// '활동 시작하기'는 예정 시각부터 10분 창 안에서만 활성화되며, 그 외엔 다음 시작까지 카운트다운만 보인다.
+private struct GroupStartActivityCard: View {
+    let room: GroupRoom
+    @EnvironmentObject private var app: AppState
+    @State private var now = Date()
+    private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    private func countdownText(_ seconds: Int) -> String {
+        if seconds >= 86_400 {
+            return "\(seconds / 86_400)일 \((seconds % 86_400) / 3600)시간"
+        }
+        return TLFormat.hms(seconds)
+    }
+
+    var body: some View {
+        let reservation = app.groupReservation(roomID: room.id)
+        let windowFire = reservation.flatMap { app.startableWindowFire(for: $0) }
+        let nextFire = reservation?.nextOccurrence(after: now)
+
+        TLCard {
+            VStack(alignment: .leading, spacing: 12) {
+                TLEyebrow(text: "활동 인증")
+
+                if let fire = windowFire {
+                    // 창 안 — 지금 시작 가능. 남은 시간(노란색) 표시.
+                    let remain = max(0, Int(fire.addingTimeInterval(TimePolicy.startWindowSeconds).timeIntervalSince(now)))
+                    Text("지금 활동을 시작할 수 있어요")
+                        .font(.system(size: 16, weight: .bold)).foregroundStyle(TL.paper)
+                    Label("남은 시간 \(TLFormat.hms(remain))", systemImage: "timer")
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundStyle(TL.amber)
+                    Button {
+                        if let r = reservation { app.proceedToMountGuide(reservation: r, fireDate: fire) }
+                    } label: {
+                        Label("활동 시작하기", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(TLPrimaryButtonStyle())
+                } else if let next = nextFire {
+                    // 창 밖 — 다음 시작까지 카운트다운. 버튼 비활성.
+                    Text("다음 시작까지")
+                        .font(.system(size: 13)).foregroundStyle(TL.muted)
+                    Text(countdownText(max(0, Int(next.timeIntervalSince(now)))))
+                        .font(.tlTimer(30)).foregroundStyle(TL.amber)
+                    Button {} label: {
+                        Label("활동 시작하기", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(TLPrimaryButtonStyle())
+                    .disabled(true)
+                    .opacity(0.4)
+                    Text("예정 시각부터 \(TimePolicy.startWindowMinutes)분 안에만 시작할 수 있어요.")
+                        .font(.system(size: 12)).foregroundStyle(TL.faint)
+                } else {
+                    Text("예정된 활동이 없어요.")
+                        .font(.system(size: 14)).foregroundStyle(TL.muted)
+                }
+            }
+        }
+        .onReceive(clock) { now = $0 }
+    }
+}
+
 struct GroupRoomDetailView: View {
     let room: GroupRoom
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var app: AppState
     @StateObject private var store = GroupStore.shared
 
     @State private var members: [GroupMember] = []
@@ -683,6 +746,7 @@ struct GroupRoomDetailView: View {
                 } else if room.isFinished {
                     resultSection
                 } else {
+                    GroupStartActivityCard(room: room)   // 알람을 놓쳐도 방에서 직접 시작 (창 안에서만 활성)
                     rankingSection
                 }
 

@@ -417,6 +417,30 @@ final class AppState: ObservableObject {
             predicate: #Predicate { $0.id == id && $0.isActive })))?.first
     }
 
+    // MARK: 그룹 활동 시작 (알람을 놓쳤을 때의 보조 진입)
+
+    /// 그룹 방에 연결된 내 활성 예약 (groupID 매칭)
+    func groupReservation(roomID: String) -> Reservation? {
+        guard let context = modelContext else { return nil }
+        let owner = AccountStore.shared.currentUserID
+        return (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.groupID == roomID && $0.ownerUserID == owner && $0.isActive })))?.first
+    }
+
+    /// '활동 시작하기'가 가능한 발생 시각 — 지금이 창[발생~+10분] 안이고 아직 미시작이면 그 시각, 아니면 nil.
+    func startableWindowFire(for reservation: Reservation) -> Date? {
+        let now = Date()
+        let calendar = Calendar.current
+        for offset in [-1, 0] {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
+                  let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
+            let window = fire...fire.addingTimeInterval(TimePolicy.startWindowSeconds)
+            guard window.contains(now), !sessionExists(reservationID: reservation.id, scheduledAt: fire) else { continue }
+            return fire
+        }
+        return nil
+    }
+
     private func sessionExists(reservationID: UUID, scheduledAt: Date) -> Bool {
         guard let context = modelContext else { return false }
         let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
