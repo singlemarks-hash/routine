@@ -700,8 +700,13 @@ private struct GroupStartActivityCard: View {
                         .font(.system(size: 14, weight: .heavy, design: .rounded))
                         .foregroundStyle(TL.amber)
                     Button {
-                        // 그룹 카드 진입 — 취소 시 알람이 아니라 방으로 돌아가도록 fromAlarm=false. [P3-4]
-                        if let r = reservation { app.proceedToMountGuide(reservation: r, fireDate: fire, fromAlarm: false) }
+                        // 탭 '그 순간' 창을 다시 검증한다 — 15초 캐시 탓에 창이 닫힌 뒤 눌리면
+                        // 노쇼 스위퍼와 이중 기록될 수 있으므로, 캐시(fire)가 아니라 fresh 값으로 확인. [audit]
+                        guard let r = reservation, let freshFire = app.startableWindowFire(for: r) else {
+                            refresh()   // 이미 창이 닫혔으면 카드 상태만 즉시 갱신하고 시작하지 않는다
+                            return
+                        }
+                        app.proceedToMountGuide(reservation: r, fireDate: freshFire, fromAlarm: false)
                     } label: {
                         Label("활동 시작하기", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
                     }

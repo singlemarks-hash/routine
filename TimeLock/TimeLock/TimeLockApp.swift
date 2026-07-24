@@ -78,18 +78,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         let kind = notification.request.content.userInfo["kind"] as? String
         if kind == "alarm" {
-            // 앱이 떠 있으면 배너 대신 알람 화면을 직접 띄운다. 배달된 reservationID로 견고하게
-            // 라우팅(소유자 필터 우회)하고, 그래도 못 띄웠으면 최소한 배너·소리로 폴백한다. [P2-2]
-            let routed = await MainActor.run { () -> Bool in
+            // 유휴(홈) 상태일 때만 알람 화면을 직접 띄우거나 배너로 폴백한다. 세션 촬영·거치·결과
+            // 화면 등 이미 몰입 중이면 방해하지 않고 억제한다(무음). 배달만으로 영구 pending을 남기지
+            // 않도록 라우팅 자체도 유휴일 때만 시도한다. [P2-2 + audit: 세션 중 알람 방해·강제진입 방지]
+            return await MainActor.run { () -> UNNotificationPresentationOptions in
+                let app = AppState.shared
+                guard app.isIdleForAlarm else { return [] }
                 if let idStr = notification.request.content.userInfo["reservationID"] as? String,
                    let id = UUID(uuidString: idStr) {
-                    AppState.shared.presentAlarm(reservationID: id)
+                    app.presentAlarm(reservationID: id)
                 } else {
-                    AppState.shared.checkDueAlarm()
+                    app.checkDueAlarm()
                 }
-                return AppState.shared.isShowingAlarm
+                // 유휴인데도 못 띄운 경우(계정 동기화 지연 등)에만 배너·소리로 폴백
+                return app.isShowingAlarm ? [] : [.banner, .sound]
             }
-            return routed ? [] : [.banner, .sound]
         }
         if kind == "break" {
             // 앱이 화면에 떠 있으면 중단 오버레이가 이미 안내 중 — 배너 생략
@@ -470,6 +473,12 @@ final class AppState: ObservableObject {
     var isShowingAlarm: Bool {
         if case .alarm = route { return true }
         return false
+    }
+
+    /// 알람을 새로 띄워도 되는 유휴 상태인가 (세션·거치·결과·알람 진행 중이 아님).
+    /// 세션 중엔 새 알람 배너·소리로 방해하지 않고, 포그라운드 배달이 영구 pending을 남기지 않게 한다. [audit]
+    var isIdleForAlarm: Bool {
+        route == .none && engine.session == nil
     }
 
     // MARK: 세션 흐름
