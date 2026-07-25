@@ -91,10 +91,20 @@ struct ReservationEditView: View {
     /// 아직 시작 전인 예약은 지울 기록 자체가 없으므로 자유롭게 바꿔도 안전하다.
     private var isStartDateLocked: Bool {
         guard let r = reservation else { return false }   // 신규 생성은 자유
+        return lockedStartDay(of: r) != nil
+    }
+
+    /// 잠긴 예약이 강제로 써야 할 시작일(그 날 자정). 잠기지 않았으면 nil.
+    ///
+    /// 기준은 createdAt이 아니라 '실제 발생이 시작되는 날'이다. 레거시 일회성 예약은
+    /// createdAt이 '만든 시각'이라 실제 날짜(oneOffDate)보다 훨씬 이르고, createdAt으로
+    /// 판정하면 미래 날짜의 일회성 예약도 이미 시작한 것으로 잠겨 버린다. 그 상태로 저장하면
+    /// 시작일이 만든 날로 끌려가 '만든 날부터 그 날까지 매일'로 바뀌는 손상이 난다.
+    private func lockedStartDay(of r: Reservation) -> Date? {
         let cal = Calendar.current
-        let firstFire = cal.date(byAdding: .minute, value: r.startMinute,
-                                 to: cal.startOfDay(for: r.createdAt)) ?? r.createdAt
-        return firstFire <= Date()
+        let startDay = r.activeDayRange(calendar: cal).lo
+        let firstFire = cal.date(byAdding: .minute, value: r.startMinute, to: startDay) ?? startDay
+        return firstFire <= Date() ? startDay : nil
     }
 
     /// 활동 슬롯 현황 (원띵 — 신규 생성 화면에만). 탭하면 정책 표 팝업.
@@ -495,9 +505,7 @@ struct ReservationEditView: View {
         // 잠긴 예약(이미 시작함)은 UI가 시작일을 못 바꾸게 하지만, 저장 경로에서도 한 번 더
         // 기존 createdAt을 강제한다 — 어떤 경로로든 시작 게이트가 움직이면 노쇼 복구 루틴이
         // 과거의 정당한 벌점을 지워버린다.
-        let startDay = isStartDateLocked
-            ? cal.startOfDay(for: reservation?.createdAt ?? oneOffDate)
-            : cal.startOfDay(for: oneOffDate)
+        let startDay = reservation.flatMap { lockedStartDay(of: $0) } ?? cal.startOfDay(for: oneOffDate)
         let resolvedWeekdays: [Int] = (isRepeating && !isSingleDay) ? Array(weekdays) : [1, 2, 3, 4, 5, 6, 7]
         let resolvedOneOff: Date? = (isRepeating && !isSingleDay) ? nil : startDay   // 매일·하루 모드는 시작일 마커
         let resolvedEnd: Date? = (!noEndDate)
@@ -512,29 +520,39 @@ struct ReservationEditView: View {
         }
         let targetWeekdays = Set(resolvedWeekdays)
 
-        // 검증: 이 설정으로 앞으로 울릴 일이 한 번이라도 남아 있는가.
-        // 저장은 되는데 평생 안 울리는 '죽은 예약'을 막는다. 두 가지 경우가 있다.
-        //  - 기간 안에 고른 요일이 아예 없음 (예: 월~수 기간에 금·토 선택)
-        //  - 발생은 있는데 전부 과거 (예: 밤 8시에 '오늘 아침 8시 하루' 생성)
-        // 요일은 7개뿐이라 시작점부터 8일만 훑으면 반드시 판정된다.
-        var anyOccurrence = false      // 기간 안에 발생 자체가 있는가
-        var futureOccurrence = false   // 그중 아직 안 지난 게 있는가
-        let scanStart = max(startDay, cal.startOfDay(for: .now))
+        // 검증 A: 이 설정이 애초에 성립하는가 — 기간 '전체'에 고른 요일이 한 번이라도 오는가.
+        // (예: 7/27 월 ~ 7/29 수 기간에 금·토를 고르면 평생 울리지 않는다)
+        // 기준을 '남은 발생'이 아니라 '기간 전체'로 잡아야, 마지막 날을 앞둔 예약의
+        // 이름만 고치는 정상 편집이 막히지 않는다. 요일은 7개뿐이라 8일이면 판정된다.
+        var anyOccurrence = false
         for offset in 0...8 {
-            guard let day = cal.date(byAdding: .day, value: offset, to: scanStart) else { break }
+            guard let day = cal.date(byAdding: .day, value: offset, to: startDay) else { break }
             if let end = resolvedEnd, day > end { break }
-            guard targetWeekdays.contains(cal.component(.weekday, from: day)),
-                  let fire = cal.date(byAdding: .minute, value: startMinute, to: day) else { continue }
-            anyOccurrence = true
-            if fire > .now { futureOccurrence = true; break }
+            if targetWeekdays.contains(cal.component(.weekday, from: day)) { anyOccurrence = true; break }
         }
         if !anyOccurrence {
             errorMessage = "선택한 기간 안에 고른 요일이 없어요. 요일이나 기간을 조정해주세요."
             return
         }
-        if !futureOccurrence {
-            errorMessage = "이미 지난 시각이에요. 시작 시각이나 날짜를 조정해주세요."
-            return
+
+        // 검증 B: 신규 생성은 앞으로 울릴 발생이 남아 있어야 한다.
+        // (예: 밤 8시에 '오늘 아침 8시 하루'를 만들면 태어날 때부터 죽은 예약)
+        // 기존 예약 편집에는 적용하지 않는다 — 마지막 날을 지나가는 중인 예약도
+        // 이름 수정·조기 종료 같은 정상 편집이 가능해야 한다.
+        if reservation == nil {
+            var futureOccurrence = false
+            let scanStart = max(startDay, cal.startOfDay(for: .now))
+            for offset in 0...8 {
+                guard let day = cal.date(byAdding: .day, value: offset, to: scanStart) else { break }
+                if let end = resolvedEnd, day > end { break }
+                guard targetWeekdays.contains(cal.component(.weekday, from: day)),
+                      let fire = cal.date(byAdding: .minute, value: startMinute, to: day) else { continue }
+                if fire > .now { futureOccurrence = true; break }
+            }
+            if !futureOccurrence {
+                errorMessage = "이미 지난 시각이에요. 시작 시각이나 날짜를 조정해주세요."
+                return
+            }
         }
 
         // 검증: 실제로 부딪히는 예약만 차단 — 기간이 겹치고, 그 안에서 같은 요일·시간대일 때.

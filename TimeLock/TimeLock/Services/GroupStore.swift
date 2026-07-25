@@ -207,9 +207,13 @@ final class GroupStore: ObservableObject {
             }
             next.append(room)
         }
-        // 서버 기준으로 살아있는 방만 남기고, 그 외 그룹 예약은 고아로 보고 정리.
-        // (ids 조회가 성공했을 때만 여기 도달하므로 오삭제 위험 없음)
-        pruneOrphanGroupReservations(liveRoomIDs: Set(next.map(\.id)))
+        // 고아 정리 기준은 '멤버십 목록(ids)'이지 '이번에 성공적으로 읽은 방(next)'이 아니다.
+        // next를 쓰면 방 문서 조회가 한 번 실패(네트워크 등)한 것만으로 진행 중인 그룹의
+        // 예약이 삭제되고, 다음 새로고침에서 새 UUID로 다시 만들어진다. 그러면 지난 기록과
+        // ID가 달라져 이미 완료한 날까지 전부 노쇼로 재집계되는 대형 사고가 난다.
+        // ids에 남아 있으면 아직 내 방이므로 보존하고, 명시적으로 정리된 방은 위 루프에서
+        // 이미 removeLocalReservation으로 지워졌다.
+        pruneOrphanGroupReservations(liveRoomIDs: Set(ids))
         rooms = next.sorted { $0.startDate < $1.startDate }
         AppState.shared.rescheduleAlarmsForCurrentUser()
         #else
@@ -403,9 +407,15 @@ final class GroupStore: ObservableObject {
         }
         if let rejection { throw rejection }
         guard result != nil else { throw GroupError.unknown("참여에 실패했어요 — 잠시 후 다시 시도해주세요.") }
-        // 내 계정 문서의 그룹 목록 — 경합 무관(merge)이라 트랜잭션 밖
-        try? await db.collection("users").document(uid).setData(
-            ["groupIDs": FieldValue.arrayUnion([room.id])], merge: true)
+        // 내 계정 문서의 그룹 목록 — 경합 무관(merge)이라 트랜잭션 밖.
+        // 여기서 실패를 삼키면 안 된다: 서버엔 멤버로 등록됐는데 내 그룹 목록에는 없어서,
+        // 곧바로 도는 고아 정리가 방금 만든 예약을 지워 버린다(알람 없이 노쇼만 쌓임).
+        do {
+            try await db.collection("users").document(uid).setData(
+                ["groupIDs": FieldValue.arrayUnion([room.id])], merge: true)
+        } catch {
+            throw GroupError.unknown("참여는 됐지만 목록 저장에 실패했어요 — 네트워크 확인 후 다시 시도해주세요.")
+        }
         // 예약을 지금 만들어 두어야 시작 시각 정각의 첫 알람이 울린다 (시작일 전엔 발생 없음)
         ensureLocalReservation(for: room)
         AppState.shared.rescheduleAlarmsForCurrentUser()
@@ -479,7 +489,8 @@ final class GroupStore: ObservableObject {
         let memberRef = roomRef.collection("members").document(uid)
         // 내 닉네임을 takenNicknames에서 풀어 재사용 가능하게(#15) — 삭제 전에 읽어 둔다
         let myNick = (try? await memberRef.getDocument())?.data()?["nickname"] as? String
-        try? await memberRef.delete()
+        // 실패를 삼키면 서버엔 멤버로 남은 채 로컬 예약만 사라져, 알람 없이 노쇼만 쌓인다.
+        try await memberRef.delete()
         var updates: [String: Any] = ["memberCount": FieldValue.increment(Int64(-1))]
         if let myNick { updates["takenNicknames"] = FieldValue.arrayRemove([myNick.lowercased()]) }
         try? await roomRef.updateData(updates)
@@ -498,7 +509,8 @@ final class GroupStore: ObservableObject {
         let uid = AccountStore.shared.currentUserID
         let memberRef = db.collection("groups").document(room.id)
             .collection("members").document(uid)
-        try? await memberRef.updateData([
+        // 실패를 삼키면 그룹엔 포기가 반영되지 않은 채 내 벌점만 기록된다.
+        try await memberRef.updateData([
             "quit": true,
             "score": FieldValue.increment(Int64(ScoreRules.groupQuitPenalty)),
         ])
@@ -522,9 +534,14 @@ final class GroupStore: ObservableObject {
     /// 방장 전용, 시작 전 해체 — 참여자들은 다음 새로고침에서 안내를 받는다.
     func disband(room: GroupRoom) async throws {
         #if canImport(FirebaseFirestore)
-        guard backendActive, room.isHostMine else { return }
+        // 조용히 return하면 호출 측이 성공으로 착각해 화면을 닫는다 — 방은 그대로인데
+        // '해체했다'고 오해하게 되므로 반드시 던진다.
+        guard backendActive else { throw GroupError.backendUnavailable }
+        guard room.isHostMine else { throw GroupError.unknown("방장만 해체할 수 있어요.") }
         let db = Firestore.firestore()
-        try? await db.collection("groups").document(room.id).updateData(["status": "disbanded"])
+        // 상태 변경이 실패하면 나머지(로컬 정리)를 진행하면 안 된다 — 서버엔 방이 살아 있는데
+        // 내 예약만 사라져 알람 없이 노쇼만 쌓인다.
+        try await db.collection("groups").document(room.id).updateData(["status": "disbanded"])
         await removeMembershipRef(roomID: room.id)
         // 방장 자신의 멤버 문서 정리 — 혼자였던 방이면 문서까지 즉시 삭제,
         // 참여자가 있으면 status로 해체를 알린 뒤 마지막 참여자가 문서를 지운다

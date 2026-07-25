@@ -117,6 +117,12 @@ final class AlarmScheduler: NSObject, ObservableObject {
             scheduleMainAlarm(for: reservation, at: fire)
             scheduled += 1
         }
+        // 첫 발생이 창(14일) 밖이면 위 반복에서 한 건도 안 잡힌다. 그대로 두면 그때까지
+        // 앱을 한 번도 안 열었을 때 알람이 통째로 유실되므로, 멀더라도 첫 건은 걸어 둔다.
+        // (1건뿐이라 대기 알림 상한에도 부담이 없다)
+        if scheduled == 0, let first = reservation.nextOccurrence(after: now, calendar: calendar) {
+            scheduleMainAlarm(for: reservation, at: first)
+        }
     }
 
     /// 일회성 메인 알람 1건 (구체 시각, 반복 없음)

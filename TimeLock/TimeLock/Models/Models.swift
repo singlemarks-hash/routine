@@ -248,36 +248,66 @@ final class Reservation {
 ///  - 자정을 넘기는 활동(23시 시작 8시간)이 다음날 새벽 활동과 안 겹친다고 판정됐다
 enum ScheduleConflict {
 
-    /// 하루 경계로 자른 점유 구간 — (요일, 시작분, 끝분).
-    /// 자정을 넘기면 다음 요일 구간으로 이어 붙인다. 예) 월 23:00 + 8시간
-    /// → (월, 1380~1440) + (화, 0~360). 활동 길이 상한이 하루보다 짧아 넘침은 최대 하루다.
-    static func segments(weekdays: Set<Int>, startMinute: Int,
-                         durationMinutes: Int) -> [(day: Int, from: Int, to: Int)] {
-        var result: [(day: Int, from: Int, to: Int)] = []
+    /// 특정 날짜에 이 일정이 점유하는 분 구간들.
+    /// 그날 시작하는 구간과, 전날 시작해 자정을 넘어 이어진 구간을 함께 본다.
+    /// (활동 길이 상한이 하루보다 짧아 넘침은 최대 하루다)
+    private static func intervals(
+        on day: Date, range: (lo: Date, hi: Date?), weekdays: Set<Int>,
+        startMinute: Int, durationMinutes: Int, calendar: Calendar
+    ) -> [(from: Int, to: Int)] {
+        func occurs(_ d: Date) -> Bool {
+            guard d >= range.lo else { return false }
+            if let hi = range.hi, d > hi { return false }
+            return weekdays.contains(calendar.component(.weekday, from: d))
+        }
+        var result: [(from: Int, to: Int)] = []
         let end = startMinute + durationMinutes
-        for w in weekdays {
-            result.append((w, startMinute, min(end, 1440)))
-            if end > 1440 {
-                result.append((w % 7 + 1, 0, min(end - 1440, 1440)))   // 1=일…7=토 순환
-            }
+        if occurs(day) { result.append((startMinute, min(end, 1440))) }
+        if end > 1440, let prev = calendar.date(byAdding: .day, value: -1, to: day), occurs(prev) {
+            result.append((0, end - 1440))     // 전날에서 넘어온 꼬리
         }
         return result
     }
 
-    /// 두 일정이 실제로 부딪히는가 — 기간이 겹치고, 그 안에서 같은 요일·시간대를 점유할 때만.
+    /// 두 일정이 실제로 부딪히는가.
+    ///
+    /// 요일·시각만 비교하면 두 종류의 오답이 난다.
+    ///  - 오탐: 기간이 딱 하루만 겹치는데 그 하루가 둘 다 발생하지 않는 요일인 경우
+    ///          (예: 매주 월 6/1~6/30 vs 매주 월 6/30~7/31 — 겹치는 6/30은 화요일)
+    ///  - 미탐: 자정을 넘긴 꼬리가 상대의 기간 안에 들어가는 경우
+    ///          (예: 토 하루 23:00+8시간 vs 일 하루 02:00+2시간)
+    /// 그래서 겹치는 기간의 '실제 날짜'를 훑어 그날의 점유 구간을 직접 비교한다.
+    /// 주간 패턴은 7일이면 한 바퀴 돌고 넘침은 하루뿐이라 8일만 보면 충분하다.
     static func conflicts(
         aRange: (lo: Date, hi: Date?), aWeekdays: Set<Int>, aStart: Int, aDuration: Int,
-        bRange: (lo: Date, hi: Date?), bWeekdays: Set<Int>, bStart: Int, bDuration: Int
+        bRange: (lo: Date, hi: Date?), bWeekdays: Set<Int>, bStart: Int, bDuration: Int,
+        calendar: Calendar = .current
     ) -> Bool {
-        // 기간이 안 겹치면 요일·시각이 같아도 절대 부딪히지 않는다 (hi = nil은 무기한)
-        if let aHi = aRange.hi, bRange.lo > aHi { return false }
-        if let bHi = bRange.hi, aRange.lo > bHi { return false }
+        let lo = max(aRange.lo, bRange.lo)
+        let hi: Date? = {
+            switch (aRange.hi, bRange.hi) {
+            case let (a?, b?): return min(a, b)
+            case let (a?, nil): return a
+            case let (nil, b?): return b
+            case (nil, nil):   return nil
+            }
+        }()
+        // 넘침 꼬리가 하루 뒤까지 갈 수 있으므로 마지막 날 다음날까지 본다.
+        let limit = hi.flatMap { calendar.date(byAdding: .day, value: 1, to: $0) }
+        if let limit, limit < lo { return false }   // 하루 여유를 줘도 안 겹침
 
-        let aSegs = segments(weekdays: aWeekdays, startMinute: aStart, durationMinutes: aDuration)
-        let bSegs = segments(weekdays: bWeekdays, startMinute: bStart, durationMinutes: bDuration)
-        for a in aSegs {
-            for b in bSegs where a.day == b.day {
-                if a.from < b.to && b.from < a.to { return true }
+        for offset in 0..<8 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: lo) else { break }
+            if let limit, day > limit { break }
+            let aIntervals = intervals(on: day, range: aRange, weekdays: aWeekdays,
+                                       startMinute: aStart, durationMinutes: aDuration,
+                                       calendar: calendar)
+            guard !aIntervals.isEmpty else { continue }
+            let bIntervals = intervals(on: day, range: bRange, weekdays: bWeekdays,
+                                       startMinute: bStart, durationMinutes: bDuration,
+                                       calendar: calendar)
+            for x in aIntervals {
+                for y in bIntervals where x.from < y.to && y.from < x.to { return true }
             }
         }
         return false
