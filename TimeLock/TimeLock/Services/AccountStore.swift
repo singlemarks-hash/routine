@@ -699,6 +699,9 @@ final class AccountStore: ObservableObject {
                 "oneOffDate": ms(r.oneOffDate),
                 "intensityOverride": r.intensityOverrideRaw ?? "",
                 "createdAt": ms(r.createdAt),
+                // 종료 게이트. nil(무기한)도 NSNull로 '키는 존재'하게 써야, 읽는 쪽에서
+                // '무기한'과 '이 필드를 모르는 옛 클라이언트가 쓴 문서'를 구분할 수 있다.
+                "endDate": ms(r.endDate),
                 "accountableFrom": ms(r.accountableFrom),
                 "isActive": r.isActive,
                 "updatedAt": ms(r.updatedAt ?? r.createdAt),
@@ -720,6 +723,13 @@ final class AccountStore: ObservableObject {
         func ms(_ any: Any?) -> Date? {
             (any as? Int64).map { Date(timeIntervalSince1970: Double($0) / 1000) }
         }
+        /// 요일 배열은 숫자 타입이 Int/Int64/Double 어느 쪽으로도 올 수 있다.
+        /// `as? [Int]` 직접 캐스팅이 실패하면 빈 배열이 되는데, 빈 배열은 이제
+        /// '하루짜리(일회성)'를 뜻하므로 매일 반복 예약이 하루로 붕괴한다. 관대하게 파싱한다.
+        func weekdays(from any: Any?) -> [Int] {
+            if let v = any as? [Int] { return v }
+            return (any as? [Any])?.compactMap { ($0 as? NSNumber)?.intValue } ?? []
+        }
 
         let locals = (try? context.fetch(FetchDescriptor<Reservation>(
             predicate: #Predicate { $0.ownerUserID == uid }))) ?? []
@@ -735,15 +745,41 @@ final class AccountStore: ObservableObject {
             let cloudUpdated = ms(data["updatedAt"]) ?? .distantPast
             if let local = localByID[key] {
                 let localUpdated = local.updatedAt ?? local.createdAt
+                // '이미 시작했나' 판정은 반드시 병합 전 값으로 한다 —
+                // startMinute을 먼저 덮어쓴 뒤 계산하면 판정 기준이 흔들린다.
+                let alreadyStarted: Bool = {
+                    let cal = Calendar.current
+                    let firstFire = cal.date(byAdding: .minute, value: local.startMinute,
+                                             to: cal.startOfDay(for: local.createdAt)) ?? local.createdAt
+                    return firstFire <= .now
+                }()
                 if cloudUpdated > localUpdated {
                     local.name = data["name"] as? String ?? local.name
                     local.tag = data["tag"] as? String ?? local.tag
                     local.startMinute = data["startMinute"] as? Int ?? local.startMinute
                     local.durationMinutes = data["durationMinutes"] as? Int ?? local.durationMinutes
-                    local.repeatWeekdays = data["repeatWeekdays"] as? [Int] ?? local.repeatWeekdays
+                    // 파싱 실패로 빈 배열이 되면 매일 반복이 하루짜리로 붕괴하므로, 빈 결과는 무시
+                    let remoteWeekdays = weekdays(from: data["repeatWeekdays"])
+                    if !remoteWeekdays.isEmpty { local.repeatWeekdays = remoteWeekdays }
                     local.oneOffDate = ms(data["oneOffDate"])
                     local.intensityOverrideRaw = (data["intensityOverride"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-                    local.accountableFrom = ms(data["accountableFrom"]) ?? local.accountableFrom
+                    // 종료 게이트 — 키가 없으면 '이 필드를 모르는 클라이언트가 쓴 문서'이므로
+                    // 로컬 값을 지키고, 키가 있으면(NSNull 포함) 그대로 받는다.
+                    // 키 유무를 안 보면 옛 클라이언트가 한 번 저장할 때마다 종료일이 날아간다.
+                    if data.keys.contains("endDate") { local.endDate = ms(data["endDate"]) }
+                    // 발생 시작 게이트 — 노쇼 복구 루틴이 'scheduledAt < createdAt'인 기록을
+                    // 지우므로, 게이트가 미래로 밀리면 과거의 정당한 벌점이 삭제된다.
+                    // UI의 시작일 잠금과 같은 기준: 아직 시작 전이면 원격 값을 그대로 받고,
+                    // 이미 시작했으면 더 이른 쪽을 유지해 앞으로 밀리지 않게 한다.
+                    if let remoteCreated = ms(data["createdAt"]) {
+                        local.createdAt = alreadyStarted ? min(local.createdAt, remoteCreated)
+                                                         : remoteCreated
+                    }
+                    // 책임 기준은 뒤로 밀지 않는다 — 이르게 되돌리면 이미 면책된 과거
+                    // 발생분이 다시 노쇼 대상이 된다.
+                    if let remoteAcc = ms(data["accountableFrom"]) {
+                        local.accountableFrom = max(remoteAcc, local.accountableFrom ?? .distantPast)
+                    }
                     local.isActive = data["isActive"] as? Bool ?? local.isActive
                     local.updatedAt = cloudUpdated
                     touched = true
@@ -756,11 +792,12 @@ final class AccountStore: ObservableObject {
                     name: name, tag: data["tag"] as? String ?? "",
                     startMinute: data["startMinute"] as? Int ?? 0,
                     durationMinutes: data["durationMinutes"] as? Int ?? 60,
-                    repeatWeekdays: data["repeatWeekdays"] as? [Int] ?? [],
+                    repeatWeekdays: weekdays(from: data["repeatWeekdays"]),
                     oneOffDate: ms(data["oneOffDate"]),
                     ownerUserID: uid)
                 r.id = id
                 r.createdAt = ms(data["createdAt"]) ?? r.createdAt
+                r.endDate = ms(data["endDate"])
                 r.accountableFrom = ms(data["accountableFrom"])
                 r.intensityOverrideRaw = (data["intensityOverride"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 r.isActive = data["isActive"] as? Bool ?? true
