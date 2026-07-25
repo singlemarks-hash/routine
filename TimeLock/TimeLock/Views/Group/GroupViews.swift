@@ -24,6 +24,21 @@ struct GroupTabView: View {
     /// (구독이 끝나도 노쇼 벌점은 계속 쌓이므로) 기존 방 열람·관리는 막지 않는다.
     private var locked: Bool { !subscription.isPro }
 
+    @Query private var everyReservation: [Reservation]
+
+    /// 내 그룹 활동 — 방 목록이 비어 있어도 이게 남아 있으면 정리할 게 있다는 뜻이다.
+    private var myGroupReservations: [Reservation] {
+        everyReservation.filter {
+            $0.isActive && $0.isGroupReservation && $0.ownerUserID == account.currentUserID
+        }
+    }
+
+    /// 잠금 화면은 '정리할 것이 아무것도 없을 때'만 띄운다. 남은 방이나 활동이 있는데
+    /// 결제 화면으로 막아버리면, 슬롯을 차지한 활동을 지울 방법이 사라져 앱이 통째로 막힌다.
+    private var hasNothingToManage: Bool {
+        store.rooms.isEmpty && myGroupReservations.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -31,10 +46,12 @@ struct GroupTabView: View {
                     header
                         .padding(.top, 6)
 
-                    if locked && store.rooms.isEmpty {
+                    if locked && hasNothingToManage {
                         lockedPanel
                     } else {
                         notices
+
+                        loadFailureNotice
 
                         Button("그룹방 만들기") {
                             if locked { showPaywall = true } else { showCreate = true }
@@ -60,6 +77,28 @@ struct GroupTabView: View {
             .sheet(isPresented: $showCreate) { GroupCreateView() }
             .sheet(isPresented: $showJoin) { GroupJoinView() }
             .sheet(isPresented: $showPaywall) { PaywallView() }
+        }
+    }
+
+    // MARK: 방 목록을 못 불러왔을 때
+
+    /// 참여 중인 활동은 있는데 방 목록이 비어 있다 = 조회가 실패한 것이다.
+    /// (성공했다면 pruneOrphanGroupReservations가 사라진 방의 활동까지 정리해 둔다)
+    /// 이때 빈 화면만 보여주면 탈퇴할 방을 찾지 못해 슬롯을 비울 방법이 없어진다.
+    @ViewBuilder
+    private var loadFailureNotice: some View {
+        if store.rooms.isEmpty && !myGroupReservations.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("방 정보를 불러오지 못했습니다")
+                    .font(.tlTitle(15)).foregroundStyle(TL.paper)
+                Text("참여 중인 그룹 활동이 있는데 방 목록을 읽지 못했어요. 네트워크를 확인하고 다시 시도해 주세요.")
+                    .font(.system(size: 13)).foregroundStyle(TL.muted)
+                Button("다시 시도") { Task { await store.refresh() } }
+                    .buttonStyle(TLGhostButtonStyle())
+            }
+            .padding(14)
+            .background(TL.raised, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(TL.hairline, lineWidth: 1))
         }
     }
 
