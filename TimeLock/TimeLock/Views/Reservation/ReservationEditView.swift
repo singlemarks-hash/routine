@@ -249,9 +249,14 @@ struct ReservationEditView: View {
         TLCard {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "lock.slash.fill").foregroundStyle(TL.amber)
-                Text(isLockedInsane
-                     ? "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다 — 멤버십을 복구하면 다시 편집할 수 있어요."
-                     : "활동 슬롯이 \(allowedSlots.map { "\($0)개" } ?? "무제한")로 줄어 현재 보유한 예약이 한도를 넘었습니다. 초과한 동안에는 편집이 잠기고 삭제만 할 수 있어요. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있습니다.")
+                // 두 사유가 겹칠 수 있다. 하나만 보여주면 "멤버십을 복구하면 편집된다"고 안내해놓고
+                // 복구해도 슬롯 초과로 여전히 잠기는 상황이 된다 — 걸린 사유를 모두 적는다.
+                Text([isLockedInsane
+                      ? "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다."
+                      : nil,
+                      isOverSlotLimit
+                      ? "활동 슬롯이 \(allowedSlots.map { "\($0)개" } ?? "무제한")로 줄어 보유한 예약이 한도를 넘었습니다. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요."
+                      : nil].compactMap { $0 }.joined(separator: "\n\n"))
                     .font(.system(size: 13))
                     .foregroundStyle(TL.paper)
             }

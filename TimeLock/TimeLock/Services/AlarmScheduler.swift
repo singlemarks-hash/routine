@@ -250,15 +250,16 @@ final class AlarmScheduler: NSObject, ObservableObject {
         center.add(request)
     }
 
-    /// 이 예약과 얽힌 대기·배달 알림을 전부 제거한다 (유령 알람 정리용).
-    /// 식별자는 모두 예약 UUID를 품고 있으므로 문자열 포함 여부로 한 번에 걷어낼 수 있다.
-    nonisolated func purgeNotifications(reservationID: UUID) {
+    /// 이 예약의 '이미 배달된' 알림만 걷어낸다 (유령 알람 정리용).
+    ///
+    /// 대기 알림은 건드리지 않는다. 조회가 완료 핸들러라 즉시 끝나지 않는데, 호출부는
+    /// 바로 뒤에서 rescheduleAll을 돌린다. 그러면 뒤늦게 도착한 콜백이 방금 새로 건
+    /// 알람을 같은 식별자로 지워버려, 그 예약의 알람이 통째로 사라진다.
+    /// 어차피 rescheduleAll이 첫 줄에서 대기 알림을 전부 지우고 유효한 것만 다시 걸므로,
+    /// 유령의 대기분은 그 과정에서 자연히 사라진다.
+    nonisolated func purgeDeliveredNotifications(reservationID: UUID) {
         let key = reservationID.uuidString
         let center = UNUserNotificationCenter.current()
-        center.getPendingNotificationRequests { requests in
-            let ids = requests.map(\.identifier).filter { $0.contains(key) }
-            if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
-        }
         center.getDeliveredNotifications { delivered in
             let ids = delivered.map { $0.request.identifier }.filter { $0.contains(key) }
             if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }

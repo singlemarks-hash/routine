@@ -248,6 +248,7 @@ final class AppState: ObservableObject {
             // 순서 고정: 노쇼 집계 → 방 정리 → 만료 예약 정리.
             // refresh()가 끝난 방의 그룹 예약을 지우므로 스윕이 먼저 돌아야 마지막 날
             // 노쇼가 유실되지 않는다. 만료 정리도 같은 이유로 스윕 뒤에 온다.
+            didCompleteInitialSync = true
             engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
             sweepNoShows()
             await GroupStore.shared.refresh()
@@ -284,7 +285,8 @@ final class AppState: ObservableObject {
             Task {
                 await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
                 // 순서 고정 — 스윕 → 방 정리 → 만료 정리 (위 didLaunch와 동일한 이유)
-                engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
+                didCompleteInitialSync = true
+            engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
                 sweepNoShows()
                 await GroupStore.shared.refresh()
                 cleanupExpiredReservations()
@@ -342,6 +344,7 @@ final class AppState: ObservableObject {
         Task {
             await AccountStore.shared.syncFromCloud()   // 로그인 직후 다른 기기 예약·점수·멤버십 병합
             // 순서 고정 — 스윕 → 방 정리 → 만료 정리 (didLaunch와 동일한 이유)
+            didCompleteInitialSync = true
             engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
             sweepNoShows()
             await GroupStore.shared.refresh()
@@ -351,6 +354,10 @@ final class AppState: ObservableObject {
         }
         checkDueAlarm()
     }
+
+    /// 최초 클라우드 동기화가 한 번이라도 끝났는가 — 유령 알람 판정의 전제.
+    /// 이 전에는 '예약이 없다'가 '삭제됐다'를 뜻하지 않는다(아직 안 내려온 것뿐).
+    private(set) var didCompleteInitialSync = false
 
     func rescheduleAlarmsForCurrentUser() {
         AlarmScheduler.shared.rescheduleAll(reservations: activeReservations(),
@@ -421,14 +428,19 @@ final class AppState: ObservableObject {
     /// 알림(배너)을 탭해 진입 — 그 예약을 보류로 걸고 즉시 라우팅을 시도한다.
     /// 콜드 스타트로 준비가 안 됐으면 이후 bind·활성화·타이머·계정변경 때 재시도된다.
     func presentAlarm(reservationID: UUID) {
-        // 유령 알람 방어 — 대응하는 발생이 없으면 소리를 끄고 그 예약의 알림을 걷어낸 뒤
-        // 전체 일정을 다시 짠다. 그러지 않으면 지워진 활동의 알람이 계속 울리는데
-        // 앱은 들어갈 화면이 없어 끌 방법도 없다.
+        // 유령 알람 방어 — 대응하는 활동이 아예 없는 알림이면 배너를 걷어내고 일정을 다시 짠다.
+        // 그러지 않으면 지워진 활동의 알람이 계속 울리는데 앱은 들어갈 화면이 없어 끌 수도 없다.
         if isGhostAlarm(reservationID: reservationID) {
-            AlarmScheduler.shared.stopAlarmSound()
-            AlarmScheduler.shared.purgeNotifications(reservationID: reservationID)
-            pendingAlarmTapID = nil
-            pendingAlarmTapAt = nil
+            // 소리는 '지금 알람 화면이 떠 있지 않을 때'만 끈다. stopAlarmSound는 전역이라,
+            // 다른 예약의 진짜 알람이 울리는 중에 끄면 강제성이 무력화된다.
+            if !isShowingAlarm { AlarmScheduler.shared.stopAlarmSound() }
+            AlarmScheduler.shared.purgeDeliveredNotifications(reservationID: reservationID)
+            // 보류 슬롯은 하나뿐이다 — 다른 예약의 보류를 여기서 지우면 사용자가 실제로 누른
+            // 알람 화면에 영영 못 들어간다. 같은 예약일 때만 비운다.
+            if pendingAlarmTapID == reservationID {
+                pendingAlarmTapID = nil
+                pendingAlarmTapAt = nil
+            }
             rescheduleAlarmsForCurrentUser()
             return
         }
@@ -437,18 +449,22 @@ final class AppState: ObservableObject {
         routePendingAlarmTapIfPossible()
     }
 
-    /// 이 알람에 대응하는 '지금 시작 창 안의 발생'이 없는가.
-    /// 준비가 덜 됐으면(컨텍스트 미바인딩) 판단을 미룬다 — 콜드 스타트에서 정상 알람을
-    /// 유령으로 오인해 지워버리면 안 된다.
+    /// 이 알림에 대응하는 활동이 아예 없는가.
+    ///
+    /// '지금 시작 창 안인가'로 판정하면 안 된다 — 늦잠 자고 10분 뒤에 배너를 누르는 것은
+    /// 이 앱에서 가장 흔한 행동인데, 그걸 유령으로 보고 알림을 지워버리게 된다.
+    /// 유령의 정의는 '활동이 없거나 삭제됐다'이고, 창을 지난 정상 알람은 기존 경로가
+    /// 조용히 폐기한다. 또 최초 동기화 전에는 판단을 미룬다 — 클라우드에서 예약이
+    /// 아직 안 내려왔을 뿐인데 유령으로 오인하면 멀쩡한 알람을 파괴한다.
     private func isGhostAlarm(reservationID: UUID) -> Bool {
-        guard modelContext != nil else { return false }
+        guard modelContext != nil, didCompleteInitialSync else { return false }
         guard let reservation = reservationByID(reservationID), reservation.isActive else { return true }
-        let now = Date()
+        // 예약은 살아 있는데 어제·오늘 발생이 하나도 없으면 이 알림은 근거가 없다.
         let calendar = Calendar.current
         for offset in [-1, 0] {
-            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
-                  let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
-            if (fire...fire.addingTimeInterval(TimePolicy.startWindowSeconds)).contains(now) { return false }
+            guard let day = calendar.date(byAdding: .day, value: offset,
+                                          to: calendar.startOfDay(for: Date())) else { continue }
+            if reservation.occurrence(on: day, calendar: calendar) != nil { return false }
         }
         return true
     }
