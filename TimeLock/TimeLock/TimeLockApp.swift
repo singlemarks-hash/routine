@@ -720,7 +720,9 @@ final class AppState: ObservableObject {
     ///   다음 동기화에서 그대로 되살리기 때문이다. 소프트 삭제는 미러링되어 다른 기기에도
     ///   전파되고, 슬롯 계산·알람 스케줄에서 함께 제외된다.
     /// - 그룹 예약도 대상이다. 방 새로고침은 '삭제 예정·취소·해체'만 즉시 정리하고,
-    ///   정상 종료된 방의 예약은 여기서 마지막 활동이 끝난 뒤에 꺼진다.
+    ///   정상 종료된 방의 예약은 여기서 꺼진다.
+    /// - 끄는 시점은 '마지막 활동이 끝난 순간'이 아니라 '그 다음 날 0시'다.
+    ///   오늘 한 활동은 오늘 일정 칸에 결과와 함께 남아 있어야 한다.
     func cleanupExpiredReservations() {
         guard let context = modelContext else { return }
         let calendar = Calendar.current
@@ -730,7 +732,13 @@ final class AppState: ObservableObject {
         // (지우면 마지막 날 노쇼가 집계 전에 근거를 잃는다) 여기서 마지막 활동이 실제로
         // 끝난 뒤에 비활성화해야 한다. 안 그러면 끝난 챌린지가 30일간 슬롯을 물고 있는다.
         for r in activeReservations() {
-            guard let finalEnd = finalActivityEnd(of: r, calendar: calendar), now > finalEnd else { continue }
+            guard let finalEnd = finalActivityEnd(of: r, calendar: calendar) else { continue }
+            // 마지막 활동이 끝나도 '그날 하루'는 남긴다. 오늘 오전에 끝낸 활동은 오늘 일정에
+            // 결과 표시등과 함께 보여야 한다 — 끝나자마자 끄면 그 자리가 '일정 없음'이 된다.
+            // 다음 날 0시부터 정리한다.
+            guard let retireAt = calendar.date(byAdding: .day, value: 1,
+                                               to: calendar.startOfDay(for: finalEnd)),
+                  now >= retireAt else { continue }
             r.isActive = false
             r.updatedAt = now
             AccountStore.shared.mirrorReservation(r)   // 다른 기기에도 전파
