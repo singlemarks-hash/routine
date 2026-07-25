@@ -127,10 +127,6 @@ struct ProfileEditView: View {
     @State private var showPaywall = false
     @State private var showSignOutConfirm = false
     @State private var showDeleteAccountConfirm = false
-    #if DEBUG
-    /// 개발용 자가진단 시트 — 릴리즈 빌드에는 이 변수 자체가 존재하지 않는다.
-    @State private var showSelfCheck = false
-    #endif
     @State private var deletingAccount = false
     @State private var deleteAccountError: String?
 
@@ -260,15 +256,6 @@ struct ProfileEditView: View {
                 } else {
                     guestCard { showAuth = true }
                 }
-
-                #if DEBUG
-                // 개발 빌드 전용 — 버튼·시트·상태가 모두 이 블록 안에 있어
-                // 릴리즈 빌드에는 어떤 흔적도 남지 않는다.
-                Button("🧪 자가진단 (DEBUG)") { showSelfCheck = true }
-                    .buttonStyle(TLGhostButtonStyle())
-                    .padding(.top, 12)
-                    .sheet(isPresented: $showSelfCheck) { SelfCheckView() }
-                #endif
             }
             .padding(20)
         }
