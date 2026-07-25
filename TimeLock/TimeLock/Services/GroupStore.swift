@@ -160,17 +160,36 @@ final class GroupStore: ObservableObject {
         guard let ids = await myRoomIDs() else { return }
         var next: [GroupRoom] = []
         for id in ids {
-            guard let snapshot = try? await db.collection("groups").document(id).getDocument() else { continue }
-            guard snapshot.exists, var room = Self.room(from: snapshot) else {
-                // 방 문서가 사라짐 = 해체·취소된 방을 다른 기기가 이미 지운 경우 (이름은 알 수 없어 일반 문구)
-                disbandedNotices.append("참여했던 그룹방이 해체되었어요.")
-                await removeMembershipRef(roomID: id)
-                removeLocalReservation(roomID: id, purgeNoShows: true)
+            guard let snapshot = try? await db.collection("groups").document(id).getDocument() else {
+                // 조회 실패는 '방이 없다'가 아니다 — 아무것도 지우지 않고 이전 상태를 유지한다.
+                // (여기서 next에 안 넣으면 진행 중인 방이 목록에서 통째로 사라져 보인다)
+                if let previous = rooms.first(where: { $0.id == id }) { next.append(previous) }
+                continue
+            }
+            guard snapshot.exists else {
+                // 방 문서가 사라짐 — 이유는 알 수 없다. 시작 전이었다면 해체·취소된 방을
+                // 다른 기기가 정리한 것이므로 미리 찍힌 기록까지 되돌린다. 반대로 이미 시작한
+                // 방이면 보존 기간이 끝나 정리된 것이라, 그동안 정당하게 받은 벌점을 지우면
+                // '한 달 잠수 후 앱을 열면 벌점이 사라지는' 회피 경로가 된다.
+                let started = groupAlreadyStartedLocally(roomID: id)
+                // 멤버십 참조를 못 지우면 로컬도 건드리지 않는다 — 다음 새로고침에서 이 방이
+                // 다시 '내 방'으로 잡혀 예약이 되살아나기 때문이다. 안내도 그때 한 번만 띄운다.
+                guard await detachMembership(roomID: id) else { continue }
+                disbandedNotices.append(started
+                    ? "참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요."
+                    : "참여했던 그룹방이 해체되었어요.")
+                removeLocalReservation(roomID: id, purgeNoShows: !started)
+                continue
+            }
+            guard var room = Self.room(from: snapshot) else {
+                // 문서는 있는데 우리가 못 읽었다 — 다른 플랫폼·버전이 쓴 형식 차이이거나
+                // 부분 쓰기일 수 있다. 살아 있는 방이므로 절대 지우지 않고 이번만 건너뛴다.
+                if let previous = rooms.first(where: { $0.id == id }) { next.append(previous) }
                 continue
             }
             if room.status == "disbanded" {
+                guard await detachMembership(roomID: id) else { next.append(room); continue }
                 if !room.isHostMine { disbandedNotices.append("'\(room.name)' 방을 방장이 해체했어요.") }
-                await removeMembershipRef(roomID: id)
                 // 해체는 시작 전에만 가능 — 미리 만들어 둔 예약과 혹시 찍힌 노쇼까지 정리
                 removeLocalReservation(roomID: id, purgeNoShows: true)
                 // 서버 정리: 내 멤버 문서를 지우고, 마지막 참여자였다면 방 문서까지 삭제
@@ -212,10 +231,10 @@ final class GroupStore: ObservableObject {
                 room.memberCount = actualCount
             }
             if room.status == "cancelled" {
+                guard await detachMembership(roomID: id) else { next.append(room); continue }
                 if room.isHostMine {
                     cancelledNotices.append("'\(room.name)' — 참여자가 부족해 그룹방이 취소되었습니다.")
                 }
-                await removeMembershipRef(roomID: id)
                 // mass-delete 금지 — 각자 자기 멤버 문서만 지우고, 마지막 참여자면 방 문서 삭제.
                 // (한 기기가 전원 문서를 통째로 지우던 파괴적 경로 제거 — 오판이어도 폭파 안 됨)
                 await cleanupDisbandedRoom(roomID: id, uid: uid)
@@ -225,7 +244,7 @@ final class GroupStore: ObservableObject {
             }
             // 30일 보존 기간 만료 → 서버에서 삭제
             if room.isExpired {
-                await removeMembershipRef(roomID: id)
+                guard await detachMembership(roomID: id) else { next.append(room); continue }
                 try? await deleteRoomDocuments(roomID: id)
                 removeLocalReservation(roomID: id)
                 continue
@@ -530,7 +549,7 @@ final class GroupStore: ObservableObject {
         var updates: [String: Any] = ["memberCount": FieldValue.increment(Int64(-1))]
         if let myNick { updates["takenNicknames"] = FieldValue.arrayRemove([myNick.lowercased()]) }
         try? await roomRef.updateData(updates)
-        await removeMembershipRef(roomID: room.id)
+        try await removeMembershipRef(roomID: room.id)
         removeLocalReservation(roomID: room.id)   // 미리 만들어 둔 예약 정리
         rooms.removeAll { $0.id == room.id }
         AppState.shared.rescheduleAlarmsForCurrentUser()
@@ -561,7 +580,7 @@ final class GroupStore: ObservableObject {
             AccountStore.shared.mirror(event: event)
         }
         removeLocalReservation(roomID: room.id)
-        await removeMembershipRef(roomID: room.id)
+        try await removeMembershipRef(roomID: room.id)
         rooms.removeAll { $0.id == room.id }
         AppState.shared.rescheduleAlarmsForCurrentUser()
         #endif
@@ -578,7 +597,7 @@ final class GroupStore: ObservableObject {
         // 상태 변경이 실패하면 나머지(로컬 정리)를 진행하면 안 된다 — 서버엔 방이 살아 있는데
         // 내 예약만 사라져 알람 없이 노쇼만 쌓인다.
         try await db.collection("groups").document(room.id).updateData(["status": "disbanded"])
-        await removeMembershipRef(roomID: room.id)
+        try await removeMembershipRef(roomID: room.id)
         // 방장 자신의 멤버 문서 정리 — 혼자였던 방이면 문서까지 즉시 삭제,
         // 참여자가 있으면 status로 해체를 알린 뒤 마지막 참여자가 문서를 지운다
         await cleanupDisbandedRoom(roomID: room.id, uid: AccountStore.shared.currentUserID)
@@ -589,8 +608,9 @@ final class GroupStore: ObservableObject {
     }
 
     /// 종료된 방 '나가기' — 내 목록에서만 사라진다(다른 참여자의 결과는 유지).
-    func hideFinishedRoom(room: GroupRoom) async {
-        await removeMembershipRef(roomID: room.id)
+    /// 실패를 삼키면 로컬 예약만 지워진 채 방이 다음 새로고침에서 되살아난다 — 반드시 던진다.
+    func hideFinishedRoom(room: GroupRoom) async throws {
+        try await removeMembershipRef(roomID: room.id)
         // 끝난 방이라도 로컬 예약은 남아 일정·홈에 계속 뜬다 — 반드시 함께 정리한다.
         removeLocalReservation(roomID: room.id)
         rooms.removeAll { $0.id == room.id }
@@ -629,6 +649,18 @@ final class GroupStore: ObservableObject {
         reservation.createdAt = room.startDate
         context.insert(reservation)
         try? context.save()
+    }
+
+    /// 이 방이 이미 시작했는가를 '로컬 예약'만으로 판정한다 (방 문서가 사라진 뒤에 쓴다).
+    /// 그룹 예약의 createdAt은 방의 실제 시작 시각이다.
+    /// 알 수 없으면 '시작했다'로 본다 — 정당한 기록을 지우는 쪽보다 남기는 쪽이 안전하다.
+    private func groupAlreadyStartedLocally(roomID: String) -> Bool {
+        guard let context = modelContext else { return true }
+        let owner = AccountStore.shared.currentUserID
+        let list = (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.groupID == roomID && $0.ownerUserID == owner }))) ?? []
+        guard let reservation = list.first else { return true }
+        return reservation.createdAt <= Date()
     }
 
     /// 그룹 예약의 신분증 — 무작위가 아니라 방 ID + 계정에서 계산한다.
@@ -724,11 +756,21 @@ final class GroupStore: ObservableObject {
         if removed { try? context.save() }
     }
 
-    private func removeMembershipRef(roomID: String) async {
+    /// 실패를 삼키면 안 된다. 내 멤버 문서는 지워졌는데 groupIDs에 방이 남으면,
+    /// 다음 새로고침이 그 방을 여전히 '내 방'으로 보고 예약을 다시 만들어 알람이 되살아난다.
+    /// (나간 방에서 알람만 울리고, 멤버가 아니라 점수는 보고되지 않는 상태가 된다)
+    /// 새로고침 루프용 — 사용자에게 던질 곳이 없으므로 성공 여부를 Bool로 돌려준다.
+    /// false면 호출 측은 그 방의 로컬 정리를 건너뛰고 다음 새로고침에서 다시 시도해야 한다.
+    private func detachMembership(roomID: String) async -> Bool {
+        do { try await removeMembershipRef(roomID: roomID); return true }
+        catch { return false }
+    }
+
+    private func removeMembershipRef(roomID: String) async throws {
         #if canImport(FirebaseFirestore)
         let uid = AccountStore.shared.currentUserID
         guard !uid.isEmpty else { return }
-        try? await Firestore.firestore().collection("users").document(uid)
+        try await Firestore.firestore().collection("users").document(uid)
             .setData(["groupIDs": FieldValue.arrayRemove([roomID])], merge: true)
         #endif
     }

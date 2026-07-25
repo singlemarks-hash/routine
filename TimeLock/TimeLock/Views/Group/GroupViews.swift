@@ -1180,7 +1180,8 @@ struct GroupRoomDetailView: View {
     private var actionSection: some View {
         if room.isFinished {
             Button("방 나가기 (결과가 내 목록에서 사라져요)") {
-                Task { await store.hideFinishedRoom(room: room); dismiss() }
+                // 다른 나가기 경로와 동일하게 — 성공했을 때만 닫는다.
+                Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
             }
             .buttonStyle(TLGhostButtonStyle())
         } else if !room.hasStarted {
