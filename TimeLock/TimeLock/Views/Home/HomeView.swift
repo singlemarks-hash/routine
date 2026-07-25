@@ -112,8 +112,21 @@ struct HomeView: View {
     }
 
     @State private var now = Date()
-    @State private var showEditor = false
-    @State private var editing: Reservation?
+    @State private var editorTarget: EditorTarget?
+
+    /// 편집 시트 대상 — Identifiable 아이템으로 예약을 원자적으로 전달한다.
+    /// (isPresented + 별도 @State 조합은 시트 콘텐츠가 예전 값으로 만들어질 수 있어
+    ///  탭 전환 후 첫 진입에서 활동명이 비어 보이는 문제가 있었다. item: 방식이 이를 막는다.)
+    private enum EditorTarget: Identifiable {
+        case new
+        case edit(Reservation)
+        var id: String {
+            switch self {
+            case .new: return "new"
+            case .edit(let r): return r.id.uuidString
+            }
+        }
+    }
     @State private var showQuickStart = false
     @State private var showGoalEditor = false
     @State private var goalText = ""
@@ -158,8 +171,7 @@ struct HomeView: View {
                     goalCard
 
                     Button("활동 추가하기") {
-                        editing = nil
-                        showEditor = true
+                        editorTarget = .new
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
 
@@ -173,8 +185,11 @@ struct HomeView: View {
             }
             .background(TL.ink)
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showEditor) {
-                ReservationEditView(reservation: editing)
+            .sheet(item: $editorTarget) { target in
+                switch target {
+                case .new:            ReservationEditView(reservation: nil)
+                case .edit(let r):   ReservationEditView(reservation: r)
+                }
             }
             .sheet(isPresented: $showQuickStart) {
                 QuickStartSheet()
@@ -344,8 +359,7 @@ struct HomeView: View {
                 showGroupLockNotice = true
                 return
             }
-            editing = reservation
-            showEditor = true
+            editorTarget = .edit(reservation)
         } label: {
             TLCard {
                 VStack(alignment: .leading, spacing: 6) {
