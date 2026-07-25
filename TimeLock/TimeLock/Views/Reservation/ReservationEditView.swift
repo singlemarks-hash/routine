@@ -28,6 +28,12 @@ struct ReservationEditView: View {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
     }
 
+    /// 슬롯을 실제로 차지하는 활동 — 앞으로 울릴 일이 남은 것만 센다.
+    /// 오늘 끝난 활동은 오늘 일정에 계속 보이지만 슬롯은 이미 돌려준 상태다.
+    private var slotUsingReservations: [Reservation] {
+        allReservations.filter { $0.hasRemainingOccurrence() }
+    }
+
     // MARK: 활동 슬롯 정책 (원띵 원칙 — 연속 달성일 사다리)
     // 3일→3개, 5일→4개, 7일→5개, 10일→10개, 30일→무제한.
     // 연속이 끊기면 한도가 내려가지만 기존 예약은 유지 — 새 추가만 제한된다.
@@ -75,7 +81,7 @@ struct ReservationEditView: View {
     /// 기존 예약은 유지하되 편집을 잠그고 삭제만 허용한다(읽기 전용).
     private var isOverSlotLimit: Bool {
         guard let allowed = allowedSlots else { return false }   // 무제한이면 초과 없음
-        return allReservations.count > allowed
+        return slotUsingReservations.count > allowed
     }
     /// 미친 매운맛으로 만든 활동인데 지금은 그 등급을 쓸 수 없는 상태(멤버십 만료 등).
     /// 강도를 임의로 내리면 이미 쌓인 2배 벌점 기준이 바뀌므로 그대로 유지하고,
@@ -127,7 +133,7 @@ struct ReservationEditView: View {
 
     /// 활동 슬롯 현황 (원띵 — 신규 생성 화면에만). 탭하면 정책 표 팝업.
     private var slotPolicyNotice: some View {
-        let used = allReservations.count
+        let used = slotUsingReservations.count
         let allowed = allowedSlots            // nil = 무제한 (연속 30일+)
         let full = allowed.map { used >= $0 } ?? false
         let slotLabel = allowed.map { "\(used)/\($0)" } ?? "\(used)/무제한"
@@ -221,7 +227,7 @@ struct ReservationEditView: View {
                 Button("삭제", role: .destructive) { delete() }
             }
             .sheet(isPresented: $showSlotPolicy) {
-                SlotPolicySheet(currentStreak: currentStreak, usedSlots: allReservations.count,
+                SlotPolicySheet(currentStreak: currentStreak, usedSlots: slotUsingReservations.count,
                                 isMember: subscription.isPro)
                     .presentationDetents([.medium, .large])
             }
@@ -539,7 +545,7 @@ struct ReservationEditView: View {
         }
 
         // 검증: 활동 슬롯 정책 (신규 생성만) — 연속 달성일 사다리. 기존 예약은 영향 없음.
-        if reservation == nil, let allowed = allowedSlots, allReservations.count >= allowed {
+        if reservation == nil, let allowed = allowedSlots, slotUsingReservations.count >= allowed {
             var message = "활동 슬롯이 가득 찼습니다 (현재 연속 \(currentStreak)일 → 최대 \(allowed)개)."
             if let next = SlotPolicy.nextTier(afterStreak: currentStreak) {
                 message += " 연속 \(next.days)일을 달성하면 \(next.slots.map { "\($0)개" } ?? "무제한")까지 열려요."

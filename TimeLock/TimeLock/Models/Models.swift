@@ -244,6 +244,18 @@ final class Reservation {
         return nil
     }
 
+    /// 앞으로 울릴 일이 남아 있는가 = 슬롯을 차지할 자격이 있는가.
+    ///
+    /// 끝난 활동은 화면에서 그날 하루 더 보이지만(오늘 한 일은 오늘 칸에 남아야 한다)
+    /// 슬롯은 즉시 돌려줘야 한다. 이미 끝난 활동이 자리를 물고 있으면
+    /// '지울 것도 없는데 슬롯이 가득 참' 상태가 된다.
+    /// 무기한 예약과 종료일이 지난 예약은 훑지 않고 즉시 판정한다.
+    func hasRemainingOccurrence(after date: Date = .now, calendar: Calendar = .current) -> Bool {
+        guard let end = endDate else { return true }                       // 무기한
+        if calendar.startOfDay(for: date) > calendar.startOfDay(for: end) { return false }
+        return nextOccurrence(after: date, calendar: calendar) != nil
+    }
+
     /// 시간 표기 옆에 붙는 반복 표기 — '매일' / '월 수 금' / '하루' 세 가지뿐.
     ///
     /// 화면마다 따로 계산하면 같은 활동이 홈과 일정 탭에서 다르게 보인다(실제로 그랬다).

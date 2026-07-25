@@ -412,8 +412,10 @@ final class GroupStore: ObservableObject {
     func checkSlotAvailable() throws {
         guard let context = modelContext else { return }
         let owner = AccountStore.shared.currentUserID
+        // 끝난 활동은 슬롯을 차지하지 않는다 — 오늘 일정에 남아 있어도 자리는 이미 돌려준 상태다.
         let reservations = (try? context.fetch(FetchDescriptor<Reservation>(
-            predicate: #Predicate { $0.isActive && $0.ownerUserID == owner }))) ?? []
+            predicate: #Predicate { $0.isActive && $0.ownerUserID == owner })))?
+            .filter { $0.hasRemainingOccurrence() } ?? []
         let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
             predicate: #Predicate { $0.ownerUserID == owner }))) ?? []
         let streak = SlotPolicy.currentStreak(sessions: sessions)
