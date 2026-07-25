@@ -362,7 +362,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
             let warn = UNMutableNotificationContent()
             warn.title = "재촬영까지 2분"
             warn.body = "지금 돌아와 재촬영을 시작하세요. 시간이 지나면 벌점이 부과됩니다."
-            warn.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
+            warn.sound = UNNotificationSound(named: UNNotificationSoundName("alarm-long.wav"))
             warn.interruptionLevel = .timeSensitive
             warn.userInfo = ["kind": "break"]
             center.add(UNNotificationRequest(
@@ -374,7 +374,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
         let fail = UNMutableNotificationContent()
         fail.title = "벌점 부과"
         fail.body = "\(TimePolicy.resumeWindowMinutes)분 안에 재촬영을 시작하지 않아 세션이 실패로 기록되었습니다."
-        fail.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
+        fail.sound = UNNotificationSound(named: UNNotificationSoundName("alarm-long.wav"))
         fail.interruptionLevel = .timeSensitive
         fail.userInfo = ["kind": "break"]
         center.add(UNNotificationRequest(

@@ -14,17 +14,15 @@ struct WeeklyScheduleView: View {
     @EnvironmentObject private var account: AccountStore
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
     private var allActiveReservations: [Reservation]
-    /// 결과 표시등에 쓸 기록. **오늘 이후만** 읽는다 — 이 화면은 오늘과 그 뒤만 보여주므로
-    /// 과거 이력은 한 건도 필요 없다. 조건 없이 두면 오래 쓴 계정의 수천 건이 매번 딸려온다.
-    @Query private var allSessions: [FocusSession]
-
-    init() {
-        let dayStart = Calendar.current.startOfDay(for: Date())
-        let never = Date.distantPast
-        _allSessions = Query(
-            filter: #Predicate<FocusSession> { ($0.scheduledAt ?? never) >= dayStart },
-            sort: [SortDescriptor(\FocusSession.endedAt, order: .reverse)])
-    }
+    /// 결과 표시등에 쓸 기록.
+    ///
+    /// 날짜 조건을 조회문에 넣으려면 옵셔널 Date를 비교해야 하는데, SwiftData가 그 술어를
+    /// 실기기에서만 실패시키는 사례가 보고돼 있다. 실패하면 결과가 조용히 비어 표시등이
+    /// 통째로 사라지고, 시뮬레이터 CI로는 잡을 수 없다. 그래서 조회는 '예약 세션'까지만
+    /// 좁히고 날짜는 아래 todayOutcomes에서 한 번에 거른다 — 행마다 훑던 것이 1회로 줄어
+    /// 실제 비용의 대부분은 이미 사라진다.
+    @Query(filter: #Predicate<FocusSession> { $0.scheduledAt != nil })
+    private var allSessions: [FocusSession]
 
     @State private var editorTarget: EditorTarget?
     @State private var groupRoomToOpen: GroupRoom?
@@ -160,7 +158,7 @@ struct WeeklyScheduleView: View {
             if let existing = map[rid], existing.at >= at { continue }
             map[rid] = (at, outcome)
         }
-        return map.mapValues(\.outcome)
+        return map.mapValues { $0.outcome }
     }
 
     private func rowState(_ item: DayItem, on date: Date,

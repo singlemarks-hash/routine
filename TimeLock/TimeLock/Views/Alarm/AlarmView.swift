@@ -365,7 +365,11 @@ struct MountGuideView: View {
             now = tick
             // 마감 도달 — 아직 촬영으로 넘어가지 않았다면 창을 닫는다.
             // 노쇼 기록과 벌점은 알람 화면과 동일하게 스위퍼가 남긴다.
-            guard !started, let remaining = remainingSeconds, remaining == 0 else { return }
+            // countdown != nil = '시작!' 3초 카운트다운이 이미 도는 중 — 이중 방어.
+            // (started 하나에만 의존했다가 예약 세션 경로에서 그 값이 안 켜져,
+            //  녹화가 시작된 뒤에 화면이 홈으로 튕기는 사고가 있었다)
+            guard !started, countdown == nil,
+                  let remaining = remainingSeconds, remaining == 0 else { return }
             started = true
             recorder.stopPreview()
             AlarmScheduler.shared.stopAlarmSound()
@@ -593,6 +597,7 @@ struct MountGuideView: View {
             if pending.scheduledAt == nil {
                 showFocusGuide = true
             } else {
+                started = true                        // 마감 처리 중단 — 이미 시작했다
                 app.beginRecording(pending: pending)   // 알람 정지 + 세션 무장
                 runCountdown()
             }
