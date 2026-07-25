@@ -535,12 +535,9 @@ final class GroupStore: ObservableObject {
     func members(roomID: String) async -> [GroupMember] {
         #if canImport(FirebaseFirestore)
         guard backendActive else { return [] }
-        // 랭킹을 그리기 전에 내 점수가 표식 합계와 맞는지 확인한다.
-        // 어긋난 채로 두면 아무도 눈치채지 못하고 영원히 남는다.
-        await repairMyScore(roomID: roomID)
         let snapshot = try? await Firestore.firestore()
             .collection("groups").document(roomID).collection("members").getDocuments()
-        return (snapshot?.documents ?? []).compactMap { doc in
+        var list = (snapshot?.documents ?? []).compactMap { doc -> GroupMember? in
             let data = doc.data()
             guard let nickname = data["nickname"] as? String else { return nil }
             return GroupMember(id: doc.documentID, nickname: nickname,
@@ -548,6 +545,14 @@ final class GroupStore: ObservableObject {
                                quit: data["quit"] as? Bool ?? false,
                                joinedAt: (data["joinedAt"] as? Timestamp)?.dateValue() ?? .now)
         }
+        // 방금 읽은 내 점수를 그대로 대조에 쓴다 — 확인하려고 같은 문서를 또 읽지 않는다.
+        // 오래된 캐시 사본으로 판단하면 멀쩡한 점수를 망치므로 서버에서 온 응답일 때만 본다.
+        guard snapshot?.metadata.isFromCache == false,
+              let mine = list.firstIndex(where: { $0.id == AccountStore.shared.currentUserID }),
+              let fixed = await repairMyScore(roomID: roomID, observed: list[mine].score)
+        else { return list }
+        list[mine].score = fixed   // 보정한 값이 이번 화면에 바로 보이도록
+        return list
         #else
         return []
         #endif
@@ -668,34 +673,34 @@ final class GroupStore: ObservableObject {
     /// 도중 강제 종료) 조용히 어긋난 채 영원히 그대로다. 표식이 원장이고 점수는 그 캐시이므로,
     /// 어긋났으면 원장에서 다시 만들 수 있다.
     ///
-    /// 읽는 도중 다른 기기가 점수를 바꿨을 수 있으니, 합계를 세기 전의 점수를 기억했다가
-    /// 트랜잭션 안에서 그대로인지 확인하고 바꾼다. 달라졌으면 이번 보정은 포기한다
-    /// (덮어썼다면 방금 들어온 정당한 점수가 사라진다). 다음 입장 때 다시 맞춘다.
-    func repairMyScore(roomID: String) async {
+    /// 읽는 도중 다른 기기가 점수를 바꿨을 수 있으니, `observed`(합계를 세기 전에 읽은 점수)가
+    /// 트랜잭션 안에서도 그대로일 때만 바꾼다. 달라졌으면 방금 들어온 정당한 점수이므로
+    /// 이번 보정은 포기한다 — 다음 입장 때 다시 맞춘다.
+    /// 맞춘 경우에만 새 점수를 돌려준다(고칠 게 없었으면 nil).
+    func repairMyScore(roomID: String, observed: Int) async -> Int? {
         #if canImport(FirebaseFirestore)
-        guard backendActive else { return }
+        guard backendActive else { return nil }
         let uid = AccountStore.shared.currentUserID
-        guard !uid.isEmpty, uid != AccountStore.guestID else { return }
+        guard !uid.isEmpty, uid != AccountStore.guestID else { return nil }
         let db = Firestore.firestore()
         let memberRef = db.collection("groups").document(roomID).collection("members").document(uid)
-
-        // 캐시가 아니라 서버 값이어야 한다 — 오프라인 사본으로 보정하면 멀쩡한 점수를 망친다
-        guard let before = try? await memberRef.getDocument(source: .server), before.exists,
-              let observed = before.data()?["score"] as? Int else { return }
         guard let marks = try? await memberRef.collection("scored")
-            .getDocuments(source: .server) else { return }
+            .getDocuments(source: .server) else { return nil }
 
         let total = marks.documents.reduce(0) { $0 + (($1.data()["points"] as? Int) ?? 0) }
-        guard total != observed else { return }
+        guard total != observed else { return nil }
 
-        _ = try? await db.runTransaction { transaction, errorPointer -> Any? in
+        let done = (try? await db.runTransaction { transaction, errorPointer -> Any? in
             let snap: DocumentSnapshot
             do { snap = try transaction.getDocument(memberRef) }
             catch let e as NSError { errorPointer?.pointee = e; return nil }
             guard snap.exists, (snap.data()?["score"] as? Int) == observed else { return nil }
             transaction.updateData(["score": total], forDocument: memberRef)
-            return nil
-        }
+            return true
+        }) as? Bool
+        return done == true ? total : nil
+        #else
+        return nil
         #endif
     }
 
@@ -736,12 +741,15 @@ final class GroupStore: ObservableObject {
         let uid = AccountStore.shared.currentUserID
         let memberRef = db.collection("groups").document(room.id)
             .collection("members").document(uid)
-        // 실패를 삼키면 그룹엔 포기가 반영되지 않은 채 내 벌점만 기록된다.
-        try await memberRef.updateData(["quit": true])
-        // 벌점도 표식을 거쳐 들어간다 — 표식을 건너뛰면 점수 재계산이 이 -50을 지워버린다
+        // 벌점을 먼저 넣고 포기 표시를 나중에 한다. 둘로 나뉜 쓰기라 중간에 끊길 수 있는데,
+        // 순서가 반대면 '포기했는데 벌점은 없는' 상태로 남는다. 둘 다 표식/플래그라
+        // 다시 눌러도 한 번만 들어가므로, 끊기면 재시도가 나머지를 채운다.
+        // (벌점도 표식을 거쳐야 한다 — 건너뛰면 점수 재계산이 이 -50을 지워버린다)
         try await applyScore(roomID: room.id, points: ScoreRules.groupQuitPenalty,
                              occurrenceKey: Self.quitOccurrenceKey(roomID: room.id),
                              rank: Self.scoreRankNormal)
+        // 실패를 삼키면 그룹엔 포기가 반영되지 않은 채 내 벌점만 기록된다.
+        try await memberRef.updateData(["quit": true])
         // 개인 누적에도 동일 벌점 기록
         if let context = modelContext {
             let event = ScoreEvent(type: .groupQuit, points: ScoreRules.groupQuitPenalty,
