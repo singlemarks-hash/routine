@@ -448,10 +448,6 @@ struct ReservationEditView: View {
                         }
                         .tint(TL.rec)
                         .disabled(editingDisabled)
-                        // 켤 때 고른 요일이 없으면 평일 기본값 (안드로이드와 동일)
-                        .onChange(of: isRepeating) { _, on in
-                            if on && weekdays.isEmpty { weekdays = [2, 3, 4, 5, 6] }
-                        }
 
                         // 요일 반복 ON = 고른 요일만, OFF = 매일.
                         if isRepeating {

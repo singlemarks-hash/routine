@@ -250,6 +250,21 @@ final class AlarmScheduler: NSObject, ObservableObject {
         center.add(request)
     }
 
+    /// 이 예약과 얽힌 대기·배달 알림을 전부 제거한다 (유령 알람 정리용).
+    /// 식별자는 모두 예약 UUID를 품고 있으므로 문자열 포함 여부로 한 번에 걷어낼 수 있다.
+    nonisolated func purgeNotifications(reservationID: UUID) {
+        let key = reservationID.uuidString
+        let center = UNUserNotificationCenter.current()
+        center.getPendingNotificationRequests { requests in
+            let ids = requests.map(\.identifier).filter { $0.contains(key) }
+            if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
+        }
+        center.getDeliveredNotifications { delivered in
+            let ids = delivered.map { $0.request.identifier }.filter { $0.contains(key) }
+            if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+    }
+
     /// 특정 발생 건의 남은 알람(재알림·예고 포함)을 모두 취소 — 촬영 준비/일정 취소 시.
     /// 반복 예약의 주간 반복 트리거는 '다음 주'를 위해 유지하되, 지금 떠 있는 배너만 지운다.
     func cancelAlarmNotifications(reservationID: UUID, fireDate: Date) {

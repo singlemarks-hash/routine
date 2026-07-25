@@ -418,9 +418,36 @@ final class AppState: ObservableObject {
     /// 알림(배너)을 탭해 진입 — 그 예약을 보류로 걸고 즉시 라우팅을 시도한다.
     /// 콜드 스타트로 준비가 안 됐으면 이후 bind·활성화·타이머·계정변경 때 재시도된다.
     func presentAlarm(reservationID: UUID) {
+        // 유령 알람 방어 — 대응하는 발생이 없으면 소리를 끄고 그 예약의 알림을 걷어낸 뒤
+        // 전체 일정을 다시 짠다. 그러지 않으면 지워진 활동의 알람이 계속 울리는데
+        // 앱은 들어갈 화면이 없어 끌 방법도 없다.
+        if isGhostAlarm(reservationID: reservationID) {
+            AlarmScheduler.shared.stopAlarmSound()
+            AlarmScheduler.shared.purgeNotifications(reservationID: reservationID)
+            pendingAlarmTapID = nil
+            pendingAlarmTapAt = nil
+            rescheduleAlarmsForCurrentUser()
+            return
+        }
         pendingAlarmTapID = reservationID
         pendingAlarmTapAt = Date()
         routePendingAlarmTapIfPossible()
+    }
+
+    /// 이 알람에 대응하는 '지금 시작 창 안의 발생'이 없는가.
+    /// 준비가 덜 됐으면(컨텍스트 미바인딩) 판단을 미룬다 — 콜드 스타트에서 정상 알람을
+    /// 유령으로 오인해 지워버리면 안 된다.
+    private func isGhostAlarm(reservationID: UUID) -> Bool {
+        guard modelContext != nil else { return false }
+        guard let reservation = reservationByID(reservationID), reservation.isActive else { return true }
+        let now = Date()
+        let calendar = Calendar.current
+        for offset in [-1, 0] {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
+                  let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
+            if (fire...fire.addingTimeInterval(TimePolicy.startWindowSeconds)).contains(now) { return false }
+        }
+        return true
     }
 
     /// 탭한 알람을 해당 예약으로 '직접' 라우팅. 준비 전이면 보류를 유지해 다음 기회에 재시도.
