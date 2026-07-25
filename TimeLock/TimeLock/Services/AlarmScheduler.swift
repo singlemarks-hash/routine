@@ -276,6 +276,9 @@ final class AlarmScheduler: NSObject, ObservableObject {
         content.title = "'\(reservation.name)' 시작 10분 전입니다"
         content.body = "촬영을 준비해주세요. \(TLFormat.clock(fire)) 정각에 알람이 울립니다."
         content.sound = .default
+        // 준비하라고 보내는 알림인데 집중 모드를 못 뚫으면, 방해금지를 켜둔 사람은
+        // 예고 없이 정각 알람부터 맞는다. 정작 준비 시간이 필요한 쪽이 못 받는 셈이다.
+        content.interruptionLevel = .timeSensitive
         content.userInfo = ["reservationID": reservation.id.uuidString, "kind": "prealert"]
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: pre)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
