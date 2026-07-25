@@ -128,11 +128,15 @@ final class AlarmScheduler: NSObject, ObservableObject {
                 imminent.append((reservation, fire))
             }
         }
-        for item in imminent.sorted(by: { $0.fire < $1.fire }) {
+        for (index, item) in imminent.sorted(by: { $0.fire < $1.fire }).enumerated() {
             guard budget >= 2 else { break }
             schedulePreAlert(for: item.reservation, at: item.fire)
-            scheduleReAlarms(for: item.reservation, at: item.fire)
+            scheduleReAlarms(for: item.reservation, at: item.fire)   // +5분 마지막 경고
             budget -= 2
+            // 1분 간격 연타는 가장 임박한 발생 하나에만 — 모든 예약에 걸면 예산이 터진다.
+            if index == 0 {
+                budget -= scheduleMinuteBanners(for: item.reservation, at: item.fire, limit: budget)
+            }
         }
 
         #if ENABLE_ALARMKIT
@@ -148,11 +152,41 @@ final class AlarmScheduler: NSObject, ObservableObject {
         let content = UNMutableNotificationContent()
         content.title = "\(reservation.name) 시작"
         content.body = "알람을 끄는 방법은 하나뿐입니다 — \(TimePolicy.startWindowMinutes)분 안에 촬영을 시작하세요."
-        content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.wav"))
+        // iOS는 커스텀 알림음을 30초까지 재생한다. 5초짜리를 쓰면 그 여섯 배를 버리는 셈이라
+        // 배너 하나가 순식간에 조용해진다. 25초짜리를 써서 한 발이 오래 울리게 한다.
+        content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm-long.wav"))
         content.interruptionLevel = .timeSensitive
         content.userInfo = ["reservationID": reservation.id.uuidString, "kind": "alarm"]
         content.categoryIdentifier = "TIMELOCK_ALARM"
         return content
+    }
+
+    /// 시작 창 안에서 1분 간격으로 다시 울리는 배너.
+    ///
+    /// 앱이 꺼져 있으면 우리가 코드를 돌릴 방법이 없어 배너가 유일한 수단이다.
+    /// 예전에는 정각 1발 + 5분 뒤 1발이 전부라 "알람이 온 줄 몰랐다"는 말이 나왔다.
+    /// +5분은 '마지막 경고' 전용 문구가 따로 있으므로 여기서는 건너뛴다.
+    /// 반환값 = 실제로 건 개수 (예산 차감용)
+    private func scheduleMinuteBanners(for reservation: Reservation, at fire: Date, limit: Int) -> Int {
+        guard limit > 0 else { return 0 }
+        let total = TimePolicy.startWindowMinutes      // 10분 창
+        var scheduled = 0
+        for minute in 1..<total where minute != 5 {
+            guard scheduled < limit else { break }
+            guard let at = Calendar.current.date(byAdding: .minute, value: minute, to: fire),
+                  at > .now else { continue }
+            let content = makeAlarmContent(for: reservation).mutableCopy() as! UNMutableNotificationContent
+            content.body = "아직 시작하지 않았습니다. \(total - minute)분 뒤 탈락 처리됩니다."
+            let comps = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute, .second], from: at)
+            let request = UNNotificationRequest(
+                identifier: "alarm-m\(minute)-\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))",
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
+            center.add(request)
+            scheduled += 1
+        }
+        return scheduled
     }
 
     /// 앱을 열 때마다 다시 계산되는 롤링 윈도우 길이
@@ -273,6 +307,8 @@ final class AlarmScheduler: NSObject, ObservableObject {
         // r1 = 단일 재알림(+5분). r2~r4는 구버전 잔재 대비 함께 정리(없으면 무시).
         let ids = ["alarm-\(reservationID.uuidString)-\(ts)", "pre-\(reservationID.uuidString)-\(ts)"]
             + (1...4).map { "alarm-r\($0)-\(reservationID.uuidString)-\(ts)" }
+            // 1분 간격 연타도 함께 — 촬영을 시작했는데 계속 울리면 안 된다
+            + (1..<TimePolicy.startWindowMinutes).map { "alarm-m\($0)-\(reservationID.uuidString)-\(ts)" }
         center.removePendingNotificationRequests(withIdentifiers: ids)
         center.removeDeliveredNotifications(withIdentifiers: ids)
         // 반복 메인 알람: 대기 트리거는 유지(다음 주 발화)하고, 이번에 배달된 배너만 제거
