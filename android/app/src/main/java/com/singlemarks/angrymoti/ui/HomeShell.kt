@@ -316,13 +316,11 @@ private fun ActivityTab(
             }.timeInMillis
         }
         val dayEnd = todayStart + 86_400_000L
-        val todayDow = todayCal.get(java.util.Calendar.DAY_OF_WEEK)
         fun startedToday(r: Reservation) = sessions.any { s ->
             s.reservationID == r.id && s.scheduledAt?.let { it in todayStart until dayEnd } == true
         }
-        fun occursToday(r: Reservation) =
-            if (r.isRepeating) todayDow in r.repeatWeekdays
-            else r.oneOffDayStart?.let { it in todayStart until dayEnd } == true
+        // 알람시계 로직(occurrenceOn) 한 곳으로 오늘 발생 여부 판정 — 시작일 전·종료일 후 자동 제외.
+        fun occursToday(r: Reservation) = r.occurrenceOn(todayStart) != null
         val todayReservations = reservations
             .filter { occursToday(it) && !startedToday(it) }
             .sortedBy { it.startMinute }
@@ -365,7 +363,11 @@ private fun ActivityTab(
                     val minute = t.get(java.util.Calendar.HOUR_OF_DAY) * 60 + t.get(java.util.Calendar.MINUTE)
                     Text(
                         "🔔 ${TLFormat.timeLabel(minute)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
-                            if (r.isRepeating) " · 매주 " + weekdayLabel(r.repeatWeekdays) else "",
+                            when {
+                                r.repeatWeekdays.size == 7 -> " · 매일"
+                                r.isRepeating -> " · 매주 " + weekdayLabel(r.repeatWeekdays)
+                                else -> ""
+                            },
                         color = TL.muted, fontSize = 13.sp,
                         modifier = Modifier.weight(1f),
                     )

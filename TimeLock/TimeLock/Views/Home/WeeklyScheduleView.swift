@@ -102,16 +102,13 @@ struct WeeklyScheduleView: View {
         Calendar.current.date(byAdding: .day, value: offset, to: Calendar.current.startOfDay(for: .now)) ?? .now
     }
 
-    /// 반복 예약은 요일 매칭, 일회성은 그 날짜(date)와 같은 날만.
-    /// 그룹 예약도 (참여자 미달로 폭파될 수 있어도) 일정에 넣어 사용자가 계획을 관리하게 한다 —
+    /// 그 날 실제로 알람이 울리는 예약만 — 알람시계 로직(occurrence) 한 곳으로 판정한다.
+    /// 요일/일회성 매칭 + 시작일(createdAt) 전·종료일(endDate) 후 자동 제외까지 여기서 함께 처리된다.
+    /// 그룹 예약도 (참여자 미달로 폭파될 수 있어도) 활동 기간 안이면 일정에 넣어 계획을 관리하게 한다 —
     /// 실제 폭파되면 GroupStore가 예약을 DB에서 제거한다.
     private func items(on weekday: Int, date: Date) -> [Reservation] {
-        reservations.filter { r in
-            if r.isRepeating { return r.repeatWeekdays.contains(weekday) }
-            if let d = r.oneOffDate { return Calendar.current.isDate(d, inSameDayAs: date) }
-            return false
-        }
-        .sorted { $0.startMinute < $1.startMinute }
+        reservations.filter { $0.occurrence(on: date) != nil }
+            .sorted { $0.startMinute < $1.startMinute }
     }
 
     @ViewBuilder
@@ -214,7 +211,9 @@ struct WeeklyScheduleView: View {
     }
 
     private func oneOffLabel(_ r: Reservation) -> String {
-        guard !r.isRepeating, let date = r.oneOffDate else { return " · 매주" }
+        if Set(r.repeatWeekdays).count == 7 { return " · 매일" }   // 요일 전체 = 매일(기간)
+        if r.isRepeating { return " · 매주" }
+        guard let date = r.oneOffDate else { return " · 매주" }
         let f = DateFormatter()
         f.locale = Locale(identifier: "ko_KR")
         f.dateFormat = "M월 d일"

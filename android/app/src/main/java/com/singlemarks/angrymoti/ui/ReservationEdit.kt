@@ -686,13 +686,12 @@ fun WeeklyScheduleTab(
         5 to "목요일", 6 to "금요일", 7 to "토요일")
     val weekdays = (0..6).map { val dow = ((todayDow - 1 + it) % 7) + 1; dow to dayNames.getValue(dow) }
 
-    // 반복은 요일 매칭, 일회성은 그 날짜(dayStart)와 같은 날만.
-    // 그룹 예약도 (참여자 미달로 폭파될 수 있어도) 일정에 넣어 사용자가 계획을 관리하게 한다 —
+    // 그 날 실제로 알람이 울리는 예약만 — 알람시계 로직(occurrenceOn) 한 곳으로 판정한다.
+    // 요일/일회성 매칭 + 시작일(createdAt) 전·종료일(endAt) 후 자동 제외까지 함께 처리된다.
+    // 그룹 예약도 (참여자 미달로 폭파될 수 있어도) 활동 기간 안이면 일정에 넣어 계획을 관리하게 한다 —
     // 실제 폭파되면 GroupStore가 예약을 DB에서 제거한다.
-    fun itemsOn(dow: Int, dayStart: Long): List<Reservation> = reservations.filter { r ->
-        if (r.isRepeating) dow in r.repeatWeekdays
-        else r.oneOffDayStart?.let { it in dayStart until (dayStart + 86_400_000L) } == true
-    }.sortedBy { it.startMinute }
+    fun itemsOn(dayStart: Long): List<Reservation> =
+        reservations.filter { it.occurrenceOn(dayStart) != null }.sortedBy { it.startMinute }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 20.dp),
@@ -724,7 +723,7 @@ fun WeeklyScheduleTab(
             }
             val dayStart = dayCal.timeInMillis
             val md = "${dayCal.get(Calendar.MONTH) + 1}월 ${dayCal.get(Calendar.DAY_OF_MONTH)}일"
-            val dayItems = itemsOn(dow, dayStart)
+            val dayItems = itemsOn(dayStart)
             val isToday = dow == todayDow
             item(key = "day-$dow") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -776,10 +775,15 @@ fun WeeklyScheduleTab(
 /** 주간 일정 한 줄 — 시각 · (그룹아이콘)활동명 · 길이/매주·일회성 · 태그칩 (iOS timetableRow 1:1) */
 @Composable
 private fun ScheduleRow(r: Reservation, onClick: () -> Unit) {
-    val meta = if (r.isRepeating) "매주" else r.oneOffDayStart?.let {
-        val c = Calendar.getInstance().apply { timeInMillis = it }
-        "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 하루"
-    } ?: "매주"
+    val meta = when {
+        r.repeatWeekdays.size == 7 -> "매일"          // 요일 전체 = 매일(기간)
+        r.isRepeating -> "매주"
+        r.oneOffDayStart != null -> {
+            val c = Calendar.getInstance().apply { timeInMillis = r.oneOffDayStart!! }
+            "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 하루"
+        }
+        else -> "매주"
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 11.dp),

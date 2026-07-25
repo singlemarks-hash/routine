@@ -127,14 +127,11 @@ struct HomeView: View {
     private var upcoming: [(reservation: Reservation, fire: Date?)] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: now)
-        let weekday = cal.component(.weekday, from: today)
         return reservations
             .compactMap { r -> (Reservation, Date?)? in
-                let occursToday = r.isRepeating
-                    ? r.repeatWeekdays.contains(weekday)
-                    : (r.oneOffDate.map { cal.isDate($0, inSameDayAs: today) } ?? false)
-                guard occursToday, !startedToday(r) else { return nil }
-                let fire = cal.date(byAdding: .minute, value: r.startMinute, to: today)
+                // 알람시계 로직(occurrence) 한 곳으로 오늘 발생 여부 판정 —
+                // 시작일 전·종료일 후는 자동 제외. 오늘치 시각이 지났어도 발생 자체는 유효.
+                guard let fire = r.occurrence(on: today), !startedToday(r) else { return nil }
                 return (r, fire)
             }
             .sorted { ($0.1 ?? .distantFuture) < ($1.1 ?? .distantFuture) }
@@ -377,7 +374,7 @@ struct HomeView: View {
                         Image(systemName: "bell.fill").font(.system(size: 11))
                         if let fire {
                             // 오늘 것만 보여주므로 날짜(오늘·내일·M월 D일)는 생략하고 시각만.
-                            Text("\(TLFormat.clock(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes))\(reservation.isRepeating ? " · 매주 " + weekdayLabel(reservation.repeatWeekdays) : "")")
+                            Text("\(TLFormat.clock(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes))\(Set(reservation.repeatWeekdays).count == 7 ? " · 매일" : reservation.isRepeating ? " · 매주 " + weekdayLabel(reservation.repeatWeekdays) : "")")
                         } else {
                             Text(TLFormat.durationLabel(reservation.durationMinutes))
                         }
