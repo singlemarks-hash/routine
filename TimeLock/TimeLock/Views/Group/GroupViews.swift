@@ -957,7 +957,10 @@ struct GroupRoomDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         // 화면에 들어올 때마다 방 상태를 즉시 다시 읽는다 — 타이머를 기다리지 않는다.
         .task {
+            // onChange는 초기값에 발화하지 않는다 — 여기서 한 번 세워야 자동 닫기가 동작한다.
+            sawRoomInStore = store.rooms.contains { $0.id == initialRoom.id }
             await store.refresh()
+            sawRoomInStore = sawRoomInStore || store.rooms.contains { $0.id == initialRoom.id }
             await load()
         }
         .refreshable {
@@ -1269,9 +1272,20 @@ struct GroupRoomDetailView: View {
                 Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
             }
             .buttonStyle(TLGhostButtonStyle())
-        } else if !room.hasStarted || room.status == "scheduled" {
-            // 시작 시각이 지나도 status가 scheduled면 아직 시작한 방이 아니다(삭제 예정·판정 대기).
-            // 이 구간에서 '중도 포기'만 노출하면, 진행조차 안 한 방에서 -50점을 물게 된다.
+        } else if room.status == "cancelled" || room.status == "disbanded" {
+            // 이미 끝난 방 — 정리가 아직 안 됐을 뿐이다. 벌점 액션을 보이면 안 된다.
+            Button("방 나가기") {
+                Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
+            }
+            .buttonStyle(TLGhostButtonStyle())
+        } else if room.hasStarted, room.status == "scheduled" {
+            // 시작 시각은 지났는데 아직 시작/취소 판정이 안 끝났다. 여기서 무벌점 탈퇴를 열면
+            // 곧 active가 될 방을 벌점 없이 빠져나가는 회피 경로가 되고, 중도 포기를 열면
+            // 진행조차 안 한 방에서 -50점을 물게 된다. 그래서 아무 액션도 노출하지 않는다.
+            Text("시작 여부를 확인하는 중이에요. 잠시 후 다시 시도해주세요.")
+                .font(.system(size: 12)).foregroundStyle(TL.faint)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else if !room.hasStarted {
             if room.isHostMine {
                 Button("방 해체하기") { confirmDisband = true }
                     .buttonStyle(TLGhostButtonStyle(tint: TL.rec))

@@ -207,12 +207,20 @@ final class GroupStore: ObservableObject {
             // 더 들어올 사람이 없으므로 시작 시각에 반드시 취소된다. 그때까지 기다리지 말고
             // '삭제 예정'으로 표시하고, 진행되지 않을 활동의 알람을 미리 거둔다.
             // (판정 근거는 캐시된 카운터가 아니라 실제 멤버 문서 — 못 읽으면 아무것도 하지 않는다)
-            if room.status == "scheduled", !room.hasStarted, !room.joinOpen,
-               let memberSnap = try? await db.collection("groups").document(id)
-                .collection("members").getDocuments(source: .server) {
-                room.memberCount = memberSnap.documents.filter { ($0.data()["quit"] as? Bool) != true }.count
-                if room.memberCount < GroupPolicy.minMembersToStart {
-                    room.doomed = true
+            // 이전 회차의 '삭제 예정' 판정을 승계한다. 방 객체는 매번 새로 파싱되므로
+            // 승계하지 않으면 서버 조회가 한 번 실패한 회차에 판정이 풀리고, 아래에서
+            // 지웠던 그룹 예약과 알람이 되살아난다(마감된 방인데 시작 시각에 울린다).
+            if rooms.first(where: { $0.id == id })?.doomed == true { room.doomed = true }
+
+            if room.status == "scheduled", !room.hasStarted, !room.joinOpen {
+                // 캐시가 아니라 서버 값이어야 한다 — 오프라인 캐시로 '인원 미달'을 판정하면
+                // 살아 있는 방의 예약과 알람을 지운다. 못 읽으면 승계된 판정을 그대로 쓴다.
+                if let memberSnap = try? await db.collection("groups").document(id)
+                    .collection("members").getDocuments(source: .server) {
+                    room.memberCount = memberSnap.documents.filter { ($0.data()["quit"] as? Bool) != true }.count
+                    room.doomed = room.memberCount < GroupPolicy.minMembersToStart
+                }
+                if room.doomed {
                     removeLocalReservation(roomID: id, purgeNoShows: true)
                     next.append(room)
                     continue
@@ -443,6 +451,13 @@ final class GroupStore: ObservableObject {
         let db = Firestore.firestore()
         let uid = AccountStore.shared.currentUserID
         let roomRef = db.collection("groups").document(room.id)
+        // 화면 분기만 믿으면 안 된다 — 오프라인이라 status가 옛 'scheduled'로 남아 있으면
+        // 이미 시작한 방을 벌점 없이 빠져나가는 회피 경로가 된다. 서버 문서로 확인한다.
+        guard let snapshot = try? await roomRef.getDocument(source: .server),
+              let live = Self.room(from: snapshot) else {
+            throw GroupError.backendUnavailable
+        }
+        guard live.status == "scheduled", !live.hasStarted else { throw GroupError.alreadyStarted }
         let memberRef = roomRef.collection("members").document(uid)
         let lowerNick = nickname.lowercased()
 
@@ -616,9 +631,18 @@ final class GroupStore: ObservableObject {
         guard backendActive else { throw GroupError.backendUnavailable }
         guard room.isHostMine else { throw GroupError.unknown("방장만 해체할 수 있어요.") }
         let db = Firestore.firestore()
+        // 시작 전에만 해체할 수 있다. 화면이 옛 상태를 들고 있으면 이미 진행 중인 방을
+        // 해체로 덮어쓰게 되고, 그러면 전원의 refresh가 '해체된 방' 경로로 들어가
+        // 그동안의 정당한 노쇼·벌점까지 클라우드 사본째 지워버린다. 되돌릴 수 없다.
+        let roomRef = db.collection("groups").document(room.id)
+        guard let snapshot = try? await roomRef.getDocument(source: .server),
+              let live = Self.room(from: snapshot) else {
+            throw GroupError.backendUnavailable
+        }
+        guard live.status == "scheduled", !live.hasStarted else { throw GroupError.alreadyStarted }
         // 상태 변경이 실패하면 나머지(로컬 정리)를 진행하면 안 된다 — 서버엔 방이 살아 있는데
         // 내 예약만 사라져 알람 없이 노쇼만 쌓인다.
-        try await db.collection("groups").document(room.id).updateData(["status": "disbanded"])
+        try await roomRef.updateData(["status": "disbanded"])
         try await removeMembershipRef(roomID: room.id)
         // 방장 자신의 멤버 문서 정리 — 혼자였던 방이면 문서까지 즉시 삭제,
         // 참여자가 있으면 status로 해체를 알린 뒤 마지막 참여자가 문서를 지운다
