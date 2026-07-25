@@ -212,9 +212,12 @@ final class Reservation {
         return calendar.date(byAdding: .minute, value: startMinute, to: dayStart)
     }
 
-    /// 다음 발생 시각 (지금 이후)
+    /// 다음 발생 시각 (지금 이후).
+    /// 탐색 범위가 좁으면(예전 28일) 두 달 뒤 시작하는 예약을 못 찾아, 알람 안전망이
+    /// '첫 발생 1건은 반드시 건다'는 약속을 지키지 못하고 알람이 0건이 된다.
+    /// 시작일 선택에는 상한이 없으므로 1년 이상을 훑는다.
     func nextOccurrence(after date: Date = .now, calendar: Calendar = .current) -> Date? {
-        for offset in 0..<28 {
+        for offset in 0..<400 {
             guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: date)),
                   let start = occurrence(on: day, calendar: calendar) else { continue }
             if start > date { return start }

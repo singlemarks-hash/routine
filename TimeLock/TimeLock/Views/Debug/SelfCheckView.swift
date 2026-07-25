@@ -335,6 +335,14 @@ private enum SelfCheck {
         out.append(check(g, "기간에 있는 요일 — 발생 있음",
                          alive.nextOccurrence(after: mon, calendar: cal) != nil, true))
 
+        // 먼 미래에 시작하는 예약도 첫 발생을 찾아야 한다 —
+        // 못 찾으면 알람 안전망이 한 건도 걸지 못해 그날 알람이 통째로 유실된다.
+        let farStart = day(67)
+        let far = make(start: farStart, end: nil, weekdays: all7,
+                       startMinute: 8 * 60, duration: 60, oneOff: farStart)
+        out.append(check(g, "두 달 뒤 시작 — 첫 발생을 찾는다",
+                         far.nextOccurrence(after: Date(), calendar: cal) != nil, true))
+
         // 종료일이 지난 예약은 더 이상 발생이 없다 (만료 정리 대상)
         let expired = make(start: day(-10), end: endOfDay(day(-3)), weekdays: all7,
                            startMinute: 9 * 60, duration: 60, oneOff: day(-10))

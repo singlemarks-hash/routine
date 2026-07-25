@@ -182,15 +182,15 @@ final class GroupStore: ObservableObject {
             // 카운터 드리프트로 멤버가 충분한 방이 잘못 취소·삭제되던 문제(#04)를 차단.
             if room.status == "scheduled", room.hasStarted {
                 let roomRef = db.collection("groups").document(id)
-                let actualCount: Int
-                if let snap = try? await roomRef.collection("members").getDocuments() {
-                    actualCount = snap.documents.filter { ($0.data()["quit"] as? Bool) != true }.count
-                } else {
-                    actualCount = room.memberCount
+                // 멤버 문서를 못 읽었으면 판정 자체를 미룬다. 캐시된 카운터로 '취소'를 내리면
+                // 정상 진행 중인 방이 폭파된다 — 네트워크가 돌아온 뒤 다시 판정하면 된다.
+                guard let memberSnap = try? await roomRef.collection("members").getDocuments() else {
+                    next.append(room); continue
                 }
+                let actualCount = memberSnap.documents.filter { ($0.data()["quit"] as? Bool) != true }.count
                 let decided = actualCount >= GroupPolicy.minMembersToStart ? "active" : "cancelled"
                 // compare-and-set — 아직 scheduled일 때만 바꾼다(여러 기기 동시 판정 방지) + 카운터 보정
-                let finalStatus = (try? await db.runTransaction { transaction, errorPointer -> Any? in
+                let committed = (try? await db.runTransaction { transaction, errorPointer -> Any? in
                     let snap: DocumentSnapshot
                     do { snap = try transaction.getDocument(roomRef) }
                     catch let e as NSError { errorPointer?.pointee = e; return nil }
@@ -200,7 +200,14 @@ final class GroupStore: ObservableObject {
                         return decided
                     }
                     return (snap.data()?["status"] as? String) ?? decided
-                }) as? String ?? decided
+                }) as? String
+                // 서버 기록에 실패했으면 판정을 적용하지 않는다. 실패한 판정을 확정으로 다루면
+                // 서버는 아직 scheduled인데 이 기기만 '취소'로 믿고 허위 안내를 띄운 뒤
+                // 내 멤버 문서를 지우고, 그 순간 혼자로 보였다면 남의 방 문서까지 삭제한다.
+                // 방과 점수·예약을 그대로 둔 채 다음 새로고침에서 다시 시도한다.
+                guard let finalStatus = committed else {
+                    next.append(room); continue
+                }
                 room.status = finalStatus
                 room.memberCount = actualCount
             }
@@ -600,7 +607,12 @@ final class GroupStore: ObservableObject {
         let roomID = room.id
         let existing = (try? context.fetch(FetchDescriptor<Reservation>(
             predicate: #Predicate { $0.groupID == roomID && $0.ownerUserID == owner }))) ?? []
-        guard existing.isEmpty else { return }
+        let stableID = Self.stableReservationID(roomID: roomID, owner: owner)
+        if let current = existing.first {
+            // 옛 버전이 무작위 ID로 만들어 둔 예약은 여기서 결정적 ID로 옮긴다.
+            if current.id != stableID { migrateReservationID(current, to: stableID, context: context) }
+            return
+        }
 
         let reservation = Reservation(name: room.name, tag: "그룹",
                                       startMinute: room.startMinute,
@@ -610,11 +622,38 @@ final class GroupStore: ObservableObject {
                                       oneOffDate: room.repeatWeekdays.isEmpty
                                           ? Calendar.current.startOfDay(for: room.startDate) : nil,
                                       ownerUserID: owner)
+        reservation.id = stableID
         reservation.groupID = room.id
         reservation.endDate = room.endDate
         reservation.intensityOverrideRaw = room.intensityRaw
         reservation.createdAt = room.startDate
         context.insert(reservation)
+        try? context.save()
+    }
+
+    /// 그룹 예약의 신분증 — 무작위가 아니라 방 ID + 계정에서 계산한다.
+    ///
+    /// 그룹 예약은 클라우드에 미러링되지 않아 기기마다 새로 만들어진다. 그런데 완주·노쇼
+    /// 기록(sessionSummaries)은 미러링되고 그 안에 예약 ID가 들어 있다. ID가 기기마다
+    /// 다르면 클라우드에서 내려온 지난 기록이 이 예약에 연결되지 않고, 그룹 노쇼 스윕은
+    /// 방 시작일부터 전 기간을 소급하므로 이미 완주한 날이 전부 노쇼로 재집계된다.
+    /// (재설치·기기 추가 시 발생. 두 기기를 함께 쓰면 상시 발생)
+    /// 방 ID에서 계산하면 어느 기기에서 만들어도 같은 값이라 기록이 그대로 이어진다.
+    static func stableReservationID(roomID: String, owner: String) -> UUID {
+        SessionEngine.deterministicUUID("groupres|\(roomID.lowercased())|\(owner.lowercased())")
+    }
+
+    /// 기존 설치본의 무작위 ID를 결정적 ID로 옮긴다. 그 예약에 딸린 세션의 연결도 함께
+    /// 갱신하고 클라우드 사본에 다시 반영해, 모든 기기가 같은 ID로 수렴하게 한다.
+    private func migrateReservationID(_ reservation: Reservation, to newID: UUID, context: ModelContext) {
+        let oldID = reservation.id
+        let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
+            predicate: #Predicate { $0.reservationID == oldID }))) ?? []
+        reservation.id = newID
+        for session in sessions {
+            session.reservationID = newID
+            AccountStore.shared.mirrorSession(session)
+        }
         try? context.save()
     }
 

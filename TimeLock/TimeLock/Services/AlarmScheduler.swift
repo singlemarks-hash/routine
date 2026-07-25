@@ -46,25 +46,86 @@ final class AlarmScheduler: NSObject, ObservableObject {
     // MARK: 스케줄링
 
     /// 모든 활성 예약의 알람/예고를 다시 스케줄한다. (예약 변경 시마다 호출)
-    /// 메인 알람은 scheduleMainAlarms가 예약의 경계에 따라 두 방식 중 하나를 고른다 —
-    /// 무기한 반복은 '주간 반복 트리거'(요일당 1건, 만료 없이 커버해 64개 상한 회피),
-    /// 종료일·미래 시작일이 있으면 창 안의 발생분만 구체 예약(범위 밖 발화 원천 차단).
-    /// 예고·재알림은 임박한 발생(다음 36시간)에만 구체 예약해 총량을 묶는다.
+    ///
+    /// iOS는 앱당 대기 알림을 64개로 제한하고, **넘치는 요청은 에러 없이 조용히 버린다.**
+    /// 예전에는 예약마다 독립적으로 최대 10건(+예고·경고)을 걸어, 활동이 대여섯 개만 돼도
+    /// 뒤쪽 예약은 메인 알람조차 등록되지 않고 매일 확정 노쇼가 됐다. 그래서 예약별 한도가
+    /// 아니라 **전역 예산**을 쓰고, 아래 순서로 배분한다.
+    ///
+    /// 1. 무기한 반복 → 주간 반복 트리거(요일당 1건, 만료 없음). 앱을 안 열어도 영원히 울린다.
+    ///    요일 수가 적은 예약부터 배정하되, 남은 예약이 각자 1건씩 쓸 자리는 반드시 남긴다.
+    /// 2. 나머지 예약 → **가장 가까운 발생 1건을 먼저 확보**. 두 달 뒤 시작이든 1년 뒤든
+    ///    첫 알람은 반드시 걸린다(앱을 한 번도 안 열어도 그날 울린다).
+    /// 3. 남은 예산 → 전체 발생을 시간순으로 줄 세워 가까운 것부터. 한 예약이 독식하지 않는다.
+    /// 4. 남은 예산 → 임박한 발생의 예고(-10분)·마지막 경고(+5분).
+    ///
+    /// 이 전체가 앱을 열 때마다 다시 계산되는 롤링 윈도우다.
     func rescheduleAll(reservations: [Reservation]) {
         center.removeAllPendingNotificationRequests()
         // 위 한 줄이 재촬영 창(긴급 용무 중단) 알림까지 함께 지운다 — 진행 중이면 즉시 복구한다.
         reArmBreakNotificationsIfNeeded()
         let now = Date()
-        let calendar = Calendar.current
+        let cal = Calendar.current
+        let active = reservations.filter { $0.isActive }
 
-        for reservation in reservations where reservation.isActive {
-            scheduleMainAlarms(for: reservation, now: now, calendar: calendar)
-            // 예고(10분 전)·재알림(2분 간격 4회)은 임박한 발생에만 구체 예약 —
-            // 반복이 쌓여도 알림 총량이 폭증하지 않고, 앱을 열 때마다 갱신된다.
-            for fire in upcomingOccurrences(of: reservation, within: 36 * 3600, now: now, calendar: calendar) {
-                schedulePreAlert(for: reservation, at: fire)
-                scheduleReAlarms(for: reservation, at: fire)
+        var budget = Self.pendingBudget
+        var uncovered = active.count        // 아직 알람이 한 건도 없는 예약 수
+        var weeklyCovered = Set<UUID>()
+
+        // 1) 무기한 반복 — 주간 트리거로 만료 없이 커버
+        let indefinite = active
+            .filter { $0.isRepeating && $0.endDate == nil
+                && cal.startOfDay(for: $0.createdAt) <= cal.startOfDay(for: now) }
+            .sorted { $0.repeatWeekdays.count < $1.repeatWeekdays.count }
+        for reservation in indefinite {
+            let need = reservation.repeatWeekdays.count
+            guard need > 0, budget - need >= uncovered - 1 else { continue }
+            for weekday in reservation.repeatWeekdays {
+                scheduleRepeatingWeeklyAlarm(for: reservation, weekday: weekday)
             }
+            budget -= need
+            uncovered -= 1
+            weeklyCovered.insert(reservation.id)
+        }
+
+        // 2) 나머지 예약 — 첫 발생 1건씩 확보
+        var pool: [(reservation: Reservation, fire: Date)] = []
+        for reservation in active where !weeklyCovered.contains(reservation.id) {
+            guard budget > 0 else { break }
+            let fires = occurrences(of: reservation, from: now,
+                                    withinDays: Self.rollingWindowDays, calendar: cal)
+            if let first = fires.first {
+                scheduleMainAlarm(for: reservation, at: first)
+                pool.append(contentsOf: fires.dropFirst().map { (reservation, $0) })
+            } else if let far = reservation.nextOccurrence(after: now, calendar: cal) {
+                // 창(14일) 밖에서 시작하는 예약 — 멀어도 첫 건은 반드시 건다.
+                scheduleMainAlarm(for: reservation, at: far)
+            } else {
+                continue   // 남은 발생이 없는 예약은 예산을 쓰지 않는다
+            }
+            budget -= 1
+            uncovered -= 1
+        }
+
+        // 3) 남은 예산을 시간순으로
+        for item in pool.sorted(by: { $0.fire < $1.fire }) {
+            guard budget > 0 else { break }
+            scheduleMainAlarm(for: item.reservation, at: item.fire)
+            budget -= 1
+        }
+
+        // 4) 예고·마지막 경고 — 임박한 발생에만, 가까운 순으로
+        var imminent: [(reservation: Reservation, fire: Date)] = []
+        for reservation in active {
+            for fire in imminentOccurrences(of: reservation, within: 36 * 3600, now: now, calendar: cal) {
+                imminent.append((reservation, fire))
+            }
+        }
+        for item in imminent.sorted(by: { $0.fire < $1.fire }) {
+            guard budget >= 2 else { break }
+            schedulePreAlert(for: item.reservation, at: item.fire)
+            scheduleReAlarms(for: item.reservation, at: item.fire)
+            budget -= 2
         }
 
         #if ENABLE_ALARMKIT
@@ -87,42 +148,25 @@ final class AlarmScheduler: NSObject, ObservableObject {
         return content
     }
 
-    /// 경계(종료일·미래 시작일)가 있는 예약을 구체 예약할 창 — 앱을 열 때마다 갱신되는 롤링 윈도우
-    private static let boundedWindowDays = 14
-    /// 예약 1건이 창 안에서 잡을 수 있는 메인 알람 최대 개수 (iOS 64개 대기 상한 보호)
-    private static let boundedMaxAlarms = 10
+    /// 앱을 열 때마다 다시 계산되는 롤링 윈도우 길이
+    private static let rollingWindowDays = 14
+    /// 대기 알림 전역 예산. iOS 상한 64건에서 재촬영 창 알림 3건과 여유분을 뺀 값.
+    /// 넘치는 요청은 iOS가 조용히 버리므로, 우리가 먼저 세어서 중요한 것부터 채운다.
+    private static let pendingBudget = 56
 
-    /// 메인 알람 스케줄 — 시작일(createdAt)·종료일(endDate) 게이트를 반드시 지킨다.
-    ///
-    /// 주간 무한 반복 트리거는 종료일을 표현할 수 없다. 예전엔 isRepeating이면 무조건
-    /// 이 트리거를 써서, '하루짜리' 활동이 매일 영원히 울리고(그런데 occurrence는 nil이라
-    /// 촬영으로 끌 수도 없었다) 아직 시작도 안 한 그룹 방이 미리 울렸다.
-    /// → 무기한(종료일 없음) + 시작일이 이미 지난 반복 예약에만 무한 트리거를 쓰고,
-    ///   그 외에는 창 안의 실제 발생분만 구체 예약한다. occurrence()가 두 게이트를
-    ///   모두 적용하므로 범위 밖 알람이 원천적으로 생기지 않는다.
-    private func scheduleMainAlarms(for reservation: Reservation, now: Date, calendar: Calendar) {
-        let startedAlready = calendar.startOfDay(for: reservation.createdAt) <= calendar.startOfDay(for: now)
-        if reservation.isRepeating, reservation.endDate == nil, startedAlready {
-            for weekday in reservation.repeatWeekdays {
-                scheduleRepeatingWeeklyAlarm(for: reservation, weekday: weekday)
-            }
-            return
-        }
-        var scheduled = 0
-        for offset in 0..<Self.boundedWindowDays where scheduled < Self.boundedMaxAlarms {
+    /// 창 안에서 이 예약이 실제로 발생하는 시각들 (이른 순).
+    /// 시작일·종료일 게이트는 occurrence()가 적용하므로 범위 밖 알람이 생기지 않는다.
+    private func occurrences(of reservation: Reservation, from now: Date,
+                             withinDays days: Int, calendar: Calendar) -> [Date] {
+        var result: [Date] = []
+        for offset in 0..<days {
             guard let day = calendar.date(byAdding: .day, value: offset,
                                           to: calendar.startOfDay(for: now)),
                   let fire = reservation.occurrence(on: day, calendar: calendar),
                   fire > now else { continue }
-            scheduleMainAlarm(for: reservation, at: fire)
-            scheduled += 1
+            result.append(fire)
         }
-        // 첫 발생이 창(14일) 밖이면 위 반복에서 한 건도 안 잡힌다. 그대로 두면 그때까지
-        // 앱을 한 번도 안 열었을 때 알람이 통째로 유실되므로, 멀더라도 첫 건은 걸어 둔다.
-        // (1건뿐이라 대기 알림 상한에도 부담이 없다)
-        if scheduled == 0, let first = reservation.nextOccurrence(after: now, calendar: calendar) {
-            scheduleMainAlarm(for: reservation, at: first)
-        }
+        return result
     }
 
     /// 일회성 메인 알람 1건 (구체 시각, 반복 없음)
@@ -164,20 +208,22 @@ final class AlarmScheduler: NSObject, ObservableObject {
         center.add(rRequest)
     }
 
-    /// 앞으로 `within`초 안에 발생하는 예약 시각들 (반복은 요일 규칙으로 열거, 일회성은 그 날짜)
-    private func upcomingOccurrences(of reservation: Reservation, within: TimeInterval,
+    /// 예고·마지막 경고를 걸 대상 발생들.
+    ///
+    /// 하한이 `now`가 아니라 `now - 시작창(10분)`인 것이 핵심이다. rescheduleAll은 맨 먼저
+    /// 대기 알림을 전부 지우는데, 앞으로 올 것만 다시 걸면 **지금 진행 중인 발생의 +5분
+    /// 마지막 경고가 지워진 채 복구되지 않는다.** 알람 배너를 눌러 앱을 여는 것만으로
+    /// 3단 에스컬레이션의 마지막 단계가 사라지던 원인이다.
+    /// (이미 지나간 예고·경고는 schedulePreAlert/scheduleReAlarms가 각자 걸러낸다)
+    private func imminentOccurrences(of reservation: Reservation, within: TimeInterval,
                                      now: Date, calendar: Calendar) -> [Date] {
+        let floor = now.addingTimeInterval(-TimePolicy.startWindowSeconds)
+        let ceiling = now.addingTimeInterval(within)
         var result: [Date] = []
-        if reservation.isRepeating {
-            for offset in 0...2 {
-                guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
-                      let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
-                if fire > now, fire <= now.addingTimeInterval(within) { result.append(fire) }
-            }
-        } else if let day = reservation.oneOffDate,
-                  let fire = reservation.occurrence(on: day, calendar: calendar),
-                  fire > now, fire <= now.addingTimeInterval(within) {
-            result.append(fire)
+        for offset in -1...2 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)),
+                  let fire = reservation.occurrence(on: day, calendar: calendar) else { continue }
+            if fire > floor, fire <= ceiling { result.append(fire) }
         }
         return result
     }
