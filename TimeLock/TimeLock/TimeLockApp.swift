@@ -660,7 +660,9 @@ final class AppState: ObservableObject {
                                    ownerUserID: AccountStore.shared.currentUserID)
             context.insert(event)
             AccountStore.shared.mirror(event: event)   // 사유+벌점 클라우드 백업
-            GroupStore.shared.reportScore(reservation: reservation, points: points)
+            GroupStore.shared.reportScore(reservation: reservation, points: points,
+                                          occurrenceKey: SessionEngine.occurrenceKey(session),
+                                          rank: GroupStore.scoreRankNormal)
         }
         try? context.save()
         refreshDerived()

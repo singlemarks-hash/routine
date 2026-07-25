@@ -571,15 +571,87 @@ final class GroupStore: ObservableObject {
     // MARK: 그룹 점수 반영 (세션 판정 시 호출)
 
     /// 그룹 예약에서 나온 상벌점을 서버의 내 멤버 점수에 합산한다. 실패해도 로컬 원장이 원본.
-    func reportScore(reservation: Reservation?, points: Int) {
+    /// 한 발생(활동 1회)에는 상벌점이 **한 번만** 반영된다.
+    ///
+    /// 그룹 점수는 더하기 방식이라, 기기가 둘이면 같은 발생을 각자 집계해 두 번 들어간다.
+    /// (개인 원장은 결정적 ID로 이미 막혀 있어 그룹만 어긋났다)
+    /// 그래서 발생마다 '반영함' 표식을 남기고, 표식이 있으면 그 요청은 버린다.
+    /// 표식 확인과 점수 반영을 한 트랜잭션에 묶어 동시 실행에도 한 번만 들어간다.
+    ///
+    /// 표식에는 점수와 함께 '등급(rank)'을 적는다. 같은 발생에 노쇼와 완주가 함께 찍히는 일이
+    /// 있는데(한 기기가 먼저 노쇼를 스윕하고, 다른 기기가 제시간 완주를 올린 경우) 이때
+    /// 실제 결과인 완주가 이겨야 한다. 등급이 낮은 요청은 버리고, 같거나 높으면 차액만 보정한다.
+    /// 호출 순서가 뒤바뀌어도 결과가 같다.
+    func reportScore(reservation: Reservation?, points: Int, occurrenceKey: String, rank: Int) {
         #if canImport(FirebaseFirestore)
         guard backendActive, let roomID = reservation?.groupID, points != 0 else { return }
         let uid = AccountStore.shared.currentUserID
         guard !uid.isEmpty, uid != AccountStore.guestID else { return }
-        Firestore.firestore().collection("groups").document(roomID)
-            .collection("members").document(uid)
-            .updateData(["score": FieldValue.increment(Int64(points))])
+        let db = Firestore.firestore()
+        let memberRef = db.collection("groups").document(roomID).collection("members").document(uid)
+        let markRef = memberRef.collection("scored").document(Self.markID(occurrenceKey))
+        Task {
+            _ = try? await db.runTransaction { transaction, errorPointer -> Any? in
+                let snap: DocumentSnapshot
+                do { snap = try transaction.getDocument(markRef) }
+                catch let e as NSError { errorPointer?.pointee = e; return nil }
+                var delta = points
+                if snap.exists {
+                    let oldRank = snap.data()?["rank"] as? Int ?? Self.scoreRankNormal
+                    let oldPoints = snap.data()?["points"] as? Int ?? 0
+                    guard rank >= oldRank else { return nil }          // 더 확실한 결과가 이미 있다
+                    guard rank > oldRank || points != oldPoints else { return nil }   // 같은 값 재요청
+                    delta = points - oldPoints                          // 차액만 보정
+                }
+                transaction.setData(["points": points, "rank": rank, "at": Timestamp(date: .now)],
+                                    forDocument: markRef)
+                if delta != 0 {
+                    transaction.updateData(["score": FieldValue.increment(Int64(delta))],
+                                           forDocument: memberRef)
+                }
+                return nil
+            }
+        }
         #endif
+    }
+
+    /// 잘못 찍힌 노쇼를 지울 때 그 발생의 반영을 되돌린다.
+    /// 표식에 적힌 값만큼만 빼고 표식을 지운다 — 반영된 적 없으면 아무것도 하지 않으므로
+    /// 여러 기기가 동시에 되돌려도 한 번만 빠진다.
+    /// 이미 완주 등급으로 덮인 표식은 건드리지 않는다(그건 정당한 점수다).
+    func revokeScore(reservation: Reservation?, occurrenceKey: String) {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let roomID = reservation?.groupID else { return }
+        let uid = AccountStore.shared.currentUserID
+        guard !uid.isEmpty, uid != AccountStore.guestID else { return }
+        let db = Firestore.firestore()
+        let memberRef = db.collection("groups").document(roomID).collection("members").document(uid)
+        let markRef = memberRef.collection("scored").document(Self.markID(occurrenceKey))
+        Task {
+            _ = try? await db.runTransaction { transaction, errorPointer -> Any? in
+                let snap: DocumentSnapshot
+                do { snap = try transaction.getDocument(markRef) }
+                catch let e as NSError { errorPointer?.pointee = e; return nil }
+                guard snap.exists, let points = snap.data()?["points"] as? Int else { return nil }
+                let oldRank = snap.data()?["rank"] as? Int ?? Self.scoreRankNormal
+                guard oldRank == Self.scoreRankNoShow else { return nil }
+                transaction.deleteDocument(markRef)
+                transaction.updateData(["score": FieldValue.increment(Int64(-points))],
+                                       forDocument: memberRef)
+                return nil
+            }
+        }
+        #endif
+    }
+
+    /// 노쇼는 '아직 결과를 못 본' 추정치라 가장 낮은 등급이다.
+    static let scoreRankNoShow = 0
+    /// 실제로 화면을 통과한 결과(완주·이탈실패·긴급종료·일정취소)는 노쇼를 덮는다.
+    static let scoreRankNormal = 1
+
+    /// 발생 키를 문서 ID로 — 길이·문자 제한에 걸리지 않게 결정적 UUID로 줄인다.
+    private static func markID(_ occurrenceKey: String) -> String {
+        SessionEngine.deterministicUUID("groupscore|\(occurrenceKey)").uuidString.lowercased()
     }
 
     // MARK: 탈퇴 · 해체 · 나가기

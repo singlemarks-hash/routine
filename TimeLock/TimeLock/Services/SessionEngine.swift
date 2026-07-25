@@ -522,12 +522,24 @@ final class SessionEngine: NSObject, ObservableObject {
         onFinalized?()
     }
 
+    /// 발생(활동 1회)을 식별하는 키. 그룹 점수 중복 반영을 막는 도장의 이름이 된다.
+    /// 예약 없는 즉시 세션은 그룹과 무관하므로 세션 ID를 그대로 쓴다.
+    static func occurrenceKey(_ session: FocusSession) -> String {
+        guard let rid = session.reservationID, let scheduled = session.scheduledAt else {
+            return session.id.uuidString
+        }
+        return "\(rid.uuidString)-\(Int(scheduled.timeIntervalSince1970))"
+    }
+
     /// 세션이 그룹 예약 소속이면 상벌점을 그룹 랭킹 점수에도 합산한다.
     private func reportGroupScoreIfNeeded(session s: FocusSession, points: Int, context: ModelContext) {
         guard let rid = s.reservationID else { return }
         let reservation = (try? context.fetch(FetchDescriptor<Reservation>(
             predicate: #Predicate { $0.id == rid })))?.first
-        GroupStore.shared.reportScore(reservation: reservation, points: points)
+        GroupStore.shared.reportScore(reservation: reservation, points: points,
+                                      occurrenceKey: Self.occurrenceKey(s),
+                                      rank: s.outcome == .noShow ? GroupStore.scoreRankNoShow
+                                                                 : GroupStore.scoreRankNormal)
     }
 
     private func cleanupRuntime() {
@@ -578,21 +590,20 @@ final class SessionEngine: NSObject, ObservableObject {
             }) else { continue }
             for session in slot.sessions where session.outcome == .noShow {
                 let sid = session.id
-                // 그룹 랭킹은 단방향 증분이라 이벤트를 지운다고 되돌아오지 않는다 —
-                // 되돌린 만큼 반대 부호로 보정해야 개인 점수와 어긋나지 않는다.
-                var compensation = 0
                 if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
                     predicate: #Predicate { $0.sessionID == sid })) {
                     for event in events {
-                        compensation -= event.points
                         AccountStore.shared.deleteMirroredEvent(id: event.id)
                         context.delete(event)
                     }
                 }
-                if compensation != 0, let rid = session.reservationID {
+                // 그룹 랭킹도 그 발생의 '반영 도장'을 지워 되돌린다. 반대 부호로 더하는 방식은
+                // 기기 수만큼 중복 보정돼 오히려 어긋난다 — 도장이 있을 때만 한 번 빠진다.
+                if let rid = session.reservationID {
                     let reservation = (try? context.fetch(FetchDescriptor<Reservation>(
                         predicate: #Predicate { $0.id == rid })))?.first
-                    GroupStore.shared.reportScore(reservation: reservation, points: compensation)
+                    GroupStore.shared.revokeScore(reservation: reservation,
+                                                  occurrenceKey: Self.occurrenceKey(session))
                 }
                 AccountStore.shared.deleteMirroredSession(id: sid)
                 SessionStorage.deleteFiles(of: session)
@@ -704,7 +715,9 @@ final class SessionEngine: NSObject, ObservableObject {
                         "noshow|\(reservation.id.uuidString.lowercased())|\(Int(fire.timeIntervalSince1970))")
                     context.insert(event)
                     AccountStore.shared.mirror(event: event)
-                    GroupStore.shared.reportScore(reservation: reservation, points: points)
+                    GroupStore.shared.reportScore(reservation: reservation, points: points,
+                                                  occurrenceKey: key,
+                                                  rank: GroupStore.scoreRankNoShow)
                 }
                 AccountStore.shared.mirrorSession(noShow)   // 노쇼 요약도 클라우드 미러
                 existing.insert(key)
