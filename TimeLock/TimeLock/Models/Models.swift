@@ -99,14 +99,15 @@ enum SlotPolicy {
 // MARK: - 예약 정책
 
 enum ReservationPolicy {
-    /// 시작일 상한 — 오늘부터 3개월. 개인·그룹 공통.
+    /// 시작일 상한 — 오늘부터 1개월. 개인·그룹 공통.
     ///
-    /// 1년 뒤 알람을 걸어 두는 것은 우리가 지킬 수 없는 약속이다. 그 사이 앱 업데이트로
+    /// 먼 미래 알람을 걸어 두는 것은 우리가 지킬 수 없는 약속이다. 그 사이 앱 업데이트로
     /// 스케줄 방식이 바뀌거나, 기기를 바꾸거나, iOS가 대기 알림을 정리하면 그날 알람이
     /// 울린다는 보장이 사라진다. 지킬 수 있는 범위 안에서만 예약을 받는다.
-    static let maxStartLeadMonths = 3
+    /// (활동 '기간'은 이 상한과 무관하다 — 한 달 안에 시작하기만 하면 된다)
+    static let maxStartLeadMonths = 1
 
-    /// 오늘 기준 고를 수 있는 가장 먼 시작일 (예: 7월 25일 → 10월 25일)
+    /// 오늘 기준 고를 수 있는 가장 먼 시작일 (예: 7월 25일 → 8월 25일)
     static func maxStartDay(from now: Date = .now, calendar: Calendar = .current) -> Date {
         let today = calendar.startOfDay(for: now)
         return calendar.date(byAdding: .month, value: maxStartLeadMonths, to: today) ?? today
