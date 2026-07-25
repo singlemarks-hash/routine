@@ -218,9 +218,10 @@ struct WeeklyScheduleView: View {
         if let end = r.endDate, Calendar.current.isDate(r.createdAt, inSameDayAs: end) {
             return " · \(f.string(from: r.createdAt)) 하루"
         }
+        // 표기는 '매일' / '반복요일' 두 가지로만 — 기간이 짧으면 '매주'가 사실과 달라진다.
         if Set(r.repeatWeekdays).count == 7 { return " · 매일" }   // 요일 전체 = 매일(기간)
-        if r.isRepeating { return " · 매주" }
-        guard let date = r.oneOffDate else { return " · 매주" }
+        if r.isRepeating { return " · 반복요일" }
+        guard let date = r.oneOffDate else { return " · 매일" }
         return " · \(f.string(from: date)) 하루"
     }
 }

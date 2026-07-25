@@ -786,7 +786,7 @@ fun WeeklyScheduleTab(
     }
 }
 
-/** 주간 일정 한 줄 — 시각 · (그룹아이콘)활동명 · 길이/매주·일회성 · 태그칩 (iOS timetableRow 1:1) */
+/** 주간 일정 한 줄 — 시각 · (그룹아이콘)활동명 · 길이/매일·반복요일·하루 · 태그칩 (iOS timetableRow 1:1) */
 @Composable
 private fun ScheduleRow(r: Reservation, onClick: () -> Unit) {
     // 시작일=종료일이면 요일 반복 여부와 무관하게 그날 하루만 진행하는 활동.
@@ -800,13 +800,14 @@ private fun ScheduleRow(r: Reservation, onClick: () -> Unit) {
             val c = Calendar.getInstance().apply { timeInMillis = r.createdAt }
             "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 하루"
         }
+        // 표기는 '매일' / '반복요일' 두 가지로만 — 기간이 짧으면 '매주'가 사실과 달라진다.
         r.repeatWeekdays.size == 7 -> "매일"          // 요일 전체 = 매일(기간)
-        r.isRepeating -> "매주"
+        r.isRepeating -> "반복요일"
         r.oneOffDayStart != null -> {
             val c = Calendar.getInstance().apply { timeInMillis = r.oneOffDayStart!! }
             "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 하루"
         }
-        else -> "매주"
+        else -> "매일"
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,

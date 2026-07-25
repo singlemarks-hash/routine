@@ -63,10 +63,10 @@ import java.util.Calendar
 private object GroupFormat {
     private val weekdayNames = listOf("", "일", "월", "화", "수", "목", "금", "토")
 
-    // iOS: "매주 월 화 수" (공백 구분), 요일 전체면 "매일" 축약 1:1
+    // iOS 1:1 — 요일 전체면 "매일", 아니면 "반복요일 월 화 수" (공백 구분)
     fun weekdays(days: List<Int>): String =
         if (days.size == 7) "매일"
-        else "매주 " + days.sorted().joinToString(" ") { weekdayNames[it] }
+        else "반복요일 " + days.sorted().joinToString(" ") { weekdayNames[it] }
 
     // iOS: "오후 7시" / "오전 9:30" (12시간 한국어) 1:1
     fun time(startMinute: Int): String {
@@ -986,7 +986,7 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                     Spacer(Modifier.height(16.dp))
                     if (finished) {
                         TLGhostButton("방 나가기 — 내 목록에서 제거", tint = TL.muted) {
-                            scope.launch { GroupStore.hideFinishedRoom(room); onBack() }
+                            scope.launch { GroupStore.hideFinishedRoom(context, room); onBack() }
                         }
                         Text("결과는 종료 후 ${GroupPolicy.RESULT_RETENTION_DAYS}일까지 보관됩니다.",
                             color = TL.faint, fontSize = 12.sp,

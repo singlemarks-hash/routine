@@ -403,9 +403,10 @@ fun repeatSuffix(r: Reservation): String {
         if (a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) &&
             a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR)) return ""
     }
+    // '매일' / '반복요일' 두 가지로만 표기 (기간이 짧으면 '매주'는 사실과 다름)
     return when {
         r.repeatWeekdays.size == 7 -> " · 매일"
-        r.isRepeating -> " · 매주 " + weekdayLabel(r.repeatWeekdays)
+        r.isRepeating -> " · 반복요일 " + weekdayLabel(r.repeatWeekdays)
         else -> ""
     }
 }

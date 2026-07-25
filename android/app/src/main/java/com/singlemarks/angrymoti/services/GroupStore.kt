@@ -89,7 +89,9 @@ object GroupStore {
         isRefreshing.value = true
         try {
             val myUid = uid
-            val ids = myRoomIDs()
+            // 조회 실패(null)면 이번 새로고침은 통째로 건너뛴다 — 빈 목록으로 오해해
+            // 정상 그룹 예약을 지우거나 방 목록을 날리면 안 된다.
+            val ids = myRoomIDs() ?: return
             val next = mutableListOf<GroupRoom>()
             for (id in ids) {
                 val snapshot = runCatching { db().collection("groups").document(id).get().await() }
@@ -165,6 +167,9 @@ object GroupStore {
                 }
                 next.add(room)
             }
+            // 서버 기준으로 살아있는 방만 남기고, 그 외 그룹 예약은 고아로 보고 정리.
+            // (ids 조회가 성공했을 때만 여기 도달하므로 오삭제 위험 없음)
+            pruneOrphanGroupReservations(context, next.map { it.id }.toSet())
             rooms.value = next.sortedBy { it.startDate }
             AlarmScheduler.rescheduleAll(context)
         } finally {
@@ -462,9 +467,12 @@ object GroupStore {
     }
 
     /** 종료된 방 '나가기' — 내 목록에서만 사라진다 (다른 참여자의 결과는 유지) */
-    suspend fun hideFinishedRoom(room: GroupRoom) {
+    suspend fun hideFinishedRoom(context: Context, room: GroupRoom) {
         removeMembershipRef(room.id)
+        // 끝난 방이라도 로컬 예약은 남아 일정·홈에 계속 뜬다 — 반드시 함께 정리한다.
+        removeLocalReservation(context, room.id)
         rooms.value = rooms.value.filterNot { it.id == room.id }
+        AlarmScheduler.rescheduleAll(context)
     }
 
     // MARK: 내부
@@ -512,20 +520,39 @@ object GroupStore {
                     dbLocal.sessions().delete(session)
                 }
             }
+            // 예약만 지우고 알람을 그대로 두면, 예약이 없는 채로 알람이 울려
+            // 라우팅 대상이 없는 검은 화면 + 끌 수 없는 소리가 된다. 반드시 먼저 취소.
+            AlarmScheduler.cancel(context, reservation.id)
             // 폭파·취소·해체된 그룹 예약은 DB에서 완전 삭제 (소프트 삭제 아님) —
             // 방 문서가 사라졌으니 재생성되지 않는다.
             dbLocal.reservations().delete(reservation)
         }
     }
 
-    private suspend fun myRoomIDs(): List<String> {
+    /** 내가 속한 방 ID 목록. null = 조회 실패(네트워크 등) — '가입한 방 없음'(빈 목록)과
+     *  반드시 구분해야 한다. 실패를 빈 목록으로 뭉개면 고아 예약 스윕이 멀쩡한 예약을 전부 지운다. */
+    private suspend fun myRoomIDs(): List<String>? {
         val myUid = uid
-        if (myUid.isEmpty() || myUid == "guest") return emptyList()
+        if (myUid.isEmpty() || myUid == "guest") return null
         val doc = runCatching {
             db().collection("users").document(myUid).get().await()
-        }.getOrNull() ?: return emptyList()
+        }.getOrNull() ?: return null
         @Suppress("UNCHECKED_CAST")
         return doc.get("groupIDs") as? List<String> ?: emptyList()
+    }
+
+    /** 고아 그룹 예약 정리 — 서버 기준 내 방 목록에 없는 groupId의 로컬 예약을 제거한다.
+     *  나가기·해체·중도포기 중 어느 경로가 실패해 예약이 남아도 다음 새로고침에서 자가 치유된다.
+     *  (호출 측에서 '조회 성공'이 보장된 ID 목록만 넘길 것) */
+    private suspend fun pruneOrphanGroupReservations(context: Context, liveRoomIDs: Set<String>) {
+        val dao = AppDb.get(context).reservations()
+        val owner = AccountStore.currentUserID
+        for (r in dao.allForOwner(owner)) {
+            val gid = r.groupId ?: continue
+            if (gid in liveRoomIDs) continue
+            AlarmScheduler.cancel(context, r.id)   // 예약만 지우면 유령 알람이 남는다
+            dao.delete(r)
+        }
     }
 
     private suspend fun removeMembershipRef(roomID: String) {

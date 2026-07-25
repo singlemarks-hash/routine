@@ -126,7 +126,9 @@ final class GroupStore: ObservableObject {
         let db = Firestore.firestore()
         let uid = AccountStore.shared.currentUserID
 
-        let ids = await myRoomIDs()
+        // 조회 실패(nil)면 이번 새로고침은 통째로 건너뛴다 — 빈 목록으로 오해해
+        // 정상 그룹 예약을 지우거나 방 목록을 날리면 안 된다.
+        guard let ids = await myRoomIDs() else { return }
         var next: [GroupRoom] = []
         for id in ids {
             guard let snapshot = try? await db.collection("groups").document(id).getDocument() else { continue }
@@ -205,6 +207,9 @@ final class GroupStore: ObservableObject {
             }
             next.append(room)
         }
+        // 서버 기준으로 살아있는 방만 남기고, 그 외 그룹 예약은 고아로 보고 정리.
+        // (ids 조회가 성공했을 때만 여기 도달하므로 오삭제 위험 없음)
+        pruneOrphanGroupReservations(liveRoomIDs: Set(next.map(\.id)))
         rooms = next.sorted { $0.startDate < $1.startDate }
         AppState.shared.rescheduleAlarmsForCurrentUser()
         #else
@@ -529,7 +534,10 @@ final class GroupStore: ObservableObject {
     /// 종료된 방 '나가기' — 내 목록에서만 사라진다(다른 참여자의 결과는 유지).
     func hideFinishedRoom(room: GroupRoom) async {
         await removeMembershipRef(roomID: room.id)
+        // 끝난 방이라도 로컬 예약은 남아 일정·홈에 계속 뜬다 — 반드시 함께 정리한다.
+        removeLocalReservation(roomID: room.id)
         rooms.removeAll { $0.id == room.id }
+        AppState.shared.rescheduleAlarmsForCurrentUser()
     }
 
     // MARK: 내부
@@ -589,15 +597,35 @@ final class GroupStore: ObservableObject {
         try? context.save()
     }
 
-    private func myRoomIDs() async -> [String] {
+    /// 내가 속한 방 ID 목록. nil = 조회 실패(네트워크 등) — '가입한 방이 하나도 없음'([])과
+    /// 반드시 구분해야 한다. 실패를 []로 뭉개면 아래 고아 예약 스윕이 멀쩡한 그룹 예약을 전부 지운다.
+    private func myRoomIDs() async -> [String]? {
         #if canImport(FirebaseFirestore)
         let uid = AccountStore.shared.currentUserID
-        guard !uid.isEmpty else { return [] }
-        let doc = try? await Firestore.firestore().collection("users").document(uid).getDocument()
-        return doc?.data()?["groupIDs"] as? [String] ?? []
+        guard !uid.isEmpty else { return nil }
+        guard let doc = try? await Firestore.firestore()
+            .collection("users").document(uid).getDocument() else { return nil }
+        return doc.data()?["groupIDs"] as? [String] ?? []
         #else
-        return []
+        return nil
         #endif
+    }
+
+    /// 고아 그룹 예약 정리 — 서버 기준 내 방 목록에 없는 groupID의 로컬 예약을 제거한다.
+    /// 나가기·해체·중도포기 중 어느 경로가 실패해 예약이 남더라도 다음 새로고침에서 자가 치유된다.
+    /// (호출 측에서 '조회 성공'이 보장된 ID 목록만 넘길 것 — 실패 시 호출하면 안 된다)
+    private func pruneOrphanGroupReservations(liveRoomIDs: Set<String>) {
+        guard let context = modelContext else { return }
+        let owner = AccountStore.shared.currentUserID
+        let list = (try? context.fetch(FetchDescriptor<Reservation>(
+            predicate: #Predicate { $0.groupID != nil && $0.ownerUserID == owner }))) ?? []
+        var removed = false
+        for reservation in list {
+            guard let gid = reservation.groupID, !liveRoomIDs.contains(gid) else { continue }
+            context.delete(reservation)
+            removed = true
+        }
+        if removed { try? context.save() }
     }
 
     private func removeMembershipRef(roomID: String) async {

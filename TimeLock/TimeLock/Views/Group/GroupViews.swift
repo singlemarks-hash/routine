@@ -488,7 +488,7 @@ struct GroupCreateView: View {
         let days = !isRepeating ? "매일"
             : weekdays.isEmpty ? "요일 미선택"
             : weekdays.count == 7 ? "매일"
-            : "매주 " + weekdays.sorted().compactMap { GroupFormat.weekdayNames[$0] }.joined(separator: " ")
+            : "반복요일 " + weekdays.sorted().compactMap { GroupFormat.weekdayNames[$0] }.joined(separator: " ")
         return "\(GroupFormat.day(startDay)) ~ \(GroupFormat.day(endDay))\n\(days) · \(common)"
     }
 
@@ -863,11 +863,25 @@ struct GroupRoomDetailView: View {
     @State private var confirmQuit = false
     @State private var confirmDisband = false
     @State private var working = false
+    @State private var leaveError: String?
     @State private var now = Date()
     // 시작 카운트다운은 '분' 단위 표시라 30초 폴링이면 충분(부하·불안감↓).
     private let clock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var myUID: String { account.currentUserID }
+
+    /// 나가기·해체·중도포기 공통 실행 — 성공했을 때만 화면을 닫는다.
+    /// 예전엔 `try?` 뒤에 무조건 dismiss라 실패해도 나간 것처럼 보이고 그룹 예약이 일정에 남았다.
+    private func runLeaveAction(_ action: @escaping () async throws -> Void) async {
+        working = true
+        defer { working = false }
+        do {
+            try await action()
+            dismiss()
+        } catch {
+            leaveError = error.localizedDescription
+        }
+    }
 
     /// 남은 시간 문구 — 예: "6시간 18분 뒤 시작", "42분 뒤 시작", "곧 시작".
     private func startRemainLabel(_ seconds: Int) -> String {
@@ -911,6 +925,12 @@ struct GroupRoomDetailView: View {
         .task { await load() }
         .refreshable { await load() }
         .onReceive(clock) { now = $0 }
+        .alert("처리하지 못했어요", isPresented: Binding(
+            get: { leaveError != nil }, set: { if !$0 { leaveError = nil } })) {
+            Button("확인", role: .cancel) { leaveError = nil }
+        } message: {
+            Text(leaveError ?? "")
+        }
     }
 
     private func load() async {
@@ -1147,7 +1167,8 @@ struct GroupRoomDetailView: View {
                     .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
                     .confirmationDialog("방을 해체할까요?", isPresented: $confirmDisband, titleVisibility: .visible) {
                         Button("해체하기", role: .destructive) {
-                            Task { try? await store.disband(room: room); dismiss() }
+                            // 실패했는데 닫으면 '나갔다'고 오해하고 예약이 남는다 — 성공했을 때만 닫는다.
+                            Task { await runLeaveAction { try await store.disband(room: room) } }
                         }
                     } message: {
                         Text("참여자 전원에게 방이 사라지고, 되돌릴 수 없습니다.")
@@ -1157,7 +1178,7 @@ struct GroupRoomDetailView: View {
                     .buttonStyle(TLGhostButtonStyle())
                     .confirmationDialog("방에서 나갈까요?", isPresented: $confirmLeave, titleVisibility: .visible) {
                         Button("탈퇴하기", role: .destructive) {
-                            Task { try? await store.leaveBeforeStart(room: room); dismiss() }
+                            Task { await runLeaveAction { try await store.leaveBeforeStart(room: room) } }
                         }
                     }
             }
@@ -1166,7 +1187,7 @@ struct GroupRoomDetailView: View {
                 .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
                 .confirmationDialog("정말 중도 포기할까요?", isPresented: $confirmQuit, titleVisibility: .visible) {
                     Button("포기하기 (벌점 \(ScoreRules.groupQuitPenalty)점)", role: .destructive) {
-                        Task { try? await store.quitAfterStart(room: room); dismiss() }
+                        Task { await runLeaveAction { try await store.quitAfterStart(room: room) } }
                     }
                 } message: {
                     Text("벌점 \(ScoreRules.groupQuitPenalty)점이 그룹 점수와 내 누적 점수에 모두 기록되고, 남은 그룹 일정이 삭제됩니다. 지금까지 얻은 점수는 유지됩니다.")
@@ -1240,7 +1261,7 @@ enum GroupFormat {
         let when = (room.repeatWeekdays.isEmpty || sameDay)
             ? "\(day(room.startDate)) 하루"
             : room.repeatWeekdays.count == 7 ? "매일"
-            : "매주 " + room.repeatWeekdays.sorted().compactMap { weekdayNames[$0] }.joined(separator: " ")
+            : "반복요일 " + room.repeatWeekdays.sorted().compactMap { weekdayNames[$0] }.joined(separator: " ")
         return "\(when) · \(time(room.startMinute)) · \(TLFormat.durationLabel(room.durationMinutes))"
     }
 }
