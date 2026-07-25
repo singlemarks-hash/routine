@@ -237,8 +237,8 @@ struct GroupCreateView: View {
     @State private var intensity: Intensity = .spicy
     @State private var startTime = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: .now)!
     @State private var minutes = 30
-    @State private var isRepeating = true          // 끄면 일회성(단발성) 그룹
-    @State private var weekdays: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
+    @State private var isRepeating = false          // ON=고른 요일만, OFF=매일(기간). 개인 활동과 동일한 모델.
+    @State private var weekdays: Set<Int> = []
     @State private var startDay = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now))!
     @State private var endDay = Calendar.current.date(byAdding: .day, value: 28, to: Calendar.current.startOfDay(for: .now))!
     @State private var working = false
@@ -364,13 +364,24 @@ struct GroupCreateView: View {
                     }
                 }
 
-                // 반복 — 요일 반복 토글. 끄면 일회성(단발성) 그룹: 날짜 하나만 고른다.
+                // 반복 — 요일 반복 토글(ON=고른 요일, OFF=매일). 개인 활동 예약과 동일한 모델:
+                // 기간(시작일·종료일)은 두 모드 공통이며, 시작일=종료일로 두면 자연히 단발성 하루가 된다.
                 field("반복") {
                     VStack(alignment: .leading, spacing: 14) {
                         Toggle(isOn: $isRepeating) {
-                            Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                            HStack(spacing: 6) {
+                                Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                                // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
+                                if !isRepeating {
+                                    Text("(매일)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
+                                }
+                            }
                         }
                         .tint(TL.rec)
+                        // 켤 때 고른 요일이 없으면 평일 기본값 (개인 활동과 동일)
+                        .onChange(of: isRepeating) { _, on in
+                            if on && weekdays.isEmpty { weekdays = [2, 3, 4, 5, 6] }
+                        }
 
                         if isRepeating {
                             // 개인 활동 요일 반복 UI와 통일 — 미선택 요일에도 헤어라인 테두리로 영역 표시
@@ -390,10 +401,6 @@ struct GroupCreateView: View {
                                     }
                                 }
                             }
-                        } else {
-                            DatePicker("날짜", selection: $startDay,
-                                       in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
-                                .font(.system(size: 14)).foregroundStyle(TL.paper).colorScheme(.dark)
                         }
                     }
                     .padding(14)
@@ -410,27 +417,27 @@ struct GroupCreateView: View {
                         .foregroundStyle(TL.rec)
                 }
 
-                if isRepeating {
-                    field("기간 — 시작은 1시간 뒤부터, 최대 3개월") {
-                        VStack(spacing: 0) {
-                            DatePicker("시작일", selection: $startDay,
-                                       in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
-                            Divider().overlay(TL.hairline)
-                                .padding(.vertical, 6)
-                            DatePicker("종료일", selection: $endDay, in: startDay...maxEndDay, displayedComponents: .date)
-                        }
-                        .font(.system(size: 14))
-                        .foregroundStyle(TL.paper)
-                        .colorScheme(.dark)
-                        .padding(14)
-                        .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
-                        .onChange(of: startDay) {
-                            if endDay < startDay { endDay = startDay }
-                            if endDay > maxEndDay { endDay = maxEndDay }
-                        }
+                // 기간 — 시작일·종료일. 요일 반복·매일 공통. 시작일=종료일이면 그날 하루만 진행.
+                field("기간 — 시작은 1시간 뒤부터, 최대 3개월") {
+                    VStack(spacing: 0) {
+                        DatePicker("시작일", selection: $startDay,
+                                   in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
+                        Divider().overlay(TL.hairline)
+                            .padding(.vertical, 6)
+                        DatePicker("종료일", selection: $endDay, in: startDay...maxEndDay, displayedComponents: .date)
                     }
-                } else {
-                    Text("일회성 — 고른 날짜에 한 번만 진행하는 그룹이에요. 시작은 지금부터 최소 1시간 뒤여야 해요.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(TL.paper)
+                    .colorScheme(.dark)
+                    .padding(14)
+                    .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+                    .onChange(of: startDay) {
+                        if endDay < startDay { endDay = startDay }
+                        if endDay > maxEndDay { endDay = maxEndDay }
+                    }
+                }
+                if !isRepeating {
+                    Text("선택한 기간 동안 매일 진행돼요. 시작일과 종료일을 같은 날짜로 두면 그날 하루만 진행하는 단발 그룹이 됩니다.")
                         .font(.system(size: 12)).foregroundStyle(TL.faint)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -470,10 +477,12 @@ struct GroupCreateView: View {
     private var summaryText: String {
         let time = GroupFormat.time(startMinute)
         let common = "\(time) 시작 · \(TLFormat.durationLabel(minutes)) · \(intensity.title)\n시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있고, 시작 시각에 \(GroupPolicy.minMembersToStart)명 미만이면 방이 자동 삭제됩니다."
-        if !isRepeating {
+        // 시작일=종료일이면 요일 반복 여부와 무관하게 그날 하루만 진행하는 단발 그룹.
+        if Calendar.current.isDate(startDay, inSameDayAs: endDay) {
             return "\(GroupFormat.day(startDay)) 하루 · \(common)"
         }
-        let days = weekdays.isEmpty ? "요일 미선택"
+        let days = !isRepeating ? "매일"
+            : weekdays.isEmpty ? "요일 미선택"
             : weekdays.count == 7 ? "매일"
             : "매주 " + weekdays.sorted().compactMap { GroupFormat.weekdayNames[$0] }.joined(separator: " ")
         return "\(GroupFormat.day(startDay)) ~ \(GroupFormat.day(endDay))\n\(days) · \(common)"
@@ -493,9 +502,9 @@ struct GroupCreateView: View {
             return
         }
         let calendar = Calendar.current
-        // 일회성이면 요일 없음 + 종료일 = 시작일(그날 하루)
-        let effectiveWeekdays = isRepeating ? weekdays.sorted() : []
-        let effectiveEndDay = isRepeating ? endDay : startDay
+        // 요일 반복 OFF = 매일(요일 전체). 시작일=종료일이면 그날 하루만 발생하는 단발성이 된다.
+        let effectiveWeekdays = isRepeating ? weekdays.sorted() : [1, 2, 3, 4, 5, 6, 7]
+        let effectiveEndDay = endDay
         let startDate = calendar.date(byAdding: .minute, value: startMinute,
                                       to: calendar.startOfDay(for: startDay))!
         // endDate = 종료일의 끝(23:59:59.999) — 안드로이드와 통일. 마지막 날 세션 시각이 아니라 그날 전체를 포함해
@@ -1222,8 +1231,9 @@ enum GroupFormat {
     }
 
     static func scheduleLine(_ room: GroupRoom) -> String {
-        // 일회성 그룹(요일 없음)은 날짜 하나로 표시
-        let when = room.repeatWeekdays.isEmpty
+        // 시작일=종료일(또는 요일 없음, 레거시)이면 그날 하루만 진행하는 단발 그룹
+        let sameDay = Calendar.current.isDate(room.startDate, inSameDayAs: room.endDate)
+        let when = (room.repeatWeekdays.isEmpty || sameDay)
             ? "\(day(room.startDate)) 하루"
             : room.repeatWeekdays.count == 7 ? "매일"
             : "매주 " + room.repeatWeekdays.sorted().compactMap { weekdayNames[$0] }.joined(separator: " ")

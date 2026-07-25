@@ -89,8 +89,12 @@ private object GroupFormat {
     fun period(start: Long, end: Long): String = "${day(start)} ~ ${day(end)}"
 
     fun schedule(room: GroupRoom): String {
-        // 일회성 그룹(요일 없음)은 날짜 하나로 표시
-        val whenLabel = if (room.repeatWeekdays.isEmpty()) "${day(room.startDate)} 하루"
+        // 시작일=종료일(또는 요일 없음, 레거시)이면 그날 하루만 진행하는 단발 그룹
+        val cal1 = Calendar.getInstance().apply { timeInMillis = room.startDate }
+        val cal2 = Calendar.getInstance().apply { timeInMillis = room.endDate }
+        val sameDay = cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+        val whenLabel = if (room.repeatWeekdays.isEmpty() || sameDay) "${day(room.startDate)} 하루"
                         else weekdays(room.repeatWeekdays)
         return "$whenLabel · ${time(room.startMinute)} · ${duration(room.durationMinutes)}"
     }
@@ -349,8 +353,8 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
     var intensity by remember { mutableStateOf(Intensity.SPICY) }
     var startMinute by remember { mutableStateOf(19 * 60) }               // 기본 19:00 (iOS 통일)
     var durationMinutes by remember { mutableStateOf(30) }                // 기본 30분 (iOS 통일)
-    var isRepeating by remember { mutableStateOf(true) }                  // 끄면 일회성(단발성) 그룹
-    var repeatDays by remember { mutableStateOf(setOf(1, 2, 3, 4, 5, 6, 7)) }   // 기본 매일 (iOS 통일)
+    var isRepeating by remember { mutableStateOf(false) }                 // ON=고른 요일만, OFF=매일. 개인 활동과 동일한 모델.
+    var repeatDays by remember { mutableStateOf(setOf<Int>()) }
     var weekdayError by remember { mutableStateOf(false) }                // 요일 반복인데 미선택
     var shakeTrigger by remember { mutableStateOf(0) }                    // 흔들림 트리거
     val shakeX = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -399,9 +403,9 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 error = null; busy = true
                 val chosenStartMinute = timeState.hour * 60 + timeState.minute
                 val startMoment = startDay + chosenStartMinute * 60_000L   // 실제 시작 순간
-                // 일회성이면 요일 없음 + 종료일 = 시작일(그날 하루)
-                val effectiveDays = if (isRepeating) repeatDays.toList().sorted() else emptyList()
-                val effectiveEndDay = if (isRepeating) endDay else startDay
+                // 요일 반복 OFF = 매일(요일 전체). 시작일=종료일이면 그날 하루만 발생하는 단발성이 된다.
+                val effectiveDays = if (isRepeating) repeatDays.toList().sorted() else listOf(1, 2, 3, 4, 5, 6, 7)
+                val effectiveEndDay = endDay
                 scope.launch {
                     try {
                         val days = ((effectiveEndDay - startDay) / 86_400_000L).toInt() + 1
@@ -537,12 +541,22 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                // 요일 반복 토글 — 끄면 일회성(단발성) 그룹
+                // 요일 반복 토글(ON=고른 요일, OFF=매일). 개인 활동 예약과 동일한 모델:
+                // 기간(시작일·종료일)은 두 모드 공통이며, 시작일=종료일이면 자연히 단발성 하루가 된다.
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("요일 반복", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text("요일 반복", color = TL.paper, fontSize = 15.sp)
+                    if (!isRepeating) {
+                        Spacer(Modifier.width(6.dp))
+                        Text("(매일)", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.weight(1f))
                     Switch(
                         checked = isRepeating,
-                        onCheckedChange = { isRepeating = it },
+                        onCheckedChange = { on ->
+                            isRepeating = on
+                            // 켤 때 고른 요일이 없으면 평일 기본값 (개인 활동과 동일)
+                            if (on && repeatDays.isEmpty()) repeatDays = setOf(2, 3, 4, 5, 6)
+                        },
                         colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
                     )
                 }
@@ -584,33 +598,29 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                         Text("반복할 요일을 하나 이상 선택하세요.",
                             color = TL.rec, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Text("기간 — 시작은 1시간 뒤부터, 최대 3개월", color = TL.muted, fontSize = 13.sp)
+                }
+                // 기간 — 시작일·종료일. 요일 반복·매일 공통. 시작일=종료일이면 그날 하루만 진행.
+                Spacer(Modifier.height(12.dp))
+                Text("기간 — 시작은 1시간 뒤부터, 최대 3개월", color = TL.muted, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("시작일 ~ 종료일", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(GroupFormat.day(startDay), color = TL.paper, fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.background(TL.raised, CircleShape)
+                            .clickable { pickingDate = "start" }
+                            .padding(horizontal = 12.dp, vertical = 7.dp))
+                    Text("  ~  ", color = TL.muted, fontSize = 14.sp)
+                    Text(GroupFormat.day(endDay), color = TL.paper, fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.background(TL.raised, CircleShape)
+                            .clickable { pickingDate = "end" }
+                            .padding(horizontal = 12.dp, vertical = 7.dp))
+                }
+                if (!isRepeating) {
                     Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("시작일 ~ 종료일", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                        Text(GroupFormat.day(startDay), color = TL.paper, fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.background(TL.raised, CircleShape)
-                                .clickable { pickingDate = "start" }
-                                .padding(horizontal = 12.dp, vertical = 7.dp))
-                        Text("  ~  ", color = TL.muted, fontSize = 14.sp)
-                        Text(GroupFormat.day(endDay), color = TL.paper, fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.background(TL.raised, CircleShape)
-                                .clickable { pickingDate = "end" }
-                                .padding(horizontal = 12.dp, vertical = 7.dp))
-                    }
-                } else {
-                    Spacer(Modifier.height(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("날짜", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                        Text(GroupFormat.day(startDay), color = TL.paper, fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.background(TL.raised, CircleShape)
-                                .clickable { pickingDate = "start" }
-                                .padding(horizontal = 12.dp, vertical = 7.dp))
-                    }
+                    Text("선택한 기간 동안 매일 진행돼요. 시작일과 종료일을 같은 날짜로 두면 그날 하루만 진행하는 단발 그룹이 됩니다.",
+                        color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
                 }
                 Spacer(Modifier.height(6.dp))
                 Text("시작은 지금부터 1시간 뒤부터 · 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월) · " +

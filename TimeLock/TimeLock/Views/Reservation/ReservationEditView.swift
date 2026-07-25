@@ -318,7 +318,13 @@ struct ReservationEditView: View {
             TLCard {
                 VStack(alignment: .leading, spacing: 14) {
                     Toggle(isOn: $isRepeating) {
-                        Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                        HStack(spacing: 6) {
+                            Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                            // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
+                            if !isRepeating {
+                                Text("(매일)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
+                            }
+                        }
                     }
                     .tint(TL.rec)
                     .disabled(editingDisabled)
