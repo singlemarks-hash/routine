@@ -605,9 +605,19 @@ struct PaywallView: View {
                     }
                     .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
                     .disabled(purchasing)
-                } else {
+                } else if subscription.loadingProduct {
                     Text("구독 상품을 불러오는 중입니다…")
                         .font(.system(size: 13)).foregroundStyle(TL.faint)
+                } else {
+                    // 조회가 끝났는데 상품이 없다 — 계속 '불러오는 중'이라고 두면
+                    // 사용자는 기다리면 될 줄 알고 앱을 껐다 켜는 수밖에 없다.
+                    VStack(spacing: 10) {
+                        Text("구독 상품을 불러오지 못했습니다.\n네트워크 연결을 확인해 주세요.")
+                            .font(.system(size: 13)).foregroundStyle(TL.faint)
+                            .multilineTextAlignment(.center)
+                        Button("다시 시도") { Task { await subscription.loadProduct() } }
+                            .buttonStyle(TLGhostButtonStyle())
+                    }
                 }
 
                 Button("구매 복원") {
@@ -640,6 +650,9 @@ struct PaywallView: View {
             }
         }
         .preferredColorScheme(.dark)
+        // 앱 실행 때 한 번 실패하면 그걸로 끝이었다 — 페이월을 열 때마다 다시 시도한다.
+        // 이미 받아둔 상품이 있으면 건드리지 않는다(불필요한 스토어 조회 방지).
+        .task { if subscription.product == nil { await subscription.loadProduct() } }
     }
 
     private func benefit(_ text: String) -> some View {

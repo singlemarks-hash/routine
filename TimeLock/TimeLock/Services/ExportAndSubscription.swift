@@ -137,6 +137,10 @@ final class SubscriptionManager: ObservableObject {
     @Published var isPro = false
     @Published var product: Product?
 
+    /// 상품 조회가 진행 중인지. 실패해서 nil인 것과 아직 못 받아온 것을 화면이 구분해야
+    /// '불러오는 중'이라고 거짓말하지 않는다.
+    @Published var loadingProduct = false
+
     /// 무료 체험 자격 여부 — 이 계정/기기가 인트로 오퍼(첫 14일 무료)를 아직 쓸 수 있는지.
     /// 이미 한 번 쓴 계정이면 false가 되어 체험 문구를 숨긴다.
     @Published var isEligibleForIntro = false
@@ -176,7 +180,13 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
+    /// 상품 조회는 실패할 수 있다 — 네트워크가 끊겼거나, 스토어 콘솔에서 상품이
+    /// 아직 승인 전이거나 반려 상태일 때 빈 결과가 온다. 앱 실행 때 한 번만 부르고
+    /// 말면 그 뒤로는 영영 nil이라, 페이월이 '불러오는 중'에서 멈춘 채 결제도 못 한다.
+    /// 그래서 진행 중/실패를 구분해 두고, 페이월을 열 때마다 다시 시도한다.
     func loadProduct() async {
+        loadingProduct = true
+        defer { loadingProduct = false }
         do {
             product = try await Product.products(for: [Self.productID]).first
             // 인트로 오퍼(무료 체험) 자격 확인 — 이미 쓴 계정이면 false로 내려가 문구를 숨긴다
