@@ -205,7 +205,7 @@ final class GroupStore: ObservableObject {
             // (판정 근거는 캐시된 카운터가 아니라 실제 멤버 문서 — 못 읽으면 아무것도 하지 않는다)
             if room.status == "scheduled", !room.hasStarted, !room.joinOpen,
                let memberSnap = try? await db.collection("groups").document(id)
-                .collection("members").getDocuments() {
+                .collection("members").getDocuments(source: .server) {
                 room.memberCount = memberSnap.documents.filter { ($0.data()["quit"] as? Bool) != true }.count
                 if room.memberCount < GroupPolicy.minMembersToStart {
                     room.doomed = true

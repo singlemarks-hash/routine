@@ -273,7 +273,10 @@ struct WeeklyScheduleView: View {
                 // 이번 주에 한 번이라도 발생하면 이미 위 표에 있다
                 if reservation.occurrence(on: day) != nil { return nil }
             }
-            guard let fire = reservation.nextOccurrence(after: horizon) else { return nil }
+            // nextOccurrence는 'date보다 뒤'만 반환한다. horizon(=today+7의 자정)을 그대로 주면
+            // 자정 정각(00:00) 발생이 걸러져, 주간 표에도 없고 여기에도 없는 활동이 생긴다.
+            guard let fire = reservation.nextOccurrence(after: horizon.addingTimeInterval(-1))
+            else { return nil }
             return DayItem(reservation: reservation, fire: fire)
         }
         .sorted { $0.fire < $1.fire }

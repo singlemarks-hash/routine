@@ -60,7 +60,9 @@ final class AlarmScheduler: NSObject, ObservableObject {
     /// 4. 남은 예산 → 임박한 발생의 예고(-10분)·마지막 경고(+5분).
     ///
     /// 이 전체가 앱을 열 때마다 다시 계산되는 롤링 윈도우다.
-    func rescheduleAll(reservations: [Reservation]) {
+    /// 이미 소비된 발생 (촬영을 시작했거나 취소해 기록이 남은 건) — 여기 있는 발생에는
+    /// 예고·마지막 경고를 다시 걸지 않는다. 키는 "예약ID-발생시각(초)".
+    func rescheduleAll(reservations: [Reservation], consumed: Set<String> = []) {
         center.removeAllPendingNotificationRequests()
         // 위 한 줄이 재촬영 창(긴급 용무 중단) 알림까지 함께 지운다 — 진행 중이면 즉시 복구한다.
         reArmBreakNotificationsIfNeeded()
@@ -118,6 +120,11 @@ final class AlarmScheduler: NSObject, ObservableObject {
         var imminent: [(reservation: Reservation, fire: Date)] = []
         for reservation in active {
             for fire in imminentOccurrences(of: reservation, within: 36 * 3600, now: now, calendar: cal) {
+                // 이미 시작했거나 취소한 발생은 건너뛴다. 재무장 하한을 '지금 - 시작창'으로
+                // 넓힌 탓에, 그러지 않으면 방금 취소하고 벌점까지 받은 발생에
+                // "아직 시작하지 않았습니다"라는 경고가 5분 뒤 다시 뜬다.
+                let key = "\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))"
+                guard !consumed.contains(key) else { continue }
                 imminent.append((reservation, fire))
             }
         }

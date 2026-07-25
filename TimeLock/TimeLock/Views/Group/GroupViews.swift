@@ -1247,7 +1247,9 @@ struct GroupRoomDetailView: View {
                 Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
             }
             .buttonStyle(TLGhostButtonStyle())
-        } else if !room.hasStarted {
+        } else if !room.hasStarted || room.status == "scheduled" {
+            // 시작 시각이 지나도 status가 scheduled면 아직 시작한 방이 아니다(삭제 예정·판정 대기).
+            // 이 구간에서 '중도 포기'만 노출하면, 진행조차 안 한 방에서 -50점을 물게 된다.
             if room.isHostMine {
                 Button("방 해체하기") { confirmDisband = true }
                     .buttonStyle(TLGhostButtonStyle(tint: TL.rec))

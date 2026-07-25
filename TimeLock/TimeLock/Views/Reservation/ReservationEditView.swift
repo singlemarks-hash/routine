@@ -374,8 +374,8 @@ struct ReservationEditView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         // 하한은 '지금'이 아니라 '오늘 자정' — 오늘을 고를 수 있어야 한다.
-                        // 상한은 3개월 — 그보다 먼 알람은 앱 업데이트·기기 교체를 지나서까지
-                        // 울린다고 보장할 수 없다.
+                        // 상한은 ReservationPolicy.maxStartLeadMonths(1개월) — 그보다 먼 알람은
+                        // 앱 업데이트·기기 교체를 지나서까지 울린다고 보장할 수 없다.
                         DatePicker("시작일", selection: $oneOffDate,
                                    in: Calendar.current.startOfDay(for: Date())...ReservationPolicy.maxStartDay(),
                                    displayedComponents: .date)
@@ -410,7 +410,16 @@ struct ReservationEditView: View {
                     // 이미 지난 날짜가 그대로 남아 아무것도 안 골랐는데 "종료일이 이미 지났어요"로 막힌다.
                     .onChange(of: noEndDate) { _, hasNoEnd in
                         guard !hasNoEnd else { return }
-                        let floor = max(oneOffDate, Calendar.current.startOfDay(for: Date()))
+                        let cal = Calendar.current
+                        var floor = max(oneOffDate, cal.startOfDay(for: Date()))
+                        // 요일 반복 중이면 종료일을 시작일에 붙이면 안 된다. 붙는 순간
+                        // 시작일=종료일이 되어 요일 반복 UI가 사라지고, 저장 시 고른 요일이
+                        // 전체 요일로 덮여 월·수·금 반복이 조용히 하루짜리가 된다.
+                        // (무기한 예약은 종료일 값이 시작일과 같아서 늘 이 상태였다)
+                        if isRepeating, cal.isDate(floor, inSameDayAs: oneOffDate),
+                           let week = cal.date(byAdding: .day, value: 6, to: floor) {
+                            floor = week
+                        }
                         if oneOffEndDate < floor { oneOffEndDate = floor }
                     }
                     if !noEndDate {

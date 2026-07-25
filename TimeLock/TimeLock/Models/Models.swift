@@ -231,11 +231,12 @@ final class Reservation {
     }
 
     /// 다음 발생 시각 (지금 이후).
-    /// 탐색 범위가 좁으면(예전 28일) 두 달 뒤 시작하는 예약을 못 찾아, 알람 안전망이
+    /// 탐색 범위가 좁으면(예전 28일) 한참 뒤 시작하는 예약을 못 찾아, 알람 안전망이
     /// '첫 발생 1건은 반드시 건다'는 약속을 지키지 못하고 알람이 0건이 된다.
-    /// 시작일 선택에는 상한이 없으므로 1년 이상을 훑는다.
+    /// 필요한 최대 범위 = 시작일 상한 1개월 + 그룹 최대 기간 3개월 ≈ 130일. 여유를 둬 180일.
+    /// (상한 도입 전에 만들어진 더 먼 예약은 앱을 열 때 롤링 윈도우가 다시 잡는다)
     func nextOccurrence(after date: Date = .now, calendar: Calendar = .current) -> Date? {
-        for offset in 0..<400 {
+        for offset in 0..<180 {
             guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: date)),
                   let start = occurrence(on: day, calendar: calendar) else { continue }
             if start > date { return start }
@@ -254,7 +255,9 @@ final class Reservation {
         if let hi = range.hi, calendar.isDate(range.lo, inSameDayAs: hi) { return "하루" }
         guard isRepeating else { return "하루" }   // 반복 자체가 없는 레거시 일회성
         let days = Set(repeatWeekdays)
-        if days.count == 7 { return "매일" }
+        // count == 7로 보면 [0...6] 같은 0-base 유입도 '매일'이 된다. 그런데 occurrence()는
+        // 토요일(7)을 못 맞춰 영영 안 울린다 — 표시와 실제가 어긋난다.
+        if Set(1...7).isSubset(of: days) { return "매일" }
         // 요일 값은 클라우드에서 그대로 들어오므로 1~7을 벗어난 값이 섞일 수 있다.
         // 배열을 직접 인덱싱하면 그 순간 화면이 크래시하므로 범위 밖은 조용히 버린다.
         let names = ["", "일", "월", "화", "수", "목", "금", "토"]

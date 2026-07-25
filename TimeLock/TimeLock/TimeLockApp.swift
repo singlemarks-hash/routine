@@ -350,7 +350,26 @@ final class AppState: ObservableObject {
     }
 
     func rescheduleAlarmsForCurrentUser() {
-        AlarmScheduler.shared.rescheduleAll(reservations: activeReservations())
+        AlarmScheduler.shared.rescheduleAll(reservations: activeReservations(),
+                                            consumed: consumedOccurrenceKeys())
+    }
+
+    /// 오늘 이미 소비된 발생 — 촬영을 시작했거나 취소해 기록이 남은 건.
+    /// 알림을 다시 걸 때 이 목록을 빼지 않으면, 방금 취소하고 벌점까지 받은 발생에
+    /// "아직 시작하지 않았습니다"라는 마지막 경고가 5분 뒤 다시 뜬다.
+    private func consumedOccurrenceKeys() -> Set<String> {
+        guard let context = modelContext else { return [] }
+        let owner = AccountStore.shared.currentUserID
+        let floor = Date().addingTimeInterval(-2 * 86_400)
+        let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
+            predicate: #Predicate { $0.ownerUserID == owner && $0.scheduledAt != nil }))) ?? []
+        var keys = Set<String>()
+        for session in sessions {
+            guard let scheduled = session.scheduledAt, scheduled >= floor,
+                  let rid = session.reservationID else { continue }
+            keys.insert("\(rid.uuidString)-\(Int(scheduled.timeIntervalSince1970))")
+        }
+        return keys
     }
 
     /// 결과 화면에서 저장하지 않고 남은 촬영본 정리 (정책: 다운로드하지 않으면 자동 삭제)
