@@ -424,8 +424,13 @@ struct HomeView: View {
     }
 
     private func weekdayLabel(_ weekdays: [Int]) -> String {
+        // 요일 값은 클라우드에서 그대로 들어오므로 1~7을 벗어난 값이 섞일 수 있다.
+        // 배열을 직접 인덱싱하면 그 순간 홈 화면이 크래시하고, 앱을 켤 때마다 죽어
+        // 복구가 어렵다. 범위 밖 값은 조용히 버린다.
         let names = ["", "일", "월", "화", "수", "목", "금", "토"]
-        return weekdays.sorted().map { names[$0] }.joined(separator: " ")
+        return weekdays.sorted()
+            .compactMap { (1...7).contains($0) ? names[$0] : nil }
+            .joined(separator: " ")
     }
 }
 

@@ -52,6 +52,8 @@ final class AlarmScheduler: NSObject, ObservableObject {
     /// 예고·재알림은 임박한 발생(다음 36시간)에만 구체 예약해 총량을 묶는다.
     func rescheduleAll(reservations: [Reservation]) {
         center.removeAllPendingNotificationRequests()
+        // 위 한 줄이 재촬영 창(긴급 용무 중단) 알림까지 함께 지운다 — 진행 중이면 즉시 복구한다.
+        reArmBreakNotificationsIfNeeded()
         let now = Date()
         let calendar = Calendar.current
 
@@ -208,20 +210,41 @@ final class AlarmScheduler: NSObject, ObservableObject {
 
     private static let breakNotificationIDs = ["break-open", "break-warn", "break-fail"]
 
+    /// 진행 중인 재촬영 창의 마감 시각. rescheduleAll이 대기 알림을 전부 지우므로,
+    /// 지운 뒤 이 값으로 경고·마감 알림을 다시 걸어야 한다. (없으면 nil)
+    private var activeBreakDeadline: Date?
+
     /// 중단 시점에 3건 예약: 즉시 안내 / 마감 2분 전 경고 / 마감 시 벌점 확정 안내
     func scheduleBreakNotifications(deadline: Date) {
-        cancelBreakNotifications()
+        cancelBreakNotifications()          // activeBreakDeadline도 함께 비워진다
+        activeBreakDeadline = deadline      // 그래서 취소 뒤에 설정해야 한다
+        armBreakNotifications(deadline: deadline, includeOpen: true)
+    }
 
+    /// rescheduleAll이 대기 알림을 전부 날린 뒤 재촬영 창 알림만 복구한다.
+    /// 이게 없으면 중단 중에 앱을 잠깐 열었다 나가는 것만으로 '2분 전 경고'와
+    /// '벌점 부과' 알림이 사라져, 사용자가 아무 경고 없이 벌점을 맞는다.
+    private func reArmBreakNotificationsIfNeeded() {
+        guard let deadline = activeBreakDeadline else { return }
+        guard deadline > .now else { activeBreakDeadline = nil; return }
+        // 'break-open'은 중단 순간의 1회성 안내라 다시 띄우지 않는다 —
+        // 복구할 때마다 '촬영 일시중단' 배너가 또 뜨면 오히려 혼란스럽다.
+        armBreakNotifications(deadline: deadline, includeOpen: false)
+    }
+
+    private func armBreakNotifications(deadline: Date, includeOpen: Bool) {
         // kind=break — 앱이 화면에 떠 있을 때는 중단 오버레이가 이미 안내하므로 배너를 숨긴다
-        let open = UNMutableNotificationContent()
-        open.title = "촬영 일시중단"
-        open.body = "\(TimePolicy.resumeWindowMinutes)분 안에 돌아와 재촬영을 시작하면 벌점이 없습니다."
-        open.sound = .default
-        open.interruptionLevel = .timeSensitive
-        open.userInfo = ["kind": "break"]
-        center.add(UNNotificationRequest(
-            identifier: "break-open", content: open,
-            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)))
+        if includeOpen {
+            let open = UNMutableNotificationContent()
+            open.title = "촬영 일시중단"
+            open.body = "\(TimePolicy.resumeWindowMinutes)분 안에 돌아와 재촬영을 시작하면 벌점이 없습니다."
+            open.sound = .default
+            open.interruptionLevel = .timeSensitive
+            open.userInfo = ["kind": "break"]
+            center.add(UNNotificationRequest(
+                identifier: "break-open", content: open,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)))
+        }
 
         let warnAt = deadline.addingTimeInterval(-120)
         if warnAt > .now {
@@ -250,6 +273,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
     }
 
     func cancelBreakNotifications() {
+        activeBreakDeadline = nil   // 복구 대상에서도 빼야 rescheduleAll이 되살리지 않는다
         center.removePendingNotificationRequests(withIdentifiers: Self.breakNotificationIDs)
         center.removeDeliveredNotifications(withIdentifiers: Self.breakNotificationIDs)
     }

@@ -510,8 +510,34 @@ struct ReservationEditView: View {
             guard endDay >= startDay else { errorMessage = "종료일은 시작일 이후여야 해요."; return }
             guard endDay >= cal.startOfDay(for: .now) else { errorMessage = "종료일이 이미 지났어요."; return }
         }
-        // 검증: 겹치는 시간대 차단 (요일 교집합 + 시간대 겹침)
         let targetWeekdays = Set(resolvedWeekdays)
+
+        // 검증: 이 설정으로 앞으로 울릴 일이 한 번이라도 남아 있는가.
+        // 저장은 되는데 평생 안 울리는 '죽은 예약'을 막는다. 두 가지 경우가 있다.
+        //  - 기간 안에 고른 요일이 아예 없음 (예: 월~수 기간에 금·토 선택)
+        //  - 발생은 있는데 전부 과거 (예: 밤 8시에 '오늘 아침 8시 하루' 생성)
+        // 요일은 7개뿐이라 시작점부터 8일만 훑으면 반드시 판정된다.
+        var anyOccurrence = false      // 기간 안에 발생 자체가 있는가
+        var futureOccurrence = false   // 그중 아직 안 지난 게 있는가
+        let scanStart = max(startDay, cal.startOfDay(for: .now))
+        for offset in 0...8 {
+            guard let day = cal.date(byAdding: .day, value: offset, to: scanStart) else { break }
+            if let end = resolvedEnd, day > end { break }
+            guard targetWeekdays.contains(cal.component(.weekday, from: day)),
+                  let fire = cal.date(byAdding: .minute, value: startMinute, to: day) else { continue }
+            anyOccurrence = true
+            if fire > .now { futureOccurrence = true; break }
+        }
+        if !anyOccurrence {
+            errorMessage = "선택한 기간 안에 고른 요일이 없어요. 요일이나 기간을 조정해주세요."
+            return
+        }
+        if !futureOccurrence {
+            errorMessage = "이미 지난 시각이에요. 시작 시각이나 날짜를 조정해주세요."
+            return
+        }
+
+        // 검증: 겹치는 시간대 차단 (요일 교집합 + 시간대 겹침)
         for other in allReservations where other.id != reservation?.id {
             let otherWeekdays: Set<Int> = other.isRepeating
                 ? Set(other.repeatWeekdays)
