@@ -1267,17 +1267,19 @@ struct GroupRoomDetailView: View {
     @ViewBuilder
     private var actionSection: some View {
         if room.isFinished {
-            Button("방 나가기 (결과가 내 목록에서 사라져요)") {
+            Button(working ? "나가는 중…" : "방 나가기 (결과가 내 목록에서 사라져요)") {
                 // 다른 나가기 경로와 동일하게 — 성공했을 때만 닫는다.
                 Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
             }
             .buttonStyle(TLGhostButtonStyle())
+            .disabled(working)
         } else if room.status == "cancelled" || room.status == "disbanded" {
             // 이미 끝난 방 — 정리가 아직 안 됐을 뿐이다. 벌점 액션을 보이면 안 된다.
-            Button("방 나가기") {
+            Button(working ? "나가는 중…" : "방 나가기") {
                 Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
             }
             .buttonStyle(TLGhostButtonStyle())
+            .disabled(working)
         } else if room.hasStarted, room.status == "scheduled" {
             // 시작 시각은 지났는데 아직 시작/취소 판정이 안 끝났다. 여기서 무벌점 탈퇴를 열면
             // 곧 active가 될 방을 벌점 없이 빠져나가는 회피 경로가 되고, 중도 포기를 열면
@@ -1287,8 +1289,11 @@ struct GroupRoomDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
         } else if !room.hasStarted {
             if room.isHostMine {
-                Button("방 해체하기") { confirmDisband = true }
+                // 처리 중에는 다시 누르지 못하게 막는다 — 두 번 실행되면 인원수가 두 번 줄어
+                // 목록·상세의 참여자 수가 어긋나고 허위 '정원 초과'까지 난다.
+                Button(working ? "해체하는 중…" : "방 해체하기") { confirmDisband = true }
                     .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
+                    .disabled(working)
                     .confirmationDialog("방을 해체할까요?", isPresented: $confirmDisband, titleVisibility: .visible) {
                         Button("해체하기", role: .destructive) {
                             // 실패했는데 닫으면 '나갔다'고 오해하고 예약이 남는다 — 성공했을 때만 닫는다.
@@ -1298,8 +1303,9 @@ struct GroupRoomDetailView: View {
                         Text("참여자 전원에게 방이 사라지고, 되돌릴 수 없습니다.")
                     }
             } else {
-                Button("탈퇴하기 (시작 전에는 벌점 없음)") { confirmLeave = true }
+                Button(working ? "탈퇴하는 중…" : "탈퇴하기 (시작 전에는 벌점 없음)") { confirmLeave = true }
                     .buttonStyle(TLGhostButtonStyle())
+                    .disabled(working)
                     .confirmationDialog("방에서 나갈까요?", isPresented: $confirmLeave, titleVisibility: .visible) {
                         Button("탈퇴하기", role: .destructive) {
                             Task { await runLeaveAction { try await store.leaveBeforeStart(room: room) } }
@@ -1307,8 +1313,9 @@ struct GroupRoomDetailView: View {
                     }
             }
         } else {
-            Button("중도 포기하기 (벌점 \(ScoreRules.groupQuitPenalty)점)") { confirmQuit = true }
+            Button(working ? "처리 중…" : "중도 포기하기 (벌점 \(ScoreRules.groupQuitPenalty)점)") { confirmQuit = true }
                 .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
+                .disabled(working)
                 .confirmationDialog("정말 중도 포기할까요?", isPresented: $confirmQuit, titleVisibility: .visible) {
                     Button("포기하기 (벌점 \(ScoreRules.groupQuitPenalty)점)", role: .destructive) {
                         Task { await runLeaveAction { try await store.quitAfterStart(room: room) } }

@@ -174,18 +174,18 @@ final class GroupStore: ObservableObject {
                 // 다른 기기가 정리한 것이므로 미리 찍힌 기록까지 되돌린다. 반대로 이미 시작한
                 // 방이면 보존 기간이 끝나 정리된 것이라, 그동안 정당하게 받은 벌점을 지우면
                 // '한 달 잠수 후 앱을 열면 벌점이 사라지는' 회피 경로가 된다.
-                let started = groupStartedLocally(roomID: id)
+                // 이 기기가 한 번이라도 'active'로 본 방만 '진행했던 방'이다.
+                // 본 적이 없으면 시작조차 못 하고 사라진 방이므로, 그 방에 찍힌 노쇼는
+                // 전부 잘못된 기록이다(취소는 시작 10분 전에 이미 확정된 상태였다).
+                let everRan = hasSeenRoomActive(id)
                 // 멤버십 참조를 못 지우면 로컬도 건드리지 않는다 — 다음 새로고침에서 이 방이
                 // 다시 '내 방'으로 잡혀 예약이 되살아나기 때문이다. 안내도 그때 한 번만 띄운다.
                 guard await detachMembership(roomID: id) else { continue }
-                switch started {
-                case .some(false): disbandedNotices.append("참여했던 그룹방이 해체되었어요.")
-                case .some(true):  disbandedNotices.append("참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요.")
-                case .none:        disbandedNotices.append("참여했던 그룹방이 정리되었어요.")
-                }
-                // 시작 전이었던 게 확실할 때만 되돌린다. 판단 불가면 기록을 건드리지 않는다 —
-                // 잘못 찍힌 노쇼는 '실제로 한 기록이 이긴다' 규칙이 동기화 때 정리한다.
-                removeLocalReservation(roomID: id, purgeNoShows: started == false)
+                disbandedNotices.append(everRan
+                    ? "참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요."
+                    : "참여했던 그룹방이 시작되지 못하고 정리되었어요. 관련 벌점은 취소했습니다.")
+                removeLocalReservation(roomID: id, purgeNoShows: !everRan)
+                forgetRoomActive(id)
                 continue
             }
             guard var room = Self.room(from: snapshot) else {
@@ -199,6 +199,7 @@ final class GroupStore: ObservableObject {
                 if !room.isHostMine { disbandedNotices.append("'\(room.name)' 방을 방장이 해체했어요.") }
                 // 해체는 시작 전에만 가능 — 미리 만들어 둔 예약과 혹시 찍힌 노쇼까지 정리
                 removeLocalReservation(roomID: id, purgeNoShows: true)
+                forgetRoomActive(id)
                 // 서버 정리: 내 멤버 문서를 지우고, 마지막 참여자였다면 방 문서까지 삭제
                 await cleanupDisbandedRoom(roomID: id, uid: uid)
                 continue
@@ -270,6 +271,7 @@ final class GroupStore: ObservableObject {
                 await cleanupDisbandedRoom(roomID: id, uid: uid)
                 // 취소된 방은 예약 제거 + 그 예약에 잘못 찍힌 노쇼 기록까지 되돌린다
                 removeLocalReservation(roomID: id, purgeNoShows: true)
+                forgetRoomActive(id)
                 continue
             }
             // 30일 보존 기간 만료 → 서버에서 삭제
@@ -277,6 +279,7 @@ final class GroupStore: ObservableObject {
                 guard await detachMembership(roomID: id) else { next.append(room); continue }
                 try? await deleteRoomDocuments(roomID: id)
                 removeLocalReservation(roomID: id)
+                forgetRoomActive(id)
                 continue
             }
             // 그룹 예약은 참여 시점에 만들어지지만, 재설치·기기 변경 대비로 여기서도 보장한다.
@@ -284,6 +287,7 @@ final class GroupStore: ObservableObject {
                 ensureLocalReservation(for: room)
             }
             if room.status == "active" {
+                markRoomActive(id)   // '실제로 진행된 방'으로 관측 — 문서가 사라진 뒤의 판정 근거
                 if room.isFinished {
                     removeLocalReservation(roomID: id)
                 } else if await isMemberActive(roomID: id, uid: uid) {
@@ -697,16 +701,28 @@ final class GroupStore: ObservableObject {
         try? context.save()
     }
 
-    /// 이 방이 이미 시작했는가를 '로컬 예약'만으로 판정한다 (방 문서가 사라진 뒤에 쓴다).
-    /// 그룹 예약의 createdAt은 방의 실제 시작 시각이다.
-    /// nil = 로컬에 흔적이 없어 판단 불가 — 이때는 지우지도, 단정하지도 않는다.
-    private func groupStartedLocally(roomID: String) -> Bool? {
-        guard let context = modelContext else { return nil }
-        let owner = AccountStore.shared.currentUserID
-        let list = (try? context.fetch(FetchDescriptor<Reservation>(
-            predicate: #Predicate { $0.groupID == roomID && $0.ownerUserID == owner }))) ?? []
-        guard let reservation = list.first else { return nil }
-        return reservation.createdAt <= Date()
+    /// 이 기기가 'active'로 관측한 적 있는 방 번호들.
+    ///
+    /// 방 문서가 사라진 뒤에는 '진행했던 방'과 '시작조차 못 하고 취소된 방'을 구분할 수 없다.
+    /// 시작 시각으로 추측하면 취소된 방도 시작 시각은 지났으므로 진행한 것으로 오판하고,
+    /// 그 방에 잘못 찍힌 노쇼 벌점이 영구히 남는다.
+    /// 그래서 추측하지 않고 **관측한 사실**을 기록해 둔다.
+    private static let seenActiveKey = "group.seenActiveRoomIDs"
+
+    private func markRoomActive(_ roomID: String) {
+        var ids = Set(UserDefaults.standard.stringArray(forKey: Self.seenActiveKey) ?? [])
+        guard ids.insert(roomID).inserted else { return }
+        UserDefaults.standard.set(Array(ids), forKey: Self.seenActiveKey)
+    }
+
+    private func hasSeenRoomActive(_ roomID: String) -> Bool {
+        (UserDefaults.standard.stringArray(forKey: Self.seenActiveKey) ?? []).contains(roomID)
+    }
+
+    private func forgetRoomActive(_ roomID: String) {
+        var ids = Set(UserDefaults.standard.stringArray(forKey: Self.seenActiveKey) ?? [])
+        guard ids.remove(roomID) != nil else { return }
+        UserDefaults.standard.set(Array(ids), forKey: Self.seenActiveKey)
     }
 
     /// 그룹 예약의 신분증 — 무작위가 아니라 방 ID + 계정에서 계산한다.

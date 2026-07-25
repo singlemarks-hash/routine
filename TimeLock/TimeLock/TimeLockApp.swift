@@ -371,12 +371,16 @@ final class AppState: ObservableObject {
         guard let context = modelContext else { return [] }
         let owner = AccountStore.shared.currentUserID
         let floor = Date().addingTimeInterval(-2 * 86_400)
+        let never = Date.distantPast
+        // 날짜 조건을 조회문 안에 넣는다. 밖에서 거르면 오래 쓴 계정의 전체 기록(수천 건)을
+        // 매번 통째로 읽고 5건만 쓰게 된다 — 알람 재구성은 실행·복귀·계정 전환마다 돈다.
         let sessions = (try? context.fetch(FetchDescriptor<FocusSession>(
-            predicate: #Predicate { $0.ownerUserID == owner && $0.scheduledAt != nil }))) ?? []
+            predicate: #Predicate {
+                $0.ownerUserID == owner && ($0.scheduledAt ?? never) >= floor
+            }))) ?? []
         var keys = Set<String>()
         for session in sessions {
-            guard let scheduled = session.scheduledAt, scheduled >= floor,
-                  let rid = session.reservationID else { continue }
+            guard let scheduled = session.scheduledAt, let rid = session.reservationID else { continue }
             keys.insert("\(rid.uuidString)-\(Int(scheduled.timeIntervalSince1970))")
         }
         return keys

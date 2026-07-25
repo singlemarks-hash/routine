@@ -14,7 +14,17 @@ struct WeeklyScheduleView: View {
     @EnvironmentObject private var account: AccountStore
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
     private var allActiveReservations: [Reservation]
+    /// 결과 표시등에 쓸 기록. **오늘 이후만** 읽는다 — 이 화면은 오늘과 그 뒤만 보여주므로
+    /// 과거 이력은 한 건도 필요 없다. 조건 없이 두면 오래 쓴 계정의 수천 건이 매번 딸려온다.
     @Query private var allSessions: [FocusSession]
+
+    init() {
+        let dayStart = Calendar.current.startOfDay(for: Date())
+        let never = Date.distantPast
+        _allSessions = Query(
+            filter: #Predicate<FocusSession> { ($0.scheduledAt ?? never) >= dayStart },
+            sort: [SortDescriptor(\FocusSession.endedAt, order: .reverse)])
+    }
 
     @State private var editorTarget: EditorTarget?
     @State private var groupRoomToOpen: GroupRoom?
@@ -67,8 +77,9 @@ struct WeeklyScheduleView: View {
                                 .font(.system(size: 13)).foregroundStyle(TL.muted)
                         }
                     } else {
+                        let outcomes = todayOutcomes   // 표를 한 번만 만들어 모든 칸이 나눠 쓴다
                         ForEach(Array(weekdayOrder.enumerated()), id: \.element) { offset, weekday in
-                            daySection(weekday, date: date(forOffset: offset))
+                            daySection(weekday, date: date(forOffset: offset), outcomes: outcomes)
                         }
                         laterSection
                     }
@@ -133,30 +144,33 @@ struct WeeklyScheduleView: View {
         }
     }
 
-    /// 그 예약의 그 날짜에 확정된 결과. 하루에 기록이 여럿 남을 수 있어(긴급 중단 후 재촬영)
-    /// 결과가 들어 있는 기록만 본다.
-    private func outcome(for reservation: Reservation, on date: Date) -> SessionOutcome? {
+    /// 오늘 확정된 결과를 '예약별로 한 번만' 표로 만든다.
+    /// 행마다 전체 기록을 훑으면 행 수만큼 스캔이 반복되고, 그게 타이머마다 되풀이된다.
+    /// 하루에 기록이 여럿 남을 수 있어(긴급 중단 후 재촬영) 가장 나중 것을 남긴다.
+    private var todayOutcomes: [UUID: SessionOutcome] {
         let cal = Calendar.current
-        let rid = reservation.id
         let owner = account.currentUserID
-        // @Query에 정렬이 없어 first를 쓰면 순서가 보장되지 않는다 —
-        // 긴급 종료 뒤 재촬영해 완주한 날에 호박불이 뜰 수 있으므로 '가장 나중 기록'을 고른다.
-        return allSessions.filter { s in
-            s.ownerUserID == owner && s.reservationID == rid && s.outcome != nil &&
-            (s.scheduledAt.map { cal.isDate($0, inSameDayAs: date) } ?? false)
+        var map: [UUID: (at: Date, outcome: SessionOutcome)] = [:]
+        for session in allSessions {
+            guard session.ownerUserID == owner,
+                  let rid = session.reservationID,
+                  let outcome = session.outcome,
+                  let scheduled = session.scheduledAt, cal.isDateInToday(scheduled) else { continue }
+            let at = session.endedAt ?? session.startedAt ?? .distantPast
+            if let existing = map[rid], existing.at >= at { continue }
+            map[rid] = (at, outcome)
         }
-        .max { a, b in
-            (a.endedAt ?? a.startedAt ?? .distantPast) < (b.endedAt ?? b.startedAt ?? .distantPast)
-        }?.outcome
+        return map.mapValues(\.outcome)
     }
 
-    private func rowState(_ reservation: Reservation, on date: Date, fire: Date) -> RowState {
+    private func rowState(_ item: DayItem, on date: Date,
+                          outcomes: [UUID: SessionOutcome]) -> RowState {
         // 미래 날짜는 판정 대상이 아니다 — 주간 표는 오늘부터 6일 뒤까지만 보여준다.
         guard Calendar.current.isDateInToday(date) else { return .upcoming }
-        if let outcome = outcome(for: reservation, on: date) { return .done(outcome) }
+        if let outcome = outcomes[item.reservation.id] { return .done(outcome) }
         // 결과 기록이 없어도 시작 창(10분)이 닫혔으면 더 이상 할 수 없는 일정이다.
         // 노쇼 기록은 앱을 켤 때 스윕이 채우므로, 그 전까지는 표시등 없이 흐리게만 둔다.
-        return now > fire.addingTimeInterval(TimePolicy.startWindowSeconds) ? .missed : .upcoming
+        return now > item.fire.addingTimeInterval(TimePolicy.startWindowSeconds) ? .missed : .upcoming
     }
 
     // MARK: 요일 섹션
@@ -184,9 +198,19 @@ struct WeeklyScheduleView: View {
         var id: UUID { reservation.id }
     }
 
+    /// 한 행의 표시 상태까지 확정한 값 — 범례 판정과 렌더가 같은 계산을 두 번 하지 않게 한다.
+    private struct Row: Identifiable {
+        let item: DayItem
+        let state: RowState
+        var id: UUID { item.id }
+    }
+
     @ViewBuilder
-    private func daySection(_ weekday: Int, date: Date) -> some View {
-        let dayItems = items(on: weekday, date: date)
+    private func daySection(_ weekday: Int, date: Date,
+                            outcomes: [UUID: SessionOutcome]) -> some View {
+        let rows = items(on: weekday, date: date).map {
+            Row(item: $0, state: rowState($0, on: date, outcomes: outcomes))
+        }
         let isToday = weekday == todayWeekday
 
         VStack(alignment: .leading, spacing: 8) {
@@ -207,8 +231,8 @@ struct WeeklyScheduleView: View {
                 }
                 Spacer()
                 // 표시등이 하나라도 켜진 날에만 범례를 붙인다 — 색만 보고 헷갈리지 않게.
-                if isToday, dayItems.contains(where: {
-                    if case .done = rowState($0.reservation, on: date, fire: $0.fire) { return true }
+                if isToday, rows.contains(where: {
+                    if case .done = $0.state { return true }
                     return false
                 }) {
                     HStack(spacing: 8) {
@@ -218,17 +242,16 @@ struct WeeklyScheduleView: View {
                 }
             }
 
-            if dayItems.isEmpty {
+            if rows.isEmpty {
                 Text("일정 없음")
                     .font(.system(size: 12)).foregroundStyle(TL.faint)
                     .padding(.vertical, 6)
                     .padding(.leading, 2)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(dayItems.enumerated()), id: \.element.id) { index, item in
-                        timetableRow(item.reservation,
-                                     state: rowState(item.reservation, on: date, fire: item.fire))
-                        if index < dayItems.count - 1 {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                        timetableRow(row.item.reservation, state: row.state)
+                        if index < rows.count - 1 {
                             Divider().overlay(TL.hairline.opacity(0.5))
                         }
                     }
