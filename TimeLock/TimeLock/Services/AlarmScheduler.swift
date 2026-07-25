@@ -46,24 +46,17 @@ final class AlarmScheduler: NSObject, ObservableObject {
     // MARK: 스케줄링
 
     /// 모든 활성 예약의 알람/예고를 다시 스케줄한다. (예약 변경 시마다 호출)
-    /// 반복 예약의 메인 알람은 '주간 반복 트리거' 1건(요일당)으로 걸어 만료 없이 커버한다 —
-    /// 예전처럼 14일치 × 발생당 6건을 쌓아 iOS의 64개 대기 알림 상한을 넘겨 알람이 조용히
-    /// 누락되던 문제를 없앤다. 예고·재알림은 임박한 발생(다음 36시간)에만 구체 예약해 총량을 묶는다.
+    /// 메인 알람은 scheduleMainAlarms가 예약의 경계에 따라 두 방식 중 하나를 고른다 —
+    /// 무기한 반복은 '주간 반복 트리거'(요일당 1건, 만료 없이 커버해 64개 상한 회피),
+    /// 종료일·미래 시작일이 있으면 창 안의 발생분만 구체 예약(범위 밖 발화 원천 차단).
+    /// 예고·재알림은 임박한 발생(다음 36시간)에만 구체 예약해 총량을 묶는다.
     func rescheduleAll(reservations: [Reservation]) {
         center.removeAllPendingNotificationRequests()
         let now = Date()
         let calendar = Calendar.current
 
         for reservation in reservations where reservation.isActive {
-            if reservation.isRepeating {
-                for weekday in reservation.repeatWeekdays {
-                    scheduleRepeatingWeeklyAlarm(for: reservation, weekday: weekday)
-                }
-            } else if let day = reservation.oneOffDate,
-                      let fire = reservation.occurrence(on: day, calendar: calendar), fire > now {
-                // 실제 발화 시각은 그 날짜의 startMinute (oneOffDate는 날짜 매칭용, 자정일 수 있음)
-                scheduleMainAlarm(for: reservation, at: fire)
-            }
+            scheduleMainAlarms(for: reservation, now: now, calendar: calendar)
             // 예고(10분 전)·재알림(2분 간격 4회)은 임박한 발생에만 구체 예약 —
             // 반복이 쌓여도 알림 총량이 폭증하지 않고, 앱을 열 때마다 갱신된다.
             for fire in upcomingOccurrences(of: reservation, within: 36 * 3600, now: now, calendar: calendar) {
@@ -90,6 +83,38 @@ final class AlarmScheduler: NSObject, ObservableObject {
         content.userInfo = ["reservationID": reservation.id.uuidString, "kind": "alarm"]
         content.categoryIdentifier = "TIMELOCK_ALARM"
         return content
+    }
+
+    /// 경계(종료일·미래 시작일)가 있는 예약을 구체 예약할 창 — 앱을 열 때마다 갱신되는 롤링 윈도우
+    private static let boundedWindowDays = 14
+    /// 예약 1건이 창 안에서 잡을 수 있는 메인 알람 최대 개수 (iOS 64개 대기 상한 보호)
+    private static let boundedMaxAlarms = 10
+
+    /// 메인 알람 스케줄 — 시작일(createdAt)·종료일(endDate) 게이트를 반드시 지킨다.
+    ///
+    /// 주간 무한 반복 트리거는 종료일을 표현할 수 없다. 예전엔 isRepeating이면 무조건
+    /// 이 트리거를 써서, '하루짜리' 활동이 매일 영원히 울리고(그런데 occurrence는 nil이라
+    /// 촬영으로 끌 수도 없었다) 아직 시작도 안 한 그룹 방이 미리 울렸다.
+    /// → 무기한(종료일 없음) + 시작일이 이미 지난 반복 예약에만 무한 트리거를 쓰고,
+    ///   그 외에는 창 안의 실제 발생분만 구체 예약한다. occurrence()가 두 게이트를
+    ///   모두 적용하므로 범위 밖 알람이 원천적으로 생기지 않는다.
+    private func scheduleMainAlarms(for reservation: Reservation, now: Date, calendar: Calendar) {
+        let startedAlready = calendar.startOfDay(for: reservation.createdAt) <= calendar.startOfDay(for: now)
+        if reservation.isRepeating, reservation.endDate == nil, startedAlready {
+            for weekday in reservation.repeatWeekdays {
+                scheduleRepeatingWeeklyAlarm(for: reservation, weekday: weekday)
+            }
+            return
+        }
+        var scheduled = 0
+        for offset in 0..<Self.boundedWindowDays where scheduled < Self.boundedMaxAlarms {
+            guard let day = calendar.date(byAdding: .day, value: offset,
+                                          to: calendar.startOfDay(for: now)),
+                  let fire = reservation.occurrence(on: day, calendar: calendar),
+                  fire > now else { continue }
+            scheduleMainAlarm(for: reservation, at: fire)
+            scheduled += 1
+        }
     }
 
     /// 일회성 메인 알람 1건 (구체 시각, 반복 없음)
