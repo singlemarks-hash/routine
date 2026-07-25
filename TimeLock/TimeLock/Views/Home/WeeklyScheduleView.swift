@@ -14,9 +14,13 @@ struct WeeklyScheduleView: View {
     @EnvironmentObject private var account: AccountStore
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
     private var allActiveReservations: [Reservation]
+    @Query private var allSessions: [FocusSession]
 
     @State private var editorTarget: EditorTarget?
     @State private var groupRoomToOpen: GroupRoom?
+    /// 1분마다 갱신 — 시작 창이 닫히는 순간 행이 저절로 '지나감'으로 바뀌게 한다.
+    @State private var now = Date()
+    private let clock = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     /// 편집 시트 대상 — .sheet(item:)으로 열어 항상 정확한 예약을 전달한다.
     /// (.sheet(isPresented:)+별도 @State는 시트가 옛 값(nil)을 캡처해 '새 예약 빈 폼'으로
@@ -92,7 +96,63 @@ struct WeeklyScheduleView: View {
             .navigationDestination(item: $groupRoomToOpen) { room in
                 GroupRoomDetailView(room: room)
             }
+            .onReceive(clock) { now = $0 }
         }
+    }
+
+    // MARK: 오늘 행 상태 (지나감 처리 + 결과 표시등)
+
+    /// 오늘 칸의 한 행이 어떤 상태인지. 오늘이 아닌 날(내일 이후)은 항상 `.upcoming`이다.
+    private enum RowState {
+        case upcoming            // 아직 시작 창이 열려 있거나 미래 날짜
+        case running             // 촬영 중 (기록은 있는데 결과가 아직 없음)
+        case done(SessionOutcome)
+        case missed              // 시작 창이 닫혔는데 아직 기록이 없음 (노쇼 확정 전)
+
+        /// 지나간 일정으로 흐리게 처리할 것인가
+        var isPast: Bool {
+            switch self {
+            case .upcoming, .running: return false
+            case .done, .missed:      return true
+            }
+        }
+        /// 태그 왼쪽 표시등 색 — 성공 초록 / 실패·노쇼 빨강 / 중립(긴급·안전 종료) 호박.
+        /// 아직 결과가 확정되지 않은 상태는 표시등을 켜지 않는다.
+        var lightColor: Color? {
+            switch self {
+            case .upcoming, .missed: return nil
+            case .running:           return TL.amber
+            case .done(let outcome):
+                if outcome.isSuccess { return TL.jade }
+                if outcome.isFailure { return TL.rec }
+                return TL.amber
+            }
+        }
+    }
+
+    /// 그 예약의 그 날짜 세션 — 예약 시각이 같은 날인 기록을 찾는다.
+    /// 결과가 확정된 기록을 우선한다(긴급 중단 후 재촬영처럼 하루에 여러 건이 남을 수 있다).
+    private func session(for reservation: Reservation, on date: Date) -> FocusSession? {
+        let cal = Calendar.current
+        let rid = reservation.id
+        let owner = account.currentUserID
+        let sameDay = allSessions.filter { s in
+            s.ownerUserID == owner && s.reservationID == rid &&
+            (s.scheduledAt.map { cal.isDate($0, inSameDayAs: date) } ?? false)
+        }
+        return sameDay.first { $0.outcome != nil } ?? sameDay.first
+    }
+
+    private func rowState(_ reservation: Reservation, on date: Date, fire: Date) -> RowState {
+        // 미래 날짜는 판정 대상이 아니다 — 주간 표는 오늘부터 6일 뒤까지만 보여준다.
+        guard Calendar.current.isDateInToday(date) else { return .upcoming }
+        if let s = session(for: reservation, on: date) {
+            if let outcome = s.outcome { return .done(outcome) }
+            return .running
+        }
+        // 기록이 없어도 시작 창(10분)이 닫혔으면 더 이상 할 수 없는 일정이다.
+        // 노쇼 기록은 앱을 켤 때 스윕이 채우므로, 그 전까지는 표시등 없이 흐리게만 둔다.
+        return now > fire.addingTimeInterval(TimePolicy.startWindowSeconds) ? .missed : .upcoming
     }
 
     // MARK: 요일 섹션
@@ -106,9 +166,18 @@ struct WeeklyScheduleView: View {
     /// 요일/일회성 매칭 + 시작일(createdAt) 전·종료일(endDate) 후 자동 제외까지 여기서 함께 처리된다.
     /// 그룹 예약도 (참여자 미달로 폭파될 수 있어도) 활동 기간 안이면 일정에 넣어 계획을 관리하게 한다 —
     /// 실제 폭파되면 GroupStore가 예약을 DB에서 제거한다.
-    private func items(on weekday: Int, date: Date) -> [Reservation] {
-        reservations.filter { $0.occurrence(on: date) != nil }
-            .sorted { $0.startMinute < $1.startMinute }
+    private func items(on weekday: Int, date: Date) -> [DayItem] {
+        reservations
+            .compactMap { r in r.occurrence(on: date).map { DayItem(reservation: r, fire: $0) } }
+            .sorted { $0.reservation.startMinute < $1.reservation.startMinute }
+    }
+
+    /// 한 날짜 칸의 행 하나 — 예약과 '그 날 울리는 시각'을 함께 들고 다닌다.
+    /// (지나감 판정에 발생 시각이 필요해서 예약만으로는 부족하다)
+    private struct DayItem: Identifiable {
+        let reservation: Reservation
+        let fire: Date
+        var id: UUID { reservation.id }
     }
 
     @ViewBuilder
@@ -133,6 +202,16 @@ struct WeeklyScheduleView: View {
                         .background(Capsule().fill(TL.rec))
                 }
                 Spacer()
+                // 표시등이 하나라도 켜진 날에만 범례를 붙인다 — 색만 보고 헷갈리지 않게.
+                if isToday, dayItems.contains(where: {
+                    if case .done = rowState($0.reservation, on: date, fire: $0.fire) { return true }
+                    return false
+                }) {
+                    HStack(spacing: 8) {
+                        legendDot(TL.jade, "완주")
+                        legendDot(TL.rec, "실패")
+                    }
+                }
             }
 
             if dayItems.isEmpty {
@@ -142,8 +221,9 @@ struct WeeklyScheduleView: View {
                     .padding(.leading, 2)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(dayItems.enumerated()), id: \.element.id) { index, r in
-                        timetableRow(r)
+                    ForEach(Array(dayItems.enumerated()), id: \.element.id) { index, item in
+                        timetableRow(item.reservation,
+                                     state: rowState(item.reservation, on: date, fire: item.fire))
                         if index < dayItems.count - 1 {
                             Divider().overlay(TL.hairline.opacity(0.5))
                         }
@@ -162,7 +242,7 @@ struct WeeklyScheduleView: View {
         }
     }
 
-    private func timetableRow(_ reservation: Reservation) -> some View {
+    private func timetableRow(_ reservation: Reservation, state: RowState) -> some View {
         Button {
             if reservation.isGroupReservation {
                 // 그룹 예약은 편집 대신 그 그룹방 상세로 이동
@@ -175,32 +255,58 @@ struct WeeklyScheduleView: View {
             }
         } label: {
             HStack(spacing: 12) {
-                Text(timeLabel(reservation.startMinute))
-                    .font(.tlTimer(14))
-                    .foregroundStyle(TL.paper)
-                    .frame(width: 74, alignment: .leading)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        if reservation.isGroupReservation {
-                            Image(systemName: "person.3.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(TL.amber)
+                // 지나간 일정은 통째로 흐리게 — 오늘 남은 일정과 한눈에 구분된다.
+                // 결과 표시등만 원래 밝기를 유지해 성공/실패를 바로 읽을 수 있게 한다.
+                Group {
+                    Text(timeLabel(reservation.startMinute))
+                        .font(.tlTimer(14))
+                        .foregroundStyle(TL.paper)
+                        .frame(width: 74, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            if reservation.isGroupReservation {
+                                Image(systemName: "person.3.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(TL.amber)
+                            }
+                            Text(reservation.name)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(TL.paper)
+                                .lineLimit(1)
                         }
-                        Text(reservation.name)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(TL.paper)
-                            .lineLimit(1)
+                        Text("\(TLFormat.durationLabel(reservation.durationMinutes))\(oneOffLabel(reservation))")
+                            .font(.system(size: 11)).foregroundStyle(TL.muted)
                     }
-                    Text("\(TLFormat.durationLabel(reservation.durationMinutes))\(oneOffLabel(reservation))")
-                        .font(.system(size: 11)).foregroundStyle(TL.muted)
+                    Spacer()
                 }
-                Spacer()
+                .opacity(state.isPast ? 0.42 : 1)
+
+                if let color = state.lightColor {
+                    outcomeLight(color)
+                }
                 TagChip(name: reservation.tag)
+                    .opacity(state.isPast ? 0.55 : 1)
             }
             .padding(.vertical, 11)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func legendDot(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 3) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(TL.faint)
+        }
+    }
+
+    /// 결과 표시등 — 태그 왼쪽의 작은 원. 흐려진 행에서도 눈에 들어오도록 옅은 후광을 준다.
+    private func outcomeLight(_ color: Color) -> some View {
+        Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+            .overlay(Circle().stroke(color.opacity(0.35), lineWidth: 4))
+            .frame(width: 16, height: 16)
     }
 
     private func timeLabel(_ minute: Int) -> String {
