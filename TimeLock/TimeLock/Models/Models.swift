@@ -215,10 +215,72 @@ final class Reservation {
     }
 
     /// 시간 구간 겹침 판정 (같은 날 기준, 분 단위)
+    /// 주의: 자정을 넘기는 활동은 이 함수만으로 판정할 수 없다 — ScheduleConflict를 쓸 것.
     func overlaps(startMinute other: Int, duration: Int) -> Bool {
         let aStart = startMinute, aEnd = startMinute + durationMinutes
         let bStart = other, bEnd = other + duration
         return aStart < bEnd && bStart < aEnd
+    }
+
+    /// 이 예약이 실제로 발생하는 날짜 범위. hi = nil이면 무기한.
+    /// 레거시 일회성(요일 없음 + 날짜 마커)은 그 하루만이다 — createdAt은 '만든 시각'이라
+    /// 실제 발생일과 다를 수 있어 그대로 범위 시작으로 쓰면 안 된다.
+    func activeDayRange(calendar: Calendar = .current) -> (lo: Date, hi: Date?) {
+        if !isRepeating, let d = oneOffDate {
+            let day = calendar.startOfDay(for: d)
+            return (day, day)
+        }
+        return (calendar.startOfDay(for: createdAt), endDate.map { calendar.startOfDay(for: $0) })
+    }
+
+    /// 이 예약이 점유하는 요일이 무엇인가 (레거시 일회성은 그 날짜의 요일)
+    func occupiedWeekdays(calendar: Calendar = .current) -> Set<Int> {
+        if isRepeating { return Set(repeatWeekdays) }
+        return Set([oneOffDate.map { calendar.component(.weekday, from: $0) }].compactMap { $0 })
+    }
+}
+
+/// 일정 충돌 판정 — 개인 예약 편집과 그룹 방 생성·참여가 같은 규칙을 쓰도록 한곳에 모은다.
+///
+/// 예전에는 '요일이 겹치고 시각이 겹치면 충돌'로만 봤다. 그 결과:
+///  - 이미 끝난 활동(6월 종료)이 8월 활동 생성을 막았다 — 기간을 안 봤기 때문
+///  - 서로 다른 날짜의 하루짜리끼리 충돌 판정됐다 — 둘 다 요일 전체로 저장되므로
+///  - 자정을 넘기는 활동(23시 시작 8시간)이 다음날 새벽 활동과 안 겹친다고 판정됐다
+enum ScheduleConflict {
+
+    /// 하루 경계로 자른 점유 구간 — (요일, 시작분, 끝분).
+    /// 자정을 넘기면 다음 요일 구간으로 이어 붙인다. 예) 월 23:00 + 8시간
+    /// → (월, 1380~1440) + (화, 0~360). 활동 길이 상한이 하루보다 짧아 넘침은 최대 하루다.
+    static func segments(weekdays: Set<Int>, startMinute: Int,
+                         durationMinutes: Int) -> [(day: Int, from: Int, to: Int)] {
+        var result: [(day: Int, from: Int, to: Int)] = []
+        let end = startMinute + durationMinutes
+        for w in weekdays {
+            result.append((w, startMinute, min(end, 1440)))
+            if end > 1440 {
+                result.append((w % 7 + 1, 0, min(end - 1440, 1440)))   // 1=일…7=토 순환
+            }
+        }
+        return result
+    }
+
+    /// 두 일정이 실제로 부딪히는가 — 기간이 겹치고, 그 안에서 같은 요일·시간대를 점유할 때만.
+    static func conflicts(
+        aRange: (lo: Date, hi: Date?), aWeekdays: Set<Int>, aStart: Int, aDuration: Int,
+        bRange: (lo: Date, hi: Date?), bWeekdays: Set<Int>, bStart: Int, bDuration: Int
+    ) -> Bool {
+        // 기간이 안 겹치면 요일·시각이 같아도 절대 부딪히지 않는다 (hi = nil은 무기한)
+        if let aHi = aRange.hi, bRange.lo > aHi { return false }
+        if let bHi = bRange.hi, aRange.lo > bHi { return false }
+
+        let aSegs = segments(weekdays: aWeekdays, startMinute: aStart, durationMinutes: aDuration)
+        let bSegs = segments(weekdays: bWeekdays, startMinute: bStart, durationMinutes: bDuration)
+        for a in aSegs {
+            for b in bSegs where a.day == b.day {
+                if a.from < b.to && b.from < a.to { return true }
+            }
+        }
+        return false
     }
 }
 

@@ -537,13 +537,16 @@ struct ReservationEditView: View {
             return
         }
 
-        // 검증: 겹치는 시간대 차단 (요일 교집합 + 시간대 겹침)
+        // 검증: 실제로 부딪히는 예약만 차단 — 기간이 겹치고, 그 안에서 같은 요일·시간대일 때.
+        // 기간을 안 보면 이미 끝난 활동이 새 활동을 영영 막고, 날짜가 다른 하루짜리끼리도
+        // (둘 다 요일 전체로 저장되므로) 충돌로 잡힌다.
+        let myRange: (lo: Date, hi: Date?) = (startDay, resolvedEnd.map { cal.startOfDay(for: $0) })
         for other in allReservations where other.id != reservation?.id {
-            let otherWeekdays: Set<Int> = other.isRepeating
-                ? Set(other.repeatWeekdays)
-                : Set([other.oneOffDate.map { cal.component(.weekday, from: $0) } ?? -1])
-            guard !targetWeekdays.isDisjoint(with: otherWeekdays) else { continue }
-            if other.overlaps(startMinute: startMinute, duration: durationMinutes) {
+            if ScheduleConflict.conflicts(
+                aRange: myRange, aWeekdays: targetWeekdays,
+                aStart: startMinute, aDuration: durationMinutes,
+                bRange: other.activeDayRange(calendar: cal), bWeekdays: other.occupiedWeekdays(calendar: cal),
+                bStart: other.startMinute, bDuration: other.durationMinutes) {
                 errorMessage = "\(TLFormat.clock(clockDate(other.startMinute))) '\(other.name)' 예약과 시간이 겹칩니다."
                 return
             }

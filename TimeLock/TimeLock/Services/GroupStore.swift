@@ -332,21 +332,25 @@ final class GroupStore: ObservableObject {
         let mine = (try? context.fetch(FetchDescriptor<Reservation>(
             predicate: #Predicate { $0.isActive && $0.ownerUserID == owner }))) ?? []
         let calendar = Calendar.current
+        // 개인 예약 편집과 완전히 같은 규칙(ScheduleConflict)을 쓴다 —
+        // 기간이 겹치고 그 안에서 같은 요일·시간대를 점유할 때만 충돌로 본다.
+        // 예전에는 기간을 보지 않아 이미 끝난 개인 활동이 새 방 생성을 영영 막았고,
+        // 자정을 넘기는 활동은 다음날 새벽 일정과 안 겹친다고 잘못 판정했다.
+        let roomRange: (lo: Date, hi: Date?) = (calendar.startOfDay(for: startDate),
+                                                calendar.startOfDay(for: endDate))
+        // 레거시 일회성 방은 요일 배열이 비어 있다 — 그대로 두면 점유 구간이 없어져
+        // 충돌 검사를 통째로 빠져나간다. 시작일의 요일로 채워 준다.
+        let roomWeekdays = repeatWeekdays.isEmpty
+            ? Set([calendar.component(.weekday, from: startDate)])
+            : Set(repeatWeekdays)
         for reservation in mine {
-            guard reservation.overlaps(startMinute: startMinute, duration: durationMinutes)
-            else { continue }
-            if reservation.isRepeating {
-                // 반복끼리는 요일이 하나라도 겹치면 충돌
-                if !Set(reservation.repeatWeekdays).isDisjoint(with: repeatWeekdays) {
-                    throw GroupError.scheduleConflict(reservation.name)
-                }
-            } else if let date = reservation.oneOffDate {
-                // 일회성은 방 기간 안이고 요일이 겹치면 충돌
-                let weekday = calendar.component(.weekday, from: date)
-                if date >= calendar.startOfDay(for: startDate), date <= endDate,
-                   repeatWeekdays.contains(weekday) {
-                    throw GroupError.scheduleConflict(reservation.name)
-                }
+            if ScheduleConflict.conflicts(
+                aRange: roomRange, aWeekdays: roomWeekdays,
+                aStart: startMinute, aDuration: durationMinutes,
+                bRange: reservation.activeDayRange(calendar: calendar),
+                bWeekdays: reservation.occupiedWeekdays(calendar: calendar),
+                bStart: reservation.startMinute, bDuration: reservation.durationMinutes) {
+                throw GroupError.scheduleConflict(reservation.name)
             }
         }
     }
