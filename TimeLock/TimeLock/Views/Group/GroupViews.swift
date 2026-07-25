@@ -474,6 +474,7 @@ struct GroupCreateView: View {
             return "\(GroupFormat.day(startDay)) 하루 · \(common)"
         }
         let days = weekdays.isEmpty ? "요일 미선택"
+            : weekdays.count == 7 ? "매일"
             : "매주 " + weekdays.sorted().compactMap { GroupFormat.weekdayNames[$0] }.joined(separator: " ")
         return "\(GroupFormat.day(startDay)) ~ \(GroupFormat.day(endDay))\n\(days) · \(common)"
     }
@@ -855,13 +856,13 @@ struct GroupRoomDetailView: View {
 
     private var myUID: String { account.currentUserID }
 
-    /// 시작까지 남은 시간 문구 — 예: "시작까지 6시간 18분 남음", "시작까지 42분 남음", "곧 시작".
+    /// 남은 시간 문구 — 예: "6시간 18분 뒤 시작", "42분 뒤 시작", "곧 시작".
     private func startRemainLabel(_ seconds: Int) -> String {
         if seconds < 60 { return "곧 시작" }
         let m = seconds / 60
         let h = m / 60, mm = m % 60
-        if h > 0 { return "시작까지 \(h)시간 \(mm)분 남음" }
-        return "시작까지 \(mm)분 남음"
+        if h > 0 { return "\(h)시간 \(mm)분 뒤 시작" }
+        return "\(mm)분 뒤 시작"
     }
 
     var body: some View {
@@ -1224,6 +1225,7 @@ enum GroupFormat {
         // 일회성 그룹(요일 없음)은 날짜 하나로 표시
         let when = room.repeatWeekdays.isEmpty
             ? "\(day(room.startDate)) 하루"
+            : room.repeatWeekdays.count == 7 ? "매일"
             : "매주 " + room.repeatWeekdays.sorted().compactMap { weekdayNames[$0] }.joined(separator: " ")
         return "\(when) · \(time(room.startMinute)) · \(TLFormat.durationLabel(room.durationMinutes))"
     }

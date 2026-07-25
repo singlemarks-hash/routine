@@ -406,12 +406,12 @@ struct HomeView: View {
     }
 
     /// 남은 시간을 분단위 문구로 — 초 카운트다운의 불안감을 줄인다 (12시간 이내만 노출).
-    /// 1분 미만은 "곧 시작", 그 외 "시작까지 59분 / 1시간 20분 / 3시간 남음". 올림.
+    /// 1분 미만은 "곧 시작", 그 외 "59분 / 1시간 20분 / 3시간 뒤 시작". 올림.
     private func remainingMinuteLabel(_ seconds: Int) -> String {
         if seconds < 60 { return "곧 시작" }
         let m = Int((Double(seconds) / 60).rounded(.up))
         let time = m >= 60 ? (m % 60 == 0 ? "\(m / 60)시간" : "\(m / 60)시간 \(m % 60)분") : "\(m)분"
-        return "시작까지 \(time) 남음"
+        return "\(time) 뒤 시작"
     }
 
     private func weekdayLabel(_ weekdays: [Int]) -> String {

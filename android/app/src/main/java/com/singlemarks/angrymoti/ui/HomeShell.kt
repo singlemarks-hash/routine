@@ -341,14 +341,14 @@ private fun ActivityTab(
                     Text(r.name, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f))
                     if (showsTimer) {
-                        // 분단위 문구 — 1분 미만 "곧 시작", 그 외 "시작까지 …남음". 올림.
+                        // 분단위 문구 — 1분 미만 "곧 시작", 그 외 "… 뒤 시작". 올림.
                         val secs = (next!! - now) / 1000
                         val label = if (secs < 60) "곧 시작" else {
                             val m = kotlin.math.ceil(secs / 60.0).toLong()
                             val time = if (m >= 60)
                                 (if (m % 60 == 0L) "${m / 60}시간" else "${m / 60}시간 ${m % 60}분")
                             else "${m}분"
-                            "시작까지 $time 남음"
+                            "$time 뒤 시작"
                         }
                         Text(label, color = TL.amber, fontSize = 13.sp,
                             fontWeight = FontWeight.Black, maxLines = 1)

@@ -63,9 +63,10 @@ import java.util.Calendar
 private object GroupFormat {
     private val weekdayNames = listOf("", "일", "월", "화", "수", "목", "금", "토")
 
-    // iOS: "매주 월 화 수" (공백 구분, '매일' 축약 없음) 1:1
+    // iOS: "매주 월 화 수" (공백 구분), 요일 전체면 "매일" 축약 1:1
     fun weekdays(days: List<Int>): String =
-        "매주 " + days.sorted().joinToString(" ") { weekdayNames[it] }
+        if (days.size == 7) "매일"
+        else "매주 " + days.sorted().joinToString(" ") { weekdayNames[it] }
 
     // iOS: "오후 7시" / "오전 9:30" (12시간 한국어) 1:1
     fun time(startMinute: Int): String {
@@ -109,12 +110,12 @@ private object GroupFormat {
         return if (days <= 0) "오늘" else "D-$days"
     }
 
-    /** 시작까지 남은 시간 문구 — iOS startRemainLabel 1:1. 예: "시작까지 6시간 18분 남음", "시작까지 42분 남음", "곧 시작". */
+    /** 남은 시간 문구 — iOS startRemainLabel 1:1. 예: "6시간 18분 뒤 시작", "42분 뒤 시작", "곧 시작". */
     fun startRemain(seconds: Long): String {
         if (seconds < 60) return "곧 시작"
         val m = seconds / 60
         val h = m / 60; val mm = m % 60
-        return if (h > 0) "시작까지 ${h}시간 ${mm}분 남음" else "시작까지 ${mm}분 남음"
+        return if (h > 0) "${h}시간 ${mm}분 뒤 시작" else "${mm}분 뒤 시작"
     }
 }
 
