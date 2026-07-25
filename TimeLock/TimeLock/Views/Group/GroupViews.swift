@@ -920,7 +920,8 @@ struct GroupRoomDetailView: View {
                 infoCard
 
                 // 시작 10분 이내인데 아직 2명 미만이면, 곧 폭파(자동 삭제)될 방임을 경고한다.
-                if !room.hasStarted,
+                // 삭제가 확정된 방은 아래 doomedCard가 더 정확히 안내한다 — 경고 카드가 겹치지 않게 뺀다.
+                if !room.doomed, !room.hasStarted,
                    Int(room.startDate.timeIntervalSince(now)) <= 10 * 60,
                    room.memberCount < GroupPolicy.minMembersToStart {
                     disbandWarningCard

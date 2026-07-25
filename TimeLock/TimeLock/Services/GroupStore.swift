@@ -174,14 +174,18 @@ final class GroupStore: ObservableObject {
                 // 다른 기기가 정리한 것이므로 미리 찍힌 기록까지 되돌린다. 반대로 이미 시작한
                 // 방이면 보존 기간이 끝나 정리된 것이라, 그동안 정당하게 받은 벌점을 지우면
                 // '한 달 잠수 후 앱을 열면 벌점이 사라지는' 회피 경로가 된다.
-                let started = groupAlreadyStartedLocally(roomID: id)
+                let started = groupStartedLocally(roomID: id)
                 // 멤버십 참조를 못 지우면 로컬도 건드리지 않는다 — 다음 새로고침에서 이 방이
                 // 다시 '내 방'으로 잡혀 예약이 되살아나기 때문이다. 안내도 그때 한 번만 띄운다.
                 guard await detachMembership(roomID: id) else { continue }
-                disbandedNotices.append(started
-                    ? "참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요."
-                    : "참여했던 그룹방이 해체되었어요.")
-                removeLocalReservation(roomID: id, purgeNoShows: !started)
+                switch started {
+                case .some(false): disbandedNotices.append("참여했던 그룹방이 해체되었어요.")
+                case .some(true):  disbandedNotices.append("참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요.")
+                case .none:        disbandedNotices.append("참여했던 그룹방이 정리되었어요.")
+                }
+                // 시작 전이었던 게 확실할 때만 되돌린다. 판단 불가면 기록을 건드리지 않는다 —
+                // 잘못 찍힌 노쇼는 '실제로 한 기록이 이긴다' 규칙이 동기화 때 정리한다.
+                removeLocalReservation(roomID: id, purgeNoShows: started == false)
                 continue
             }
             guard var room = Self.room(from: snapshot) else {
@@ -671,13 +675,13 @@ final class GroupStore: ObservableObject {
 
     /// 이 방이 이미 시작했는가를 '로컬 예약'만으로 판정한다 (방 문서가 사라진 뒤에 쓴다).
     /// 그룹 예약의 createdAt은 방의 실제 시작 시각이다.
-    /// 알 수 없으면 '시작했다'로 본다 — 정당한 기록을 지우는 쪽보다 남기는 쪽이 안전하다.
-    private func groupAlreadyStartedLocally(roomID: String) -> Bool {
-        guard let context = modelContext else { return true }
+    /// nil = 로컬에 흔적이 없어 판단 불가 — 이때는 지우지도, 단정하지도 않는다.
+    private func groupStartedLocally(roomID: String) -> Bool? {
+        guard let context = modelContext else { return nil }
         let owner = AccountStore.shared.currentUserID
         let list = (try? context.fetch(FetchDescriptor<Reservation>(
             predicate: #Predicate { $0.groupID == roomID && $0.ownerUserID == owner }))) ?? []
-        guard let reservation = list.first else { return true }
+        guard let reservation = list.first else { return nil }
         return reservation.createdAt <= Date()
     }
 
