@@ -322,12 +322,18 @@ final class GroupStore: ObservableObject {
         let db = Firestore.firestore()
         let uid = AccountStore.shared.currentUserID
 
-        // 초대코드 — 헷갈리는 문자(0/O/1/I) 제외, 중복 시 재발급
+        // 초대코드 — 헷갈리는 문자(0/O/1/I) 제외, 중복 시 재발급.
+        // 확인 조회가 '실패'한 것을 '중복 없음'으로 오해하면 안 된다 — 예전 조건은
+        // 네트워크 오류로 nil이 와도 통과해, 확인 없이 코드를 확정했다.
+        // 실패하면 같은 코드로 다시 확인하고, 끝내 확인하지 못하면 그대로 진행한다
+        // (3,355만분의 1 위험보다 방을 못 만드는 쪽이 손해가 크다).
         var code = Self.randomCode()
         for _ in 0..<5 {
-            let dup = try? await db.collection("groups")
-                .whereField("code", isEqualTo: code).limit(to: 1).getDocuments()
-            if dup?.documents.isEmpty != false { break }
+            guard let dup = try? await db.collection("groups")
+                .whereField("code", isEqualTo: code).limit(to: 1).getDocuments() else {
+                continue   // 확인 실패 — 코드를 바꾸지 않고 다시 확인한다
+            }
+            if dup.documents.isEmpty { break }
             code = Self.randomCode()
         }
 
