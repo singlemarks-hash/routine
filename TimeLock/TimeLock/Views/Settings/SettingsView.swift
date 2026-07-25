@@ -415,49 +415,6 @@ struct CheerDeveloperView: View {
     }
 }
 
-// MARK: - 강도 설정
-
-struct IntensitySettingsView: View {
-    @EnvironmentObject private var app: AppState
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                TLEyebrow(text: "강도 · 앱 전체에 하나만 적용")
-                VStack(spacing: 10) {
-                    intensityRow(.spicy)
-                    intensityRow(.insane)
-                }
-                if app.downgradePending, let date = app.downgradeDate {
-                    Label("매운맛으로 하향 예약됨 — \(TLFormat.dayTitle(date)) 0시 적용",
-                          systemImage: "clock.arrow.circlepath")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(TL.amber)
-                }
-                Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. 미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다. (현재 \(min(app.spicyCompletions, 3))/3 · 멤버십은 조건 없이 바로 사용)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(TL.faint)
-            }
-            .padding(20)
-        }
-        .background(TL.ink)
-        .navigationTitle("강도 설정")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func intensityRow(_ target: Intensity) -> some View {
-        let selected = app.intensity == target
-        let locked = target == .insane && !app.insaneUnlocked
-        return Button {
-            guard !selected, !locked else { return }
-            app.requestIntensityChange(to: target)
-        } label: {
-            IntensityCard(intensity: target, selected: selected, locked: locked)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - 프라이버시
 
 struct PrivacySettingsView: View {

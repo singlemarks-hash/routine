@@ -119,7 +119,10 @@ struct AlarmView: View {
         }
         .sheet(isPresented: $showCancelSheet) {
             CancelReasonSheet(
-                penaltyPoints: ScoreRules.points(for: .emergency, intensity: app.intensity,
+                // 강도는 활동마다 따로다 — 전역 값으로 계산하면 안내한 점수와 실제로 깎이는
+                // 점수가 어긋난다(실제 부과는 cancelSchedule이 활동별 강도로 한다).
+                penaltyPoints: ScoreRules.points(for: .emergency,
+                                                 intensity: reservation.intensityOverride ?? app.intensity,
                                                  durationMinutes: reservation.durationMinutes)?.1 ?? -5,
                 onConfirm: { reason in
                     showCancelSheet = false
