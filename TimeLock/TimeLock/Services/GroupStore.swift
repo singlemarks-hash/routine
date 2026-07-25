@@ -535,6 +535,9 @@ final class GroupStore: ObservableObject {
     func members(roomID: String) async -> [GroupMember] {
         #if canImport(FirebaseFirestore)
         guard backendActive else { return [] }
+        // 랭킹을 그리기 전에 내 점수가 표식 합계와 맞는지 확인한다.
+        // 어긋난 채로 두면 아무도 눈치채지 못하고 영원히 남는다.
+        await repairMyScore(roomID: roomID)
         let snapshot = try? await Firestore.firestore()
             .collection("groups").document(roomID).collection("members").getDocuments()
         return (snapshot?.documents ?? []).compactMap { doc in
@@ -583,34 +586,40 @@ final class GroupStore: ObservableObject {
     /// 실제 결과인 완주가 이겨야 한다. 등급이 낮은 요청은 버리고, 같거나 높으면 차액만 보정한다.
     /// 호출 순서가 뒤바뀌어도 결과가 같다.
     func reportScore(reservation: Reservation?, points: Int, occurrenceKey: String, rank: Int) {
+        guard let roomID = reservation?.groupID else { return }
+        Task { try? await applyScore(roomID: roomID, points: points,
+                                     occurrenceKey: occurrenceKey, rank: rank) }
+    }
+
+    /// 그룹 점수를 바꾸는 **유일한** 경로. 점수 변화는 반드시 표식을 남기고 일어난다.
+    /// 표식이 곧 원장이므로, 어긋난 합계는 `repairMyScore(roomID:)`가 되돌릴 수 있다.
+    func applyScore(roomID: String, points: Int, occurrenceKey: String, rank: Int) async throws {
         #if canImport(FirebaseFirestore)
-        guard backendActive, let roomID = reservation?.groupID, points != 0 else { return }
+        guard backendActive, points != 0 else { return }
         let uid = AccountStore.shared.currentUserID
         guard !uid.isEmpty, uid != AccountStore.guestID else { return }
         let db = Firestore.firestore()
         let memberRef = db.collection("groups").document(roomID).collection("members").document(uid)
         let markRef = memberRef.collection("scored").document(Self.markID(occurrenceKey))
-        Task {
-            _ = try? await db.runTransaction { transaction, errorPointer -> Any? in
-                let snap: DocumentSnapshot
-                do { snap = try transaction.getDocument(markRef) }
-                catch let e as NSError { errorPointer?.pointee = e; return nil }
-                var delta = points
-                if snap.exists {
-                    let oldRank = snap.data()?["rank"] as? Int ?? Self.scoreRankNormal
-                    let oldPoints = snap.data()?["points"] as? Int ?? 0
-                    guard rank >= oldRank else { return nil }          // 더 확실한 결과가 이미 있다
-                    guard rank > oldRank || points != oldPoints else { return nil }   // 같은 값 재요청
-                    delta = points - oldPoints                          // 차액만 보정
-                }
-                transaction.setData(["points": points, "rank": rank, "at": Timestamp(date: .now)],
-                                    forDocument: markRef)
-                if delta != 0 {
-                    transaction.updateData(["score": FieldValue.increment(Int64(delta))],
-                                           forDocument: memberRef)
-                }
-                return nil
+        _ = try await db.runTransaction { transaction, errorPointer -> Any? in
+            let snap: DocumentSnapshot
+            do { snap = try transaction.getDocument(markRef) }
+            catch let e as NSError { errorPointer?.pointee = e; return nil }
+            var delta = points
+            if snap.exists {
+                let oldRank = snap.data()?["rank"] as? Int ?? Self.scoreRankNormal
+                let oldPoints = snap.data()?["points"] as? Int ?? 0
+                guard rank >= oldRank else { return nil }          // 더 확실한 결과가 이미 있다
+                guard rank > oldRank || points != oldPoints else { return nil }   // 같은 값 재요청
+                delta = points - oldPoints                          // 차액만 보정
             }
+            transaction.setData(["points": points, "rank": rank, "at": Timestamp(date: .now)],
+                                forDocument: markRef)
+            if delta != 0 {
+                transaction.updateData(["score": FieldValue.increment(Int64(delta))],
+                                       forDocument: memberRef)
+            }
+            return nil
         }
         #endif
     }
@@ -648,6 +657,47 @@ final class GroupStore: ObservableObject {
     static let scoreRankNoShow = 0
     /// 실제로 화면을 통과한 결과(완주·이탈실패·긴급종료·일정취소)는 노쇼를 덮는다.
     static let scoreRankNormal = 1
+
+    /// 중도 포기 벌점의 표식 키 — 방마다 한 번뿐이라 방 ID로 고정한다.
+    /// 표식을 거치므로 두 번 눌러도(또는 두 기기에서 눌러도) 벌점은 한 번만 들어간다.
+    static func quitOccurrenceKey(roomID: String) -> String { "groupquit|\(roomID)" }
+
+    /// 서버의 내 점수를 표식 합계로 다시 맞춘다.
+    ///
+    /// 점수는 더하기로 쌓이는 값이라, 트랜잭션이 한 번이라도 실패하면(오프라인·권한 거부·
+    /// 도중 강제 종료) 조용히 어긋난 채 영원히 그대로다. 표식이 원장이고 점수는 그 캐시이므로,
+    /// 어긋났으면 원장에서 다시 만들 수 있다.
+    ///
+    /// 읽는 도중 다른 기기가 점수를 바꿨을 수 있으니, 합계를 세기 전의 점수를 기억했다가
+    /// 트랜잭션 안에서 그대로인지 확인하고 바꾼다. 달라졌으면 이번 보정은 포기한다
+    /// (덮어썼다면 방금 들어온 정당한 점수가 사라진다). 다음 입장 때 다시 맞춘다.
+    func repairMyScore(roomID: String) async {
+        #if canImport(FirebaseFirestore)
+        guard backendActive else { return }
+        let uid = AccountStore.shared.currentUserID
+        guard !uid.isEmpty, uid != AccountStore.guestID else { return }
+        let db = Firestore.firestore()
+        let memberRef = db.collection("groups").document(roomID).collection("members").document(uid)
+
+        // 캐시가 아니라 서버 값이어야 한다 — 오프라인 사본으로 보정하면 멀쩡한 점수를 망친다
+        guard let before = try? await memberRef.getDocument(source: .server), before.exists,
+              let observed = before.data()?["score"] as? Int else { return }
+        guard let marks = try? await memberRef.collection("scored")
+            .getDocuments(source: .server) else { return }
+
+        let total = marks.documents.reduce(0) { $0 + (($1.data()["points"] as? Int) ?? 0) }
+        guard total != observed else { return }
+
+        _ = try? await db.runTransaction { transaction, errorPointer -> Any? in
+            let snap: DocumentSnapshot
+            do { snap = try transaction.getDocument(memberRef) }
+            catch let e as NSError { errorPointer?.pointee = e; return nil }
+            guard snap.exists, (snap.data()?["score"] as? Int) == observed else { return nil }
+            transaction.updateData(["score": total], forDocument: memberRef)
+            return nil
+        }
+        #endif
+    }
 
     /// 발생 키를 문서 ID로 — 길이·문자 제한에 걸리지 않게 결정적 UUID로 줄인다.
     private static func markID(_ occurrenceKey: String) -> String {
@@ -687,10 +737,11 @@ final class GroupStore: ObservableObject {
         let memberRef = db.collection("groups").document(room.id)
             .collection("members").document(uid)
         // 실패를 삼키면 그룹엔 포기가 반영되지 않은 채 내 벌점만 기록된다.
-        try await memberRef.updateData([
-            "quit": true,
-            "score": FieldValue.increment(Int64(ScoreRules.groupQuitPenalty)),
-        ])
+        try await memberRef.updateData(["quit": true])
+        // 벌점도 표식을 거쳐 들어간다 — 표식을 건너뛰면 점수 재계산이 이 -50을 지워버린다
+        try await applyScore(roomID: room.id, points: ScoreRules.groupQuitPenalty,
+                             occurrenceKey: Self.quitOccurrenceKey(roomID: room.id),
+                             rank: Self.scoreRankNormal)
         // 개인 누적에도 동일 벌점 기록
         if let context = modelContext {
             let event = ScoreEvent(type: .groupQuit, points: ScoreRules.groupQuitPenalty,
