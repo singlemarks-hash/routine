@@ -635,8 +635,15 @@ final class GroupStore: ObservableObject {
                     let sid = session.id
                     if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
                         predicate: #Predicate { $0.sessionID == sid })) {
-                        events.forEach { context.delete($0) }
+                        events.forEach {
+                            // 클라우드 사본까지 지워야 다음 동기화에서 '세션 없는 유령 벌점'으로
+                            // 되살아나지 않는다 (노쇼 복구 경로와 동일 규칙 — CLAUDE.md 불변식 #4)
+                            AccountStore.shared.deleteMirroredEvent(id: $0.id)
+                            context.delete($0)
+                        }
                     }
+                    AccountStore.shared.deleteMirroredSession(id: sid)
+                    SessionStorage.deleteFiles(of: session)
                     context.delete(session)
                 }
             }

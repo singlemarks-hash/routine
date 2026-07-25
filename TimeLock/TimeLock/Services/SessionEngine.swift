@@ -585,6 +585,9 @@ final class SessionEngine: NSObject, ObservableObject {
                         }
                     }
                     SessionStorage.deleteFiles(of: s)
+                    // 세션 요약 사본도 함께 — 남기면 다음 동기화가 이 노쇼를 다시 만들어
+                    // 매 실행마다 삭제/부활이 반복되고 연속 달성일이 계속 끊긴다.
+                    AccountStore.shared.deleteMirroredSession(id: s.id)
                     context.delete(s)
                     continue
                 }

@@ -19,8 +19,10 @@ struct WeeklyScheduleView: View {
     @State private var editorTarget: EditorTarget?
     @State private var groupRoomToOpen: GroupRoom?
     /// 1분마다 갱신 — 시작 창이 닫히는 순간 행이 저절로 '지나감'으로 바뀌게 한다.
+    /// 퍼블리셔를 let으로 두면 뷰가 재생성될 때마다 새로 만들어져 구독이 리셋되고,
+    /// 상위(AppState)가 30초마다 갱신을 밀어넣는 이 화면에서는 60초 타이머가 영영 안 터진다.
     @State private var now = Date()
-    private let clock = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+    @State private var clock = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     /// 편집 시트 대상 — .sheet(item:)으로 열어 항상 정확한 예약을 전달한다.
     /// (.sheet(isPresented:)+별도 @State는 시트가 옛 값(nil)을 캡처해 '새 예약 빈 폼'으로
@@ -136,9 +138,14 @@ struct WeeklyScheduleView: View {
         let cal = Calendar.current
         let rid = reservation.id
         let owner = account.currentUserID
-        return allSessions.first { s in
+        // @Query에 정렬이 없어 first를 쓰면 순서가 보장되지 않는다 —
+        // 긴급 종료 뒤 재촬영해 완주한 날에 호박불이 뜰 수 있으므로 '가장 나중 기록'을 고른다.
+        return allSessions.filter { s in
             s.ownerUserID == owner && s.reservationID == rid && s.outcome != nil &&
             (s.scheduledAt.map { cal.isDate($0, inSameDayAs: date) } ?? false)
+        }
+        .max { a, b in
+            (a.endedAt ?? a.startedAt ?? .distantPast) < (b.endedAt ?? b.startedAt ?? .distantPast)
         }?.outcome
     }
 

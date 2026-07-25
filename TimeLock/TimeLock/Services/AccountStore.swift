@@ -542,6 +542,17 @@ final class AccountStore: ObservableObject {
         #endif
     }
 
+    /// 세션 요약 사본 삭제. 로컬 세션을 되돌릴 때 반드시 함께 호출한다 —
+    /// syncSessionSummariesFromCloud는 '로컬에 없는 클라우드 세션'을 무조건 다시 만들기 때문에,
+    /// 사본을 남겨두면 지운 세션이 매 동기화마다 되살아나 연속 달성일을 계속 끊는다.
+    func deleteMirroredSession(id: UUID) {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return }
+        Firestore.firestore().collection("users").document(user.id)
+            .collection("sessionSummaries").document(id.uuidString.lowercased()).delete()
+        #endif
+    }
+
     // MARK: 크로스 기기 동기화 — 점수 원장 · 개인 예약 · 멤버십
 
     /// 앱 시작·복귀·로그인 시 호출되는 통합 동기화.

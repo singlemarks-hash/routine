@@ -111,7 +111,10 @@ enum GroupPolicy {
     /// 마지막 활동 시각이 지난 뒤에도 점수가 아직 확정되지 않는 유예.
     /// 시작 창(10분) 안에 시작해서, 긴급 중단 후 재촬영 창(10분)까지 쓴 사람이 있을 수 있다.
     /// 이 시간이 지나야 그날의 모든 결과가 확정되므로 방을 '종료'로 볼 수 있다.
-    static var settleGraceMinutes: Int { TimePolicy.startWindowMinutes + TimePolicy.resumeWindowMinutes }
+    /// 뒤의 5분은 여유분이다. 유예가 최악 시나리오와 정확히 같으면, 시작 창과 재촬영 창을
+    /// 끝까지 쓴 사람의 종료 처리가 경계에 걸린다. 그 순간 다른 곳에서 돌던 새로고침이
+    /// 그룹 예약을 먼저 지우면 마지막 세션 점수가 조용히 사라진다(에러도 재시도도 없음).
+    static var settleGraceMinutes: Int { TimePolicy.startWindowMinutes + TimePolicy.resumeWindowMinutes + 5 }
 }
 
 // MARK: - 강도 (앱 전역 단일 값)
