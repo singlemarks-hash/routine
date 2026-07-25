@@ -530,7 +530,9 @@ enum ScoreRules {
         case .completed:   return (.complete, completionBase(forMinutes: durationMinutes) * multiplier)
         case .exitFailed:  return (.exitFail, -10 * multiplier)
         case .noShow:      return (.noShow, -15 * multiplier)
-        case .emergency:   return (.emergency, -5 * multiplier)
+        // 일정 취소·긴급 종료는 이탈 실패와 같은 무게로 다룬다 — 시작하기로 한 활동을
+        // 하지 않은 결과는 같다. 개인·그룹 어느 쪽이든 이 표 하나로 계산된다.
+        case .emergency:   return (.emergency, -10 * multiplier)
         case .safetyEnded: return nil  // 벌점 없음
         }
     }

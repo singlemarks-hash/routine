@@ -123,7 +123,7 @@ struct AlarmView: View {
                 // 점수가 어긋난다(실제 부과는 cancelSchedule이 활동별 강도로 한다).
                 penaltyPoints: ScoreRules.points(for: .emergency,
                                                  intensity: reservation.intensityOverride ?? app.intensity,
-                                                 durationMinutes: reservation.durationMinutes)?.1 ?? -5,
+                                                 durationMinutes: reservation.durationMinutes)?.1 ?? -10,
                 onConfirm: { reason in
                     showCancelSheet = false
                     app.cancelSchedule(reservation: reservation, fireDate: fireDate, reason: reason)
