@@ -313,6 +313,19 @@ struct MountGuideView: View {
 
     /// 시작 카운트다운 (nil = 대기, 3→2→1, 0 = '시작!')
     @State private var countdown: Int?
+    /// 시작 창 카운트다운 — 구도 화면에도 마감이 있어야 한다.
+    /// 예전엔 여기 들어오면 시간 제한이 사라져, 25분 뒤에 촬영을 시작해도 벌점이 없었다.
+    @State private var now = Date()
+    /// 이미 녹화로 넘어갔으면 마감 처리를 하지 않는다 (카운트다운 중 만료 방지)
+    @State private var started = false
+    private let windowClock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    /// 시작 창 마감까지 남은 초. 예약이 아닌 '지금 바로 시작'은 마감이 없다.
+    private var remainingSeconds: Int? {
+        guard let scheduled = pending.scheduledAt else { return nil }
+        let deadline = scheduled.addingTimeInterval(TimePolicy.startWindowSeconds)
+        return max(0, Int(deadline.timeIntervalSince(now).rounded(.up)))
+    }
     /// '시작!' 후에도 카메라 준비가 안 끝난 드문 경우의 로딩 표시
     @State private var preparing = false
 
@@ -348,9 +361,21 @@ struct MountGuideView: View {
         .interactiveDismissDisabled()
         .onAppear { recorder.startPreview() }
         .task { _ = await recorder.requestAuthorization() }
+        .onReceive(windowClock) { tick in
+            now = tick
+            // 마감 도달 — 아직 촬영으로 넘어가지 않았다면 창을 닫는다.
+            // 노쇼 기록과 벌점은 알람 화면과 동일하게 스위퍼가 남긴다.
+            guard !started, let remaining = remainingSeconds, remaining == 0 else { return }
+            started = true
+            recorder.stopPreview()
+            AlarmScheduler.shared.stopAlarmSound()
+            app.sweepNoShows()
+            app.route = .none
+        }
         .sheet(isPresented: $showFocusGuide) {
             FocusModeGuideSheet {
                 showFocusGuide = false
+                started = true                        // 마감 처리 중단 — 이미 시작했다
                 app.beginRecording(pending: pending)   // 알람 정지 + 세션 무장
                 runCountdown()
             }
@@ -524,8 +549,11 @@ struct MountGuideView: View {
                 .foregroundStyle(TL.paper)
             // 예약(scheduledAt)이 있을 때만 노쇼 경고를 보여준다 — '지금 바로 시작'은
             // 예약과 무관해 취소해도 노쇼가 아니므로 이 문구가 사실과 다르게 겁을 준다.
-            if pending.scheduledAt != nil {
-                Text("\(TimePolicy.startWindowMinutes)분 안에 시작하지 않으면 노쇼 처리됩니다")
+            if let remaining = remainingSeconds {
+                Text(String(format: "%02d:%02d", remaining / 60, remaining % 60))
+                    .font(.tlTimer(isLandscape ? 26 : 32))
+                    .foregroundStyle(remaining <= 60 ? TL.rec : TL.paper)
+                Text("00:00이 되면 노쇼 처리됩니다")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.rec)
                     .fixedSize(horizontal: false, vertical: true)
