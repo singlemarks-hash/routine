@@ -81,7 +81,9 @@ private struct PermissionStep: View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer().frame(height: 60)
             TLEyebrow(text: "권한 설정")
-            Text("두 가지 권한을 허용해 주세요")
+            // 심사가 지적한 건 버튼이지만, 제목도 같은 성격이다(허용을 권하는 문구).
+            // 무엇에 쓰는지만 알리고 결정은 시스템 창에 맡긴다.
+            Text("카메라와 알림을 사용합니다")
                 .font(.tlTitle(28))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 8)
@@ -160,7 +162,10 @@ private struct PermissionStep: View {
                 case .some(false):
                     Image(systemName: "xmark.circle.fill").foregroundStyle(TL.rec).font(.title3)
                 case .none:
-                    Button("허용") { action() }
+                    // 시스템 권한창 앞에 놓인 버튼에 '허용'을 쓰면 심사에서 반려된다
+                    // (5.1.1(iv) — 권한 결정을 앱이 유도하는 것으로 본다).
+                    // 허용 여부는 시스템 창에서만 고르고, 이 버튼은 그 창을 여는 역할만 한다.
+                    Button("계속") { action() }
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.ink)
                         .padding(.horizontal, 14).padding(.vertical, 8)
