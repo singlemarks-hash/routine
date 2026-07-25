@@ -531,6 +531,17 @@ final class AccountStore: ObservableObject {
         #endif
     }
 
+    /// 점수 이벤트를 클라우드에서도 삭제한다.
+    /// 로컬에서만 지우면 다음 syncScoreEventsFromCloud가 그대로 되살려, 가리키던 세션은
+    /// 없는데 벌점만 남는 '유령 벌점'이 된다. 되돌리기(노쇼 복구·그룹 정리)는 반드시 이걸 함께 호출.
+    func deleteMirroredEvent(id: UUID) {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return }
+        Firestore.firestore().collection("users").document(user.id)
+            .collection("scoreEvents").document(id.uuidString.lowercased()).delete()
+        #endif
+    }
+
     // MARK: 크로스 기기 동기화 — 점수 원장 · 개인 예약 · 멤버십
 
     /// 앱 시작·복귀·로그인 시 호출되는 통합 동기화.

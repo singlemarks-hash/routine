@@ -578,7 +578,11 @@ final class SessionEngine: NSObject, ObservableObject {
                     let sid = s.id
                     if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
                         predicate: #Predicate { $0.sessionID == sid })) {
-                        events.forEach { context.delete($0) }
+                        events.forEach {
+                            // 클라우드 사본까지 지워야 다음 동기화에서 '유령 벌점'으로 되살아나지 않는다
+                            AccountStore.shared.deleteMirroredEvent(id: $0.id)
+                            context.delete($0)
+                        }
                     }
                     SessionStorage.deleteFiles(of: s)
                     context.delete(s)

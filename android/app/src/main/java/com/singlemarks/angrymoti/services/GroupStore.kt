@@ -516,7 +516,11 @@ object GroupStore {
                         it.outcome == SessionOutcome.NO_SHOW
                 }
                 for (session in sessions) {
-                    for (e in dbLocal.scores().bySession(session.id)) dbLocal.scores().delete(e)
+                    for (e in dbLocal.scores().bySession(session.id)) {
+                        // 클라우드 사본까지 지워야 다음 동기화에서 되살아나지 않는다
+                        AccountStore.deleteMirroredEvent(e.ownerUserID, e.id)
+                        dbLocal.scores().delete(e)
+                    }
                     dbLocal.sessions().delete(session)
                 }
             }

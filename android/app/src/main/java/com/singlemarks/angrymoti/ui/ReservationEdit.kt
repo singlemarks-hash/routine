@@ -143,6 +143,17 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     /** 입력 필드·저장 잠금 = 시작 임박 ∨ 슬롯 초과 읽기 전용 (삭제는 예외로 isLocked만 적용) */
     val fieldLocked = isLocked || editReadOnly
 
+    /** 이미 시작한 활동은 시작일을 바꿀 수 없다.
+     *
+     *  시작일은 그대로 createdAt(발생 시작 게이트)에 저장되는데, 노쇼 복구 루틴이
+     *  'scheduledAt < createdAt인 노쇼는 잘못된 기록'으로 보고 세션·벌점을 지운다.
+     *  시작일을 자유롭게 미룰 수 있으면 그 이전의 정당한 벌점이 전부 삭제되는 회피
+     *  경로가 열린다. 첫 발생이 이미 지났다면(=노쇼가 생길 수 있었다면) 잠근다.
+     *  아직 시작 전인 예약은 지울 기록 자체가 없으므로 자유롭게 바꿔도 안전하다. */
+    val startDateLocked = existing?.let {
+        startOfDayLocal(it.createdAt) + it.startMinute * 60_000L <= System.currentTimeMillis()
+    } == true
+
     val timeState = rememberTimePickerState(
         initialHour = startMinute / 60, initialMinute = startMinute % 60, is24Hour = false)
 
@@ -173,8 +184,15 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     if (overlap) { error = "같은 시간대에 이미 다른 활동이 있어요."; return@save }
 
                     // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
-                    val startDay = oneOffDay ?: nextOneOffDay(sm)          // 시작일(자정)
-                    val endDayNorm = startOfDayLocal(oneOffEndDay ?: startDay)
+                    // 잠긴 예약(이미 시작함)은 UI가 시작일을 못 바꾸게 하지만, 저장 경로에서도
+                    // 한 번 더 기존 createdAt을 강제한다 — 시작 게이트가 움직이면 노쇼 복구
+                    // 루틴이 과거의 정당한 벌점을 지워버린다.
+                    val startDay = if (startDateLocked && existing != null)
+                        startOfDayLocal(existing!!.createdAt)
+                    else oneOffDay ?: nextOneOffDay(sm)          // 시작일(자정)
+                    // 화면은 종료일을 시작일 이상으로 보정해 보여주므로 저장도 같은 값을 써야 한다.
+                    // (보정 전 원본을 쓰면 화면은 정상인데 저장만 실패하는 모순이 생긴다)
+                    val endDayNorm = startOfDayLocal(oneOffEndDay ?: startDay).coerceAtLeast(startDay)
                     // 시작일=종료일이면 그날 하루뿐이라 요일 반복이 무의미 — 항상 전체 요일로 저장.
                     val isSingleDay = !noEndDate && endDayNorm == startDay
                     val isWeekly = weeklyRepeat && !isSingleDay
@@ -201,10 +219,14 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             oneOffDayStart = resolvedOneOff,
                             endAt = resolvedEnd,
                             intensityOverrideRaw = intensity.raw,   // 활동별 강도
-                            // 시작일 = 발생 시작 게이트(createdAt). 책임 기준은 편집 시 지금으로 갱신해
-                            // 더 이른 시각으로 옮겨도 소급 노쇼가 나지 않게 (신규는 시작일). 두 모드 공통.
+                            // 시작일 = 발생 시작 게이트(createdAt). 잠긴(이미 시작한) 예약은
+                            // startDay가 기존 값과 같으므로 실질적으로 불변이다.
                             createdAt = startDay,
-                            accountableFrom = if (existing != null) System.currentTimeMillis() else startDay,
+                            // 책임 기준은 '지금'과 '시작일' 중 늦은 쪽.
+                            // 시작일 자정으로 두면 오늘 만든 예약이 오늘 아침 발생분까지 소급
+                            // 노쇼로 잡힌다(토 16시에 만든 매일 06:00 예약이 -15점 받던 결함).
+                            // 편집으로 시각을 앞당겨도 소급되지 않고, 시작일이 미래면 그 전까진 책임 없음.
+                            accountableFrom = maxOf(System.currentTimeMillis(), startDay),
                             updatedAt = System.currentTimeMillis(),
                         )
                         db.reservations().upsert(r)
@@ -373,10 +395,21 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("시작일", color = TL.paper, fontSize = 16.sp)
                         Spacer(Modifier.weight(1f))
-                        Text(dateLabel(startDayVal), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.background(TL.raised, CircleShape)
-                                .clickable(enabled = !fieldLocked) { showDatePicker = true }
-                                .padding(horizontal = 16.dp, vertical = 9.dp))
+                        if (startDateLocked) {
+                            // 이미 시작한 활동은 읽기 전용 — 시작 게이트가 움직이면 지난 기록이 지워진다
+                            Text(dateLabel(startDayVal), color = TL.muted, fontSize = 15.sp)
+                        } else {
+                            Text(dateLabel(startDayVal), color = TL.paper, fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.background(TL.raised, CircleShape)
+                                    .clickable(enabled = !fieldLocked) { showDatePicker = true }
+                                    .padding(horizontal = 16.dp, vertical = 9.dp))
+                        }
+                    }
+                    if (startDateLocked) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("이미 시작한 활동이라 시작일은 바꿀 수 없어요. 지난 기록과 점수를 지키기 위한 제한이에요.",
+                            color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -489,15 +522,12 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     if (showDatePicker) {
         // 오늘(로컬) 이전 날짜는 선택 불가 — 과거 일회성 예약을 애초에 못 만들게 (iOS in: Date()... 통일).
         // DatePicker는 UTC 기준이므로 로컬 오늘의 Y/M/D를 UTC 자정으로 환산해 하한으로 쓴다.
-        val todayUtcMidnight = remember {
-            val local = Calendar.getInstance()
-            Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
-                clear()
-                set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
-            }.timeInMillis
-        }
+        val todayUtcMidnight = remember { localMidnightToUtc(todayStart()) }
         val dateState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute),
+            // DatePicker는 UTC 자정 기준이라, 로컬 자정을 그대로 넘기면 KST(UTC+9)에서
+            // 전날로 표시되고 그대로 확인하면 시작일이 하루씩 뒤로 밀린다. 반드시 환산해서 넘긴다.
+            initialSelectedDateMillis = localMidnightToUtc(
+                oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)),
             selectableDates = object : androidx.compose.material3.SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= todayUtcMidnight
             })
@@ -505,16 +535,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
-                    dateState.selectedDateMillis?.let { utc ->
-                        // DatePicker는 UTC 자정 기준 — 로컬 자정으로 변환해 저장
-                        val u = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
-                            .apply { timeInMillis = utc }
-                        val local = Calendar.getInstance().apply {
-                            set(u.get(Calendar.YEAR), u.get(Calendar.MONTH), u.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }
-                        oneOffDay = local.timeInMillis
-                    }
+                    // DatePicker는 UTC 자정 기준 — 로컬 자정으로 변환해 저장
+                    dateState.selectedDateMillis?.let { oneOffDay = utcMidnightToLocal(it) }
                     showDatePicker = false
                 }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
             },
@@ -530,22 +552,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     if (showEndDatePicker) {
         val startLocalMidnight = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
         // 시작일(로컬 자정)을 UTC 자정으로 환산해 하한으로 사용
-        val startUtcMidnight = remember(startLocalMidnight) {
-            val local = Calendar.getInstance().apply { timeInMillis = startLocalMidnight }
-            Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
-                clear()
-                set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
-            }.timeInMillis
-        }
+        val startUtcMidnight = remember(startLocalMidnight) { localMidnightToUtc(startLocalMidnight) }
         val endState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = (oneOffEndDay ?: startLocalMidnight)
-                .let { d ->
-                    val local = Calendar.getInstance().apply { timeInMillis = maxOf(d, startLocalMidnight) }
-                    Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
-                        clear()
-                        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
-                    }.timeInMillis
-                },
+            initialSelectedDateMillis = localMidnightToUtc(
+                maxOf(oneOffEndDay ?: startLocalMidnight, startLocalMidnight)),
             selectableDates = object : androidx.compose.material3.SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= startUtcMidnight
             })
@@ -553,15 +563,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             onDismissRequest = { showEndDatePicker = false },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
-                    endState.selectedDateMillis?.let { utc ->
-                        val u = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
-                            .apply { timeInMillis = utc }
-                        val local = Calendar.getInstance().apply {
-                            set(u.get(Calendar.YEAR), u.get(Calendar.MONTH), u.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }
-                        oneOffEndDay = local.timeInMillis
-                    }
+                    endState.selectedDateMillis?.let { oneOffEndDay = utcMidnightToLocal(it) }
                     showEndDatePicker = false
                 }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
             },
@@ -572,6 +574,25 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             },
         ) { androidx.compose.material3.DatePicker(state = endState) }
     }
+}
+
+/** 로컬 자정 → 같은 Y/M/D의 UTC 자정. Material3 DatePicker가 UTC 기준이라,
+ *  로컬 자정을 그대로 넘기면 KST(UTC+9)에서 전날 날짜가 선택돼 보인다. */
+private fun localMidnightToUtc(localMillis: Long): Long {
+    val local = Calendar.getInstance().apply { timeInMillis = localMillis }
+    return Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+        clear()
+        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+    }.timeInMillis
+}
+
+/** UTC 자정(DatePicker 결과) → 같은 Y/M/D의 로컬 자정 */
+private fun utcMidnightToLocal(utcMillis: Long): Long {
+    val u = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcMillis }
+    return Calendar.getInstance().apply {
+        set(u.get(Calendar.YEAR), u.get(Calendar.MONTH), u.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 }
 
 /** epoch millis → 그 날 로컬 자정 */

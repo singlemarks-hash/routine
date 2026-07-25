@@ -461,6 +461,19 @@ object AccountStore {
     }
 
     /** 점수 이벤트 클라우드 미러 (best-effort — 실패해도 로컬 원장이 기준) */
+    /** 점수 이벤트를 클라우드에서도 삭제한다.
+     *  로컬에서만 지우면 다음 syncFromCloud가 그대로 되살려, 가리키던 세션은 없는데 벌점만
+     *  남는 '유령 벌점'이 된다. 되돌리기(노쇼 복구·그룹 정리)는 반드시 이걸 함께 호출. */
+    fun deleteMirroredEvent(owner: String, eventID: String) {
+        if (!firebaseAvailable || owner == "guest") return
+        runCatching {
+            FirebaseFirestore.getInstance()
+                .collection("users").document(owner)
+                .collection("scoreEvents").document(eventID)
+                .delete()
+        }
+    }
+
     fun mirror(event: ScoreEvent) {
         if (!firebaseAvailable || event.ownerUserID == "guest") return
         runCatching {

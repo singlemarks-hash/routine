@@ -465,7 +465,11 @@ object SessionEngine {
             val sched = s.scheduledAt ?: continue
             val r = byId[rid]
             if (s.outcome == SessionOutcome.NO_SHOW && r != null && sched < r.createdAt) {
-                for (e in db.scores().bySession(s.id)) db.scores().delete(e)
+                for (e in db.scores().bySession(s.id)) {
+                    // 클라우드 사본까지 지워야 다음 동기화에서 '유령 벌점'으로 되살아나지 않는다
+                    AccountStore.deleteMirroredEvent(e.ownerUserID, e.id)
+                    db.scores().delete(e)
+                }
                 CameraRecorder.deleteFiles(appContext, s.videoFileName, s.thumbnailFileName)
                 db.sessions().delete(s)
                 continue

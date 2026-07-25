@@ -82,6 +82,21 @@ struct ReservationEditView: View {
     /// 입력 필드·저장 비활성 조건 = 시작 임박 ∨ 슬롯 초과 읽기 전용 (삭제는 예외)
     private var editingDisabled: Bool { isLocked || isEditReadOnly }
 
+    /// 이미 시작한 활동은 시작일을 바꿀 수 없다.
+    ///
+    /// 시작일은 그대로 createdAt(발생 시작 게이트)에 저장되는데, 노쇼 복구 루틴이
+    /// 'scheduledAt < createdAt인 노쇼는 잘못된 기록'으로 보고 세션·벌점을 지운다.
+    /// 시작일을 자유롭게 미룰 수 있으면 그 이전의 정당한 벌점이 전부 삭제되는
+    /// 회피 경로가 열린다. 첫 발생이 이미 지났다면(=노쇼가 생길 수 있었다면) 잠근다.
+    /// 아직 시작 전인 예약은 지울 기록 자체가 없으므로 자유롭게 바꿔도 안전하다.
+    private var isStartDateLocked: Bool {
+        guard let r = reservation else { return false }   // 신규 생성은 자유
+        let cal = Calendar.current
+        let firstFire = cal.date(byAdding: .minute, value: r.startMinute,
+                                 to: cal.startOfDay(for: r.createdAt)) ?? r.createdAt
+        return firstFire <= Date()
+    }
+
     /// 활동 슬롯 현황 (원띵 — 신규 생성 화면에만). 탭하면 정책 표 팝업.
     private var slotPolicyNotice: some View {
         let used = allReservations.count
@@ -324,17 +339,37 @@ struct ReservationEditView: View {
             TLCard {
                 VStack(alignment: .leading, spacing: 14) {
                     // 기간 — 시작일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.
-                    DatePicker("시작일", selection: $oneOffDate, in: Date()..., displayedComponents: .date)
-                        .font(.tlBody).foregroundStyle(TL.paper)
-                        .disabled(editingDisabled)
+                    if isStartDateLocked {
+                        // 이미 시작한 활동은 읽기 전용으로만 보여준다. DatePicker를 쓰면
+                        // 선택 범위(오늘~) 밖의 과거 날짜라 표시가 깨지고, 되돌릴 수 없는
+                        // 기록 삭제로 이어질 수 있다.
+                        HStack {
+                            Text("시작일").font(.tlBody).foregroundStyle(TL.paper)
+                            Spacer()
+                            Text(oneOffDate, style: .date)
+                                .font(.tlBody).foregroundStyle(TL.muted)
+                        }
+                        Text("이미 시작한 활동이라 시작일은 바꿀 수 없어요. 지난 기록과 점수를 지키기 위한 제한이에요.")
+                            .font(.system(size: 12)).foregroundStyle(TL.faint)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        // 하한은 '지금'이 아니라 '오늘 자정' — 오늘을 고를 수 있어야 한다.
+                        DatePicker("시작일", selection: $oneOffDate,
+                                   in: Calendar.current.startOfDay(for: Date())...,
+                                   displayedComponents: .date)
+                            .font(.tlBody).foregroundStyle(TL.paper)
+                            .disabled(editingDisabled)
+                    }
                     Toggle(isOn: $noEndDate) {
                         Text("종료일 없음").font(.tlBody).foregroundStyle(TL.paper)
                     }
                     .tint(TL.rec)
                     .disabled(editingDisabled)
                     if !noEndDate {
+                        // 종료일 하한 = 시작일과 오늘 중 늦은 쪽 (이미 지난 종료일은 고를 수 없게)
                         DatePicker("종료일", selection: $oneOffEndDate,
-                                   in: oneOffDate..., displayedComponents: .date)
+                                   in: max(oneOffDate, Calendar.current.startOfDay(for: Date()))...,
+                                   displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
                             .disabled(editingDisabled)
                     }
@@ -457,7 +492,12 @@ struct ReservationEditView: View {
         // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
         // 하루짜리(시작일=종료일)는 요일 반복이 무의미하므로 항상 전체 요일로 저장.
         let cal = Calendar.current
-        let startDay = cal.startOfDay(for: oneOffDate)
+        // 잠긴 예약(이미 시작함)은 UI가 시작일을 못 바꾸게 하지만, 저장 경로에서도 한 번 더
+        // 기존 createdAt을 강제한다 — 어떤 경로로든 시작 게이트가 움직이면 노쇼 복구 루틴이
+        // 과거의 정당한 벌점을 지워버린다.
+        let startDay = isStartDateLocked
+            ? cal.startOfDay(for: reservation?.createdAt ?? oneOffDate)
+            : cal.startOfDay(for: oneOffDate)
         let resolvedWeekdays: [Int] = (isRepeating && !isSingleDay) ? Array(weekdays) : [1, 2, 3, 4, 5, 6, 7]
         let resolvedOneOff: Date? = (isRepeating && !isSingleDay) ? nil : startDay   // 매일·하루 모드는 시작일 마커
         let resolvedEnd: Date? = (!noEndDate)
@@ -494,10 +534,12 @@ struct ReservationEditView: View {
             r.endDate = resolvedEnd
             r.intensityOverrideRaw = intensity.rawValue   // 활동별 강도
 
-            // 시작일이 곧 발생 시작 게이트(createdAt). 책임 기준은 편집 시 지금으로 갱신해
-            // 더 이른 시각으로 옮겨도 소급 노쇼가 나지 않게 한다. (요일 반복·매일 공통)
+            // 시작일 = 발생 시작 게이트(createdAt). 잠긴(이미 시작한) 예약은 startDay가
+            // 기존 값과 같으므로 실질적으로 불변이다.
             r.createdAt = startDay
-            r.accountableFrom = .now
+            // 책임 기준은 '지금'과 '시작일' 중 늦은 쪽 — 편집으로 시각을 앞당겨도 소급 노쇼가
+            // 나지 않고, 시작일이 미래면 그 전까지는 책임이 없다.
+            r.accountableFrom = max(.now, startDay)
             r.updatedAt = .now
             AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화
         } else {
@@ -508,9 +550,12 @@ struct ReservationEditView: View {
                                 ownerUserID: account.currentUserID)
             r.endDate = resolvedEnd
             r.intensityOverrideRaw = intensity.rawValue   // 활동별 강도
-            // 신규: 시작일 = 발생 시작 게이트이자 책임 기준 (요일 반복·매일 공통)
+            // 신규: 시작일 = 발생 시작 게이트(createdAt).
             r.createdAt = startDay
-            r.accountableFrom = startDay
+            // 책임 기준을 시작일 '자정'으로 두면, 오늘 만든 예약이 오늘 아침 발생분까지
+            // 소급 노쇼로 잡힌다(토 16시에 만든 매일 06:00 예약이 -15점을 받던 결함).
+            // '지금'과 '시작일' 중 늦은 쪽으로 둬서 생성 이전 발생분은 책임에서 제외한다.
+            r.accountableFrom = max(.now, startDay)
             r.updatedAt = .now
             context.insert(r)
             AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화
