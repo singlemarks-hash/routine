@@ -364,8 +364,10 @@ struct ReservationEditView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         // 하한은 '지금'이 아니라 '오늘 자정' — 오늘을 고를 수 있어야 한다.
+                        // 상한은 3개월 — 그보다 먼 알람은 앱 업데이트·기기 교체를 지나서까지
+                        // 울린다고 보장할 수 없다.
                         DatePicker("시작일", selection: $oneOffDate,
-                                   in: Calendar.current.startOfDay(for: Date())...,
+                                   in: Calendar.current.startOfDay(for: Date())...ReservationPolicy.maxStartDay(),
                                    displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
                             .disabled(editingDisabled)
@@ -385,6 +387,8 @@ struct ReservationEditView: View {
                                                               to: cal.startOfDay(for: oneOffEndDate)).day ?? 0
                                 oneOffEndDate = cal.date(byAdding: .day, value: max(span, 0), to: newStart) ?? newStart
                             }
+                        Text("시작일은 오늘부터 \(ReservationPolicy.maxStartLeadMonths)개월 이내로 정할 수 있어요.")
+                            .font(.system(size: 12)).foregroundStyle(TL.faint)
                     }
                     Toggle(isOn: $noEndDate) {
                         Text("종료일 없음").font(.tlBody).foregroundStyle(TL.paper)
@@ -535,6 +539,13 @@ struct ReservationEditView: View {
         let resolvedEnd: Date? = (!noEndDate)
             ? cal.startOfDay(for: oneOffEndDate).addingTimeInterval(86_400 - 0.001)
             : nil
+
+        // 검증: 시작일 상한 (신규 생성만). 기존 예약은 상한 도입 전에 만들어진 먼 시작일을
+        // 가질 수 있는데, 이름만 고치는 정상 편집까지 막으면 손댈 방법이 없어진다.
+        if reservation == nil, startDay > ReservationPolicy.maxStartDay(calendar: cal) {
+            errorMessage = "시작일은 오늘부터 \(ReservationPolicy.maxStartLeadMonths)개월 이내로 정해주세요."
+            return
+        }
 
         // 검증: 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남 (두 모드 공통)
         if !noEndDate {

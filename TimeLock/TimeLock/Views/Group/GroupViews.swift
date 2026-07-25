@@ -371,8 +371,10 @@ struct GroupCreateView: View {
                 // 기간 — 시작일·종료일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.
                 field("기간 — 시작은 1시간 뒤부터, 최대 3개월") {
                     VStack(spacing: 0) {
+                        // 상한 3개월 — 개인 활동과 같은 규칙. 그보다 먼 알람은 보장할 수 없다.
                         DatePicker("시작일", selection: $startDay,
-                                   in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
+                                   in: Calendar.current.startOfDay(for: .now)...ReservationPolicy.maxStartDay(),
+                                   displayedComponents: .date)
                         Divider().overlay(TL.hairline)
                             .padding(.vertical, 6)
                         DatePicker("종료일", selection: $endDay, in: startDay...maxEndDay, displayedComponents: .date)
@@ -516,6 +518,10 @@ struct GroupCreateView: View {
         let endDate = calendar.startOfDay(for: effectiveEndDay).addingTimeInterval(86_400 - 0.001)
         // 종료일·기간 검증 (안드로이드와 동일 — 시작일 포함 일수 기준)
         guard effectiveEndDay >= startDay else { errorMessage = "종료일이 시작일보다 빠를 수 없어요."; return }
+        guard calendar.startOfDay(for: startDay) <= ReservationPolicy.maxStartDay(calendar: calendar) else {
+            errorMessage = "시작일은 오늘부터 \(ReservationPolicy.maxStartLeadMonths)개월 이내로 정해주세요."
+            return
+        }
         let inclusiveDays = (calendar.dateComponents([.day],
             from: calendar.startOfDay(for: startDay), to: calendar.startOfDay(for: effectiveEndDay)).day ?? 0) + 1
         guard inclusiveDays <= GroupPolicy.maxDurationDays else {
