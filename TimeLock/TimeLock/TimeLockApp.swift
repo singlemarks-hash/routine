@@ -660,6 +660,9 @@ final class AppState: ObservableObject {
     }
 
     func sessionFinished() {
+        // 같은 자리에 이미 노쇼가 찍혀 있었다면(다른 기기가 먼저 스윕한 경우) 지금 정리한다.
+        // 다음 실행까지 기다리면 결과 화면과 홈에 '완주 + 노쇼'가 함께 보이고 총점도 어긋난다.
+        engine.reconcileDuplicateOutcomes()
         route = .result
         refreshDerived()
     }

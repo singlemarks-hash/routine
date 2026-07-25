@@ -561,24 +561,38 @@ final class SessionEngine: NSObject, ObservableObject {
             predicate: #Predicate { $0.ownerUserID == owner && $0.outcomeRaw != nil })) else { return }
 
         // 발생 단위로 묶는다 — 키는 "예약ID-예정시각(초)"
-        var slots: [String: [FocusSession]] = [:]
+        var slots: [String: (scheduled: Date, sessions: [FocusSession])] = [:]
         for session in sessions {
             guard let rid = session.reservationID, let scheduled = session.scheduledAt else { continue }
-            slots["\(rid.uuidString)-\(Int(scheduled.timeIntervalSince1970))", default: []].append(session)
+            let key = "\(rid.uuidString)-\(Int(scheduled.timeIntervalSince1970))"
+            slots[key, default: (scheduled, [])].sessions.append(session)
         }
 
         var changed = false
-        for (_, group) in slots where group.count > 1 {
-            // 노쇼가 아닌 기록이 하나라도 있으면, 그 자리의 노쇼는 전부 잘못된 기록이다.
-            guard group.contains(where: { $0.outcome != .noShow }) else { continue }
-            for session in group where session.outcome == .noShow {
+        for (_, slot) in slots where slot.sessions.count > 1 {
+            // 노쇼를 무효화할 수 있는 건 '시작 창 안에 시작한' 기록뿐이다.
+            // 창 밖에 시작한 기록까지 승자로 치면, 25분 늦게 시작해도 벌점이 사라져
+            // "10분 안에 시작" 정책 자체가 무너진다.
+            guard slot.sessions.contains(where: {
+                $0.outcome != .noShow && Self.startedWithinWindow($0, scheduled: slot.scheduled)
+            }) else { continue }
+            for session in slot.sessions where session.outcome == .noShow {
                 let sid = session.id
+                // 그룹 랭킹은 단방향 증분이라 이벤트를 지운다고 되돌아오지 않는다 —
+                // 되돌린 만큼 반대 부호로 보정해야 개인 점수와 어긋나지 않는다.
+                var compensation = 0
                 if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
                     predicate: #Predicate { $0.sessionID == sid })) {
                     for event in events {
+                        compensation -= event.points
                         AccountStore.shared.deleteMirroredEvent(id: event.id)
                         context.delete(event)
                     }
+                }
+                if compensation != 0, let rid = session.reservationID {
+                    let reservation = (try? context.fetch(FetchDescriptor<Reservation>(
+                        predicate: #Predicate { $0.id == rid })))?.first
+                    GroupStore.shared.reportScore(reservation: reservation, points: compensation)
                 }
                 AccountStore.shared.deleteMirroredSession(id: sid)
                 SessionStorage.deleteFiles(of: session)
@@ -587,6 +601,14 @@ final class SessionEngine: NSObject, ObservableObject {
             }
         }
         if changed { persist(context, "중복 결과 정리") }
+    }
+
+    /// 이 기록이 시작 창(10분) 안에 시작됐는가. 촬영 없이 끝난 기록(일정 취소 등)은
+    /// 종료 시각으로 본다 — 창 안에 취소한 것과 창을 넘겨 방치한 것은 다르다.
+    private static func startedWithinWindow(_ session: FocusSession, scheduled: Date) -> Bool {
+        let deadline = scheduled.addingTimeInterval(TimePolicy.startWindowSeconds)
+        if let started = session.startedAt { return started <= deadline }
+        return (session.endedAt ?? .distantFuture) <= deadline
     }
 
     /// 지난 발생 중 시작되지 않은 예약을 탈락 처리한다. (앱 포그라운드/주기 호출)
