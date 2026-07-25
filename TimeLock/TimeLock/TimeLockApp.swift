@@ -245,7 +245,12 @@ final class AppState: ObservableObject {
         GroupStore.shared.bind(context: context)
         Task {
             await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
+            // 순서 고정: 노쇼 집계 → 방 정리 → 만료 예약 정리.
+            // refresh()가 끝난 방의 그룹 예약을 지우므로 스윕이 먼저 돌아야 마지막 날
+            // 노쇼가 유실되지 않는다. 만료 정리도 같은 이유로 스윕 뒤에 온다.
+            sweepNoShows()
             await GroupStore.shared.refresh()
+            cleanupExpiredReservations()
             refreshDerived()
             rescheduleAlarmsForCurrentUser()
         }
@@ -277,11 +282,13 @@ final class AppState: ObservableObject {
             applyPendingDowngradeIfDue()
             Task {
                 await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
+                // 순서 고정 — 스윕 → 방 정리 → 만료 정리 (위 didLaunch와 동일한 이유)
+                sweepNoShows()
                 await GroupStore.shared.refresh()
+                cleanupExpiredReservations()
                 refreshDerived()
                 rescheduleAlarmsForCurrentUser()
             }
-            sweepNoShows()
             checkDueAlarm()
             refreshDerived()
         case .background:
@@ -332,11 +339,13 @@ final class AppState: ObservableObject {
         rescheduleAlarmsForCurrentUser()
         Task {
             await AccountStore.shared.syncFromCloud()   // 로그인 직후 다른 기기 예약·점수·멤버십 병합
+            // 순서 고정 — 스윕 → 방 정리 → 만료 정리 (didLaunch와 동일한 이유)
+            sweepNoShows()
             await GroupStore.shared.refresh()
+            cleanupExpiredReservations()
             refreshDerived()
             rescheduleAlarmsForCurrentUser()
         }
-        sweepNoShows()
         checkDueAlarm()
     }
 
@@ -605,5 +614,50 @@ final class AppState: ObservableObject {
 
     func sweepNoShows() {
         engine.sweepNoShows(reservations: activeReservations(), intensity: intensity)
+    }
+
+    // MARK: 만료 예약 정리
+
+    /// 종료일이 있는 예약의 '마지막 활동이 실제로 끝나는 시각' (마지막 발생 + 활동 길이).
+    /// 종료일 자정이 아니라 마지막 세션이 끝나는 순간이 기준 — 그 전에는 절대 지우면 안 된다.
+    /// 마지막 발생은 종료일 당일부터 거꾸로 최대 7일만 훑으면 반드시 나온다(요일은 7개뿐).
+    private func finalActivityEnd(of r: Reservation, calendar: Calendar) -> Date? {
+        guard let end = r.endDate else { return nil }   // 무기한 → 만료 없음
+        let endDay = calendar.startOfDay(for: end)
+        for offset in 0...7 {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: endDay),
+                  let fire = r.occurrence(on: day, calendar: calendar) else { continue }
+            return fire.addingTimeInterval(TimeInterval(r.durationMinutes) * 60)
+        }
+        return nil
+    }
+
+    /// 마지막 활동까지 끝난 개인 예약을 정리한다.
+    ///
+    /// 정리하지 않으면 화면에는 안 보이는데(occurrence가 nil) 슬롯은 계속 차지해,
+    /// 무료 사용자가 '지울 대상도 없이 슬롯이 가득 찬' 영구 잠금에 빠진다.
+    ///
+    /// - 반드시 sweepNoShows() 다음에 호출한다. 먼저 지우면 마지막 날 노쇼가 집계되지 않아
+    ///   잠수가 이득이 된다(그룹에서 실제로 났던 버그와 같은 함정).
+    /// - 하드 삭제가 아니라 isActive=false로 끈다. 로컬에서만 지우면 클라우드 사본이
+    ///   다음 동기화에서 그대로 되살리기 때문이다. 소프트 삭제는 미러링되어 다른 기기에도
+    ///   전파되고, 슬롯 계산·알람 스케줄에서 함께 제외된다.
+    /// - 그룹 예약은 대상이 아니다 — 방 수명 주기(GroupStore)가 따로 관리한다.
+    func cleanupExpiredReservations() {
+        guard let context = modelContext else { return }
+        let calendar = Calendar.current
+        let now = Date()
+        var changed = false
+        for r in activeReservations() where r.groupID == nil {
+            guard let finalEnd = finalActivityEnd(of: r, calendar: calendar), now > finalEnd else { continue }
+            r.isActive = false
+            r.updatedAt = now
+            AccountStore.shared.mirrorReservation(r)   // 다른 기기에도 전파
+            changed = true
+        }
+        if changed {
+            try? context.save()
+            rescheduleAlarmsForCurrentUser()
+        }
     }
 }
