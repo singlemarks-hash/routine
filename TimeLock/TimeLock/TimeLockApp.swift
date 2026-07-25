@@ -248,6 +248,7 @@ final class AppState: ObservableObject {
             // 순서 고정: 노쇼 집계 → 방 정리 → 만료 예약 정리.
             // refresh()가 끝난 방의 그룹 예약을 지우므로 스윕이 먼저 돌아야 마지막 날
             // 노쇼가 유실되지 않는다. 만료 정리도 같은 이유로 스윕 뒤에 온다.
+            engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
             sweepNoShows()
             await GroupStore.shared.refresh()
             cleanupExpiredReservations()
@@ -283,6 +284,7 @@ final class AppState: ObservableObject {
             Task {
                 await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
                 // 순서 고정 — 스윕 → 방 정리 → 만료 정리 (위 didLaunch와 동일한 이유)
+                engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
                 sweepNoShows()
                 await GroupStore.shared.refresh()
                 cleanupExpiredReservations()
@@ -340,6 +342,7 @@ final class AppState: ObservableObject {
         Task {
             await AccountStore.shared.syncFromCloud()   // 로그인 직후 다른 기기 예약·점수·멤버십 병합
             // 순서 고정 — 스윕 → 방 정리 → 만료 정리 (didLaunch와 동일한 이유)
+            engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
             sweepNoShows()
             await GroupStore.shared.refresh()
             cleanupExpiredReservations()

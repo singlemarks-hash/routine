@@ -77,8 +77,16 @@ struct ReservationEditView: View {
         guard let allowed = allowedSlots else { return false }   // 무제한이면 초과 없음
         return allReservations.count > allowed
     }
-    /// 편집 화면(기존 예약)에서 슬롯 초과면 읽기 전용
-    private var isEditReadOnly: Bool { reservation != nil && isOverSlotLimit }
+    /// 미친 매운맛으로 만든 활동인데 지금은 그 등급을 쓸 수 없는 상태(멤버십 만료 등).
+    /// 강도를 임의로 내리면 이미 쌓인 2배 벌점 기준이 바뀌므로 그대로 유지하고,
+    /// 조회와 삭제만 허용한다. (다시 쓰려면 멤버십을 복구하면 된다)
+    private var isLockedInsane: Bool {
+        guard let r = reservation else { return false }
+        return r.intensityOverride == .insane && !app.insaneUnlocked
+    }
+
+    /// 편집 화면(기존 예약)에서 읽기 전용이 되는 조건 — 슬롯 초과 또는 잠긴 미친맛
+    private var isEditReadOnly: Bool { reservation != nil && (isOverSlotLimit || isLockedInsane) }
     /// 입력 필드·저장 비활성 조건 = 시작 임박 ∨ 슬롯 초과 읽기 전용 (삭제는 예외)
     private var editingDisabled: Bool { isLocked || isEditReadOnly }
 
@@ -241,7 +249,9 @@ struct ReservationEditView: View {
         TLCard {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "lock.slash.fill").foregroundStyle(TL.amber)
-                Text("활동 슬롯이 \(allowedSlots.map { "\($0)개" } ?? "무제한")로 줄어 현재 보유한 예약이 한도를 넘었습니다. 초과한 동안에는 편집이 잠기고 삭제만 할 수 있어요. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있습니다.")
+                Text(isLockedInsane
+                     ? "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다 — 멤버십을 복구하면 다시 편집할 수 있어요."
+                     : "활동 슬롯이 \(allowedSlots.map { "\($0)개" } ?? "무제한")로 줄어 현재 보유한 예약이 한도를 넘었습니다. 초과한 동안에는 편집이 잠기고 삭제만 할 수 있어요. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있습니다.")
                     .font(.system(size: 13))
                     .foregroundStyle(TL.paper)
             }
@@ -517,7 +527,9 @@ struct ReservationEditView: View {
         // 검증: 슬롯 초과 읽기 전용 — 강등·연속 하락으로 한도를 넘으면 편집 저장 차단(삭제만 허용).
         // (버튼도 비활성이지만 백스톱으로 이중 방어)
         if isEditReadOnly {
-            errorMessage = "슬롯 한도를 초과해 편집이 잠겼습니다. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."
+            errorMessage = isLockedInsane
+                ? "미친 매운맛 활동은 지금 편집할 수 없어요. 조회와 삭제만 가능합니다."
+                : "슬롯 한도를 초과해 편집이 잠겼습니다. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."
             return
         }
 

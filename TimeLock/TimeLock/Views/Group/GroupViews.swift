@@ -884,8 +884,11 @@ struct GroupRoomDetailView: View {
     @State private var working = false
     @State private var leaveError: String?
     @State private var now = Date()
+    /// 이 방을 목록에서 한 번이라도 본 적이 있는가 — 본 뒤에 사라지면 닫는다.
+    /// (진입 직후 목록이 비어 있는 순간에 잘못 닫히지 않게 하는 가드)
+    @State private var sawRoomInStore = false
     // 시작 카운트다운은 '분' 단위 표시라 30초 폴링이면 충분(부하·불안감↓).
-    private let clock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    @State private var clock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var myUID: String { account.currentUserID }
 
@@ -951,13 +954,31 @@ struct GroupRoomDetailView: View {
         .background(TL.ink)
         .navigationTitle(room.name)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
-        .refreshable { await load() }
+        // 화면에 들어올 때마다 방 상태를 즉시 다시 읽는다 — 타이머를 기다리지 않는다.
+        .task {
+            await store.refresh()
+            await load()
+        }
+        .refreshable {
+            await store.refresh()
+            await load()
+        }
+        .onChange(of: store.rooms) { _, rooms in
+            if rooms.contains(where: { $0.id == initialRoom.id }) {
+                sawRoomInStore = true
+            } else if sawRoomInStore {
+                // 서버에서 사라진 방(해체·취소·보존 만료)의 화면을 옛 정보로 계속 띄우면
+                // 이미 없는 방의 초대·나가기 버튼이 살아 있는 것처럼 보인다.
+                dismiss()
+            }
+        }
         .onReceive(clock) { tick in
             now = tick
             // 시작 시각이 지났는데 아직 판정 전이면, 화면을 열어 둔 채로도 스스로 확인한다.
             // (그대로 두면 '확인 중'에 머물러 사용자가 화면을 나갔다 들어와야 한다)
-            if room.status == "scheduled", room.hasStarted || !room.joinOpen {
+            // 목록에 남아 있는 방에 한해, 판정이 필요한 구간에서만 확인한다.
+            if store.rooms.contains(where: { $0.id == initialRoom.id }),
+               room.status == "scheduled", room.hasStarted || !room.joinOpen {
                 Task { await store.refresh() }
             }
         }

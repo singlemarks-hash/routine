@@ -548,6 +548,47 @@ final class SessionEngine: NSObject, ObservableObject {
 
     // MARK: 노쇼 스위퍼 & 고아 세션 복구
 
+    /// 같은 발생(예약 + 예정 시각)에 결과가 둘 이상이면 '실제로 한 기록'이 이긴다.
+    ///
+    /// 기기가 둘이면 한쪽이 촬영해 완주하는 동안 다른 쪽은 그 사실을 모른 채 노쇼를 찍을 수 있다.
+    /// (인원 미달로 취소된 그룹방처럼, 한쪽만 되돌리기를 수행하는 경우도 같다)
+    /// 동기화로 성공 기록이 내려오면 그 자리의 노쇼는 잘못된 기록이므로 벌점까지 함께 지운다.
+    /// 클라우드 사본도 같이 지워야 다음 동기화에서 되살아나지 않는다.
+    func reconcileDuplicateOutcomes() {
+        guard let context = modelContext else { return }
+        let owner = AccountStore.shared.currentUserID
+        guard let sessions = try? context.fetch(FetchDescriptor<FocusSession>(
+            predicate: #Predicate { $0.ownerUserID == owner && $0.outcomeRaw != nil })) else { return }
+
+        // 발생 단위로 묶는다 — 키는 "예약ID-예정시각(초)"
+        var slots: [String: [FocusSession]] = [:]
+        for session in sessions {
+            guard let rid = session.reservationID, let scheduled = session.scheduledAt else { continue }
+            slots["\(rid.uuidString)-\(Int(scheduled.timeIntervalSince1970))", default: []].append(session)
+        }
+
+        var changed = false
+        for (_, group) in slots where group.count > 1 {
+            // 노쇼가 아닌 기록이 하나라도 있으면, 그 자리의 노쇼는 전부 잘못된 기록이다.
+            guard group.contains(where: { $0.outcome != .noShow }) else { continue }
+            for session in group where session.outcome == .noShow {
+                let sid = session.id
+                if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
+                    predicate: #Predicate { $0.sessionID == sid })) {
+                    for event in events {
+                        AccountStore.shared.deleteMirroredEvent(id: event.id)
+                        context.delete(event)
+                    }
+                }
+                AccountStore.shared.deleteMirroredSession(id: sid)
+                SessionStorage.deleteFiles(of: session)
+                context.delete(session)
+                changed = true
+            }
+        }
+        if changed { persist(context, "중복 결과 정리") }
+    }
+
     /// 지난 발생 중 시작되지 않은 예약을 탈락 처리한다. (앱 포그라운드/주기 호출)
     /// 문자열 키 → 결정적 UUID (MD5, 안드로이드와 동일 알고리즘·표기).
     /// 같은 노쇼(예약+발생시각)는 어느 기기에서 스윕해도 같은 이벤트 ID를 갖는다.

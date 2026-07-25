@@ -443,6 +443,11 @@ final class AccountStore: ObservableObject {
             if let snapshot = try? await userDoc.collection("reservations").getDocuments() {
                 for doc in snapshot.documents { try? await doc.reference.delete() }
             }
+            // 활동 기록 사본. Firestore는 부모 문서를 지워도 하위 컬렉션을 지우지 않으므로
+            // 여기서 빼먹으면 활동명·태그·시각·성패가 서버에 영구히 남는다.
+            if let snapshot = try? await userDoc.collection("sessionSummaries").getDocuments() {
+                for doc in snapshot.documents { try? await doc.reference.delete() }
+            }
             try? await userDoc.delete()
         }
         #endif
