@@ -11,6 +11,7 @@
 import Foundation
 import UserNotifications
 import AVFoundation
+import AudioToolbox   // 무음 모드에서도 울리는 진동
 
 @MainActor
 final class AlarmScheduler: NSObject, ObservableObject {
@@ -392,6 +393,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
     // MARK: 앱 실행 중 알람 오디오 (스누즈 없음, 촬영 시작 시점에만 정지)
 
     func startAlarmSound() {
+        startAlarmVibration()   // 소리와 한 몸으로 — 무음 모드에서는 이쪽만 살아남는다
         guard alarmPlayer == nil else { return }
         guard let url = Bundle.main.url(forResource: "alarm", withExtension: "wav") else { return }
         do {
@@ -406,10 +408,38 @@ final class AlarmScheduler: NSObject, ObservableObject {
     }
 
     func stopAlarmSound() {
+        stopAlarmVibration()
         alarmPlayer?.stop()
         alarmPlayer = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
+
+    // MARK: 알람 진동 — 무음 모드에서 유일하게 남는 감각
+
+    /// 벨소리를 꺼둔 사람에게는 소리가 한 톨도 나가지 않는다(타임센서티브 등급으로도
+    /// 무음 스위치는 못 뚫는다). 그러면 알람 화면만 조용히 떠 있고 아무 일도 일어나지 않는다.
+    /// 진동은 벨소리와 별개 경로라 무음에서도 울리므로, 알람이 울리는 동안 계속 반복한다.
+    ///
+    /// 한계: 앱이 화면에 떠 있을 때만 가능하다. 백그라운드·종료 상태에서는 우리 코드가 돌지
+    /// 않아 직접 진동시킬 수 없다. 그 구간은 1분 간격 배너가 맡고(알림마다 시스템이 진동시킨다),
+    /// 진동 세기·길이는 우리가 정할 수 없다.
+    private func startAlarmVibration() {
+        guard vibrationTimer == nil else { return }
+        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        // 한 번의 진동이 약 0.4초 — 2초 간격이면 끊기지 않게 이어지면서 과하지 않다
+        let timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        }
+        RunLoop.main.add(timer, forMode: .common)   // 스크롤 중에도 멈추지 않게
+        vibrationTimer = timer
+    }
+
+    private func stopAlarmVibration() {
+        vibrationTimer?.invalidate()
+        vibrationTimer = nil
+    }
+
+    private var vibrationTimer: Timer?
 
     func playChime() {
         guard let url = Bundle.main.url(forResource: "chime", withExtension: "wav") else { return }
