@@ -237,9 +237,15 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
-    func restore() async {
+    /// 복원 결과를 돌려준다. 복원은 '없는 구독을 만들어내는' 기능이 아니라
+    /// '이미 있는 구독을 이 기기에 다시 인식시키는' 기능이라, 찾은 게 없으면 아무 일도
+    /// 일어나지 않는 게 정상이다. 그런데 화면이 조용하면 사용자는 고장으로 읽는다.
+    /// (암호까지 입력했는데 아무 변화가 없으면 특히 그렇다)
+    @discardableResult
+    func restore() async -> Bool {
         try? await AppStore.sync()
         await refreshEntitlement()
+        return isPro
     }
 
     private func listenForTransactions() async {

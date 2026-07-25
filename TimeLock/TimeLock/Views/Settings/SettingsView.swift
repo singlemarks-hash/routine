@@ -129,6 +129,7 @@ struct ProfileEditView: View {
     @State private var showDeleteAccountConfirm = false
     @State private var deletingAccount = false
     @State private var deleteAccountError: String?
+    @State private var restoreMessage: String?
 
     private var events: [ScoreEvent] {
         everyEvent.filter { $0.ownerUserID == account.currentUserID }
@@ -223,7 +224,11 @@ struct ProfileEditView: View {
                                     .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
                             }
                             Button("구매 복원") {
-                                Task { await subscription.restore() }
+                                Task {
+                                    if await subscription.restore() == false {
+                                        restoreMessage = Legal.restoreNotFoundMessage
+                                    }
+                                }
                             }
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(TL.muted)
@@ -279,6 +284,12 @@ struct ProfileEditView: View {
             Button("확인") { deleteAccountError = nil }
         } message: {
             Text(deleteAccountError ?? "")
+        }
+        .alert("구매 복원", isPresented: Binding(
+            get: { restoreMessage != nil }, set: { if !$0 { restoreMessage = nil } })) {
+            Button("확인", role: .cancel) { restoreMessage = nil }
+        } message: {
+            Text(restoreMessage ?? "")
         }
     }
 
@@ -549,6 +560,7 @@ struct PaywallView: View {
     @EnvironmentObject private var subscription: SubscriptionManager
     @Environment(\.dismiss) private var dismiss
     @State private var purchasing = false
+    @State private var restoreMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -622,8 +634,8 @@ struct PaywallView: View {
 
                 Button("구매 복원") {
                     Task {
-                        await subscription.restore()
-                        if subscription.isPro { dismiss() }
+                        if await subscription.restore() { dismiss() }
+                        else { restoreMessage = Legal.restoreNotFoundMessage }
                     }
                 }
                 .font(.system(size: 13, weight: .semibold))
@@ -653,6 +665,12 @@ struct PaywallView: View {
         // 앱 실행 때 한 번 실패하면 그걸로 끝이었다 — 페이월을 열 때마다 다시 시도한다.
         // 이미 받아둔 상품이 있으면 건드리지 않는다(불필요한 스토어 조회 방지).
         .task { if subscription.product == nil { await subscription.loadProduct() } }
+        .alert("구매 복원", isPresented: Binding(
+            get: { restoreMessage != nil }, set: { if !$0 { restoreMessage = nil } })) {
+            Button("확인", role: .cancel) { restoreMessage = nil }
+        } message: {
+            Text(restoreMessage ?? "")
+        }
     }
 
     private func benefit(_ text: String) -> some View {

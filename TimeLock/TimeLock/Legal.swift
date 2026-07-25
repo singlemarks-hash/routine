@@ -19,6 +19,11 @@ enum Legal {
     static let privacyPolicyURL = URL(string:
         "https://singlemark.notion.site/39f41b10f64b80d2acaffcb5815106a9")!
 
+    /// 복원할 구독을 못 찾았을 때. 복원은 없는 구독을 만들어내지 못하므로 이건 정상 동작이지만,
+    /// 암호까지 입력한 사용자에게 아무 반응이 없으면 고장으로 읽힌다.
+    static let restoreNotFoundMessage =
+        "복원할 구독을 찾지 못했습니다. 구독하신 Apple 계정으로 로그인되어 있는지 확인해 주세요. 구독한 적이 없다면 먼저 구독을 진행해 주세요."
+
     /// 자동 갱신 구독 고지 (App Store 3.1.2 필수 문구).
     static let subscriptionDisclosure =
         "앵그리모티 멤버십은 월 단위 자동 갱신 구독입니다. 현재 결제 기간이 끝나기 최소 24시간 전에 해지하지 않으면 등록된 Apple 계정으로 자동 갱신·청구됩니다. 구매 후 App Store 계정 설정에서 언제든 관리·해지할 수 있습니다."
