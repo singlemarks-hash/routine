@@ -103,17 +103,18 @@ struct WeeklyScheduleView: View {
     // MARK: 오늘 행 상태 (지나감 처리 + 결과 표시등)
 
     /// 오늘 칸의 한 행이 어떤 상태인지. 오늘이 아닌 날(내일 이후)은 항상 `.upcoming`이다.
+    /// '촬영 중' 상태는 두지 않는다 — 촬영 중과 재촬영 창에서는 세션 화면이 전체를 덮어
+    /// 이 화면에 올 수 없고, 앱이 죽어 남은 기록은 실행 즉시 고아 복구가 마감한다.
     private enum RowState {
         case upcoming            // 아직 시작 창이 열려 있거나 미래 날짜
-        case running             // 촬영 중 (기록은 있는데 결과가 아직 없음)
         case done(SessionOutcome)
-        case missed              // 시작 창이 닫혔는데 아직 기록이 없음 (노쇼 확정 전)
+        case missed              // 시작 창이 닫혔는데 아직 결과 기록이 없음 (노쇼 확정 전)
 
         /// 지나간 일정으로 흐리게 처리할 것인가
         var isPast: Bool {
             switch self {
-            case .upcoming, .running: return false
-            case .done, .missed:      return true
+            case .upcoming:        return false
+            case .done, .missed:   return true
             }
         }
         /// 태그 왼쪽 표시등 색 — 성공 초록 / 실패·노쇼 빨강 / 중립(긴급·안전 종료) 호박.
@@ -121,7 +122,6 @@ struct WeeklyScheduleView: View {
         var lightColor: Color? {
             switch self {
             case .upcoming, .missed: return nil
-            case .running:           return TL.amber
             case .done(let outcome):
                 if outcome.isSuccess { return TL.jade }
                 if outcome.isFailure { return TL.rec }
@@ -130,27 +130,23 @@ struct WeeklyScheduleView: View {
         }
     }
 
-    /// 그 예약의 그 날짜 세션 — 예약 시각이 같은 날인 기록을 찾는다.
-    /// 결과가 확정된 기록을 우선한다(긴급 중단 후 재촬영처럼 하루에 여러 건이 남을 수 있다).
-    private func session(for reservation: Reservation, on date: Date) -> FocusSession? {
+    /// 그 예약의 그 날짜에 확정된 결과. 하루에 기록이 여럿 남을 수 있어(긴급 중단 후 재촬영)
+    /// 결과가 들어 있는 기록만 본다.
+    private func outcome(for reservation: Reservation, on date: Date) -> SessionOutcome? {
         let cal = Calendar.current
         let rid = reservation.id
         let owner = account.currentUserID
-        let sameDay = allSessions.filter { s in
-            s.ownerUserID == owner && s.reservationID == rid &&
+        return allSessions.first { s in
+            s.ownerUserID == owner && s.reservationID == rid && s.outcome != nil &&
             (s.scheduledAt.map { cal.isDate($0, inSameDayAs: date) } ?? false)
-        }
-        return sameDay.first { $0.outcome != nil } ?? sameDay.first
+        }?.outcome
     }
 
     private func rowState(_ reservation: Reservation, on date: Date, fire: Date) -> RowState {
         // 미래 날짜는 판정 대상이 아니다 — 주간 표는 오늘부터 6일 뒤까지만 보여준다.
         guard Calendar.current.isDateInToday(date) else { return .upcoming }
-        if let s = session(for: reservation, on: date) {
-            if let outcome = s.outcome { return .done(outcome) }
-            return .running
-        }
-        // 기록이 없어도 시작 창(10분)이 닫혔으면 더 이상 할 수 없는 일정이다.
+        if let outcome = outcome(for: reservation, on: date) { return .done(outcome) }
+        // 결과 기록이 없어도 시작 창(10분)이 닫혔으면 더 이상 할 수 없는 일정이다.
         // 노쇼 기록은 앱을 켤 때 스윕이 채우므로, 그 전까지는 표시등 없이 흐리게만 둔다.
         return now > fire.addingTimeInterval(TimePolicy.startWindowSeconds) ? .missed : .upcoming
     }
