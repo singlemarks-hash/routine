@@ -556,7 +556,8 @@ struct MountGuideView: View {
             // 남은 시간은 원래 있던 경고 문구 안에서 흐른다. 큰 타이머를 줄로 따로 세웠더니
             // 헤더가 한 줄 늘어 아래 요소가 전부 밀렸고, 가로에서는 버튼이 화면 밖으로 나갔다.
             if let remaining = remainingSeconds {
-                Text(String(format: "%02d:%02d 안에 시작하지 않으면 노쇼", remaining / 60, remaining % 60))
+                Text(String(format: "%02d:%02d 안에 시작하지 않으면 노쇼처리됩니다",
+                            remaining / 60, remaining % 60))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.rec)
                     .monospacedDigit()   // 숫자가 바뀔 때마다 문구 폭이 들썩이지 않게
