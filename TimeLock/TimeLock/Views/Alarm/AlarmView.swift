@@ -553,13 +553,13 @@ struct MountGuideView: View {
                 .foregroundStyle(TL.paper)
             // 예약(scheduledAt)이 있을 때만 노쇼 경고를 보여준다 — '지금 바로 시작'은
             // 예약과 무관해 취소해도 노쇼가 아니므로 이 문구가 사실과 다르게 겁을 준다.
+            // 남은 시간은 원래 있던 경고 문구 안에서 흐른다. 큰 타이머를 줄로 따로 세웠더니
+            // 헤더가 한 줄 늘어 아래 요소가 전부 밀렸고, 가로에서는 버튼이 화면 밖으로 나갔다.
             if let remaining = remainingSeconds {
-                Text(String(format: "%02d:%02d", remaining / 60, remaining % 60))
-                    .font(.tlTimer(isLandscape ? 26 : 32))
-                    .foregroundStyle(remaining <= 60 ? TL.rec : TL.paper)
-                Text("00:00이 되면 노쇼 처리됩니다")
+                Text(String(format: "%02d:%02d 안에 시작하지 않으면 노쇼", remaining / 60, remaining % 60))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.rec)
+                    .monospacedDigit()   // 숫자가 바뀔 때마다 문구 폭이 들썩이지 않게
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
