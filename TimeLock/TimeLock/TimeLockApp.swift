@@ -249,9 +249,9 @@ final class AppState: ObservableObject {
             // 방 정리가 먼저 와야 '삭제 예정·취소된 방'의 예약이 사라진 뒤에 집계가 돌아,
             // 진행되지도 않은 방에 벌점이 찍히는 일 자체가 없다(되돌리는 것보다 안 찍는 게 맞다).
             // 끝난 방의 예약은 refresh가 더 이상 지우지 않으므로 마지막 날 노쇼도 유실되지 않는다.
-            didCompleteInitialSync = true
             engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
             await GroupStore.shared.refresh()
+            didCompleteInitialSync = true         // 방 정리까지 끝나야 '준비 완료'
             sweepNoShows()
             cleanupExpiredReservations()
             refreshDerived()
@@ -264,16 +264,20 @@ final class AppState: ObservableObject {
         purgeUnsavedVideos()
         refreshDerived()
         applyPendingDowngradeIfDue()
-        sweepNoShows()
+        // 노쇼 집계는 여기서 하지 않는다. 위 Task가 '방 정리 → 집계' 순서로 처리한다.
+        // 여기서 먼저 돌리면 취소된 방의 예약이 아직 남아 있는 상태로 집계돼,
+        // 진행되지도 않을 방에 벌점이 찍힌다(순서를 바꾼 이유가 무의미해진다).
         checkDueAlarm()
         rescheduleAlarmsForCurrentUser()
         Task { await AlarmScheduler.shared.refreshAuthorizationStatus() }
 
         sweepTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.sweepNoShows()
-                self?.checkDueAlarm()
-                self?.applyPendingDowngradeIfDue()
+                guard let self else { return }
+                // 첫 동기화·방 정리가 끝나기 전에는 집계하지 않는다 — 같은 이유.
+                if self.didCompleteInitialSync { self.sweepNoShows() }
+                self.checkDueAlarm()
+                self.applyPendingDowngradeIfDue()
             }
         }
     }
@@ -286,9 +290,9 @@ final class AppState: ObservableObject {
             Task {
                 await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
                 // 순서 고정 — 방 정리 → 스윕 → 만료 정리 (위 didLaunch와 동일한 이유)
-                didCompleteInitialSync = true
                 engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
                 await GroupStore.shared.refresh()
+                didCompleteInitialSync = true         // 방 정리까지 끝나야 '준비 완료'
                 sweepNoShows()
                 cleanupExpiredReservations()
                 refreshDerived()
@@ -345,9 +349,9 @@ final class AppState: ObservableObject {
         Task {
             await AccountStore.shared.syncFromCloud()   // 로그인 직후 다른 기기 예약·점수·멤버십 병합
             // 순서 고정 — 방 정리 → 스윕 → 만료 정리 (didLaunch와 동일한 이유)
-            didCompleteInitialSync = true
             engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
             await GroupStore.shared.refresh()
+            didCompleteInitialSync = true         // 방 정리까지 끝나야 '준비 완료'
             sweepNoShows()
             cleanupExpiredReservations()
             refreshDerived()
