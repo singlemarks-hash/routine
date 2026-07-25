@@ -33,12 +33,6 @@ struct GroupTabView: View {
         }
     }
 
-    /// 잠금 화면은 '정리할 것이 아무것도 없을 때'만 띄운다. 남은 방이나 활동이 있는데
-    /// 결제 화면으로 막아버리면, 슬롯을 차지한 활동을 지울 방법이 사라져 앱이 통째로 막힌다.
-    private var hasNothingToManage: Bool {
-        store.rooms.isEmpty && myGroupReservations.isEmpty
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -46,26 +40,27 @@ struct GroupTabView: View {
                     header
                         .padding(.top, 6)
 
-                    if locked && hasNothingToManage {
-                        lockedPanel
-                    } else {
-                        notices
+                    // 탭은 누구에게나 열어둔다. 참여 중인 방은 구독이 끊겨도 계속 굴러가고
+                    // (노쇼 벌점도 계속 쌓인다) 나가려면 그 방에 들어갈 수 있어야 한다.
+                    // 결제는 '새로 시작하는 행동'에서만 요구한다.
+                    notices
 
-                        loadFailureNotice
+                    loadFailureNotice
 
-                        Button("그룹방 만들기") {
-                            if locked { showPaywall = true } else { showCreate = true }
-                        }
-                        .buttonStyle(TLPrimaryButtonStyle())
+                    if locked { membershipPromo }
 
-                        Button("초대코드로 참여하기") {
-                            if locked { showPaywall = true } else { showJoin = true }
-                        }
-                        .buttonStyle(TLGhostButtonStyle())
-
-                        roomList
-                            .padding(.top, 8)
+                    Button("그룹방 만들기") {
+                        if locked { showPaywall = true } else { showCreate = true }
                     }
+                    .buttonStyle(TLPrimaryButtonStyle())
+
+                    Button("초대코드로 참여하기") {
+                        if locked { showPaywall = true } else { showJoin = true }
+                    }
+                    .buttonStyle(TLGhostButtonStyle())
+
+                    roomList
+                        .padding(.top, 8)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 116)   // 하단 토글 자리
@@ -102,35 +97,24 @@ struct GroupTabView: View {
         }
     }
 
-    // MARK: 멤버십 잠금 패널 — 비구독자 & 참여 중인 방 없음
+    // MARK: 비구독자 안내 — 잠금이 아니라 안내다
 
-    private var lockedPanel: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(TL.raised)
-                    .frame(width: 84, height: 84)
-                    .overlay(Circle().strokeBorder(TL.hairline, lineWidth: 1))
+    /// 탭을 막지 않는 대신, 왜 만들기·참여하기가 결제로 이어지는지 여기서 알린다.
+    private var membershipPromo: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(TL.amber)
+                    .font(.system(size: 13)).foregroundStyle(TL.amber)
+                Text("새 그룹은 멤버십 전용이에요")
+                    .font(.tlTitle(15)).foregroundStyle(TL.paper)
             }
-            .padding(.top, 28)
-
-            Text("멤버십 전용 기능이에요")
-                .font(.tlTitle(20))
-                .foregroundStyle(TL.paper)
-            Text("초대코드로 친구들과 방을 만들고,\n같은 일정으로 상벌점 랭킹 대결을 해보세요.\n멤버십을 구독하면 바로 열립니다.")
-                .font(.system(size: 14))
-                .foregroundStyle(TL.muted)
-                .multilineTextAlignment(.center)
-                .lineSpacing(4)
-
-            Button("멤버십 구독하고 시작하기") { showPaywall = true }
-                .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
-                .padding(.top, 8)
+            Text("참여 중인 방은 그대로 보고 관리할 수 있어요. 방을 새로 만들거나 초대코드로 참여하려면 멤버십이 필요합니다.")
+                .font(.system(size: 13)).foregroundStyle(TL.muted)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(TL.raised, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(TL.hairline, lineWidth: 1))
     }
 
     private var header: some View {

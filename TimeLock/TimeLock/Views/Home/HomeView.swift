@@ -14,6 +14,10 @@ import SwiftData
 struct HomeShellView: View {
     enum Tab { case activity, schedule, group }
     @State private var tab: Tab = .activity
+    /// 활동 탭의 내비게이션 경로를 쉘이 들고 있는다. 마이페이지처럼 활동 탭 위에 쌓인
+    /// 화면은 탭을 다시 눌러도 '이미 활동 탭'이라 아무 일도 안 일어나 빠져나올 수 없었다.
+    /// (일정·그룹은 탭이 바뀌면서 화면이 통째로 교체돼 정상으로 보였다)
+    @State private var activityPath = NavigationPath()
     @EnvironmentObject private var account: AccountStore
 
     /// 그룹 챌린지는 계정 전용 — 게스트에겐 탭 자체를 숨긴다
@@ -22,7 +26,7 @@ struct HomeShellView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             switch tab {
-            case .activity: HomeView()
+            case .activity: HomeView(path: $activityPath)
             case .schedule: WeeklyScheduleView()
             case .group: GroupTabView()
             }
@@ -64,7 +68,12 @@ struct HomeShellView: View {
         let compact = showsGroupTab
         return Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            withAnimation(TLMotion.snappy) { tab = target }
+            // 이미 그 탭이면 그 탭의 첫 화면으로 돌아간다 — iOS 탭바의 표준 동작이다.
+            if tab == target {
+                if target == .activity { activityPath = NavigationPath() }
+            } else {
+                withAnimation(TLMotion.snappy) { tab = target }
+            }
         } label: {
             HStack(spacing: compact ? 6 : 8) {
                 Image(systemName: icon)
@@ -85,9 +94,14 @@ struct HomeShellView: View {
     }
 }
 
+/// 활동 탭에서 밀어 올리는 화면들. 값 기반이어야 쉘이 들고 있는 경로로 되돌릴 수 있다
+/// (뷰를 직접 넘기는 방식은 경로에 남지 않아 '활동' 탭을 다시 눌러도 못 빠져나온다).
+enum HomeRoute: Hashable { case calendar, myPage }
+
 // MARK: - 홈 (활동)
 
 struct HomeView: View {
+    @Binding var path: NavigationPath
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var account: AccountStore
     @Environment(\.modelContext) private var context
@@ -162,7 +176,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     header
@@ -185,6 +199,12 @@ struct HomeView: View {
             }
             .background(TL.ink)
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: HomeRoute.self) { route in
+                switch route {
+                case .calendar: CalendarView()
+                case .myPage:   MyPageView()
+                }
+            }
             .sheet(item: $editorTarget) { target in
                 switch target {
                 case .new:            ReservationEditView(reservation: nil)
@@ -215,9 +235,7 @@ struct HomeView: View {
     private var header: some View {
         HStack(spacing: 10) {
             // 누적 총점 배지 (좌측 정렬) — 양수 스마일 / 음수 앵그리. 탭 → 기록 캘린더.
-            NavigationLink {
-                CalendarView()
-            } label: {
+            NavigationLink(value: HomeRoute.calendar) {
                 HStack(spacing: 8) {
                     Image(totalScore < 0 ? "MotiAngry" : "MotiSmile")
                         .resizable()
@@ -237,9 +255,7 @@ struct HomeView: View {
             Spacer()
 
             // 기록관리 — 점수 배지와 동일하게 기록 캘린더로 진입
-            NavigationLink {
-                CalendarView()
-            } label: {
+            NavigationLink(value: HomeRoute.calendar) {
                 Image(systemName: "calendar")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(TL.paper)
@@ -250,9 +266,7 @@ struct HomeView: View {
             .pressableStyle()
 
             // 마이페이지
-            NavigationLink {
-                MyPageView()
-            } label: {
+            NavigationLink(value: HomeRoute.myPage) {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 45))
                     .foregroundStyle(TL.muted)

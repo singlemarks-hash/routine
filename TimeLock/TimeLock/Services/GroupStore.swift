@@ -933,8 +933,16 @@ final class GroupStore: ObservableObject {
         #if canImport(FirebaseFirestore)
         let uid = AccountStore.shared.currentUserID
         guard !uid.isEmpty else { return nil }
+        // 이 결과로 로컬 그룹 활동을 지운다(pruneOrphanGroupReservations). 그래서 '못 읽었다'와
+        // '가입한 방이 없다'를 반드시 구분해야 한다.
+        //
+        // getDocument()는 문서가 없어도 성공한다 — 빈 스냅샷이 돌아온다. 게다가 소스를 지정하지
+        // 않으면 로컬 캐시로도 답한다. 그래서 새 기기·재설치·계정 전환처럼 캐시에 사용자 문서가
+        // 없는 상태에서 '가입한 방 0개'로 읽혀, 멀쩡히 참여 중인 그룹 활동이 전부 지워졌다.
+        // (그룹 탭도 일정 탭도 텅 비는데 슬롯만 물려 있던 원인)
         guard let doc = try? await Firestore.firestore()
-            .collection("users").document(uid).getDocument() else { return nil }
+            .collection("users").document(uid).getDocument(source: .server),
+              doc.exists else { return nil }
         return doc.data()?["groupIDs"] as? [String] ?? []
         #else
         return nil
