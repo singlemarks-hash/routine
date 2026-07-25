@@ -369,12 +369,23 @@ struct ReservationEditView: View {
                                    displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
                             .disabled(editingDisabled)
+                            // 시작일을 뒤로 옮기면 종료일도 함께 밀어준다. 이게 없으면 종료일이
+                            // 예전 값(과거)에 남아, 시작일·종료일을 같은 날로 고른 줄 알았는데
+                            // "종료일은 시작일 이후여야 해요"로 저장이 막힌다. DatePicker의
+                            // in: 범위는 선택지만 제한할 뿐 값을 되돌려 써주지 않는다.
+                            .onChange(of: oneOffDate) { _, newStart in
+                                if oneOffEndDate < newStart { oneOffEndDate = newStart }
+                            }
                     }
                     Toggle(isOn: $noEndDate) {
                         Text("종료일 없음").font(.tlBody).foregroundStyle(TL.paper)
                     }
                     .tint(TL.rec)
                     .disabled(editingDisabled)
+                    // 종료일을 켜는 순간에도 같은 보정 — 기본값(오늘)이 시작일보다 과거일 수 있다.
+                    .onChange(of: noEndDate) { _, hasNoEnd in
+                        if !hasNoEnd, oneOffEndDate < oneOffDate { oneOffEndDate = oneOffDate }
+                    }
                     if !noEndDate {
                         // 종료일 하한 = 시작일과 오늘 중 늦은 쪽 (이미 지난 종료일은 고를 수 없게)
                         DatePicker("종료일", selection: $oneOffEndDate,

@@ -48,12 +48,41 @@ struct GroupRoom: Identifiable, Equatable, Hashable {
         status == "scheduled" &&
             Date() < startDate.addingTimeInterval(-Double(GroupPolicy.joinCutoffMinutes) * 60)
     }
-    var isFinished: Bool { Date() >= endDate }
-    @MainActor var isHostMine: Bool { hostUID == AccountStore.shared.currentUserID }
-    /// 30일 보존 기간이 지나 서버에서 지워야 하는가
-    var isExpired: Bool {
-        Date() >= endDate.addingTimeInterval(TimeInterval(GroupPolicy.resultRetentionDays) * 86_400)
+    /// 마지막 활동이 실제로 끝나고 전원의 점수가 확정되는 시각.
+    ///
+    /// endDate는 '종료일의 끝(23:59:59)'이라 이걸 종료 기준으로 쓰면, 오전 11시에 10분짜리
+    /// 활동을 끝낸 하루짜리 방이 그날 자정까지 '진행 중'으로 남는다. 실제 기준은
+    /// `마지막 발생일 + 시작 시각 + 활동 길이 + 확정 유예(시작창 10분 + 재촬영창 10분)`이다.
+    /// 마지막 발생일은 요일이 7개뿐이므로 종료일부터 거꾸로 최대 7일만 훑으면 반드시 나온다.
+    var finishedAt: Date {
+        let cal = Calendar.current
+        let firstDay = cal.startOfDay(for: startDate)
+        let lastDay = cal.startOfDay(for: endDate)
+        let days = Set(repeatWeekdays)
+        var occurrenceDay = lastDay
+        if !days.isEmpty {
+            var found: Date?
+            for offset in 0..<8 {
+                guard let d = cal.date(byAdding: .day, value: -offset, to: lastDay), d >= firstDay else { break }
+                if days.contains(cal.component(.weekday, from: d)) { found = d; break }
+            }
+            // 못 찾으면(기간 안에 고른 요일이 없는 비정상 방) 가장 늦은 날 기준 — 일찍 끝난 것으로
+            // 오판해 결과를 조기 삭제하는 쪽보다 늦게 끝나는 쪽이 안전하다.
+            occurrenceDay = found ?? lastDay
+        } else {
+            occurrenceDay = firstDay   // 요일 정보가 없는 레거시 방 = 시작일 하루짜리
+        }
+        let base = cal.date(byAdding: .minute, value: startMinute, to: occurrenceDay) ?? startDate
+        return base.addingTimeInterval(TimeInterval((durationMinutes + GroupPolicy.settleGraceMinutes) * 60))
     }
+    var isFinished: Bool { Date() >= finishedAt }
+    @MainActor var isHostMine: Bool { hostUID == AccountStore.shared.currentUserID }
+    /// 결과 보존이 끝나 방이 자동 삭제되는 시각 (기준은 '종료일 자정'이 아니라 '실제 종료 시각')
+    var deleteAt: Date {
+        finishedAt.addingTimeInterval(TimeInterval(GroupPolicy.resultRetentionDays) * 86_400)
+    }
+    /// 보존 기간이 지나 서버에서 지워야 하는가
+    var isExpired: Bool { Date() >= deleteAt }
 }
 
 struct GroupMember: Identifiable, Equatable {

@@ -144,6 +144,7 @@ private enum SelfCheck {
         out += conflictChecks()
         out += rangeChecks()
         out += deadReservationChecks()
+        out += groupRoomChecks()
         return out
     }
 
@@ -339,6 +340,62 @@ private enum SelfCheck {
                            startMinute: 9 * 60, duration: 60, oneOff: day(-10))
         out.append(check(g, "만료된 예약 — 남은 발생 없음",
                          expired.nextOccurrence(after: Date(), calendar: cal) == nil, true))
+        return out
+    }
+
+    // MARK: 5. 그룹방 종료 판정 (마지막 활동이 끝나는 순간)
+
+    private static func groupRoomChecks() -> [CheckResult] {
+        let g = "5. 그룹방 종료"
+        var out: [CheckResult] = []
+
+        func room(startDay: Date, endDay: Date, weekdays: [Int],
+                  startMinute: Int, duration: Int) -> GroupRoom {
+            GroupRoom(id: "selfcheck", name: "검사", code: "AAAAA", hostUID: "selfcheck",
+                      intensityRaw: Intensity.spicy.rawValue,
+                      startMinute: startMinute, durationMinutes: duration,
+                      repeatWeekdays: weekdays,
+                      startDate: cal.date(byAdding: .minute, value: startMinute, to: startDay)!,
+                      endDate: endOfDay(endDay),
+                      status: "active", memberCount: 2)
+        }
+
+        // 오늘 오전 11시에 10분짜리 하루 그룹 — 11:30(=11:00+10분+유예 20분)에 확정된다.
+        let today = cal.startOfDay(for: Date())
+        let oneDay = room(startDay: today, endDay: today, weekdays: all7,
+                          startMinute: 11 * 60, duration: 10)
+        let expected = cal.date(byAdding: .minute, value: 11 * 60 + 10 + GroupPolicy.settleGraceMinutes,
+                                to: today)!
+        out.append(check(g, "하루 그룹 — 종료 시각 = 마지막 활동 + 유예",
+                         abs(oneDay.finishedAt.timeIntervalSince(expected)) < 1, true))
+        out.append(check(g, "하루 그룹 — 종료일 자정보다 이르다",
+                         oneDay.finishedAt < endOfDay(today), true))
+
+        // 어제 끝난 하루 그룹은 이미 '종료'
+        let yesterday = day(-1)
+        let past = room(startDay: yesterday, endDay: yesterday, weekdays: all7,
+                        startMinute: 11 * 60, duration: 10)
+        out.append(check(g, "어제 끝난 그룹 — 종료 상태", past.isFinished, true))
+        out.append(check(g, "어제 끝난 그룹 — 아직 삭제 시점 아님", past.isExpired, false))
+
+        // 내일 시작하는 하루 그룹은 아직 종료 아님
+        let future = room(startDay: day(1), endDay: day(1), weekdays: all7,
+                          startMinute: 11 * 60, duration: 10)
+        out.append(check(g, "내일 그룹 — 종료 아님", future.isFinished, false))
+
+        // 월~금 기간에 월·수만 반복 → 마지막 발생은 금요일이 아니라 수요일
+        let mon = firstDay(weekday: 2)
+        let weekly = room(startDay: mon, endDay: day(4, from: mon), weekdays: [2, 4],
+                          startMinute: 9 * 60, duration: 30)
+        let wed = day(2, from: mon)
+        out.append(check(g, "요일 반복 — 마지막 발생일이 수요일",
+                         cal.isDate(weekly.finishedAt, inSameDayAs: wed), true))
+
+        // 보존 기간이 다 지난 그룹은 삭제 대상
+        let old = room(startDay: day(-GroupPolicy.resultRetentionDays - 2),
+                       endDay: day(-GroupPolicy.resultRetentionDays - 2),
+                       weekdays: all7, startMinute: 11 * 60, duration: 10)
+        out.append(check(g, "보존 기간 지난 그룹 — 삭제 대상", old.isExpired, true))
         return out
     }
 

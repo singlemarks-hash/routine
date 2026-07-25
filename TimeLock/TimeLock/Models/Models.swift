@@ -107,6 +107,11 @@ enum GroupPolicy {
     static let codeLength = 5             // 초대코드 자릿수 (영문 대문자+숫자)
     static let nicknameMaxLength = 8      // 방 닉네임 최대 글자수 (랭킹 한 줄 유지)
     static let resultRetentionDays = 30   // 종료 후 최종 결과 보존 기간
+
+    /// 마지막 활동 시각이 지난 뒤에도 점수가 아직 확정되지 않는 유예.
+    /// 시작 창(10분) 안에 시작해서, 긴급 중단 후 재촬영 창(10분)까지 쓴 사람이 있을 수 있다.
+    /// 이 시간이 지나야 그날의 모든 결과가 확정되므로 방을 '종료'로 볼 수 있다.
+    static var settleGraceMinutes: Int { TimePolicy.startWindowMinutes + TimePolicy.resumeWindowMinutes }
 }
 
 // MARK: - 강도 (앱 전역 단일 값)

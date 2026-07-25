@@ -1110,9 +1110,25 @@ struct GroupRoomDetailView: View {
                     }
                 }
             }
+            HStack(spacing: 6) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 12)).foregroundStyle(TL.amber)
+                Text(deletionNotice)
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
+            }
             Text("결과는 종료 후 \(GroupPolicy.resultRetentionDays)일 동안 보관됩니다.")
                 .font(.system(size: 12)).foregroundStyle(TL.faint)
         }
+    }
+
+    /// 남은 보존 기간 안내. 날짜 경계 기준으로 세어 "0일 뒤"가 뜨지 않게 한다.
+    private var deletionNotice: String {
+        let cal = Calendar.current
+        let remaining = cal.dateComponents([.day],
+                                           from: cal.startOfDay(for: now),
+                                           to: cal.startOfDay(for: room.deleteAt)).day ?? 0
+        if remaining <= 0 { return "오늘 중 이 방과 결과가 자동으로 삭제됩니다." }
+        return "\(remaining)일 뒤 이 방과 결과가 자동으로 삭제됩니다."
     }
 
     private func rankRow(_ item: (rank: Int, member: GroupMember)) -> some View {
