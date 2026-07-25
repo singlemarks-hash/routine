@@ -388,7 +388,7 @@ struct HomeView: View {
                         Image(systemName: "bell.fill").font(.system(size: 11))
                         if let fire {
                             // 오늘 것만 보여주므로 날짜(오늘·내일·M월 D일)는 생략하고 시각만.
-                            Text("\(TLFormat.clock(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes))\(Set(reservation.repeatWeekdays).count == 7 ? " · 매일" : reservation.isRepeating ? " · 매주 " + weekdayLabel(reservation.repeatWeekdays) : "")")
+                            Text("\(TLFormat.clock(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes))\(repeatSuffix(reservation))")
                         } else {
                             Text(TLFormat.durationLabel(reservation.durationMinutes))
                         }
@@ -412,6 +412,14 @@ struct HomeView: View {
         let m = Int((Double(seconds) / 60).rounded(.up))
         let time = m >= 60 ? (m % 60 == 0 ? "\(m / 60)시간" : "\(m / 60)시간 \(m % 60)분") : "\(m)분"
         return "\(time) 뒤 시작"
+    }
+
+    /// 시작일=종료일(하루)이면 오늘이 곧 그 하루이므로 접미사가 필요 없다. 요일 전체면 "매일".
+    private func repeatSuffix(_ r: Reservation) -> String {
+        if let end = r.endDate, Calendar.current.isDate(r.createdAt, inSameDayAs: end) { return "" }
+        if Set(r.repeatWeekdays).count == 7 { return " · 매일" }
+        if r.isRepeating { return " · 매주 " + weekdayLabel(r.repeatWeekdays) }
+        return ""
     }
 
     private func weekdayLabel(_ weekdays: [Int]) -> String {

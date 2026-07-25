@@ -173,21 +173,22 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     if (overlap) { error = "같은 시간대에 이미 다른 활동이 있어요."; return@save }
 
                     // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
-                    val isWeekly = weeklyRepeat
                     val startDay = oneOffDay ?: nextOneOffDay(sm)          // 시작일(자정)
-                    // 검증: 요일 반복이면 요일 최소 1개
+                    val endDayNorm = startOfDayLocal(oneOffEndDay ?: startDay)
+                    // 시작일=종료일이면 그날 하루뿐이라 요일 반복이 무의미 — 항상 전체 요일로 저장.
+                    val isSingleDay = !noEndDate && endDayNorm == startDay
+                    val isWeekly = weeklyRepeat && !isSingleDay
+                    // 검증: 요일 반복이면 요일 최소 1개 (하루짜리는 요일 반복 UI가 없으므로 제외)
                     if (isWeekly && repeatDays.isEmpty()) { error = "반복할 요일을 선택하세요."; return@save }
                     // 검증: 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남 (두 모드 공통)
                     if (!noEndDate) {
-                        val endDay = startOfDayLocal(oneOffEndDay ?: startDay)
-                        if (endDay < startDay) { error = "종료일은 시작일 이후여야 해요."; return@save }
-                        if (endDay < todayStart()) { error = "종료일이 이미 지났어요."; return@save }
+                        if (endDayNorm < startDay) { error = "종료일은 시작일 이후여야 해요."; return@save }
+                        if (endDayNorm < todayStart()) { error = "종료일이 이미 지났어요."; return@save }
                     }
                     val resolvedDaysCsv = if (isWeekly) repeatDays.sorted().joinToString(",")
                         else "1,2,3,4,5,6,7"
-                    val resolvedOneOff = if (isWeekly) null else startDay   // 매일 모드만 시작일 마커
-                    val resolvedEnd = if (!noEndDate)
-                        startOfDayLocal(oneOffEndDay ?: startDay) + 86_400_000L - 1 else null
+                    val resolvedOneOff = if (isWeekly) null else startDay   // 매일·하루 모드는 시작일 마커
+                    val resolvedEnd = if (!noEndDate) endDayNorm + 86_400_000L - 1 else null
 
                     scope.launch(Dispatchers.IO) {
                         val r = (existing ?: Reservation(
@@ -358,60 +359,21 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 }
             }
 
-            // ── 반복 — 요일 반복 토글(ON=고른 요일, OFF=매일) + 기간(시작일·종료일) 공통 (iOS 1:1)
+            // ── 반복 — 기간(시작일·종료일) 먼저, 그 다음 요일 반복(ON=고른 요일, OFF=매일) (iOS 1:1)
             Column {
                 TLEyebrow("반복")
                 TLCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("요일 반복", color = TL.paper, fontSize = 16.sp)
-                        Spacer(Modifier.weight(1f))
-                        Switch(
-                            checked = weeklyRepeat,
-                            onCheckedChange = { on ->
-                                if (fieldLocked) return@Switch
-                                weeklyRepeat = on
-                                // 켤 때 선택된 요일이 없으면 평일 기본값
-                                if (on && repeatDays.isEmpty()) repeatDays = setOf(2, 3, 4, 5, 6)
-                            },
-                            colors = SwitchDefaults.colors(checkedTrackColor = TL.jade),
-                        )
-                    }
-                    // 요일 반복 ON → 요일 원형 선택
-                    if (weeklyRepeat) {
-                        Spacer(Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
-                                .forEach { (d, label) ->
-                                    val on = d in repeatDays
-                                    Box(
-                                        modifier = Modifier.size(38.dp)
-                                            .background(if (on) TL.paper else TL.raised, CircleShape)
-                                            // 미선택 요일에도 헤어라인 테두리로 영역 표시
-                                            .border(1.dp,
-                                                if (on) androidx.compose.ui.graphics.Color.Transparent else TL.hairline,
-                                                CircleShape)
-                                            .clickable {
-                                                if (fieldLocked) return@clickable
-                                                repeatDays = if (on) repeatDays - d else repeatDays + d
-                                            },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(label, color = if (on) TL.ink else TL.muted,
-                                            fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                        }
-                    }
+                    val startDayVal = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
+                    val endDayVal = (oneOffEndDay ?: startDayVal).coerceAtLeast(startDayVal)
+                    // 시작일=종료일이면 그날 하루뿐이라 요일 반복 설정 자체가 무의미하다
+                    // (그 요일이 빠지면 발생이 0번이 되는 모순도 막는다) — 이 경우 요일 반복 UI를 숨긴다.
+                    val isSingleDay = !noEndDate && startOfDayLocal(startDayVal) == startOfDayLocal(endDayVal)
 
-                    // 기간 — 시작일 + '종료일 없음' 토글(기본 켜짐) + 종료일. (요일 반복·매일 공통)
-                    Spacer(Modifier.height(10.dp))
-                    androidx.compose.material3.HorizontalDivider(color = TL.hairline)
-                    Spacer(Modifier.height(10.dp))
+                    // 기간 — 시작일부터 정하고, 그 기간에 요일 반복을 적용할지 고른다.
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("시작일", color = TL.paper, fontSize = 16.sp)
                         Spacer(Modifier.weight(1f))
-                        val day = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
-                        Text(dateLabel(day), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        Text(dateLabel(startDayVal), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.background(TL.raised, CircleShape)
                                 .clickable(enabled = !fieldLocked) { showDatePicker = true }
                                 .padding(horizontal = 16.dp, vertical = 9.dp))
@@ -431,13 +393,65 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("종료일", color = TL.paper, fontSize = 16.sp)
                             Spacer(Modifier.weight(1f))
-                            val start = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
-                            val endDay = (oneOffEndDay ?: start).coerceAtLeast(start)
-                            Text(dateLabel(endDay), color = TL.paper, fontSize = 15.sp,
+                            Text(dateLabel(endDayVal), color = TL.paper, fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.background(TL.raised, CircleShape)
                                     .clickable(enabled = !fieldLocked) { showEndDatePicker = true }
                                     .padding(horizontal = 16.dp, vertical = 9.dp))
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    androidx.compose.material3.HorizontalDivider(color = TL.hairline)
+                    Spacer(Modifier.height(10.dp))
+
+                    if (isSingleDay) {
+                        Text("하루짜리 활동이라 요일 반복 설정이 필요 없어요.",
+                            color = TL.faint, fontSize = 12.sp)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("요일 반복", color = TL.paper, fontSize = 16.sp)
+                            if (!weeklyRepeat) {
+                                Spacer(Modifier.width(6.dp))
+                                Text("(매일)", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            Spacer(Modifier.weight(1f))
+                            Switch(
+                                checked = weeklyRepeat,
+                                onCheckedChange = { on ->
+                                    if (fieldLocked) return@Switch
+                                    weeklyRepeat = on
+                                    // 켤 때 선택된 요일이 없으면 평일 기본값
+                                    if (on && repeatDays.isEmpty()) repeatDays = setOf(2, 3, 4, 5, 6)
+                                },
+                                colors = SwitchDefaults.colors(checkedTrackColor = TL.jade),
+                            )
+                        }
+                        // 요일 반복 ON → 요일 원형 선택
+                        if (weeklyRepeat) {
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
+                                    .forEach { (d, label) ->
+                                        val on = d in repeatDays
+                                        Box(
+                                            modifier = Modifier.size(38.dp)
+                                                .background(if (on) TL.paper else TL.raised, CircleShape)
+                                                // 미선택 요일에도 헤어라인 테두리로 영역 표시
+                                                .border(1.dp,
+                                                    if (on) androidx.compose.ui.graphics.Color.Transparent else TL.hairline,
+                                                    CircleShape)
+                                                .clickable {
+                                                    if (fieldLocked) return@clickable
+                                                    repeatDays = if (on) repeatDays - d else repeatDays + d
+                                                },
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(label, color = if (on) TL.ink else TL.muted,
+                                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                            }
                         }
                     }
                 }
@@ -775,7 +789,17 @@ fun WeeklyScheduleTab(
 /** 주간 일정 한 줄 — 시각 · (그룹아이콘)활동명 · 길이/매주·일회성 · 태그칩 (iOS timetableRow 1:1) */
 @Composable
 private fun ScheduleRow(r: Reservation, onClick: () -> Unit) {
+    // 시작일=종료일이면 요일 반복 여부와 무관하게 그날 하루만 진행하는 활동.
+    val sameDay = r.endAt?.let { end ->
+        val a = Calendar.getInstance().apply { timeInMillis = r.createdAt }
+        val b = Calendar.getInstance().apply { timeInMillis = end }
+        a.get(Calendar.YEAR) == b.get(Calendar.YEAR) && a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
+    } ?: false
     val meta = when {
+        sameDay -> {
+            val c = Calendar.getInstance().apply { timeInMillis = r.createdAt }
+            "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 하루"
+        }
         r.repeatWeekdays.size == 7 -> "매일"          // 요일 전체 = 매일(기간)
         r.isRepeating -> "매주"
         r.oneOffDayStart != null -> {

@@ -382,6 +382,12 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
 
     val timeState = rememberTimePickerState(
         initialHour = startMinute / 60, initialMinute = startMinute % 60, is24Hour = false)
+    // 시작일=종료일이면 그날 하루뿐이라 요일 반복 설정 자체가 무의미하다.
+    val isSingleDayRoom = run {
+        val a = Calendar.getInstance().apply { timeInMillis = startDay }
+        val b = Calendar.getInstance().apply { timeInMillis = endDay }
+        a.get(Calendar.YEAR) == b.get(Calendar.YEAR) && a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
+    }
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
         Row(
@@ -395,16 +401,16 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
             TLPillButton("만들기", tint = TL.rec,
                 // 요일 미선택이어도 버튼 활성 — 눌렀을 때 안내(빨간 박스 + 흔들림)를 보여준다
                 enabled = !busy && created == null && name.isNotBlank() && nickname.isNotBlank()) {
-                // 요일 반복인데 요일 미선택 → 안내 + 흔들림
-                if (isRepeating && repeatDays.isEmpty()) {
+                // 요일 반복인데 요일 미선택 → 안내 + 흔들림 (하루짜리는 요일 반복 UI가 없으므로 제외)
+                if (!isSingleDayRoom && isRepeating && repeatDays.isEmpty()) {
                     weekdayError = true; shakeTrigger += 1
                     return@TLPillButton
                 }
                 error = null; busy = true
                 val chosenStartMinute = timeState.hour * 60 + timeState.minute
                 val startMoment = startDay + chosenStartMinute * 60_000L   // 실제 시작 순간
-                // 요일 반복 OFF = 매일(요일 전체). 시작일=종료일이면 그날 하루만 발생하는 단발성이 된다.
-                val effectiveDays = if (isRepeating) repeatDays.toList().sorted() else listOf(1, 2, 3, 4, 5, 6, 7)
+                // 요일 반복 OFF = 매일(요일 전체). 시작일=종료일(하루)이면 요일 반복이 무의미하므로 항상 전체 요일.
+                val effectiveDays = if (isRepeating && !isSingleDayRoom) repeatDays.toList().sorted() else listOf(1, 2, 3, 4, 5, 6, 7)
                 val effectiveEndDay = endDay
                 scope.launch {
                     try {
@@ -540,66 +546,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                         }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
-                // 요일 반복 토글(ON=고른 요일, OFF=매일). 개인 활동 예약과 동일한 모델:
-                // 기간(시작일·종료일)은 두 모드 공통이며, 시작일=종료일이면 자연히 단발성 하루가 된다.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("요일 반복", color = TL.paper, fontSize = 15.sp)
-                    if (!isRepeating) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("(매일)", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Switch(
-                        checked = isRepeating,
-                        onCheckedChange = { on ->
-                            isRepeating = on
-                            // 켤 때 고른 요일이 없으면 평일 기본값 (개인 활동과 동일)
-                            if (on && repeatDays.isEmpty()) repeatDays = setOf(2, 3, 4, 5, 6)
-                        },
-                        colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
-                    )
-                }
-                if (isRepeating) {
-                    Spacer(Modifier.height(8.dp))
-                    // 요일 미선택 안내 시: 빨간 얇은 테두리 + 살짝 흔들림 (개인 활동 요일 반복과 통일)
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .offset { androidx.compose.ui.unit.IntOffset(shakeX.value.toInt(), 0) }
-                            .border(1.5.dp,
-                                if (weekdayError) TL.rec else androidx.compose.ui.graphics.Color.Transparent,
-                                TL.cornerM)
-                            .padding(8.dp),
-                    ) {
-                        listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
-                            .forEach { (day, label) ->
-                                val selected = day in repeatDays
-                                Box(
-                                    Modifier.size(38.dp)
-                                        .background(if (selected) TL.paper else TL.raised, CircleShape)
-                                        // 미선택 요일에도 헤어라인 테두리로 영역 표시 (개인 활동과 통일)
-                                        .border(1.dp,
-                                            if (selected) androidx.compose.ui.graphics.Color.Transparent else TL.hairline,
-                                            CircleShape)
-                                        .clickable {
-                                            repeatDays = if (selected) repeatDays - day else repeatDays + day
-                                            if (repeatDays.isNotEmpty()) weekdayError = false
-                                        },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(label, color = if (selected) TL.ink else TL.muted,
-                                        fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                    }
-                    if (weekdayError) {
-                        Spacer(Modifier.height(6.dp))
-                        Text("반복할 요일을 하나 이상 선택하세요.",
-                            color = TL.rec, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-                // 기간 — 시작일·종료일. 요일 반복·매일 공통. 시작일=종료일이면 그날 하루만 진행.
+                // 기간 — 시작일·종료일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.
                 Spacer(Modifier.height(12.dp))
                 Text("기간 — 시작은 1시간 뒤부터, 최대 3개월", color = TL.muted, fontSize = 13.sp)
                 Spacer(Modifier.height(6.dp))
@@ -617,10 +564,71 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                             .clickable { pickingDate = "end" }
                             .padding(horizontal = 12.dp, vertical = 7.dp))
                 }
-                if (!isRepeating) {
+
+                // 요일 반복(ON=고른 요일, OFF=매일). 시작일=종료일(하루)이면 요일 반복이
+                // 무의미하므로(그 요일이 빠지면 발생이 0번이 되는 모순도 방지) UI 자체를 숨긴다.
+                if (isSingleDayRoom) {
                     Spacer(Modifier.height(6.dp))
-                    Text("선택한 기간 동안 매일 진행돼요. 시작일과 종료일을 같은 날짜로 두면 그날 하루만 진행하는 단발 그룹이 됩니다.",
+                    Text("하루짜리 그룹이라 요일 반복 설정이 필요 없어요.",
                         color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
+                } else {
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("요일 반복", color = TL.paper, fontSize = 15.sp)
+                        if (!isRepeating) {
+                            Spacer(Modifier.width(6.dp))
+                            Text("(매일)", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Switch(
+                            checked = isRepeating,
+                            onCheckedChange = { on ->
+                                isRepeating = on
+                                // 켤 때 고른 요일이 없으면 평일 기본값 (개인 활동과 동일)
+                                if (on && repeatDays.isEmpty()) repeatDays = setOf(2, 3, 4, 5, 6)
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
+                        )
+                    }
+                    if (isRepeating) {
+                        Spacer(Modifier.height(8.dp))
+                        // 요일 미선택 안내 시: 빨간 얇은 테두리 + 살짝 흔들림 (개인 활동 요일 반복과 통일)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .offset { androidx.compose.ui.unit.IntOffset(shakeX.value.toInt(), 0) }
+                                .border(1.5.dp,
+                                    if (weekdayError) TL.rec else androidx.compose.ui.graphics.Color.Transparent,
+                                    TL.cornerM)
+                                .padding(8.dp),
+                        ) {
+                            listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
+                                .forEach { (day, label) ->
+                                    val selected = day in repeatDays
+                                    Box(
+                                        Modifier.size(38.dp)
+                                            .background(if (selected) TL.paper else TL.raised, CircleShape)
+                                            // 미선택 요일에도 헤어라인 테두리로 영역 표시 (개인 활동과 통일)
+                                            .border(1.dp,
+                                                if (selected) androidx.compose.ui.graphics.Color.Transparent else TL.hairline,
+                                                CircleShape)
+                                            .clickable {
+                                                repeatDays = if (selected) repeatDays - day else repeatDays + day
+                                                if (repeatDays.isNotEmpty()) weekdayError = false
+                                            },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(label, color = if (selected) TL.ink else TL.muted,
+                                            fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                        }
+                        if (weekdayError) {
+                            Spacer(Modifier.height(6.dp))
+                            Text("반복할 요일을 하나 이상 선택하세요.",
+                                color = TL.rec, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 Text("시작은 지금부터 1시간 뒤부터 · 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월) · " +

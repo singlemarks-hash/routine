@@ -312,49 +312,18 @@ struct ReservationEditView: View {
         }
     }
 
+    /// 시작일=종료일이면 그날 하루뿐이라 요일 반복 설정 자체가 무의미하다 (그 요일이 빠지면
+    /// 발생이 0번이 되는 모순도 막는다) — 이 경우 요일 반복 UI를 아예 숨긴다.
+    private var isSingleDay: Bool {
+        !noEndDate && Calendar.current.isDate(oneOffDate, inSameDayAs: oneOffEndDate)
+    }
+
     private var repeatSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             TLEyebrow(text: "반복")
             TLCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    Toggle(isOn: $isRepeating) {
-                        HStack(spacing: 6) {
-                            Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
-                            // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
-                            if !isRepeating {
-                                Text("(매일)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
-                            }
-                        }
-                    }
-                    .tint(TL.rec)
-                    .disabled(editingDisabled)
-                    // 켤 때 고른 요일이 없으면 평일 기본값 (안드로이드와 동일)
-                    .onChange(of: isRepeating) { _, on in
-                        if on && weekdays.isEmpty { weekdays = [2, 3, 4, 5, 6] }
-                    }
-
-                    // 요일 반복 ON = 고른 요일만, OFF = 매일. 어느 쪽이든 기간(시작일·종료일)은 공통.
-                    if isRepeating {
-                        HStack(spacing: 8) {
-                            ForEach(weekdaySymbols, id: \.0) { (value, label) in
-                                Button {
-                                    if weekdays.contains(value) { weekdays.remove(value) }
-                                    else { weekdays.insert(value) }
-                                } label: {
-                                    Text(label)
-                                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                                        .foregroundStyle(weekdays.contains(value) ? TL.ink : TL.muted)
-                                        .frame(width: 36, height: 36)
-                                        .background(Circle().fill(weekdays.contains(value) ? TL.paper : TL.surface))
-                                        .overlay(Circle().strokeBorder(weekdays.contains(value) ? .clear : TL.hairline))
-                                }
-                                .disabled(editingDisabled)
-                            }
-                        }
-                    }
-
-                    // 기간 — 시작일 + '종료일 없음' 토글(기본 켜짐) + 종료일. (요일 반복·매일 공통)
-                    Divider().overlay(TL.hairline)
+                    // 기간 — 시작일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.
                     DatePicker("시작일", selection: $oneOffDate, in: Date()..., displayedComponents: .date)
                         .font(.tlBody).foregroundStyle(TL.paper)
                         .disabled(editingDisabled)
@@ -368,6 +337,49 @@ struct ReservationEditView: View {
                                    in: oneOffDate..., displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
                             .disabled(editingDisabled)
+                    }
+
+                    if isSingleDay {
+                        Divider().overlay(TL.hairline)
+                        Text("하루짜리 활동이라 요일 반복 설정이 필요 없어요.")
+                            .font(.system(size: 12)).foregroundStyle(TL.faint)
+                    } else {
+                        Divider().overlay(TL.hairline)
+                        Toggle(isOn: $isRepeating) {
+                            HStack(spacing: 6) {
+                                Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                                // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
+                                if !isRepeating {
+                                    Text("(매일)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
+                                }
+                            }
+                        }
+                        .tint(TL.rec)
+                        .disabled(editingDisabled)
+                        // 켤 때 고른 요일이 없으면 평일 기본값 (안드로이드와 동일)
+                        .onChange(of: isRepeating) { _, on in
+                            if on && weekdays.isEmpty { weekdays = [2, 3, 4, 5, 6] }
+                        }
+
+                        // 요일 반복 ON = 고른 요일만, OFF = 매일.
+                        if isRepeating {
+                            HStack(spacing: 8) {
+                                ForEach(weekdaySymbols, id: \.0) { (value, label) in
+                                    Button {
+                                        if weekdays.contains(value) { weekdays.remove(value) }
+                                        else { weekdays.insert(value) }
+                                    } label: {
+                                        Text(label)
+                                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                                            .foregroundStyle(weekdays.contains(value) ? TL.ink : TL.muted)
+                                            .frame(width: 36, height: 36)
+                                            .background(Circle().fill(weekdays.contains(value) ? TL.paper : TL.surface))
+                                            .overlay(Circle().strokeBorder(weekdays.contains(value) ? .clear : TL.hairline))
+                                    }
+                                    .disabled(editingDisabled)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -434,8 +446,8 @@ struct ReservationEditView: View {
             errorMessage = "활동명을 입력하세요."
             return
         }
-        // 검증: 주간 반복이면 요일 최소 1개
-        if isRepeating && weekdays.isEmpty {
+        // 검증: 주간 반복이면 요일 최소 1개 (하루짜리 활동은 요일 반복 UI가 없으므로 제외)
+        if !isSingleDay && isRepeating && weekdays.isEmpty {
             errorMessage = "반복할 요일을 선택하세요."
             return
         }
@@ -443,10 +455,11 @@ struct ReservationEditView: View {
         let startMinute = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
 
         // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
+        // 하루짜리(시작일=종료일)는 요일 반복이 무의미하므로 항상 전체 요일로 저장.
         let cal = Calendar.current
         let startDay = cal.startOfDay(for: oneOffDate)
-        let resolvedWeekdays: [Int] = isRepeating ? Array(weekdays) : [1, 2, 3, 4, 5, 6, 7]
-        let resolvedOneOff: Date? = isRepeating ? nil : startDay          // 매일 모드만 시작일 마커
+        let resolvedWeekdays: [Int] = (isRepeating && !isSingleDay) ? Array(weekdays) : [1, 2, 3, 4, 5, 6, 7]
+        let resolvedOneOff: Date? = (isRepeating && !isSingleDay) ? nil : startDay   // 매일·하루 모드는 시작일 마커
         let resolvedEnd: Date? = (!noEndDate)
             ? cal.startOfDay(for: oneOffEndDate).addingTimeInterval(86_400 - 0.001)
             : nil

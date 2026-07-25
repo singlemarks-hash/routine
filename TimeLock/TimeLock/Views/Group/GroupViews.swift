@@ -254,6 +254,10 @@ struct GroupCreateView: View {
         // 포함 일수 기준(안드로이드 통일): startDay 당일 포함 최대 maxDurationDays일 → +(N-1)
         Calendar.current.date(byAdding: .day, value: GroupPolicy.maxDurationDays - 1, to: startDay)!
     }
+    /// 시작일=종료일이면 그날 하루뿐이라 요일 반복 설정 자체가 무의미하다.
+    private var isSingleDayRoom: Bool {
+        Calendar.current.isDate(startDay, inSameDayAs: endDay)
+    }
     // 요일 미선택이어도 버튼은 활성 — 눌렀을 때 안내(빨간 박스 + 흔들림)를 보여주기 위함.
     private var formReady: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -364,60 +368,7 @@ struct GroupCreateView: View {
                     }
                 }
 
-                // 반복 — 요일 반복 토글(ON=고른 요일, OFF=매일). 개인 활동 예약과 동일한 모델:
-                // 기간(시작일·종료일)은 두 모드 공통이며, 시작일=종료일로 두면 자연히 단발성 하루가 된다.
-                field("반복") {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Toggle(isOn: $isRepeating) {
-                            HStack(spacing: 6) {
-                                Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
-                                // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
-                                if !isRepeating {
-                                    Text("(매일)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
-                                }
-                            }
-                        }
-                        .tint(TL.rec)
-                        // 켤 때 고른 요일이 없으면 평일 기본값 (개인 활동과 동일)
-                        .onChange(of: isRepeating) { _, on in
-                            if on && weekdays.isEmpty { weekdays = [2, 3, 4, 5, 6] }
-                        }
-
-                        if isRepeating {
-                            // 개인 활동 요일 반복 UI와 통일 — 미선택 요일에도 헤어라인 테두리로 영역 표시
-                            HStack(spacing: 8) {
-                                ForEach(1...7, id: \.self) { day in
-                                    let selected = weekdays.contains(day)
-                                    Button {
-                                        if selected { weekdays.remove(day) } else { weekdays.insert(day) }
-                                        if !weekdays.isEmpty { weekdayError = false }
-                                    } label: {
-                                        Text(GroupFormat.weekdayNames[day] ?? "")
-                                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                                            .foregroundStyle(selected ? TL.ink : TL.muted)
-                                            .frame(width: 38, height: 38)
-                                            .background(Circle().fill(selected ? TL.paper : TL.surface))
-                                            .overlay(Circle().strokeBorder(selected ? .clear : TL.hairline))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(14)
-                    .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
-                    // 요일 미선택 안내 시 얇은 빨간 테두리 + 살짝 흔들림
-                    .overlay(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
-                        .strokeBorder(weekdayError ? TL.rec : .clear, lineWidth: 1.5))
-                    .modifier(Shake(animatableData: CGFloat(shakeCount)))
-                }
-
-                if isRepeating && weekdayError {
-                    Text("반복할 요일을 하나 이상 선택하세요.")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(TL.rec)
-                }
-
-                // 기간 — 시작일·종료일. 요일 반복·매일 공통. 시작일=종료일이면 그날 하루만 진행.
+                // 기간 — 시작일·종료일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.
                 field("기간 — 시작은 1시간 뒤부터, 최대 3개월") {
                     VStack(spacing: 0) {
                         DatePicker("시작일", selection: $startDay,
@@ -436,10 +387,63 @@ struct GroupCreateView: View {
                         if endDay > maxEndDay { endDay = maxEndDay }
                     }
                 }
-                if !isRepeating {
-                    Text("선택한 기간 동안 매일 진행돼요. 시작일과 종료일을 같은 날짜로 두면 그날 하루만 진행하는 단발 그룹이 됩니다.")
+
+                // 요일 반복(ON=고른 요일, OFF=매일). 시작일=종료일(하루)이면 요일 반복이
+                // 무의미하므로(그 요일이 빠지면 발생이 0번이 되는 모순도 방지) UI 자체를 숨긴다.
+                if isSingleDayRoom {
+                    Text("하루짜리 그룹이라 요일 반복 설정이 필요 없어요.")
                         .font(.system(size: 12)).foregroundStyle(TL.faint)
-                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    field("반복") {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Toggle(isOn: $isRepeating) {
+                                HStack(spacing: 6) {
+                                    Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                                    // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
+                                    if !isRepeating {
+                                        Text("(매일)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
+                                    }
+                                }
+                            }
+                            .tint(TL.rec)
+                            // 켤 때 고른 요일이 없으면 평일 기본값 (개인 활동과 동일)
+                            .onChange(of: isRepeating) { _, on in
+                                if on && weekdays.isEmpty { weekdays = [2, 3, 4, 5, 6] }
+                            }
+
+                            if isRepeating {
+                                // 개인 활동 요일 반복 UI와 통일 — 미선택 요일에도 헤어라인 테두리로 영역 표시
+                                HStack(spacing: 8) {
+                                    ForEach(1...7, id: \.self) { day in
+                                        let selected = weekdays.contains(day)
+                                        Button {
+                                            if selected { weekdays.remove(day) } else { weekdays.insert(day) }
+                                            if !weekdays.isEmpty { weekdayError = false }
+                                        } label: {
+                                            Text(GroupFormat.weekdayNames[day] ?? "")
+                                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                                .foregroundStyle(selected ? TL.ink : TL.muted)
+                                                .frame(width: 38, height: 38)
+                                                .background(Circle().fill(selected ? TL.paper : TL.surface))
+                                                .overlay(Circle().strokeBorder(selected ? .clear : TL.hairline))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(14)
+                        .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+                        // 요일 미선택 안내 시 얇은 빨간 테두리 + 살짝 흔들림
+                        .overlay(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                            .strokeBorder(weekdayError ? TL.rec : .clear, lineWidth: 1.5))
+                        .modifier(Shake(animatableData: CGFloat(shakeCount)))
+                    }
+
+                    if isRepeating && weekdayError {
+                        Text("반복할 요일을 하나 이상 선택하세요.")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(TL.rec)
+                    }
                 }
 
                 summaryCard
@@ -495,15 +499,15 @@ struct GroupCreateView: View {
 
     private func create() {
         errorMessage = nil
-        // 요일 반복인데 요일 미선택 → 빨간 박스 안내 + 흔들림 (버튼만 막지 않고 이유를 보여준다)
-        if isRepeating && weekdays.isEmpty {
+        // 요일 반복인데 요일 미선택 → 빨간 박스 안내 + 흔들림 (하루짜리는 요일 반복 UI가 없으므로 제외)
+        if !isSingleDayRoom && isRepeating && weekdays.isEmpty {
             withAnimation(.easeInOut(duration: 0.15)) { weekdayError = true }
             withAnimation(.linear(duration: 0.5)) { shakeCount += 1 }
             return
         }
         let calendar = Calendar.current
-        // 요일 반복 OFF = 매일(요일 전체). 시작일=종료일이면 그날 하루만 발생하는 단발성이 된다.
-        let effectiveWeekdays = isRepeating ? weekdays.sorted() : [1, 2, 3, 4, 5, 6, 7]
+        // 요일 반복 OFF = 매일(요일 전체). 시작일=종료일(하루)이면 요일 반복이 무의미하므로 항상 전체 요일.
+        let effectiveWeekdays = (isRepeating && !isSingleDayRoom) ? weekdays.sorted() : [1, 2, 3, 4, 5, 6, 7]
         let effectiveEndDay = endDay
         let startDate = calendar.date(byAdding: .minute, value: startMinute,
                                       to: calendar.startOfDay(for: startDay))!

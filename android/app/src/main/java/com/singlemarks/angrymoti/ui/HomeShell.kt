@@ -363,11 +363,7 @@ private fun ActivityTab(
                     val minute = t.get(java.util.Calendar.HOUR_OF_DAY) * 60 + t.get(java.util.Calendar.MINUTE)
                     Text(
                         "🔔 ${TLFormat.timeLabel(minute)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
-                            when {
-                                r.repeatWeekdays.size == 7 -> " · 매일"
-                                r.isRepeating -> " · 매주 " + weekdayLabel(r.repeatWeekdays)
-                                else -> ""
-                            },
+                            repeatSuffix(r),
                         color = TL.muted, fontSize = 13.sp,
                         modifier = Modifier.weight(1f),
                     )
@@ -396,6 +392,22 @@ fun nextLabel(next: Long?): String {
 fun weekdayLabel(days: List<Int>): String {
     val names = mapOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
     return days.sorted().joinToString("·") { names[it] ?: "" }
+}
+
+/** 시작일=종료일(하루)이면 오늘이 곧 그 하루이므로 접미사가 필요 없다. 요일 전체면 "매일". */
+fun repeatSuffix(r: Reservation): String {
+    val end = r.endAt
+    if (end != null) {
+        val a = java.util.Calendar.getInstance().apply { timeInMillis = r.createdAt }
+        val b = java.util.Calendar.getInstance().apply { timeInMillis = end }
+        if (a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) &&
+            a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR)) return ""
+    }
+    return when {
+        r.repeatWeekdays.size == 7 -> " · 매일"
+        r.isRepeating -> " · 매주 " + weekdayLabel(r.repeatWeekdays)
+        else -> ""
+    }
 }
 
 @Composable
