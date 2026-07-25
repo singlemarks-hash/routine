@@ -123,7 +123,9 @@ enum GroupPolicy {
     static let minStartLeadMinutes = 60   // 시작은 지금부터 최소 1시간 뒤
     static let joinCutoffMinutes = 11     // 시작 11분 전까지만 참여 (10분 전 알람을 받을 수 있게)
     static let codeLength = 5             // 초대코드 자릿수 (영문 대문자+숫자)
-    static let nicknameMaxLength = 8      // 방 닉네임 최대 글자수 (랭킹 한 줄 유지)
+    // 방 닉네임 최대 글자수. 한글 기준으로는 8자면 넉넉하지만 영문은 한 단어도 안 들어간다.
+    // 랭킹 한 줄은 이름에 lineLimit(1)이 걸려 있어 길어져도 줄바꿈 없이 말줄임으로 접힌다.
+    static let nicknameMaxLength = 15
     static let resultRetentionDays = 30   // 종료 후 최종 결과 보존 기간
 
     /// 마지막 활동 시각이 지난 뒤에도 점수가 아직 확정되지 않는 유예.
