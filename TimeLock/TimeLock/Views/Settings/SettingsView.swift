@@ -127,6 +127,8 @@ struct ProfileEditView: View {
     @State private var showPaywall = false
     @State private var showSignOutConfirm = false
     @State private var showDeleteAccountConfirm = false
+    /// 개발용 자가진단 시트. 화면 본체는 DEBUG에서만 컴파일된다.
+    @State private var showSelfCheck = false
     @State private var deletingAccount = false
     @State private var deleteAccountError: String?
 
@@ -256,6 +258,13 @@ struct ProfileEditView: View {
                 } else {
                     guestCard { showAuth = true }
                 }
+
+                #if DEBUG
+                // 개발 빌드 전용 — 릴리즈에는 컴파일되지 않는다
+                Button("🧪 자가진단 (DEBUG)") { showSelfCheck = true }
+                    .buttonStyle(TLGhostButtonStyle())
+                    .padding(.top, 12)
+                #endif
             }
             .padding(20)
         }
@@ -265,6 +274,13 @@ struct ProfileEditView: View {
         .task { await account.refreshEmailVerification() }
         .sheet(isPresented: $showAuth) { AuthView() }
         .sheet(isPresented: $showPaywall) { PaywallView() }
+        .sheet(isPresented: $showSelfCheck) {
+            #if DEBUG
+            SelfCheckView()
+            #else
+            EmptyView()
+            #endif
+        }
         .confirmationDialog("로그아웃할까요?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
             Button("로그아웃", role: .destructive) { account.signOut() }
         } message: {
