@@ -129,15 +129,17 @@ struct WeeklyScheduleView: View {
             case .done, .missed:   return true
             }
         }
-        /// 태그 왼쪽 표시등 색 — 성공 초록 / 실패·노쇼 빨강 / 중립(긴급·안전 종료) 호박.
-        /// 아직 결과가 확정되지 않은 상태는 표시등을 켜지 않는다.
+        /// 태그 왼쪽 표시등 색 — 성공은 초록, 벌점은 빨강. 두 가지뿐이다.
+        /// 긴급 종료(일정 취소 포함)도 이탈 실패와 같은 벌점이라 빨강이다.
+        /// 안전 종료는 점수가 없는 무효 기록이라 아예 켜지 않는다 — 중간색을 두면
+        /// '성공인지 실패인지 한눈에'라는 표시등의 목적이 흐려진다.
         var lightColor: Color? {
             switch self {
             case .upcoming, .missed: return nil
             case .done(let outcome):
                 if outcome.isSuccess { return TL.jade }
-                if outcome.isFailure { return TL.rec }
-                return TL.amber
+                if outcome == .safetyEnded { return nil }
+                return TL.rec
             }
         }
     }
