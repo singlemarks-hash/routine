@@ -288,9 +288,10 @@ final class GroupStore: ObservableObject {
             }
             if room.status == "active" {
                 markRoomActive(id)   // '실제로 진행된 방'으로 관측 — 문서가 사라진 뒤의 판정 근거
-                if room.isFinished {
-                    removeLocalReservation(roomID: id)
-                } else if await isMemberActive(roomID: id, uid: uid) {
+                // 끝난 방의 예약은 여기서 지우지 않는다. 지우면 마지막 날 노쇼가 집계되기 전에
+                // 근거가 사라져 유실된다. 만료 정리(cleanupExpiredReservations)가 '마지막 활동이
+                // 실제로 끝난 뒤'에 비활성화하므로 그 쪽에 맡긴다.
+                if !room.isFinished, await isMemberActive(roomID: id, uid: uid) {
                     ensureLocalReservation(for: room)
                 }
             }

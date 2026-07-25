@@ -245,13 +245,14 @@ final class AppState: ObservableObject {
         GroupStore.shared.bind(context: context)
         Task {
             await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
-            // 순서 고정: 노쇼 집계 → 방 정리 → 만료 예약 정리.
-            // refresh()가 끝난 방의 그룹 예약을 지우므로 스윕이 먼저 돌아야 마지막 날
-            // 노쇼가 유실되지 않는다. 만료 정리도 같은 이유로 스윕 뒤에 온다.
+            // 순서 고정: 방 정리 → 노쇼 집계 → 만료 정리.
+            // 방 정리가 먼저 와야 '삭제 예정·취소된 방'의 예약이 사라진 뒤에 집계가 돌아,
+            // 진행되지도 않은 방에 벌점이 찍히는 일 자체가 없다(되돌리는 것보다 안 찍는 게 맞다).
+            // 끝난 방의 예약은 refresh가 더 이상 지우지 않으므로 마지막 날 노쇼도 유실되지 않는다.
             didCompleteInitialSync = true
             engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
-            sweepNoShows()
             await GroupStore.shared.refresh()
+            sweepNoShows()
             cleanupExpiredReservations()
             refreshDerived()
             rescheduleAlarmsForCurrentUser()
@@ -284,11 +285,11 @@ final class AppState: ObservableObject {
             applyPendingDowngradeIfDue()
             Task {
                 await AccountStore.shared.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
-                // 순서 고정 — 스윕 → 방 정리 → 만료 정리 (위 didLaunch와 동일한 이유)
+                // 순서 고정 — 방 정리 → 스윕 → 만료 정리 (위 didLaunch와 동일한 이유)
                 didCompleteInitialSync = true
-            engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
-                sweepNoShows()
+                engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
                 await GroupStore.shared.refresh()
+                sweepNoShows()
                 cleanupExpiredReservations()
                 refreshDerived()
                 rescheduleAlarmsForCurrentUser()
@@ -343,11 +344,11 @@ final class AppState: ObservableObject {
         rescheduleAlarmsForCurrentUser()
         Task {
             await AccountStore.shared.syncFromCloud()   // 로그인 직후 다른 기기 예약·점수·멤버십 병합
-            // 순서 고정 — 스윕 → 방 정리 → 만료 정리 (didLaunch와 동일한 이유)
+            // 순서 고정 — 방 정리 → 스윕 → 만료 정리 (didLaunch와 동일한 이유)
             didCompleteInitialSync = true
             engine.reconcileDuplicateOutcomes()   // 다른 기기의 성공 기록이 노쇼를 덮는다
-            sweepNoShows()
             await GroupStore.shared.refresh()
+            sweepNoShows()
             cleanupExpiredReservations()
             refreshDerived()
             rescheduleAlarmsForCurrentUser()
@@ -709,18 +710,22 @@ final class AppState: ObservableObject {
     /// 정리하지 않으면 화면에는 안 보이는데(occurrence가 nil) 슬롯은 계속 차지해,
     /// 무료 사용자가 '지울 대상도 없이 슬롯이 가득 찬' 영구 잠금에 빠진다.
     ///
-    /// - 반드시 sweepNoShows() 다음에 호출한다. 먼저 지우면 마지막 날 노쇼가 집계되지 않아
+    /// - 반드시 sweepNoShows() 다음에 호출한다. 먼저 끄면 마지막 날 노쇼가 집계되지 않아
     ///   잠수가 이득이 된다(그룹에서 실제로 났던 버그와 같은 함정).
     /// - 하드 삭제가 아니라 isActive=false로 끈다. 로컬에서만 지우면 클라우드 사본이
     ///   다음 동기화에서 그대로 되살리기 때문이다. 소프트 삭제는 미러링되어 다른 기기에도
     ///   전파되고, 슬롯 계산·알람 스케줄에서 함께 제외된다.
-    /// - 그룹 예약은 대상이 아니다 — 방 수명 주기(GroupStore)가 따로 관리한다.
+    /// - 그룹 예약도 대상이다. 방 새로고침은 '삭제 예정·취소·해체'만 즉시 정리하고,
+    ///   정상 종료된 방의 예약은 여기서 마지막 활동이 끝난 뒤에 꺼진다.
     func cleanupExpiredReservations() {
         guard let context = modelContext else { return }
         let calendar = Calendar.current
         let now = Date()
         var changed = false
-        for r in activeReservations() where r.groupID == nil {
+        // 그룹 예약도 포함한다. 방 새로고침이 '끝난 방'의 예약을 더 이상 지우지 않기 때문에
+        // (지우면 마지막 날 노쇼가 집계 전에 근거를 잃는다) 여기서 마지막 활동이 실제로
+        // 끝난 뒤에 비활성화해야 한다. 안 그러면 끝난 챌린지가 30일간 슬롯을 물고 있는다.
+        for r in activeReservations() {
             guard let finalEnd = finalActivityEnd(of: r, calendar: calendar), now > finalEnd else { continue }
             r.isActive = false
             r.updatedAt = now
