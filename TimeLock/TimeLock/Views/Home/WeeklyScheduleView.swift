@@ -70,6 +70,7 @@ struct WeeklyScheduleView: View {
                         ForEach(Array(weekdayOrder.enumerated()), id: \.element) { offset, weekday in
                             daySection(weekday, date: date(forOffset: offset))
                         }
+                        laterSection
                     }
                 }
                 .padding(.horizontal, 20)
@@ -245,17 +246,118 @@ struct WeeklyScheduleView: View {
         }
     }
 
+    /// 행을 눌렀을 때 — 그룹 예약은 편집 대신 그 그룹방 상세로 이동
+    private func open(_ reservation: Reservation) {
+        if reservation.isGroupReservation {
+            if let gid = reservation.groupID,
+               let room = GroupStore.shared.rooms.first(where: { $0.id == gid }) {
+                groupRoomToOpen = room
+            }
+        } else {
+            editorTarget = .edit(reservation)
+        }
+    }
+
+    // MARK: 이후 예정 — 주간 표(오늘~6일 뒤)에 한 번도 안 나오는 활동
+
+    /// 시작일을 다음 주 이후로 잡은 활동은 주간 표 어디에도 안 뜨는데 슬롯은 차지한다.
+    /// 그러면 "슬롯이 가득 찼다"거나 "이 활동과 시간이 겹친다"는 말만 듣고, 정작 그 활동을
+    /// 찾아 고치거나 지울 방법이 없다. 여기에 모아 진입 경로를 만든다.
+    private var laterItems: [DayItem] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let horizon = cal.date(byAdding: .day, value: 7, to: today) else { return [] }
+        return reservations.compactMap { reservation -> DayItem? in
+            for offset in 0..<7 {
+                guard let day = cal.date(byAdding: .day, value: offset, to: today) else { continue }
+                // 이번 주에 한 번이라도 발생하면 이미 위 표에 있다
+                if reservation.occurrence(on: day) != nil { return nil }
+            }
+            guard let fire = reservation.nextOccurrence(after: horizon) else { return nil }
+            return DayItem(reservation: reservation, fire: fire)
+        }
+        .sorted { $0.fire < $1.fire }
+    }
+
+    @ViewBuilder
+    private var laterSection: some View {
+        let items = laterItems
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text("이후 예정").font(.tlTitle(16)).foregroundStyle(TL.paper)
+                    Text("이번 주에는 없어요")
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
+                    Spacer()
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        laterRow(item)
+                        if index < items.count - 1 {
+                            Divider().overlay(TL.hairline.opacity(0.5))
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                        .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1)
+                )
+            }
+        }
+    }
+
+    private func laterRow(_ item: DayItem) -> some View {
+        let cal = Calendar.current
+        let month = cal.component(.month, from: item.fire)
+        let day = cal.component(.day, from: item.fire)
+        let weekday = weekdayNames[cal.component(.weekday, from: item.fire)] ?? ""
+        let dday = cal.dateComponents([.day], from: cal.startOfDay(for: Date()),
+                                      to: cal.startOfDay(for: item.fire)).day ?? 0
+        return Button {
+            open(item.reservation)
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(month)월 \(day)일")
+                        .font(.system(size: 13, weight: .bold)).foregroundStyle(TL.paper)
+                    Text(String(weekday.prefix(1)))
+                        .font(.system(size: 11)).foregroundStyle(TL.muted)
+                }
+                .frame(width: 74, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        if item.reservation.isGroupReservation {
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 10)).foregroundStyle(TL.amber)
+                        }
+                        Text(item.reservation.name)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TL.paper).lineLimit(1)
+                    }
+                    Text("\(timeLabel(item.reservation.startMinute)) · \(TLFormat.durationLabel(item.reservation.durationMinutes))\(oneOffLabel(item.reservation))")
+                        .font(.system(size: 11)).foregroundStyle(TL.muted)
+                }
+                Spacer()
+                Text("D-\(dday)")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .foregroundStyle(TL.ink)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(TL.amber))
+                TagChip(name: item.reservation.tag)
+            }
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func timetableRow(_ reservation: Reservation, state: RowState) -> some View {
         Button {
-            if reservation.isGroupReservation {
-                // 그룹 예약은 편집 대신 그 그룹방 상세로 이동
-                if let gid = reservation.groupID,
-                   let room = GroupStore.shared.rooms.first(where: { $0.id == gid }) {
-                    groupRoomToOpen = room
-                }
-            } else {
-                editorTarget = .edit(reservation)
-            }
+            open(reservation)
         } label: {
             HStack(spacing: 12) {
                 // 지나간 일정은 통째로 흐리게 — 오늘 남은 일정과 한눈에 구분된다.
