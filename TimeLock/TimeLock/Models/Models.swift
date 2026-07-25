@@ -243,6 +243,26 @@ final class Reservation {
         return nil
     }
 
+    /// 시간 표기 옆에 붙는 반복 표기 — '매일' / '월 수 금' / '하루' 세 가지뿐.
+    ///
+    /// 화면마다 따로 계산하면 같은 활동이 홈과 일정 탭에서 다르게 보인다(실제로 그랬다).
+    /// 규칙은 여기 한 곳에만 둔다. 날짜(N월 N일)는 붙이지 않는다 — 일정 탭은 그 행이 속한
+    /// 날짜 칸이 이미 위에 있고, 홈은 오늘 것만 보여주므로 날짜를 되풀이할 이유가 없다.
+    func repeatLabel(calendar: Calendar = .current) -> String {
+        let range = activeDayRange(calendar: calendar)
+        // 시작일 = 종료일이면 그날 하루뿐 (요일 반복 여부와 무관)
+        if let hi = range.hi, calendar.isDate(range.lo, inSameDayAs: hi) { return "하루" }
+        guard isRepeating else { return "하루" }   // 반복 자체가 없는 레거시 일회성
+        let days = Set(repeatWeekdays)
+        if days.count == 7 { return "매일" }
+        // 요일 값은 클라우드에서 그대로 들어오므로 1~7을 벗어난 값이 섞일 수 있다.
+        // 배열을 직접 인덱싱하면 그 순간 화면이 크래시하므로 범위 밖은 조용히 버린다.
+        let names = ["", "일", "월", "화", "수", "목", "금", "토"]
+        let label = days.sorted().compactMap { (1...7).contains($0) ? names[$0] : nil }
+            .joined(separator: " ")
+        return label.isEmpty ? "하루" : label
+    }
+
     /// 시간 구간 겹침 판정 (같은 날 기준, 분 단위)
     /// 주의: 자정을 넘기는 활동은 이 함수만으로 판정할 수 없다 — ScheduleConflict를 쓸 것.
     func overlaps(startMinute other: Int, duration: Int) -> Bool {

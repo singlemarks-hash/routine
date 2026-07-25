@@ -338,7 +338,7 @@ struct WeeklyScheduleView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(TL.paper).lineLimit(1)
                     }
-                    Text("\(timeLabel(item.reservation.startMinute)) · \(TLFormat.durationLabel(item.reservation.durationMinutes))\(oneOffLabel(item.reservation))")
+                    Text("\(timeLabel(item.reservation.startMinute)) · \(TLFormat.durationLabel(item.reservation.durationMinutes)) · \(item.reservation.repeatLabel())")
                         .font(.system(size: 11)).foregroundStyle(TL.muted)
                 }
                 Spacer()
@@ -379,7 +379,7 @@ struct WeeklyScheduleView: View {
                                 .foregroundStyle(TL.paper)
                                 .lineLimit(1)
                         }
-                        Text("\(TLFormat.durationLabel(reservation.durationMinutes))\(oneOffLabel(reservation))")
+                        Text("\(TLFormat.durationLabel(reservation.durationMinutes)) · \(reservation.repeatLabel())")
                             .font(.system(size: 11)).foregroundStyle(TL.muted)
                     }
                     Spacer()
@@ -421,18 +421,4 @@ struct WeeklyScheduleView: View {
         return "\(isPM ? "오후" : "오전") \(h12):\(String(format: "%02d", m))"
     }
 
-    private func oneOffLabel(_ r: Reservation) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "ko_KR")
-        f.dateFormat = "M월 d일"
-        // 시작일=종료일이면 요일 반복 여부와 무관하게 그날 하루만 진행하는 활동.
-        if let end = r.endDate, Calendar.current.isDate(r.createdAt, inSameDayAs: end) {
-            return " · \(f.string(from: r.createdAt)) 하루"
-        }
-        // 표기는 '매일' / '반복요일' 두 가지로만 — 기간이 짧으면 '매주'가 사실과 달라진다.
-        if Set(r.repeatWeekdays).count == 7 { return " · 매일" }   // 요일 전체 = 매일(기간)
-        if r.isRepeating { return " · 반복요일" }
-        guard let date = r.oneOffDate else { return " · 매일" }
-        return " · \(f.string(from: date)) 하루"
-    }
 }

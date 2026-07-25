@@ -103,7 +103,17 @@ struct ReservationEditView: View {
     private func lockedStartDay(of r: Reservation) -> Date? {
         let cal = Calendar.current
         let startDay = r.activeDayRange(calendar: cal).lo
-        let firstFire = cal.date(byAdding: .minute, value: r.startMinute, to: startDay) ?? startDay
+        // 시작 게이트 당일에 시각만 더하면 안 된다 — 그날이 고른 요일이 아닐 수 있다.
+        // (7/20 월요일부터 '토요일마다'면 첫 발생은 7/25이지 7/20이 아니다)
+        // 요일은 7개뿐이라 8일이면 실제 첫 발생을 반드시 찾는다.
+        var firstFire: Date?
+        for offset in 0..<8 {
+            guard let day = cal.date(byAdding: .day, value: offset, to: startDay),
+                  let fire = r.occurrence(on: day, calendar: cal) else { continue }
+            firstFire = fire
+            break
+        }
+        guard let firstFire else { return nil }
         return firstFire <= Date() ? startDay : nil
     }
 
@@ -463,16 +473,19 @@ struct ReservationEditView: View {
 
     private func load() {
         guard let r = reservation else {
-            // 신규 예약 기본 강도 = 전역 설정 (미친맛 미해제면 매운맛으로)
-            intensity = app.insaneUnlocked ? app.intensity : .spicy
+            // 강도는 활동마다 따로 정한다(전역 강도 정책 폐지). 신규는 매운맛에서 시작하고
+            // 사용자가 직접 고른다.
+            intensity = .spicy
             return
         }
         name = r.name
         tag = r.tag
         if !ActivityTag.presets.contains(r.tag) { customTag = r.tag }
         durationMinutes = r.durationMinutes
-        intensity = r.intensityOverride ?? app.intensity
-        if !app.insaneUnlocked && intensity == .insane { intensity = .spicy }
+        // 저장된 값을 그대로 보여준다. 예전에는 미친맛 미해제 상태에서 열면 화면을 매운맛으로
+        // 내려놓고, 이름만 고쳐 저장해도 그 매운맛이 기록돼 원래 설정이 지워졌다.
+        // (미친맛 버튼은 미해제면 어차피 눌리지 않으므로 새로 고를 수는 없다)
+        intensity = r.intensityOverride ?? .spicy
         let base = Calendar.current.startOfDay(for: .now)
         startTime = Calendar.current.date(byAdding: .minute, value: r.startMinute, to: base) ?? .now
         // oneOffDate 마커가 있으면 '매일(기간/단발성)' 모드, 없으면 '요일 반복' 모드.

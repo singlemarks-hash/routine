@@ -388,7 +388,7 @@ struct HomeView: View {
                         Image(systemName: "bell.fill").font(.system(size: 11))
                         if let fire {
                             // 오늘 것만 보여주므로 날짜(오늘·내일·M월 D일)는 생략하고 시각만.
-                            Text("\(TLFormat.clock(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes))\(repeatSuffix(reservation))")
+                            Text("\(TLFormat.clock(fire)) · \(TLFormat.durationLabel(reservation.durationMinutes)) · \(reservation.repeatLabel())")
                         } else {
                             Text(TLFormat.durationLabel(reservation.durationMinutes))
                         }
@@ -414,24 +414,6 @@ struct HomeView: View {
         return "\(time) 뒤 시작"
     }
 
-    /// 시작일=종료일(하루)이면 오늘이 곧 그 하루이므로 접미사가 필요 없다. 요일 전체면 "매일".
-    private func repeatSuffix(_ r: Reservation) -> String {
-        if let end = r.endDate, Calendar.current.isDate(r.createdAt, inSameDayAs: end) { return "" }
-        // '매일' / '반복요일' 두 가지로만 표기 (기간이 짧으면 '매주'는 사실과 다름)
-        if Set(r.repeatWeekdays).count == 7 { return " · 매일" }
-        if r.isRepeating { return " · 반복요일 " + weekdayLabel(r.repeatWeekdays) }
-        return ""
-    }
-
-    private func weekdayLabel(_ weekdays: [Int]) -> String {
-        // 요일 값은 클라우드에서 그대로 들어오므로 1~7을 벗어난 값이 섞일 수 있다.
-        // 배열을 직접 인덱싱하면 그 순간 홈 화면이 크래시하고, 앱을 켤 때마다 죽어
-        // 복구가 어렵다. 범위 밖 값은 조용히 버린다.
-        let names = ["", "일", "월", "화", "수", "목", "금", "토"]
-        return weekdays.sorted()
-            .compactMap { (1...7).contains($0) ? names[$0] : nil }
-            .joined(separator: " ")
-    }
 }
 
 // MARK: - 다짐 편집 시트

@@ -195,7 +195,10 @@ struct GroupTabView: View {
 
     private func statusChip(_ room: GroupRoom) -> some View {
         let (label, color): (String, Color) =
-            room.isFinished ? ("종료", TL.faint)
+            room.doomed ? ("삭제 예정", TL.rec)
+            : room.isFinished ? ("종료", TL.faint)
+            // 시작 시각은 지났지만 아직 시작/취소 판정이 안 끝난 방은 '진행 중'이 아니다.
+            : room.status == "scheduled" && room.hasStarted ? ("확인 중", TL.amber)
             : room.hasStarted ? ("진행 중", TL.jade)
             : ("\(GroupFormat.dDay(room.startDate)) 시작", TL.amber)
         return Text(label)
@@ -857,7 +860,17 @@ private struct GroupStartActivityCard: View {
 }
 
 struct GroupRoomDetailView: View {
-    let room: GroupRoom
+    /// 진입 시점의 스냅샷. 화면을 열어 둔 사이 방 상태가 바뀌므로 표시에는 쓰지 않는다.
+    let initialRoom: GroupRoom
+
+    init(room: GroupRoom) { self.initialRoom = room }
+
+    /// 실제로 그릴 방 — 목록(store.rooms)의 최신 값을 따라간다.
+    /// 스냅샷만 붙들면 시작 시각이 지나도 화면이 그대로여서, 곧 취소될 방에서
+    /// '활동 시작하기'가 눌리는 상태가 된다.
+    private var room: GroupRoom {
+        store.rooms.first(where: { $0.id == initialRoom.id }) ?? initialRoom
+    }
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var account: AccountStore
     @EnvironmentObject private var app: AppState
@@ -910,8 +923,18 @@ struct GroupRoomDetailView: View {
                     disbandWarningCard
                 }
 
-                if room.status == "scheduled" && !room.hasStarted {
+                if room.doomed {
+                    // 참여 마감이 지났는데 인원이 모자란 방 — 시작 시각에 삭제된다.
+                    // 활동은 진행되지 않으므로 시작 버튼도 랭킹도 띄우지 않는다.
+                    doomedCard
+                    waitingSection
+                } else if room.status == "scheduled" && !room.hasStarted {
                     invitePreStartCard
+                    waitingSection
+                } else if room.status == "scheduled" {
+                    // 시작 시각은 지났는데 아직 시작/취소 판정이 끝나지 않았다.
+                    // 여기서 시작 버튼을 열면 곧 취소될 방에서 촬영이 시작된다.
+                    pendingDecisionCard
                     waitingSection
                 } else if room.isFinished {
                     resultSection
@@ -930,7 +953,14 @@ struct GroupRoomDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
-        .onReceive(clock) { now = $0 }
+        .onReceive(clock) { tick in
+            now = tick
+            // 시작 시각이 지났는데 아직 판정 전이면, 화면을 열어 둔 채로도 스스로 확인한다.
+            // (그대로 두면 '확인 중'에 머물러 사용자가 화면을 나갔다 들어와야 한다)
+            if room.status == "scheduled", room.hasStarted || !room.joinOpen {
+                Task { await store.refresh() }
+            }
+        }
         .alert("처리하지 못했어요", isPresented: Binding(
             get: { leaveError != nil }, set: { if !$0 { leaveError = nil } })) {
             Button("확인", role: .cancel) { leaveError = nil }
@@ -968,6 +998,39 @@ struct GroupRoomDetailView: View {
     }
 
     // MARK: 폭파 임박 경고 (시작 10분 이내 · 2명 미만)
+
+    /// 삭제가 확정된 방 (참여 마감 후 인원 미달)
+    private var doomedCard: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "trash.fill")
+                .font(.system(size: 15)).foregroundStyle(TL.rec)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("참여 인원이 모자라 이 방은 시작 시각에 삭제됩니다.")
+                    .font(.system(size: 13, weight: .bold)).foregroundStyle(TL.rec)
+                Text("참여 마감이 지나 더 들어올 수 없어요. 활동은 진행되지 않고 알람도 취소했습니다.")
+                    .font(.system(size: 12)).foregroundStyle(TL.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+            .fill(TL.rec.opacity(0.12)))
+    }
+
+    /// 시작 시각이 지났지만 아직 시작/취소가 정해지지 않은 방
+    private var pendingDecisionCard: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "hourglass")
+                .font(.system(size: 15)).foregroundStyle(TL.amber)
+            Text("시작 여부를 확인하는 중입니다. 잠시 후 다시 열어주세요.")
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.amber)
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+            .fill(TL.amber.opacity(0.12)))
+    }
 
     private var disbandWarningCard: some View {
         HStack(alignment: .top, spacing: 10) {

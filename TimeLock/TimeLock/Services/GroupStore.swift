@@ -39,6 +39,9 @@ struct GroupRoom: Identifiable, Equatable, Hashable {
     var endDate: Date
     var status: String          // scheduled | active | cancelled | disbanded
     var memberCount: Int
+    /// 참여 마감(시작 10분 전)이 지났는데 최소 인원 미만 — 시작 시각에 삭제될 것이 이미 정해진 방.
+    /// 서버 문서에는 없는 값이고, 새로고침이 실제 멤버 문서를 세어 채운다.
+    var doomed: Bool = false
 
     var intensity: Intensity { Intensity(rawValue: intensityRaw) ?? .spicy }
     // startDate = 실제 시작 순간(시작일 자정 + 시작 시각). 생성 시 그 값으로 저장한다.
@@ -195,6 +198,21 @@ final class GroupStore: ObservableObject {
                 // 서버 정리: 내 멤버 문서를 지우고, 마지막 참여자였다면 방 문서까지 삭제
                 await cleanupDisbandedRoom(roomID: id, uid: uid)
                 continue
+            }
+            // 참여 마감이 지났는데 최소 인원 미만 → 결과가 이미 확정된 방이다.
+            // 더 들어올 사람이 없으므로 시작 시각에 반드시 취소된다. 그때까지 기다리지 말고
+            // '삭제 예정'으로 표시하고, 진행되지 않을 활동의 알람을 미리 거둔다.
+            // (판정 근거는 캐시된 카운터가 아니라 실제 멤버 문서 — 못 읽으면 아무것도 하지 않는다)
+            if room.status == "scheduled", !room.hasStarted, !room.joinOpen,
+               let memberSnap = try? await db.collection("groups").document(id)
+                .collection("members").getDocuments() {
+                room.memberCount = memberSnap.documents.filter { ($0.data()["quit"] as? Bool) != true }.count
+                if room.memberCount < GroupPolicy.minMembersToStart {
+                    room.doomed = true
+                    removeLocalReservation(roomID: id, purgeNoShows: true)
+                    next.append(room)
+                    continue
+                }
             }
             // 시작 시각 도래 — 실제 멤버 문서 수가 최소 인원 이상이면 활성화, 미만이면 취소.
             // 판정 근거는 비정규화 카운터(memberCount)가 아니라 '실제 멤버 문서 수'다 —
