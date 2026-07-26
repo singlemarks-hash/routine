@@ -39,7 +39,9 @@ struct CalendarView: View {
                 DashboardSection(sessions: allSessions, scoreEvents: scoreEvents)
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 32)
+            // 하단 [활동|일정|그룹] 토글이 이 화면 위에도 떠 있다 — 여백이 모자라면
+            // 누적 대시보드 끝이 토글에 가려 끝까지 스크롤되지 않는다 (홈과 동일한 116)
+            .padding(.bottom, 116)
         }
         .background(TL.ink)
         .navigationTitle("기록")
@@ -452,6 +454,9 @@ struct StreakHeaderCard: View {
                 .buttonStyle(.plain)
             }
         }
+        // 접힘/펼침과 무관하게 카드가 항상 화면 폭을 꽉 채운다 —
+        // 내용 크기에 폭을 맡기면 도넛을 여는 순간 카드 좌우 폭이 널뛴다
+        .frame(maxWidth: .infinity)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
     }

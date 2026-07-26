@@ -277,16 +277,7 @@ struct HomeView: View {
 
             Spacer()
 
-            // 기록관리 — 시간 배지와 동일하게 기록 캘린더로 진입
-            NavigationLink(value: HomeRoute.calendar) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(TL.paper)
-                    .frame(width: 45, height: 45)
-                    .background(Circle().fill(TL.surface))
-                    .overlay(Circle().strokeBorder(TL.hairline, lineWidth: 1))
-            }
-            .pressableStyle()
+            // (캘린더 버튼은 제거 — 시간 배지와 연속달성 카드가 이미 기록탭 진입로다)
 
             // 마이페이지
             NavigationLink(value: HomeRoute.myPage) {
