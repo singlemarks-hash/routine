@@ -70,17 +70,41 @@ object AlarmScheduler {
     private suspend fun rescheduleAllNow(context: Context) {
         val owner = AccountStore.currentUserID
         val reservations = AppDb.get(context).reservations().active(owner)
+        val now = System.currentTimeMillis()
         for (r in reservations) {
             val fire = r.nextOccurrence() ?: continue
             scheduleExact(context, r.id, fire)
+            // 보조 알람(예고·마지막 경고)은 예약당 PendingIntent 슬롯이 1개다. 대상을
+            // '다음 발생'으로만 잡으면, 정각 발화 직후의 재등록(리시버·앱 진입)이 방금
+            // 울린 발생의 +5분 경고를 내일 것으로 덮어 지운다 — 3단 에스컬레이션의
+            // 마지막 단계가 항상 죽는다. 진행 중일 수 있는 발생(하한 now - 시작창)을
+            // 우선 대상으로 잡는다 (iOS imminentOccurrences의 하한과 동일한 이유).
+            val imminent = imminentOccurrence(r, now)
+            val target = if (imminent != null && imminent + 5 * 60_000L > now) imminent else fire
             // -10분 예고 — 준비 시간을 준다 (iOS pre-alert 1:1)
-            val preAt = fire - 10 * 60_000L
-            if (preAt > System.currentTimeMillis()) {
-                scheduleKind(context, r.id, fire, "prealert", preAt)
-            }
+            val preAt = target - 10 * 60_000L
+            if (preAt > now) scheduleKind(context, r.id, target, "prealert", preAt)
             // +5분 마지막 경고 — 발화 시점에 시작 여부를 확인하고 표시한다
-            scheduleKind(context, r.id, fire, "lastwarn", fire + 5 * 60_000L)
+            val warnAt = target + 5 * 60_000L
+            if (warnAt > now) scheduleKind(context, r.id, target, "lastwarn", warnAt)
         }
+    }
+
+    /** 시작 창 안에서 진행 중일 수 있는 발생 — fire ∈ (now - 시작창, now]. 없으면 null.
+     *  자정 직후에는 전날 발생이 아직 창 안일 수 있어 어제부터 본다. */
+    private fun imminentOccurrence(r: com.singlemarks.angrymoti.data.Reservation, now: Long): Long? {
+        val floor = now - com.singlemarks.angrymoti.models.TimePolicy.START_WINDOW_SECONDS * 1000
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = now
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+            add(java.util.Calendar.DAY_OF_MONTH, -1)
+        }
+        repeat(2) {
+            r.occurrenceOn(cal.timeInMillis)?.let { if (it > floor && it <= now) return it }
+            cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
+        }
+        return null
     }
 
     /** 예고/경고 보조 알람 — 메인 알람과 다른 requestCode를 써서 서로 덮지 않는다 */
@@ -222,6 +246,8 @@ object AlarmScheduler {
     // MARK: 사운드 — USAGE_ALARM 스트림이라 미디어 볼륨·무음 모드와 무관하게 울린다
 
     private var vibrating = false
+    private var vibrationAutoStop: Runnable? = null
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     /** 알람이 울리는 동안 반복 진동 — 무음·방해금지 상태에서 소리가 어떤 이유로든
      *  안 들려도(볼륨 0, 이어폰 연결 등) 감각 채널이 하나 더 남는다.
@@ -232,8 +258,12 @@ object AlarmScheduler {
         vibrating = true
         // 사용자가 알림을 무시하면 정지 경로(앱 진입)에 영영 도달하지 않는다 —
         // 시작 창(10분)이 끝나면 스스로 멈춘다. 창이 끝나면 노쇼라 더 울릴 이유도 없다.
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-            { stopAlarmVibration(context.applicationContext) },
+        // 콜백 참조를 들고 있다가 정지 시 제거한다 — 안 지우면 알람 A가 걸어둔 자동
+        // 정지가 뒤이어 시작된 알람 B의 진동을 조기에 끊는다.
+        vibrationAutoStop?.let { mainHandler.removeCallbacks(it) }
+        val autoStop = Runnable { stopAlarmVibration(context.applicationContext) }
+        vibrationAutoStop = autoStop
+        mainHandler.postDelayed(autoStop,
             com.singlemarks.angrymoti.models.TimePolicy.START_WINDOW_SECONDS * 1000)
         runCatching {
             val vib = if (Build.VERSION.SDK_INT >= 31) {
@@ -252,6 +282,9 @@ object AlarmScheduler {
     }
 
     fun stopAlarmVibration(context: Context) {
+        // 자동 정지 콜백은 항상 제거 — 이전 알람의 콜백이 다음 알람 진동을 끊지 않도록
+        vibrationAutoStop?.let { mainHandler.removeCallbacks(it) }
+        vibrationAutoStop = null
         if (!vibrating) return
         vibrating = false
         runCatching {
@@ -299,28 +332,41 @@ object AlarmScheduler {
     @Volatile var sessionMuted = false
 
     // ── 시스템 방해 금지(DND) — 안드로이드는 권한만 받으면 앱이 직접 켜고 끌 수 있다
-    /** 이번 세션에서 우리가 켠 것인지 (세션 종료 시 자동 해제용) */
+    /** 이번 세션에서 우리가 켠 것인지 (세션 종료 시 자동 해제용).
+     *  DND는 시스템 전역 설정이라 프로세스가 죽어도 켜진 채 남는다 — 메모리 플래그만으로는
+     *  크래시·강제 종료 후 원복할 방법이 없으므로 Prefs에도 함께 영속화한다. */
     @Volatile var dndEnabledByApp = false
 
     fun hasDndAccess(context: Context): Boolean =
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
             .isNotificationPolicyAccessGranted
 
-    /** 방해 금지 켜기/끄기 — 권한 없으면 false */
+    /** 방해 금지 켜기/끄기 — 권한 없으면 false.
+     *  사용자가 이미 스스로 방해 금지를 켜둔 상태면 켜지도 끄지도 않는다 — 세션 종료가
+     *  사용자의 수면 방해 금지까지 꺼버리면 안 된다. */
     fun setDnd(context: Context, on: Boolean): Boolean {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
         if (!nm.isNotificationPolicyAccessGranted) return false
-        nm.setInterruptionFilter(
-            if (on) android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY
-            else android.app.NotificationManager.INTERRUPTION_FILTER_ALL
-        )
-        dndEnabledByApp = on
+        if (on) {
+            if (nm.currentInterruptionFilter !=
+                android.app.NotificationManager.INTERRUPTION_FILTER_ALL) return true   // 사용자 DND 존중
+            nm.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY)
+            dndEnabledByApp = true
+            com.singlemarks.angrymoti.data.Prefs.dndEnabledByApp = true
+        } else {
+            nm.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_ALL)
+            dndEnabledByApp = false
+            com.singlemarks.angrymoti.data.Prefs.dndEnabledByApp = false
+        }
         return true
     }
 
-    /** 세션이 켰던 방해 금지를 세션 종료 시 원복 */
+    /** 세션이 켰던 방해 금지를 원복 — 세션 종료뿐 아니라 크래시 후 재실행(고아 복구)에서도
+     *  불러야 한다. Prefs 플래그를 함께 봐서 프로세스가 죽었다 살아나도 원복된다. */
     fun restoreDndIfNeeded(context: Context) {
-        if (dndEnabledByApp) { setDnd(context, false); dndEnabledByApp = false }
+        if (dndEnabledByApp || com.singlemarks.angrymoti.data.Prefs.dndEnabledByApp) {
+            setDnd(context, false)
+        }
     }
 
     /** 방해 금지 접근 권한 설정 화면 열기 */

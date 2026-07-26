@@ -132,12 +132,26 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
         Spacer(Modifier.height(12.dp))
         Text("일정 취소 (긴급 벌점 ${ScoreRules.points(SessionOutcome.EMERGENCY, AppState.intensity.value, r.durationMinutes)?.second ?: -5}점)",
             color = TL.muted, fontSize = 14.sp,
-            modifier = Modifier.clickable { showCancel = true }.padding(8.dp))
+            modifier = Modifier.clickable {
+                // 취소를 고민하는 동안에는 알람을 멈춘다 — 시트 위에서 계속 울리면
+                // 사유를 입력할 수 없다. '돌아가기'(시트 닫기)면 다시 울린다 (iOS 1:1).
+                AlarmScheduler.stopAlarmSound(context)
+                showCancel = true
+            }.padding(8.dp))
         Spacer(Modifier.height(24.dp))
     }
 
     if (showCancel) {
-        ModalBottomSheet(onDismissRequest = { showCancel = false }, containerColor = TL.surface) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showCancel = false
+                // 취소를 접고 돌아왔으니 알람 재개 (시작 창이 아직 남아 있는 동안만)
+                if (fireAt + TimePolicy.START_WINDOW_SECONDS * 1000 > System.currentTimeMillis()) {
+                    AlarmScheduler.startAlarmSound(context)
+                }
+            },
+            containerColor = TL.surface,
+        ) {
             Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
                 Text("일정을 취소할까요?", color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
                 Text("취소 사유가 기록되고 긴급 벌점이 부과됩니다.", color = TL.muted, fontSize = 13.sp)

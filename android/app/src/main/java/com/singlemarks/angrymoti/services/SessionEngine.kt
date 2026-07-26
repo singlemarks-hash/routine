@@ -659,6 +659,11 @@ object SessionEngine {
     // MARK: 고아 세션 복구 (킬/크래시)
 
     suspend fun recoverOrphanIfNeeded() {
+        // 촬영 중 켠 시스템 방해금지(DND)는 크래시·강제 종료 후에도 켜진 채 남는다 —
+        // 정상 종료의 cleanupRuntime 경로를 못 탔더라도 여기서 반드시 원복한다.
+        // (Prefs 영속 플래그 기준이라 프로세스가 죽었다 살아나도 판별된다.
+        //  세션이 실제로 진행 중이면(프로세스 생존 + 액티비티만 재생성) 건드리지 않는다)
+        if (phase.value is Phase.Idle) AlarmScheduler.restoreDndIfNeeded(appContext)
         val id = Prefs.activeSessionId ?: return
         val db = AppDb.get(appContext)
         val orphan = db.sessions().byId(id)

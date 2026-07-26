@@ -37,6 +37,12 @@ object Prefs {
         get() = sp.getLong("breakDeadline", 0L)
         set(v) = sp.edit().putLong("breakDeadline", v).apply()
 
+    /** 세션이 켠 시스템 방해금지(DND) — 시스템 전역 설정이라 프로세스가 죽어도 켜진 채
+     *  남으므로, 크래시 후 재실행(고아 복구)에서 원복하려면 영속 플래그가 필요하다 */
+    var dndEnabledByApp: Boolean
+        get() = sp.getBoolean("dndEnabledByApp", false)
+        set(v) = sp.edit().putBoolean("dndEnabledByApp", v).apply()
+
     /** 슬롯 보너스 최고 지급 단계 (계정별) */
     fun slotBonusAwardedTier(owner: String) = sp.getInt("slotBonus.awardedTier.$owner", 0)
     fun setSlotBonusAwardedTier(owner: String, tier: Int) =
