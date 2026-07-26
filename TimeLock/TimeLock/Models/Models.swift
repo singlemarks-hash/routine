@@ -77,26 +77,27 @@ enum SlotPolicy {
         streakDetail(sessions: sessions).days
     }
 
-    /// 현재 연속달성의 (일수, 그 기간의 성공 세션 수).
-    /// 성공 수는 기록탭 '평균 일정'(연속달성을 이루는 동안 하루 평균 몇 개를 소화했나)의
-    /// 분자다 — 같은 걷기 루프에서 함께 세어 정의가 어긋나지 않게 한다.
+    /// 현재 연속달성의 (일수, 그 기간의 성공 일정 수).
+    ///
+    /// 판정은 화면의 성취 아이콘(DayOutcomeIcon)과 같은 규칙 하나를 쓴다 —
+    /// **하루에 하나라도 성공했으면 달성**이다. 일부 실패가 섞인 날(노란불)도 연속을
+    /// 끊지 않고, 그날의 모든 일정이 실패로 끝난 날(빨간불)에만 끊긴다.
+    /// 성공 수는 기록탭 '평균 일정'(연속달성 동안 하루 평균 몇 개를 소화했나)의 분자다.
     static func streakDetail(sessions: [FocusSession]) -> (days: Int, successes: Int) {
         let calendar = Calendar.current
-        let finished = sessions.filter { $0.outcome != nil }
         var count = 0
         var successes = 0
         var day = calendar.startOfDay(for: .now)
         while true {
-            let daySessions = finished.filter { calendar.isDate($0.anchorDate, inSameDayAs: day) }
-            let success = daySessions.contains { $0.outcome?.isSuccess == true }
-            let failure = daySessions.contains { $0.outcome?.isFailure == true }
-            if success && !failure {
+            let daySessions = sessions.filter { calendar.isDate($0.anchorDate, inSameDayAs: day) }
+            let icon = DayOutcomeIcon.judge(daySessions: daySessions, day: day, calendar: calendar)
+            if icon == .success || icon == .half {
                 count += 1
-                successes += daySessions.filter { $0.outcome?.isSuccess == true }.count
-            } else if count == 0 && daySessions.isEmpty && calendar.isDateInToday(day) {
-                // 오늘 아직 기록 없음 → 어제부터 계산
+                successes += DayOutcomeIcon.successCount(daySessions: daySessions)
+            } else if count == 0, icon == .notStarted, calendar.isDateInToday(day) {
+                // 오늘은 아직 기록이 없을 뿐 — 어제부터 이어서 센다
             } else {
-                break
+                break   // 빨간불(전부 실패) 또는 기록 없는 과거 날에서 연속이 끊긴다
             }
             guard let prev = calendar.date(byAdding: .day, value: -1, to: day) else { break }
             day = prev
@@ -104,23 +105,17 @@ enum SlotPolicy {
         return (count, successes)
     }
 
-    /// 역대 최장 연속달성 — '성공이 있고 실패가 없는 날'이 달력상 연속으로 이어진 최대 길이.
-    /// currentStreak과 같은 날짜 판정을 쓰되 전체 이력을 훑는다 (기록탭 '최고기록').
+    /// 역대 최장 연속달성 — '하나라도 성공한 날'이 달력상 연속으로 이어진 최대 길이.
+    /// currentStreak과 같은 날짜 판정(성공 하나면 달성)을 쓰되 전체 이력을 훑는다 (기록탭 '최고기록').
     static func bestStreak(sessions: [FocusSession]) -> Int {
         let calendar = Calendar.current
         let finished = sessions.filter { $0.outcome != nil }
         guard !finished.isEmpty else { return 0 }
 
-        // 날짜별 성공/실패 집계
-        var byDay: [Date: (success: Bool, failure: Bool)] = [:]
-        for s in finished {
-            let day = calendar.startOfDay(for: s.anchorDate)
-            var entry = byDay[day] ?? (false, false)
-            if s.outcome?.isSuccess == true { entry.success = true }
-            if s.outcome?.isFailure == true { entry.failure = true }
-            byDay[day] = entry
-        }
-        let qualifying = byDay.filter { $0.value.success && !$0.value.failure }
+        // 날짜별로 묶어 '발생별 최종 결과'에 성공이 있는 날만 추린다
+        let grouped = Dictionary(grouping: finished) { calendar.startOfDay(for: $0.anchorDate) }
+        let qualifying = grouped
+            .filter { DayOutcomeIcon.successCount(daySessions: $0.value) > 0 }
             .keys.sorted()
 
         var best = 0

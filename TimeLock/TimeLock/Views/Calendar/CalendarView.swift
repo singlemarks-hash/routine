@@ -225,10 +225,15 @@ struct DayDetailView: View {
                         Button {
                             expanded = allOpen ? [] : Set(ordered.map(\.id))
                         } label: {
-                            Text(allOpen ? "모두 접기" : "모두 펼치기")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(TL.muted)
-                                .frame(width: 84, alignment: .leading)
+                            // 가장 긴 라벨로 폭을 잡고 가운데 정렬한다 — 고정 폭 + 왼쪽 정렬은
+                            // 짧은 문구('모두 접기')일 때 오른쪽에 빈 자리가 남아 버튼이 비뚤어 보였다.
+                            ZStack {
+                                Text("모두 펼치기").hidden()   // 폭 기준(보이지 않음)
+                                Text(allOpen ? "모두 접기" : "모두 펼치기")
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TL.muted)
+                            .lineLimit(1)
                         }
                     }
                 }
@@ -436,13 +441,18 @@ struct StreakHeaderCard: View {
             if showTagDonut, !byTag.isEmpty {
                 TagDonutView(byTag: byTag)
                     .padding(.top, 18)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    // 제자리에서 밝아지기만 한다. 위에서 미끄러져 내려오는 전환(.move)은
+                    // 헤더 숫자 위를 훑고 지나가 어수선했다 — 카드가 아래로 자라며
+                    // 드러나는 것처럼 보이도록 이동 없이 페이드만.
+                    .transition(.opacity.animation(.easeInOut(duration: 0.22)))
             }
 
             // 토글 손잡이 — 태그별 시간 분포 열기/닫기
             if !byTag.isEmpty {
                 Button {
-                    withAnimation(TLMotion.snappy) { showTagDonut.toggle() }
+                    // 높이는 부드러운 스프링으로 자라고(카드가 열리는 느낌),
+                    // 내용은 위 transition의 짧은 페이드로 뒤따라 나타난다
+                    withAnimation(TLMotion.smooth) { showTagDonut.toggle() }
                 } label: {
                     Image(systemName: showTagDonut ? "chevron.up" : "chevron.down")
                         .font(.system(size: 13, weight: .bold))
@@ -459,6 +469,9 @@ struct StreakHeaderCard: View {
         .frame(maxWidth: .infinity)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
+        // 펼쳐지는 내용이 카드 밖(이웃 요소 위)으로 새어 그려지지 않게 잘라낸다 —
+        // 카드 높이가 자라는 만큼만 도넛이 드러나 '열린다'는 느낌이 정확해진다
+        .clipShape(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
     }
 
     private func sideStat(label: String, icon: String, value: String, unit: String) -> some View {

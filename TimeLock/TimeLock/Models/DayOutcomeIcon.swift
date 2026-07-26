@@ -44,15 +44,7 @@ enum DayOutcomeIcon: String {
         let target = calendar.startOfDay(for: day)
         if target > today { return .notStarted }        // 아직 오지 않은 날
 
-        // 발생별 최종 결과 — 같은 예약의 기록이 여럿이면(긴급 중단 후 재촬영) 가장 나중 것.
-        // 즉시 시작(예약 없음)은 세션 하나가 곧 발생 하나다.
-        let finished = daySessions.filter { $0.outcome != nil }
-        let byOccurrence = Dictionary(grouping: finished) {
-            $0.reservationID?.uuidString ?? $0.id.uuidString
-        }
-        let finals = byOccurrence.values.compactMap { records in
-            records.max { ($0.endedAt ?? $0.anchorDate) < ($1.endedAt ?? $1.anchorDate) }?.outcome
-        }
+        let finals = finalOutcomes(daySessions: daySessions)
 
         // 성공 / 실패 — 성공이 아니면 전부 실패 (2색 정책, 일정 탭 표시등과 동일)
         let hasSuccess = finals.contains { $0.isSuccess }
@@ -68,5 +60,23 @@ enum DayOutcomeIcon: String {
         guard hasSuccess || hasFailure else { return nil }
         if hasSuccess && hasFailure { return .half }
         return hasSuccess ? .success : .fail
+    }
+
+    /// 그날의 '발생별 최종 결과' 목록.
+    /// 같은 예약의 기록이 여럿이면(긴급 중단 후 재촬영) 가장 나중 것만 남긴다 —
+    /// 즉시 시작(예약 없음)은 세션 하나가 곧 발생 하나다.
+    static func finalOutcomes(daySessions: [FocusSession]) -> [SessionOutcome] {
+        let finished = daySessions.filter { $0.outcome != nil }
+        let byOccurrence = Dictionary(grouping: finished) {
+            $0.reservationID?.uuidString ?? $0.id.uuidString
+        }
+        return byOccurrence.values.compactMap { records in
+            records.max { ($0.endedAt ?? $0.anchorDate) < ($1.endedAt ?? $1.anchorDate) }?.outcome
+        }
+    }
+
+    /// 그날 성공으로 끝낸 발생 수 — 연속달성 '평균 일정'의 분자.
+    static func successCount(daySessions: [FocusSession]) -> Int {
+        finalOutcomes(daySessions: daySessions).filter { $0.isSuccess }.count
     }
 }
