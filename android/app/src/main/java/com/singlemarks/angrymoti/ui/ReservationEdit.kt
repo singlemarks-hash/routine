@@ -293,14 +293,16 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     scope.launch(Dispatchers.IO) {
                         // 일정에 실질 변화가 있는 편집인가 — 이름·태그·강도만 고친 저장으로
                         // accountableFrom이 갱신되면 그 자체가 노쇼 면책 수단이 된다 (iOS 1:1).
-                        val scheduleChanged = existing == null ||
-                            existing.startMinute != sm ||
-                            existing.durationMinutes != durationMinutes ||
-                            existing.repeatWeekdaysCsv != resolvedDaysCsv ||
-                            existing.oneOffDayStart != resolvedOneOff ||
-                            existing.endAt != resolvedEnd ||
-                            existing.createdAt != startDay
-                        val r = (existing ?: Reservation(
+                        // (existing은 위임 프로퍼티라 스마트캐스트 불가 — 로컬로 캡처)
+                        val prev = existing
+                        val scheduleChanged = prev == null ||
+                            prev.startMinute != sm ||
+                            prev.durationMinutes != durationMinutes ||
+                            prev.repeatWeekdaysCsv != resolvedDaysCsv ||
+                            prev.oneOffDayStart != resolvedOneOff ||
+                            prev.endAt != resolvedEnd ||
+                            prev.createdAt != startDay
+                        val r = (prev ?: Reservation(
                             ownerUserID = owner, name = finalName, tag = finalTag,
                             startMinute = sm, durationMinutes = durationMinutes,
                         )).copy(
@@ -320,7 +322,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             // 저장은 책임 기준을 건드리지 않는다(잠금 창과 이중 방어).
                             accountableFrom = if (scheduleChanged)
                                 maxOf(System.currentTimeMillis(), startDay)
-                            else existing!!.accountableFrom,
+                            else prev!!.accountableFrom,
                             updatedAt = System.currentTimeMillis(),
                         )
                         db.reservations().upsert(r)

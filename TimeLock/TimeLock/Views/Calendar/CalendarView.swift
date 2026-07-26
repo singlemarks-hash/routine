@@ -407,8 +407,12 @@ struct StreakHeaderCard: View {
         Dictionary(grouping: sessions.filter { $0.outcome?.isSuccess == true }, by: \.tag)
             .mapValues { $0.reduce(0) { $0 + $1.recordedSeconds } }
             // 동률 시 태그명 2차 정렬 — Dictionary 순서가 비결정이라 상위 4개/'그 외' 구성이
-            // 실행·플랫폼마다 달라지는 것을 막는다 (안드로이드 동일)
-            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            // 실행·플랫폼마다 달라지는 것을 막는다 (안드로이드 동일).
+            // (삼항식 한 줄은 튜플 추론과 겹쳐 타입체커가 터진다 — 명시적 분기로)
+            .sorted { (a: (key: String, value: Int), b: (key: String, value: Int)) -> Bool in
+                if a.value != b.value { return a.value > b.value }
+                return a.key < b.key
+            }
             .map { ($0.key, $0.value) }
     }
 

@@ -221,7 +221,7 @@ final class SubscriptionManager: ObservableObject {
                 expiresAt: expires.map { $0.addingTimeInterval(3 * 86_400) }
                     ?? Date(timeIntervalSinceNow: 35 * 86_400),
                 platform: "apple")
-        } else if let latest = try? await Transaction.latest(for: Self.productID),
+        } else if let latest = await Transaction.latest(for: Self.productID),
                   case .verified(let transaction) = latest,
                   transaction.revocationDate != nil {
             // 환불(revocation) 감지 — 위 미러의 만료+3일 유예 때문에 환불받은 사용자가
