@@ -249,8 +249,8 @@ private fun StreakHeaderCard(sessions: List<FocusSession>) {
     val detail = remember(sessions) { SlotPolicy.streakDetail(sessions) }
     val best = remember(sessions) { SlotPolicy.bestStreak(sessions) }
     val successSessions = remember(sessions) { sessions.filter { it.outcome?.isSuccess == true } }
-    // 누적 완주 시간(시) — 홈 상단 배지와 같은 정의
-    val totalHours = remember(successSessions) { successSessions.sumOf { it.recordedSeconds } / 3600 }
+    // 누적 완주 시간(초) — 홈 상단 배지와 같은 정의
+    val totalSeconds = remember(successSessions) { successSessions.sumOf { it.recordedSeconds } }
     // 평균 일정 = 현재 연속달성 기간에 성공한 일정 수 ÷ 연속일수.
     // (예: 월 3개·화 1개·수 2개 성공으로 3일 연속이면 6÷3 = 2.0개)
     val averageLabel = if (detail.first > 0)
@@ -273,7 +273,9 @@ private fun StreakHeaderCard(sessions: List<FocusSession>) {
         Row(Modifier.fillMaxWidth()) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("연속달성", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    // 좁은 화면에서 두 줄로 꺾이지 않게 — 라벨은 항상 한 줄 (홈 카드와 동일)
+                    Text("연속달성", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, softWrap = false)
                     Spacer(Modifier.width(5.dp))
                     Image(painterResource(com.singlemarks.angrymoti.R.drawable.stat_fire), null,
                         Modifier.size(15.dp))
@@ -286,19 +288,25 @@ private fun StreakHeaderCard(sessions: List<FocusSession>) {
                         modifier = Modifier.padding(start = 2.dp, bottom = 5.dp))
                 }
                 Spacer(Modifier.height(5.dp))
+                // "총 N시간 n분을 기록했어요!" — 1시간 미만도 0시간이 아니라 분으로 보인다
                 Row {
                     Text("총 ", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text("%,d".format(totalHours), color = TL.jade, fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold)
-                    Text("시간을 기록했어요!", color = TL.muted, fontSize = 13.sp,
+                    hourMinuteParts(totalSeconds).forEachIndexed { i, (value, unit) ->
+                        if (i > 0) Text(" ", fontSize = 13.sp)
+                        Text(value, color = TL.jade, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(unit, color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Text("을 기록했어요!", color = TL.muted, fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold)
                 }
             }
             Spacer(Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SideStat("최고기록", com.singlemarks.angrymoti.R.drawable.stat_record, "$best", "일")
-                SideStat("평균 일정", com.singlemarks.angrymoti.R.drawable.stat_average, averageLabel, "개")
+                // 아이콘 배정: 최고기록 = 별(stat_average), 평균 일정 = 깃발(stat_record).
+                // 에셋 파일명과 화면 배정이 어긋나 있으니 이름만 보고 되돌리지 말 것 (iOS 동일).
+                SideStat("최고기록", com.singlemarks.angrymoti.R.drawable.stat_average, "$best", "일")
+                SideStat("평균 일정", com.singlemarks.angrymoti.R.drawable.stat_record, averageLabel, "개")
             }
         }
 

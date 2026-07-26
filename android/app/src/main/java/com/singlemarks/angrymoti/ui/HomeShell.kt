@@ -126,8 +126,8 @@ fun HomeShell() {
         // 헤더 — 누적 성공 시간 배지 필(→기록) · 마이페이지 원형 버튼 (iOS 홈 헤더 1:1).
         // 점수 배지는 누적 시간으로 교체: 홈에서 매일 마주하는 숫자는 벌점이 아니라 쌓인 시간이어야 한다.
         // (캘린더 원형 버튼은 제거 — 시간 배지와 연속달성 카드가 이미 기록탭 진입로다)
-        val totalSuccessHours = remember(sessions) {
-            sessions.filter { it.outcome?.isSuccess == true }.sumOf { it.recordedSeconds } / 3600
+        val totalSuccessSeconds = remember(sessions) {
+            sessions.filter { it.outcome?.isSuccess == true }.sumOf { it.recordedSeconds }
         }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
@@ -143,10 +143,14 @@ fun HomeShell() {
             ) {
                 Image(painterResource(R.drawable.stat_clock), null, Modifier.size(26.dp))
                 Spacer(Modifier.width(8.dp))
-                // 숫자는 연속달성 일수(38sp)보다 낮은 위계로 — 홈의 주인공은 스트릭이다
-                Text("%,d".format(totalSuccessHours), color = TL.jade,
-                    fontSize = 17.sp, fontWeight = FontWeight.Black)
-                Text("시간", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                // 숫자는 연속달성 일수(38sp)보다 낮은 위계로 — 홈의 주인공은 스트릭이다.
+                // "N시간 n분" — 1시간 미만도 0시간이 아니라 분으로 보인다.
+                hourMinuteParts(totalSuccessSeconds).forEachIndexed { i, (value, unit) ->
+                    if (i > 0) Spacer(Modifier.width(3.dp))
+                    Text(value, color = TL.jade, fontSize = 17.sp, fontWeight = FontWeight.Black,
+                        maxLines = 1)
+                    Text(unit, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
             Spacer(Modifier.weight(1f))
             // 마이페이지 — 배경 없는 사람 아이콘 (iOS person.crop.circle.fill 1:1)
@@ -450,7 +454,9 @@ private fun StreakCard(
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("연속달성", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                // 좁은 화면에서 두 줄로 꺾이지 않게 — 라벨은 항상 한 줄 (iOS와 동일)
+                Text("연속달성", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, softWrap = false)
                 Spacer(Modifier.width(5.dp))
                 Image(painterResource(R.drawable.stat_fire), null, Modifier.size(15.dp))
             }

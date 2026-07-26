@@ -398,3 +398,24 @@ enum TLFormat {
         return f.string(from: date)
     }
 }
+
+/// 누적 시간 표기 — 숫자는 강조색, 단위는 흐린색의 스타일드 텍스트.
+/// '시간 단위 내림'만 쓰면 1시간 미만이 전부 "0시간"으로 뭉개진다 —
+/// "N시간 n분"으로 분까지 보여준다 (시간이 0이면 분만, 분이 0이면 시간만).
+/// 홈 상단 배지와 기록탭 헤더가 같은 규칙 하나를 쓴다.
+func styledHourMinute(seconds: Int, numberFont: Font, unitFont: Font,
+                      numberColor: Color = TL.jade, unitColor: Color = TL.muted) -> Text {
+    let h = max(0, seconds) / 3600
+    let m = (max(0, seconds) % 3600) / 60
+    let f = NumberFormatter()
+    f.numberStyle = .decimal
+    let hLabel = f.string(from: NSNumber(value: h)) ?? "\(h)"
+
+    func part(_ value: String, _ unit: String) -> Text {
+        Text(value).font(numberFont).foregroundStyle(numberColor)
+        + Text(unit).font(unitFont).foregroundStyle(unitColor)
+    }
+    if h > 0 && m > 0 { return part(hLabel, "시간") + Text(" ") + part("\(m)", "분") }
+    if h > 0 { return part(hLabel, "시간") }
+    return part("\(m)", "분")
+}

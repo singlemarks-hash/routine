@@ -182,6 +182,21 @@ fun TLGhostButton(text: String, tint: Color = TL.paper, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 누적 시간 "N시간 n분" 분해 — (숫자, 단위) 쌍 목록. 숫자는 강조색, 단위는 흐린색으로 그린다.
+ * '시간 단위 내림'만 쓰면 1시간 미만이 전부 "0시간"으로 뭉개진다 — 분까지 보여준다
+ * (시간이 0이면 분만, 분이 0이면 시간만). iOS styledHourMinute와 1:1.
+ */
+fun hourMinuteParts(totalSeconds: Int): List<Pair<String, String>> {
+    val s = totalSeconds.coerceAtLeast(0)
+    val h = s / 3600
+    val m = (s % 3600) / 60
+    val parts = mutableListOf<Pair<String, String>>()
+    if (h > 0) parts.add("%,d".format(h) to "시간")
+    if (m > 0 || h == 0) parts.add("$m" to "분")
+    return parts
+}
+
 /** 성취 아이콘 판정 → 드로어블 — 홈 스트립·기록 캘린더 공용 (iOS DayOutcomeIcon.assetName 1:1) */
 fun dayOutcomeDrawable(outcome: com.singlemarks.angrymoti.models.DayOutcome): Int = when (outcome) {
     com.singlemarks.angrymoti.models.DayOutcome.SUCCESS -> com.singlemarks.angrymoti.R.drawable.day_success

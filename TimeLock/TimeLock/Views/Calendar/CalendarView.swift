@@ -382,13 +382,10 @@ struct StreakHeaderCard: View {
     private var detail: (days: Int, successes: Int) { SlotPolicy.streakDetail(sessions: sessions) }
     private var best: Int { SlotPolicy.bestStreak(sessions: sessions) }
 
-    /// 누적 완주 시간(시) — 홈 상단 배지와 같은 정의
-    private var totalHoursLabel: String {
-        let hours = sessions.filter { $0.outcome?.isSuccess == true }
-            .reduce(0) { $0 + $1.recordedSeconds } / 3600
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        return f.string(from: NSNumber(value: hours)) ?? "\(hours)"
+    /// 누적 완주 시간(초) — 홈 상단 배지와 같은 정의
+    private var totalSuccessSeconds: Int {
+        sessions.filter { $0.outcome?.isSuccess == true }
+            .reduce(0) { $0 + $1.recordedSeconds }
     }
 
     /// 평균 일정 = 현재 연속달성 기간에 성공한 일정 수 ÷ 연속일수.
@@ -414,6 +411,7 @@ struct StreakHeaderCard: View {
                         Text("연속달성")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(TL.muted)
+                            .fixedSize()   // 좁은 기기에서 두 줄로 꺾이지 않게 (홈 카드와 동일)
                         Image("fire").resizable().scaledToFit().frame(width: 15, height: 15)
                     }
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -424,17 +422,24 @@ struct StreakHeaderCard: View {
                             .font(.system(size: 17, weight: .bold, design: .rounded))
                             .foregroundStyle(TL.muted)
                     }
-                    (Text("총 ").foregroundStyle(TL.muted)
-                     + Text(totalHoursLabel).foregroundStyle(TL.jade)
-                     + Text("시간을 기록했어요!").foregroundStyle(TL.muted))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    // "총 N시간 n분을 기록했어요!" — 1시간 미만도 0시간이 아니라 분으로 보인다
+                    (Text("총 ").font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TL.muted)
+                     + styledHourMinute(
+                        seconds: totalSuccessSeconds,
+                        numberFont: .system(size: 13, weight: .semibold, design: .rounded),
+                        unitFont: .system(size: 13, weight: .semibold, design: .rounded))
+                     + Text("을 기록했어요!").font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TL.muted))
                 }
 
                 Spacer(minLength: 12)
 
                 VStack(alignment: .trailing, spacing: 12) {
-                    sideStat(label: "최고기록", icon: "record", value: "\(best)", unit: "일")
-                    sideStat(label: "평균 일정", icon: "average", value: averageLabel, unit: "개")
+                    // 아이콘 배정: 최고기록 = 별(average.svg), 평균 일정 = 깃발(record.svg).
+                    // 에셋 파일명과 화면 배정이 어긋나 있으니 이름만 보고 되돌리지 말 것.
+                    sideStat(label: "최고기록", icon: "average", value: "\(best)", unit: "일")
+                    sideStat(label: "평균 일정", icon: "record", value: averageLabel, unit: "개")
                 }
             }
 

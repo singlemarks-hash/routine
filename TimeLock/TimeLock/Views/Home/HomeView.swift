@@ -119,16 +119,11 @@ struct HomeView: View {
         allSessions.filter { $0.ownerUserID == account.currentUserID }
     }
 
-    /// 누적 활동 성공 시간 — 완주 세션의 순수 촬영 시간 합(시간 단위 내림).
+    /// 누적 활동 성공 시간 — 완주 세션의 순수 촬영 시간 합.
     /// 상/벌점 배지를 대체한다: 홈에서 매일 마주하는 숫자는 벌점이 아니라 쌓인 시간이어야 한다.
-    private var totalSuccessHours: Int {
+    private var totalSuccessSeconds: Int {
         mySessions.filter { $0.outcome?.isSuccess == true }
-            .reduce(0) { $0 + $1.recordedSeconds } / 3600
-    }
-    private var totalSuccessHoursLabel: String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        return f.string(from: NSNumber(value: totalSuccessHours)) ?? "\(totalSuccessHours)"
+            .reduce(0) { $0 + $1.recordedSeconds }
     }
 
     @State private var now = Date()
@@ -260,13 +255,12 @@ struct HomeView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 26, height: 26)
-                    // 숫자는 연속달성 일수(30pt)보다 낮은 위계로 — 홈의 주인공은 스트릭이다
-                    (Text(totalSuccessHoursLabel)
-                        .font(.tlTimer(17))
-                        .foregroundStyle(TL.jade)
-                     + Text("시간")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TL.muted))
+                    // 숫자는 연속달성 일수(38pt)보다 낮은 위계로 — 홈의 주인공은 스트릭이다.
+                    // "N시간 n분" — 1시간 미만도 0시간이 아니라 분으로 보인다.
+                    styledHourMinute(seconds: totalSuccessSeconds,
+                                     numberFont: .tlTimer(17),
+                                     unitFont: .system(size: 12, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 9)
@@ -303,6 +297,9 @@ struct HomeView: View {
                     Text("연속달성")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.muted)
+                        // 좁은 기기에서 HStack이 왼쪽 열을 줄이면 라벨이 두 줄로 꺾인다 —
+                        // 라벨은 항상 제 폭을 지키고, 대신 숫자가 스스로 줄어든다(minimumScaleFactor)
+                        .fixedSize()
                     Image("fire").resizable().scaledToFit().frame(width: 15, height: 15)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
