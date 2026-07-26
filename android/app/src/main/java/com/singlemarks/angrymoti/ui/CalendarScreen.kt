@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,6 +49,7 @@ import java.io.File
 import java.util.Calendar
 
 /** 기록 탭 — 연속달성 헤더 카드(+태그 도넛 토글) · 성취 아이콘 월간 캘린더 · 누적 대시보드 */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -64,8 +64,8 @@ fun CalendarScreen(onBack: () -> Unit) {
         }.timeInMillis
     }
     var month by remember { mutableStateOf(Calendar.getInstance()) }
-    // 진입 시 오늘을 기본 선택 — iOS와 동일하게 오늘의 기록이 바로 보임
-    var selectedDay by remember { mutableStateOf<Long?>(todayStart) }
+    // 날짜 상세 시트 대상 — 기록 있는 날을 탭했을 때만 열린다 (iOS 1:1)
+    var selectedDay by remember { mutableStateOf<Long?>(null) }
 
     val finished = sessions.filter { it.outcome != null }
 
@@ -137,10 +137,9 @@ fun CalendarScreen(onBack: () -> Unit) {
                                         // 캘린더에서는 미시작/미래를 굳이 그리지 않는다 — 기록 있는 날만 아이콘.
                                         val judged = DayOutcome.judge(daySessions, dayStart)
                                         val icon = if (judged == DayOutcome.NOT_STARTED) null else judged
-                                        val isSelected = selectedDay == dayStart
                                         val isToday = dayStart == todayStart
-                                        // 셀 배경은 오늘·선택된 날만 raised — 빨간 테두리·빨간 숫자
-                                        // 강조는 쓰지 않는다 (iOS dayCell 1:1)
+                                        // 셀 배경은 오늘만 raised — 빨간 테두리·빨간 숫자
+                                        // 강조는 쓰지 않는다. 탭은 기록 있는 날만 상세 시트를 연다 (iOS dayCell 1:1)
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             modifier = Modifier
@@ -148,10 +147,12 @@ fun CalendarScreen(onBack: () -> Unit) {
                                                 .padding(horizontal = 3.dp)   // 셀 사이 간격 (iOS grid spacing 6)
                                                 .clip(TL.cornerS)
                                                 .background(
-                                                    if (isToday || isSelected) TL.raised
+                                                    if (isToday) TL.raised
                                                     else androidx.compose.ui.graphics.Color.Transparent,
                                                     TL.cornerS)
-                                                .clickable { selectedDay = dayStart }
+                                                .clickable {
+                                                    if (daySessions.isNotEmpty()) selectedDay = dayStart
+                                                }
                                                 .padding(vertical = 6.dp),
                                         ) {
                                             Text("$day", color = if (isToday) TL.paper else TL.muted,
@@ -221,24 +222,20 @@ fun CalendarScreen(onBack: () -> Unit) {
             }
             Spacer(Modifier.height(16.dp))
         }
-        selectedDay?.let { dayStart ->
-            val end = dayStart + 86_400_000L
-            val daySessions = finished.filter { it.anchorAt in dayStart until end }
-                .sortedByDescending { it.anchorAt }
-            item {
-                TLEyebrow(if (dayStart == todayStart) "오늘의 기록" else "이 날의 기록")
-            }
-            if (daySessions.isEmpty()) {
-                item { Text("기록 없음", color = TL.faint, fontSize = 13.sp) }
-            }
-            daySessions.forEach { s ->
-                item {
-                    SessionRow(s, events)
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-        }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+
+    // 날짜 상세 — iOS DayDetailView처럼 시트로 띄운다 (기록 있는 날만 열린다)
+    selectedDay?.let { dayStart ->
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { selectedDay = null },
+            containerColor = TL.ink,
+        ) {
+            DayDetailSheet(dayStart = dayStart,
+                sessions = sessionsByDay[dayStart].orEmpty(),
+                events = events,
+                onClose = { selectedDay = null })
+        }
     }
 }
 
@@ -472,75 +469,175 @@ private fun TagDonut(byTag: List<Pair<String, Int>>) {
     }
 }
 
-/** 접힘: 성취 원·시작 시각·활동명·점수·화살표 / 펼침: 결과·강도·썸네일·사유·순수촬영시간 (iOS DayDetailView 1:1) */
+/**
+ * 날짜 상세 시트 — 성적표 스타일 (iOS DayDetailView 1:1).
+ * 상단: 모두 펼치기/접기 · 날짜 타이틀 · 닫기 / 요약 칩(상점·벌점·합계) /
+ * 카드 한 장에 구분선으로 나뉜 행들(접힘: 원·시각·활동·점수 / 펼침: 결과·썸네일·사유·순수촬영).
+ */
 @Composable
-private fun SessionRow(s: FocusSession, events: List<com.singlemarks.angrymoti.data.ScoreEvent>) {
+private fun DayDetailSheet(
+    dayStart: Long,
+    sessions: List<FocusSession>,
+    events: List<com.singlemarks.angrymoti.data.ScoreEvent>,
+    onClose: () -> Unit,
+) {
+    val ordered = remember(sessions) { sessions.sortedBy { it.anchorAt } }
+    var expanded by remember(dayStart) { mutableStateOf(setOf<String>()) }
+    val allOpen = ordered.isNotEmpty() && expanded.size == ordered.size
+
+    fun pts(s: FocusSession): Int? =
+        s.outcome?.let { ScoreRules.points(it, s.intensity, s.targetSeconds / 60)?.second }
+    val dayReward = ordered.mapNotNull { pts(it) }.filter { it > 0 }.sum()
+    val dayPenalty = ordered.mapNotNull { pts(it) }.filter { it < 0 }.sum()
+    val dayTitle = remember(dayStart) {
+        val c = Calendar.getInstance().apply { timeInMillis = dayStart }
+        val weekday = listOf("", "일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
+        "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 " +
+            weekday[c.get(Calendar.DAY_OF_WEEK)]
+    }
+
+    LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
+        item {
+            // 상단 바 — 좌 모두 펼치기/접기, 중앙 날짜, 우 닫기 (iOS 툴바 1:1)
+            Box(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                if (ordered.isNotEmpty()) {
+                    // '모두 접기'↔'모두 펼치기' 글자 수 차이로 버튼이 움직이지 않게 고정 폭 + 가운데
+                    Box(Modifier.align(Alignment.CenterStart)
+                        .clickable {
+                            expanded = if (allOpen) emptySet() else ordered.map { it.id }.toSet()
+                        },
+                        contentAlignment = Alignment.Center) {
+                        Text("모두 펼치기", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            color = androidx.compose.ui.graphics.Color.Transparent)   // 폭 기준
+                        Text(if (allOpen) "모두 접기" else "모두 펼치기",
+                            color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1)
+                    }
+                }
+                Text(dayTitle, color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.align(Alignment.Center))
+                Text("닫기", color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable(onClick = onClose))
+            }
+        }
+        item {
+            // 상단 합계 — 성적표 헤더 (iOS summaryHeader 1:1)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SummaryChip("+$dayReward", "상점", TL.jade, Modifier.weight(1f))
+                SummaryChip("$dayPenalty", "벌점", TL.rec, Modifier.weight(1f))
+                SummaryChip("${dayReward + dayPenalty}", "합계",
+                    if (dayReward + dayPenalty >= 0) TL.paper else TL.rec, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        item {
+            TLCard {
+                ordered.forEachIndexed { index, s ->
+                    ReportRow(s, events,
+                        isOpen = s.id in expanded,
+                        onToggle = {
+                            expanded = if (s.id in expanded) expanded - s.id else expanded + s.id
+                        })
+                    if (index != ordered.lastIndex) {
+                        androidx.compose.material3.HorizontalDivider(
+                            color = TL.hairline.copy(alpha = 0.5f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryChip(value: String, label: String,
+                        tint: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.background(TL.surface, TL.cornerM).padding(vertical = 12.dp)) {
+        Text(value, color = tint, fontSize = 20.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(3.dp))
+        Text(label, color = TL.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** 접힘: 성취 원·시작 시각·활동명·점수·화살표 / 펼침: 결과·강도·썸네일·사유·순수촬영시간 (iOS reportRow 1:1) */
+@Composable
+private fun ReportRow(
+    s: FocusSession,
+    events: List<com.singlemarks.angrymoti.data.ScoreEvent>,
+    isOpen: Boolean,
+    onToggle: () -> Unit,
+) {
     val context = LocalContext.current
-    var expanded by remember(s.id) { mutableStateOf(false) }
     val outcome = s.outcome
     val pts = outcome?.let { ScoreRules.points(it, s.intensity, s.targetSeconds / 60)?.second }
+    // 상세 행의 성취 원은 3색 — 성공 초록 / 벌점 실패 빨강 / 그 외(긴급·안전) 앰버 (iOS 1:1).
+    // 캘린더·홈의 2색 정책과 달리, 성적표에서는 '벌점이 없는 실패'를 구분해 보여준다.
     val circleColor = when {
         outcome?.isSuccess == true -> TL.jade
         outcome?.isFailure == true -> TL.rec
-        else -> TL.amber   // 긴급 종료·안전 종료
+        else -> TL.amber
     }
 
-    TLCard {
+    Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 2.dp),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 13.dp),
         ) {
             Box(Modifier.size(16.dp).background(circleColor, CircleShape)
                 .border(3.dp, circleColor.copy(alpha = 0.35f), CircleShape))
             Spacer(Modifier.width(12.dp))
+            // 시각은 한 줄 고정 폭 — 좁혀서 "오후/8:27" 두 줄로 꺾이지 않게 (iOS width 70)
             Text(TLFormat.clock(s.anchorAt), color = TL.paper, fontSize = 14.sp,
-                fontWeight = FontWeight.Bold, modifier = Modifier.width(52.dp))
+                fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+                modifier = Modifier.width(74.dp))
             Text(s.activityName, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, modifier = Modifier.weight(1f))
             pts?.let {
-                Text(TLFormat.scoreLabel(it), color = if (it >= 0) TL.jade else TL.rec,
+                Text(TLFormat.scoreLabel(it), color = if (it > 0) TL.jade else TL.rec,
                     fontSize = 14.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.width(8.dp))
             }
             androidx.compose.material3.Icon(
-                if (expanded) AppIcon.ChevronUp else AppIcon.ChevronDown, null,
+                if (isOpen) AppIcon.ChevronUp else AppIcon.ChevronDown, null,
                 tint = TL.faint, modifier = Modifier.size(15.dp))
         }
 
-        if (expanded) {
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(outcome?.title ?: "", color = circleColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text(" · ${s.intensity.title}", color = TL.muted, fontSize = 12.sp)
-            }
-            Spacer(Modifier.height(8.dp))
-            s.thumbnailFileName?.let { name ->
-                // IO 스레드에서 디코드 — 컴포지션 중 파일 디코드는 프레임 드랍을 만든다
-                val thumb by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, name) {
-                    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        runCatching {
-                            android.graphics.BitmapFactory.decodeFile(
-                                File(CameraRecorder.sessionDir(context), name).absolutePath)
-                        }.getOrNull()
+        if (isOpen) {
+            Column(Modifier.padding(start = 28.dp, bottom = 13.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(outcome?.title ?: "", color = circleColor,
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(" · ${s.intensity.title}", color = TL.muted, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                s.thumbnailFileName?.let { name ->
+                    // IO 스레드에서 디코드 — 컴포지션 중 파일 디코드는 프레임 드랍을 만든다
+                    val thumb by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, name) {
+                        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching {
+                                android.graphics.BitmapFactory.decodeFile(
+                                    File(CameraRecorder.sessionDir(context), name).absolutePath)
+                            }.getOrNull()
+                        }
+                    }
+                    thumb?.let {
+                        Image(it.asImageBitmap(), null,
+                            Modifier.fillMaxWidth().height(150.dp).clip(TL.cornerM),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
-                thumb?.let {
-                    Image(it.asImageBitmap(), null,
-                        Modifier.fillMaxWidth(0.4f).aspectRatio(3f / 4f).clip(TL.cornerS),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                    Spacer(Modifier.height(8.dp))
+                // 실패/긴급 사유 — 점수 원장의 note 우선, 없으면 세션의 긴급 사유 (iOS 1:1).
+                // 세션 사유만 보면 알람 화면의 '일정 취소' 사유(원장에만 기록)가 안 보인다.
+                val reason = events.firstOrNull { it.sessionID == s.id && !it.note.isNullOrEmpty() }?.note
+                    ?: s.emergencyReason
+                reason?.let {
+                    Text(it, color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
                 }
+                Text("순수 촬영 ${TLFormat.hms(s.recordedSeconds.toLong())} / 목표 ${TLFormat.hms(s.targetSeconds.toLong())}",
+                    color = TL.muted, fontSize = 12.sp)
             }
-            // 실패/긴급 사유 — 점수 원장의 note 우선, 없으면 세션의 긴급 사유 (iOS 1:1).
-            // 세션 사유만 보면 알람 화면의 '일정 취소' 사유(원장에만 기록)가 안 보인다.
-            val reason = events.firstOrNull { it.sessionID == s.id && !it.note.isNullOrEmpty() }?.note
-                ?: s.emergencyReason
-            reason?.let {
-                Text("사유: $it", color = TL.amber, fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-            }
-            Text("순수 촬영 ${TLFormat.durationLabel(s.recordedSeconds / 60)} / 목표 ${TLFormat.durationLabel(s.targetSeconds / 60)}",
-                color = TL.muted, fontSize = 12.sp)
         }
     }
 }
