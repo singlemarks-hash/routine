@@ -351,9 +351,7 @@ object GroupStore {
         val owner = AccountStore.currentUserID
         // 끝난 활동은 슬롯을 차지하지 않는다 — 오늘 일정에 남아 있어도 자리는 이미 돌려줬다
         val reservations = dbLocal.reservations().active(owner).filter { it.hasRemainingOccurrence() }
-        val finished = dbLocal.sessions().all(owner).filter { it.outcome != null }
-            .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) }
-        val streak = SlotPolicy.currentStreak(finished)
+        val streak = SlotPolicy.currentStreak(dbLocal.sessions().all(owner))
         val allowed = SlotPolicy.allowedSlots(streak, SubscriptionManager.isPro.value) ?: return
         if (reservations.size >= allowed) {
             throw GroupException("활동 슬롯이 가득 찼어요 (${reservations.size}/$allowed). " +

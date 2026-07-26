@@ -182,6 +182,14 @@ fun TLGhostButton(text: String, tint: Color = TL.paper, onClick: () -> Unit) {
     }
 }
 
+/** 성취 아이콘 판정 → 드로어블 — 홈 스트립·기록 캘린더 공용 (iOS DayOutcomeIcon.assetName 1:1) */
+fun dayOutcomeDrawable(outcome: com.singlemarks.angrymoti.models.DayOutcome): Int = when (outcome) {
+    com.singlemarks.angrymoti.models.DayOutcome.SUCCESS -> com.singlemarks.angrymoti.R.drawable.day_success
+    com.singlemarks.angrymoti.models.DayOutcome.HALF -> com.singlemarks.angrymoti.R.drawable.day_half
+    com.singlemarks.angrymoti.models.DayOutcome.FAIL -> com.singlemarks.angrymoti.R.drawable.day_fail
+    com.singlemarks.angrymoti.models.DayOutcome.NOT_STARTED -> com.singlemarks.angrymoti.R.drawable.day_not_started
+}
+
 /** 핵심 대주제 6개만 각각 고유 색. 그룹·직접 입력 태그는 null(회색 유지). iOS tagTint()와 1:1. */
 fun tagTint(name: String): Color? = when (name) {
     "공부"        -> Color(0xFF5B8DEF)   // 블루

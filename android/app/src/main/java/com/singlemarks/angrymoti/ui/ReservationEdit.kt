@@ -130,10 +130,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     }
     if (!loaded) return
 
-    val streak = SlotPolicy.currentStreak(
-        allSessions.filter { it.outcome != null }
-            .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) }
-    )
+    val streak = SlotPolicy.currentStreak(allSessions)
     val allowed = SlotPolicy.allowedSlots(streak, isPro)
     // 끝난 활동은 슬롯을 차지하지 않는다 (iOS slotUsingReservations와 동일)
     val used = allReservations.count { it.hasRemainingOccurrence() }
@@ -963,13 +960,9 @@ fun WeeklyScheduleTab(
                                 val outcome = if (isToday) todayOutcomes[r.id] else null
                                 val missed = isToday && outcome == null && fire != null &&
                                     nowMillis > fire + TimePolicy.START_WINDOW_SECONDS * 1000
-                                // 표시등: 완주=초록 / 벌점(이탈·노쇼·긴급)=빨강 / 안전종료=무표시. 두 색뿐.
-                                val light: Color? = when {
-                                    outcome == null -> null
-                                    outcome.isSuccess -> TL.jade
-                                    outcome == com.singlemarks.angrymoti.models.SessionOutcome.SAFETY_ENDED -> null
-                                    else -> TL.rec
-                                }
+                                // 표시등: 성공=초록, 그 외 전부 빨강. 두 색뿐 — 안전 종료(무효)도
+                                // 빨강이다. 무효는 벌점화만 안 되는 것이지 완주 실패는 같다 (iOS 1:1).
+                                val light: Color? = outcome?.let { if (it.isSuccess) TL.jade else TL.rec }
                                 ScheduleRow(r,
                                     dimmed = outcome != null || missed,
                                     light = light,

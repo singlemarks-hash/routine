@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -46,7 +47,10 @@ import com.singlemarks.angrymoti.R
 import com.singlemarks.angrymoti.Route
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
+import com.singlemarks.angrymoti.models.DayOutcome
 import com.singlemarks.angrymoti.models.ScoreRules
+import com.singlemarks.angrymoti.models.SessionOutcome
+import com.singlemarks.angrymoti.models.SlotPolicy
 import com.singlemarks.angrymoti.models.TimePolicy
 import com.singlemarks.angrymoti.services.AccountStore
 import com.singlemarks.angrymoti.ui.theme.TL
@@ -115,12 +119,16 @@ fun HomeShell() {
         HomeNav.Home -> {}
     }
 
-    val total by db.scores().totalFlow(owner).collectAsState(initial = 0)
     val reservations by db.reservations().activeFlow(owner).collectAsState(initial = emptyList())
     val sessions by db.sessions().allFlow(owner).collectAsState(initial = emptyList())
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
-        // 헤더 — 점수 배지 필(→기록) · 캘린더 원형 버튼 · 마이페이지 원형 버튼 (iOS 홈 헤더 1:1)
+        // 헤더 — 누적 성공 시간 배지 필(→기록) · 마이페이지 원형 버튼 (iOS 홈 헤더 1:1).
+        // 점수 배지는 누적 시간으로 교체: 홈에서 매일 마주하는 숫자는 벌점이 아니라 쌓인 시간이어야 한다.
+        // (캘린더 원형 버튼은 제거 — 시간 배지와 연속달성 카드가 이미 기록탭 진입로다)
+        val totalSuccessHours = remember(sessions) {
+            sessions.filter { it.outcome?.isSuccess == true }.sumOf { it.recordedSeconds } / 3600
+        }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -131,30 +139,16 @@ fun HomeShell() {
                     .background(TL.surface, CircleShape)
                     .border(1.dp, TL.hairline, CircleShape)
                     .clickable { nav = HomeNav.Calendar }
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 9.dp),
             ) {
-                Image(
-                    painterResource(if (total >= 0) R.drawable.moti_smile else R.drawable.moti_angry),
-                    null, Modifier.size(30.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    TLFormat.scoreLabel(total),
-                    color = if (total >= 0) TL.jade else TL.rec,
-                    fontSize = 22.sp, fontWeight = FontWeight.Black,
-                )
+                Image(painterResource(R.drawable.stat_clock), null, Modifier.size(26.dp))
+                Spacer(Modifier.width(8.dp))
+                // 숫자는 연속달성 일수(38sp)보다 낮은 위계로 — 홈의 주인공은 스트릭이다
+                Text("%,d".format(totalSuccessHours), color = TL.jade,
+                    fontSize = 17.sp, fontWeight = FontWeight.Black)
+                Text("시간", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.weight(1f))
-            // 기록 캘린더 — 원형 버튼 + 캘린더 아이콘 (iOS SF calendar 1:1)
-            Box(Modifier.size(45.dp).background(TL.surface, CircleShape)
-                .border(1.dp, TL.hairline, CircleShape)
-                .clickable { nav = HomeNav.Calendar }, contentAlignment = Alignment.Center) {
-                androidx.compose.material3.Icon(
-                    AppIcon.CalendarDays,
-                    contentDescription = "기록", tint = TL.paper,
-                    modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(10.dp))
             // 마이페이지 — 배경 없는 사람 아이콘 (iOS person.crop.circle.fill 1:1)
             Box(Modifier.size(45.dp).background(TL.surface, CircleShape)
                 .border(1.dp, TL.hairline, CircleShape)
@@ -175,6 +169,7 @@ fun HomeShell() {
                     onEditGoal = { showGoalEditor = true },
                     onQuickStart = { showQuickStart = true },
                     onAdd = { nav = HomeNav.ReservationEdit(null) },
+                    onOpenCalendar = { nav = HomeNav.Calendar },
                     // 그룹 예약은 개인 편집 불가 — 그 그룹방 상세로 바로 진입
                     onEdit = {
                         if (it.groupId == null) nav = HomeNav.ReservationEdit(it.id)
@@ -278,12 +273,15 @@ private fun ActivityTab(
     onEditGoal: () -> Unit,
     onQuickStart: () -> Unit,
     onAdd: () -> Unit,
+    onOpenCalendar: () -> Unit,
     onEdit: (Reservation) -> Unit,
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
 
     // 오늘 발생 활동 — 일정 탭 오늘 칸과 완전히 같은 기준(occurrenceOn 단일 판정).
+    // 이미 완료(성공·실패)한 활동도 목록에 남긴다 — 흐림 처리 + 결과 점으로 '오늘 한 일'이
+    // 보여야 하루가 쌓이는 감각이 든다. 미완료가 먼저, 완료는 아래로.
     // 1초 틱마다 예약×세션 전수 스캔을 반복하지 않도록, 입력(예약·세션·날짜)이 바뀔 때만
     // 다시 계산한다. 카운트다운 문구는 now로 매초 갱신되지만 목록 자체는 캐시된다.
     val todayStart = java.util.Calendar.getInstance().apply {
@@ -292,24 +290,36 @@ private fun ActivityTab(
         set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
     }.timeInMillis
     val dayEnd = todayStart + 86_400_000L
-    val todayReservations = remember(reservations, sessions, todayStart) {
-        fun startedToday(r: Reservation) = sessions.any { s ->
-            s.reservationID == r.id && s.scheduledAt?.let { it in todayStart until dayEnd } == true
+    val todayItems: List<Triple<Reservation, Long, SessionOutcome?>> =
+        remember(reservations, sessions, todayStart) {
+            // 오늘 이 예약의 확정 결과 — 기록이 여럿(긴급 중단 후 재촬영)이면 가장 나중 것.
+            // null = 아직 시작 전(또는 진행 중 — 촬영 중엔 홈이 보일 일이 없다).
+            fun todayOutcome(r: Reservation): SessionOutcome? = sessions
+                .filter { s ->
+                    s.reservationID == r.id && s.outcome != null &&
+                        s.scheduledAt?.let { it in todayStart until dayEnd } == true
+                }
+                .maxByOrNull { it.endedAt ?: Long.MIN_VALUE }?.outcome
+            reservations
+                .mapNotNull { r ->
+                    val fire = r.occurrenceOn(todayStart) ?: return@mapNotNull null
+                    Triple(r, fire, todayOutcome(r))
+                }
+                // 미완료 우선, 같은 그룹 안에서는 발생 시각순
+                .sortedWith(compareBy({ it.third != null }, { it.second }))
         }
-        reservations
-            .filter { it.occurrenceOn(todayStart) != null && !startedToday(it) }
-            .sortedBy { it.startMinute }
-    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // 연속달성 카드 — 좌측 일수 + 우측 5일 스트립, 탭하면 기록탭 (iOS 홈 1:1)
+        item { StreakCard(sessions = sessions, todayStart = todayStart, onClick = onOpenCalendar) }
         // 다짐/목표 카드 — 탭하면 입력 시트 (iOS 홈 1:1)
         item {
             Box(
                 Modifier.fillMaxWidth()
-                    .heightIn(min = 140.dp)
+                    .heightIn(min = 116.dp)   // 연속달성 카드가 들어온 만큼 다짐 카드는 낮게
                     .background(TL.surface, TL.cornerL)
                     .border(1.dp, TL.hairline.copy(alpha = 0.6f), TL.cornerL)
                     .clickable(onClick = onEditGoal),
@@ -348,11 +358,18 @@ private fun ActivityTab(
                     null, tint = TL.paper, modifier = Modifier.size(18.dp))
             }
         }
-        item { Text("오늘 예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
-            modifier = Modifier.padding(top = 6.dp)) }
+        item {
+            Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
+                Text("오늘 예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.width(8.dp))
+                val t = java.util.Calendar.getInstance().apply { timeInMillis = todayStart }
+                Text("${t.get(java.util.Calendar.MONTH) + 1}월 ${t.get(java.util.Calendar.DAY_OF_MONTH)}일",
+                    color = TL.faint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 2.dp))
+            }
+        }
         // 그룹 방 시작일 전이거나 오늘치 시각이 지났어도, 일정 탭에 보이면 홈에도 똑같이 보인다.
-        // 단, 오늘 이미 촬영을 시작(완료·실패·노쇼)한 활동은 '할 일'이 아니므로 뺀다.
-        if (todayReservations.isEmpty()) {
+        if (todayItems.isEmpty()) {
             item {
                 TLCard {
                     Text("오늘은 예정된 활동이 없어요. 이번 주 계획은 일정 탭에서 확인할 수 있어요.",
@@ -360,17 +377,21 @@ private fun ActivityTab(
                 }
             }
         }
-        items(todayReservations) { r ->
-            val next: Long? = todayStart + r.startMinute * 60_000L   // 오늘치 시각(지났으면 과거값 → 타이머 자동 off)
-            // iOS 예약 카드 1:1 — 1행: 이름 + (12시간 내 타이머 or 태그 칩) / 2행: 🔔 시각 + (타이머면 칩)
-            val showsTimer = next != null && next - now in 1..(12 * 3600_000L)
-            TLCard(onClick = { onEdit(r) }) {
+        items(todayItems) { (r, next, done) ->
+            // iOS 예약 카드 1:1 — 1행: 이름 + (12시간 내 타이머 or 결과 점+태그 칩) / 2행: 🔔 시각
+            val showsTimer = done == null && next - now in 1..(12 * 3600_000L)
+            // 완료 결과 점 — 일정 탭의 불빛과 완전히 같은 규칙: 성공 초록, 그 외 전부 빨강.
+            // 안전 종료(무효)도 빨강이다 — 무효는 벌점화만 안 되는 것이지 완주 실패는 같다.
+            val doneTint: Color? = done?.let { if (it.isSuccess) TL.jade else TL.rec }
+            TLCard(onClick = { onEdit(r) },
+                // 완료한 활동은 흐림 처리로 목록에 남긴다 (일정 탭의 '지나감'과 동일 문법)
+                modifier = Modifier.alpha(if (done == null) 1f else 0.42f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(r.name, color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f))
                     if (showsTimer) {
                         // 분단위 문구 — 1분 미만 "곧 시작", 그 외 "… 뒤 시작". 올림.
-                        val secs = (next!! - now) / 1000
+                        val secs = (next - now) / 1000
                         val label = if (secs < 60) "곧 시작" else {
                             val m = kotlin.math.ceil(secs / 60.0).toLong()
                             val time = if (m >= 60)
@@ -381,13 +402,18 @@ private fun ActivityTab(
                         Text(label, color = TL.amber, fontSize = 13.sp,
                             fontWeight = FontWeight.Black, maxLines = 1)
                     } else {
+                        doneTint?.let {
+                            // 오늘 결과 점 — 태그 칩 왼편 (일정 탭과 동일 문법)
+                            Box(Modifier.size(9.dp).background(it, CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                        }
                         TagChip(r.tag, selected = false, onClick = { onEdit(r) })
                     }
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 오늘 것만 보여주므로 날짜(오늘·내일·M월 D일)는 생략하고 시각만.
-                    val t = java.util.Calendar.getInstance().apply { timeInMillis = next ?: now }
+                    val t = java.util.Calendar.getInstance().apply { timeInMillis = next }
                     val minute = t.get(java.util.Calendar.HOUR_OF_DAY) * 60 + t.get(java.util.Calendar.MINUTE)
                     Text(
                         "🔔 ${TLFormat.timeLabel(minute)} · ${TLFormat.durationLabel(r.durationMinutes)}" +
@@ -400,6 +426,80 @@ private fun ActivityTab(
             }
         }
         item { Spacer(Modifier.height(8.dp)) }
+    }
+}
+
+/** 연속달성 카드 — 좌측 일수 + 우측 5일 스트립(D-3 ~ 내일). 판정은 DayOutcome 하나 (iOS streakCard 1:1). */
+@Composable
+private fun StreakCard(
+    sessions: List<com.singlemarks.angrymoti.data.FocusSession>,
+    todayStart: Long,
+    onClick: () -> Unit,
+) {
+    val streak = remember(sessions, todayStart) { SlotPolicy.currentStreak(sessions) }
+    val weekdayNames = listOf("", "일", "월", "화", "수", "목", "금", "토")
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+            .background(TL.surface, TL.cornerL)
+            .border(1.dp, TL.hairline.copy(alpha = 0.6f), TL.cornerL)
+            .clickable(onClick = onClick)
+            // 왼쪽 블록은 살짝 더 들여쓰고, 오른쪽은 요일 칸이 자체 여백을 갖고 있어 좁게
+            .padding(start = 18.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("연속달성", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(5.dp))
+                Image(painterResource(R.drawable.stat_fire), null, Modifier.size(15.dp))
+            }
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("$streak", color = TL.jade, fontSize = 38.sp, fontWeight = FontWeight.Black,
+                    maxLines = 1)
+                Text("일", color = TL.muted, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 6.dp, start = 2.dp))
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        // 최근 3일 + 오늘 + 내일. 판정은 기록 캘린더와 같은 규칙(DayOutcome) 하나.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            (-3..1).forEach { offset ->
+                val day = com.singlemarks.angrymoti.models.ScheduleConflict.addDays(todayStart, offset)
+                val dayEnd = com.singlemarks.angrymoti.models.ScheduleConflict.addDays(day, 1)
+                val daySessions = sessions.filter { it.anchorAt in day until dayEnd }
+                val icon = DayOutcome.judge(daySessions, day) ?: DayOutcome.NOT_STARTED
+                val isToday = offset == 0
+                val d = java.util.Calendar.getInstance().apply { timeInMillis = day }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.width(44.dp)
+                        .background(if (isToday) TL.raised else Color.Transparent, TL.cornerS)
+                        .padding(vertical = 7.dp),
+                ) {
+                    Text(weekdayNames[d.get(java.util.Calendar.DAY_OF_WEEK)],
+                        color = if (isToday) TL.paper else TL.faint,
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(5.dp))
+                    Image(painterResource(dayOutcomeDrawable(icon)), null,
+                        Modifier.size(24.dp)
+                            .alpha(if (offset > 0) 0.45f else 1f))   // 아직 오지 않은 날은 흐리게
+                    Spacer(Modifier.height(5.dp))
+                    Text("${d.get(java.util.Calendar.DAY_OF_MONTH)}",
+                        color = if (isToday) TL.paper else TL.muted,
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+                // 열 사이 헤어라인 (마지막 열 제외)
+                if (offset < 1) {
+                    Box(Modifier.width(1.dp).height(30.dp)
+                        .background(TL.hairline.copy(alpha = 0.35f)))
+                }
+            }
+        }
     }
 }
 

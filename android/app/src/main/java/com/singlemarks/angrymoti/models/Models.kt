@@ -238,36 +238,65 @@ object SlotPolicy {
 
     fun nextTier(afterStreak: Int): Pair<Int, Int?>? = tiers.firstOrNull { it.first > afterStreak }
 
+    /** 오늘(기록 없으면 어제)부터 거꾸로 — 연속 달성일. 정의는 streakDetail과 동일. */
+    fun currentStreak(sessions: List<com.singlemarks.angrymoti.data.FocusSession>): Int =
+        streakDetail(sessions).first
+
     /**
-     * 연속 달성일: 오늘(기록 없으면 어제)부터 거꾸로, '실패 없이 완주한 날'을 연속 카운트.
-     * @param finished (anchorEpochMillis, isSuccess, isFailure) 목록 — 결과 확정된 세션만
+     * 현재 연속달성의 (일수, 그 기간의 성공 일정 수).
+     *
+     * 판정은 화면의 성취 아이콘(DayOutcome)과 같은 규칙 하나를 쓴다 —
+     * **하루에 하나라도 성공했으면 달성**이다. 일부 실패가 섞인 날(노란불)도 연속을
+     * 끊지 않고, 그날의 모든 일정이 실패로 끝난 날(빨간불)에만 끊긴다.
+     * 성공 수는 기록탭 '평균 일정'(연속달성 동안 하루 평균 몇 개를 소화했나)의 분자다.
+     * iOS SlotPolicy.streakDetail과 1:1.
      */
-    fun currentStreak(finished: List<Triple<Long, Boolean, Boolean>>): Int {
-        val cal = Calendar.getInstance()
-        fun startOfDay(c: Calendar): Long {
-            val d = c.clone() as Calendar
-            d.set(Calendar.HOUR_OF_DAY, 0); d.set(Calendar.MINUTE, 0)
-            d.set(Calendar.SECOND, 0); d.set(Calendar.MILLISECOND, 0)
-            return d.timeInMillis
-        }
-        var dayStart = startOfDay(cal)
+    fun streakDetail(sessions: List<com.singlemarks.angrymoti.data.FocusSession>): Pair<Int, Int> {
         var count = 0
-        val oneDay = 86_400_000L
+        var successes = 0
+        var day = DayOutcome.startOfDay(System.currentTimeMillis())
         var isToday = true
         while (true) {
-            val dayEnd = dayStart + oneDay
-            val daySessions = finished.filter { it.first in dayStart until dayEnd }
-            val success = daySessions.any { it.second }
-            val failure = daySessions.any { it.third }
-            if (success && !failure) {
+            val dayEnd = ScheduleConflict.addDays(day, 1)
+            val daySessions = sessions.filter { it.anchorAt in day until dayEnd }
+            val icon = DayOutcome.judge(daySessions, day)
+            if (icon == DayOutcome.SUCCESS || icon == DayOutcome.HALF) {
                 count += 1
-            } else if (count == 0 && daySessions.isEmpty() && isToday) {
-                // 오늘 아직 기록 없음 → 어제부터 계산
-            } else break
-            dayStart -= oneDay
+                successes += DayOutcome.successCount(daySessions)
+            } else if (count == 0 && icon == DayOutcome.NOT_STARTED && isToday) {
+                // 오늘은 아직 기록이 없을 뿐 — 어제부터 이어서 센다
+            } else {
+                break   // 빨간불(전부 실패) 또는 기록 없는 과거 날에서 연속이 끊긴다
+            }
+            day = ScheduleConflict.addDays(day, -1)
             isToday = false
         }
-        return count
+        return count to successes
+    }
+
+    /**
+     * 역대 최장 연속달성 — '하나라도 성공한 날'이 달력상 연속으로 이어진 최대 길이.
+     * currentStreak과 같은 날짜 판정(성공 하나면 달성)을 쓰되 전체 이력을 훑는다 (기록탭 '최고기록').
+     */
+    fun bestStreak(sessions: List<com.singlemarks.angrymoti.data.FocusSession>): Int {
+        val finished = sessions.filter { it.outcome != null }
+        if (finished.isEmpty()) return 0
+
+        // 날짜별로 묶어 '발생별 최종 결과'에 성공이 있는 날만 추린다
+        val qualifying = finished.groupBy { DayOutcome.startOfDay(it.anchorAt) }
+            .filterValues { DayOutcome.successCount(it) > 0 }
+            .keys.sorted()
+
+        var best = 0
+        var run = 0
+        var prevDay: Long? = null
+        for (day in qualifying) {
+            run = if (prevDay != null && ScheduleConflict.addDays(prevDay!!, 1) == day) run + 1 else 1
+            if (run > best) best = run
+            prevDay = day
+        }
+        // 현재 진행 중인 스트릭이 더 길 수는 없지만(부분집합), 정의가 어긋나지 않게 보정
+        return maxOf(best, currentStreak(sessions))
     }
 }
 

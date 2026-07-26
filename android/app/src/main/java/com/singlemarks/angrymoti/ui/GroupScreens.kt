@@ -379,9 +379,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
         slotReservations = com.singlemarks.angrymoti.data.AppDb.get(context).reservations().active(owner)
         slotSessions = com.singlemarks.angrymoti.data.AppDb.get(context).sessions().all(owner)
     }
-    val slotStreak = com.singlemarks.angrymoti.models.SlotPolicy.currentStreak(
-        slotSessions.filter { it.outcome != null }
-            .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) })
+    val slotStreak = com.singlemarks.angrymoti.models.SlotPolicy.currentStreak(slotSessions)
     val slotAllowed = com.singlemarks.angrymoti.models.SlotPolicy.allowedSlots(slotStreak, isPro)
     var name by remember { mutableStateOf("") }
     var nickname by remember { mutableStateOf("") }
@@ -774,9 +772,7 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
         slotReservations = com.singlemarks.angrymoti.data.AppDb.get(context).reservations().active(owner)
         slotSessions = com.singlemarks.angrymoti.data.AppDb.get(context).sessions().all(owner)
     }
-    val slotStreak = com.singlemarks.angrymoti.models.SlotPolicy.currentStreak(
-        slotSessions.filter { it.outcome != null }
-            .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) })
+    val slotStreak = com.singlemarks.angrymoti.models.SlotPolicy.currentStreak(slotSessions)
     val slotAllowed = com.singlemarks.angrymoti.models.SlotPolicy.allowedSlots(slotStreak, isPro)
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {

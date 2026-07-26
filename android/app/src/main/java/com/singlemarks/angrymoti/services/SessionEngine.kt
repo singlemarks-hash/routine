@@ -405,9 +405,7 @@ object SessionEngine {
     private suspend fun awardSlotBonusIfTierCrossed(s: FocusSession) {
         val db = AppDb.get(appContext)
         val all = db.sessions().all(s.ownerUserID)
-        val finished = all.filter { it.outcome != null }
-            .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) }
-        val streak = SlotPolicy.currentStreak(finished)
+        val streak = SlotPolicy.currentStreak(all)
 
         var awarded = Prefs.slotBonusAwardedTier(s.ownerUserID)
         if (streak < awarded) awarded = 0
