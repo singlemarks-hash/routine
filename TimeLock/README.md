@@ -104,7 +104,7 @@ TimeLock/
 | 재촬영 창 초과·계속 이탈 = 벌점 | `failBreakExpired` + 결과 화면의 누적 벌점 표시 |
 | 미친 매운맛 즉시 실패·벌점 2배 | `handleExitEvent` insane 분기, `ScoreRules` |
 | 통화 = 이탈과 동일 (특별취급 없음) | 전화 오면 백그라운드 → `handleExitEvent`: 매운맛 긴급용무(수동 재개)·미친맛 즉시 실패 (안드로이드와 통일) |
-| 킬/크래시 복구 | `recoverOrphanIfNeeded` (breakDeadline 유무로 이탈/안전 종료 판별) |
+| 킬/크래시 복구 | `recoverOrphanIfNeeded` — 경위 불문(재촬영 창 잔여 포함) 이탈 벌점. 앱 강제종료가 벌점 회피 수단이 되지 않게 한다 |
 | 촬영본 저장 안 하면 자동 삭제 | `SessionResultView`(저장) + `AppState.dismissResult/purgeUnsavedVideos`(삭제) |
 | 회원별 상점·벌점 | 모든 모델의 `ownerUserID`, `AccountStore`(게스트 기록 자동 귀속, Firestore 백업) |
 | 강도 상향 즉시·하향 익일 0시 | `AppState.requestIntensityChange` |

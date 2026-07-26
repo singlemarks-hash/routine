@@ -420,6 +420,19 @@ final class AccountStore: ObservableObject {
         guard !uid.isEmpty else { return }
         let isGuestAccount = currentUser?.provider == .guest
 
+        // 0) 최근 로그인 선검증 — requiresRecentLogin이 서버 데이터를 전소한 '뒤'에 터지면
+        //    계정은 살았는데 클라우드 점수 원장만 사라지는 최악이 된다(원장은 다운로드 전용이라
+        //    재업로드 경로가 없다). Firebase의 재인증 요구 기준(약 5분)보다 보수적으로
+        //    데이터를 지우기 전에 먼저 걸러 재로그인을 유도한다.
+        #if canImport(FirebaseAuth)
+        if backendActive, !isGuestAccount, let fbUser = Auth.auth().currentUser {
+            let lastSignIn = fbUser.metadata.lastSignInDate ?? .distantPast
+            if Date.now.timeIntervalSince(lastSignIn) > 4 * 60 {
+                throw DeleteAccountError.requiresRecentLogin
+            }
+        }
+        #endif
+
         // 1) 서버 데이터 완전 삭제 (Firebase 연동 시).
         //    하위 컬렉션은 자동 삭제되지 않으므로 점수 원장 문서를 먼저 지운 뒤 사용자 문서 삭제.
         //    (인증 계정을 지우기 전에 수행 — 이후엔 보안 규칙상 쓰기 권한이 사라진다)

@@ -138,6 +138,15 @@ object AccountStore {
     suspend fun deleteAccount() {
         val uid = currentUserID
         if (firebaseAvailable && uid != "guest") {
+            // 최근 로그인 선검증 — requiresRecentLogin이 데이터 전소 '뒤'에 터지면 계정은
+            // 살았는데 클라우드 점수 원장만 사라진다(원장은 다운로드 전용이라 재업로드 경로가
+            // 없다). Firebase의 재인증 요구 기준(약 5분)보다 보수적으로, 데이터를 지우기 전에
+            // 먼저 걸러 재로그인을 유도한다 (iOS와 동일).
+            val lastSignIn = FirebaseAuth.getInstance().currentUser?.metadata?.lastSignInTimestamp ?: 0L
+            if (System.currentTimeMillis() - lastSignIn > 4 * 60_000L) {
+                throw IllegalStateException(
+                    "보안을 위해 다시 로그인한 뒤 계정 삭제를 진행해주세요. (로그아웃 → 로그인 → 계정 삭제)")
+            }
             val fs = FirebaseFirestore.getInstance()
             // 참여 중인 그룹방에서 내 멤버 문서 제거 (유령 멤버 방지 — iOS와 동일)
             runCatching {

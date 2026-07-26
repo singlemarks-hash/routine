@@ -735,8 +735,11 @@ final class SessionEngine: NSObject, ObservableObject {
     }
 
     /// 앱 재실행 시, 종료되지 못한 세션(킬/크래시)을 판별해 기록한다.
-    /// - 이탈로 백그라운드 간 뒤 종료됨 → 이탈 실패(강제 종료)
-    /// - 포그라운드 도중 사라짐 → 크래시로 보고 안전 종료 (벌점 없음, 촬영분 보존)
+    ///
+    /// **경위 불문 이탈 실패 벌점이 확정 정책이다** — 크래시·배터리 방전·강제 종료,
+    /// 그리고 긴급용무 재촬영 창이 아직 남아 있던 경우까지 전부. 재촬영 창 중 사망을
+    /// 안전 종료(무효)로 봐주면 '창 안에 앱을 죽였다 켜기'가 벌점 회피 수단이 된다.
+    /// breakDeadline은 여기서 읽지 않는 것이 맞다 — 판별에 쓰자는 제안이 나오면 이 정책을 먼저 볼 것.
     func recoverOrphanIfNeeded() {
         guard let context = modelContext else { return }
         // 엔진이 실제로 세션을 진행 중이면 그 세션은 고아가 아니다 — 계정 전환 훅 등
@@ -774,7 +777,8 @@ final class SessionEngine: NSObject, ObservableObject {
             return
         }
         // 촬영 도중 앱이 죽으면(배터리 방전·강제 종료·크래시) 강도와 무관하게 이탈 실패로 본다.
-        // 모든 건 사용자 책임 — 저전력·강제종료로 세션이 날아가면 벌점 긴급이탈.
+        // 재촬영 창(breakDeadline)이 남아 있었어도 마찬가지 — 창 안 사망을 무효로 봐주면
+        // 앱 강제종료가 벌점 회피 수단이 된다. 모든 건 사용자 책임.
         let outcome: SessionOutcome = .exitFailed
         orphan.outcome = outcome
         orphan.endedAt = .now

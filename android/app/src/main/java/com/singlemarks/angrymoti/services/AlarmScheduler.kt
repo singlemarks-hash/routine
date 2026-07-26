@@ -81,10 +81,15 @@ object AlarmScheduler {
             // 우선 대상으로 잡는다 (iOS imminentOccurrences의 하한과 동일한 이유).
             val imminent = imminentOccurrence(r, now)
             val target = if (imminent != null && imminent + 5 * 60_000L > now) imminent else fire
-            // -10분 예고 — 준비 시간을 준다 (iOS pre-alert 1:1)
-            val preAt = target - 10 * 60_000L
-            if (preAt > now) scheduleKind(context, r.id, target, "prealert", preAt)
-            // +5분 마지막 경고 — 발화 시점에 시작 여부를 확인하고 표시한다
+            // -10분 예고 — 준비 시간을 준다 (iOS pre-alert 1:1).
+            // 예고만은 항상 '다음 미래 발생(fire)' 기준이다 — imminent(방금 울린 발생)를
+            // 대상으로 잡으면 -10분이 언제나 과거라 스킵되는데, 정각 발화 직후의 재등록은
+            // 전부 그 창 안에서 돌기 때문에 첫 발화 이후 예고가 영영 다시 안 걸렸다.
+            // (imminent의 예고는 이미 울렸거나 지난 것이라 잃는 것도 없다)
+            val preAt = fire - 10 * 60_000L
+            if (preAt > now) scheduleKind(context, r.id, fire, "prealert", preAt)
+            // +5분 마지막 경고 — 발화 시점에 시작 여부를 확인하고 표시한다.
+            // 경고는 반대로 imminent 우선이어야 한다(주석 위) — 대상을 나눠 잡는 이유다.
             val warnAt = target + 5 * 60_000L
             if (warnAt > now) scheduleKind(context, r.id, target, "lastwarn", warnAt)
         }

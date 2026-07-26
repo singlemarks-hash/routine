@@ -22,6 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -658,6 +659,11 @@ object SessionEngine {
 
     // MARK: 고아 세션 복구 (킬/크래시)
 
+    /** 고아 복구 재진입 차단 — 콜드 스타트에 시작 파이프라인과 계정 전환 훅(LaunchedEffect)이
+     *  거의 동시에 이 함수를 부른다. 직렬화하지 않으면 둘 다 미마감 고아를 읽고 각자
+     *  벌점을 확정해 이중 부과가 된다. */
+    private val orphanRecoveryMutex = kotlinx.coroutines.sync.Mutex()
+
     suspend fun recoverOrphanIfNeeded() {
         // 촬영 중 켠 시스템 방해금지(DND)는 크래시·강제 종료 후에도 켜진 채 남는다 —
         // 정상 종료의 cleanupRuntime 경로를 못 탔더라도 여기서 반드시 원복한다.
@@ -668,6 +674,9 @@ object SessionEngine {
         // 그 세션은 고아가 아니다 — 여기서 마감하면 살아있는 세션이 이탈 실패로 찍힌다.
         val current = phase.value
         if (current is Phase.Recording || current is Phase.PausedForBreak) return
+        orphanRecoveryMutex.withLock {
+        // (뮤텍스 안에서 키를 다시 읽는다 — 먼저 든 쪽이 복구를 끝내고 키를 지웠으면
+        //  나중 쪽은 여기서 빈손으로 돌아간다)
         val owner = AccountStore.currentUserID
         // 계정별 키 우선, 레거시 전역 키는 업데이트 직후 이어받기 폴백으로만 읽는다
         val ownerId = Prefs.activeSessionId(owner)
@@ -693,13 +702,18 @@ object SessionEngine {
             return
         }
         // 촬영 도중 앱이 죽으면(배터리 방전·강제 종료·크래시) 강도와 무관하게 이탈 실패로 본다.
-        // 모든 건 사용자 책임 — 저전력·강제종료로 세션이 날아가면 벌점 긴급이탈.
+        // 재촬영 창(breakDeadline)이 남아 있었어도 마찬가지 — 창 안 사망을 무효로 봐주면
+        // 앱 강제종료가 벌점 회피 수단이 된다. 모든 건 사용자 책임 (iOS와 동일 확정 정책).
         val outcome = SessionOutcome.EXIT_FAILED
         val s = orphan.copy(outcomeRaw = outcome.raw, endedAt = System.currentTimeMillis())
         db.sessions().upsert(s)
         AccountStore.mirrorSession(s)   // 복구된 세션 요약도 클라우드 미러
         ScoreRules.points(outcome, s.intensity, s.targetSeconds / 60)?.let { (type, pts) ->
-            val e = ScoreEvent(ownerUserID = s.ownerUserID, typeRaw = type.raw, points = pts,
+            // 결정적 ID — 한 고아 세션에는 이탈 벌점이 정확히 한 건이다. 경합·재시도로
+            // 두 번 확정돼도 REPLACE 삽입과 같은 클라우드 문서로 수렴해 이중 부과가 안 된다
+            // (노쇼 스위퍼와 같은 방어).
+            val e = ScoreEvent(id = deterministicId("orphanExit|${s.id.lowercase()}"),
+                ownerUserID = s.ownerUserID, typeRaw = type.raw, points = pts,
                 sessionID = s.id, intensityRaw = s.intensityRaw,
                 note = "촬영 중 앱 종료 (배터리·강제 종료 등)")
             db.scores().insert(e); AccountStore.mirror(e)
@@ -713,5 +727,6 @@ object SessionEngine {
         CameraRecorder.deleteFiles(appContext, "${orphan.id}.mp4", "${orphan.id}.jpg")
         clearUsedKey()
         Prefs.breakDeadline = 0
+        }   // orphanRecoveryMutex.withLock
     }
 }
