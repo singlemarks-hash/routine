@@ -439,7 +439,8 @@ object SessionEngine {
         tickJob?.cancel(); tickJob = null
         isFinalizing = false
         session?.ownerUserID?.let { Prefs.setActiveSessionId(it, null) }
-        Prefs.legacyActiveSessionId = null   // 레거시 전역 키도 정리
+        // 레거시 전역 키는 여기서 지우지 않는다 — 다른 계정의 미이관 고아 포인터일 수
+        // 있다. 정리는 recoverOrphanIfNeeded(이관 포함)만 담당한다.
         Prefs.breakDeadline = 0
         session = null
         SessionService.stop(appContext)

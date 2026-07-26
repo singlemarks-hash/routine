@@ -553,7 +553,8 @@ final class SessionEngine: NSObject, ObservableObject {
         if let owner = session?.ownerUserID {
             defaults.removeObject(forKey: Key.activeSessionID(for: owner))
         }
-        defaults.removeObject(forKey: Key.activeSessionID)   // 레거시 전역 키도 정리
+        // 레거시 전역 키는 여기서 지우지 않는다 — 다른 계정의 미이관 고아 포인터일 수
+        // 있다. 정리는 recoverOrphanIfNeeded(이관 포함)만 담당한다.
         defaults.removeObject(forKey: Key.breakDeadline)
         UIApplication.shared.isIdleTimerDisabled = false
         session = nil
@@ -738,6 +739,9 @@ final class SessionEngine: NSObject, ObservableObject {
     /// - 포그라운드 도중 사라짐 → 크래시로 보고 안전 종료 (벌점 없음, 촬영분 보존)
     func recoverOrphanIfNeeded() {
         guard let context = modelContext else { return }
+        // 엔진이 실제로 세션을 진행 중이면 그 세션은 고아가 아니다 — 계정 전환 훅 등
+        // 프로세스 생존 중의 호출에서 살아있는 세션을 이탈 실패로 찍으면 안 된다.
+        guard phase == .idle || isFinished else { return }
         let owner = AccountStore.shared.currentUserID
         // 계정별 키 우선 — 계정 무관 단일 슬롯이던 시절엔 B 계정이 세션을 시작하는 순간
         // A 계정의 고아 ID가 덮여 영구 미복구가 됐다. 레거시 전역 키는 업데이트 직후
@@ -752,7 +756,10 @@ final class SessionEngine: NSObject, ObservableObject {
         }
 
         let descriptor = FetchDescriptor<FocusSession>(predicate: #Predicate { $0.id == id })
-        guard let orphan = try? context.fetch(descriptor).first, orphan.outcome == nil else {
+        // 조회 '실패'(스토어 오류)와 '없음'을 구분한다 — 실패에 키를 지우면 실존하는
+        // 고아가 영구 미복구(벌점 회피)가 된다. 실패면 키를 남겨 다음 실행에 재시도.
+        guard let fetched = try? context.fetch(descriptor) else { return }
+        guard let orphan = fetched.first, orphan.outcome == nil else {
             clearUsedKey()
             return
         }

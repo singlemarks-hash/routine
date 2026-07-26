@@ -344,6 +344,9 @@ final class AppState: ObservableObject {
 
     private func handleUserChanged() {
         reloadForAccount()   // #19 — 전환된 계정의 강도·하향예약 반영 (기기 전역 누수 차단)
+        // 고아 세션 복구 — 계정별 슬롯이라 '그 계정으로 다시 로그인했을 때'가 복구 시점이다.
+        // 콜드 스타트에만 걸어두면 앱을 완전히 껐다 켜야만 복구된다.
+        engine.recoverOrphanIfNeeded()
         refreshDerived()
         rescheduleAlarmsForCurrentUser()
         Task {

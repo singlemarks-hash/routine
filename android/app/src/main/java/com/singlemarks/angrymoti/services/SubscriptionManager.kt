@@ -116,16 +116,17 @@ object SubscriptionManager : PurchasesUpdatedListener {
                 // 클라우드에 기록해 iOS 기기에서도 멤버십이 인정되게 한다.
                 // Play Billing은 클라이언트에서 만료일을 못 얻는다 — 대신 isAutoRenewing으로
                 // '해지 예약' 여부는 안다. 갱신 유지 중엔 월 구독+여유 35일(앱을 열 때마다
-                // 앞으로 밀림), 해지 예약 상태면 7일로 좁혀 결제 종료 후 반대 플랫폼에
-                // Pro가 최대 35일 잔존하던 것을 7일 이내로 줄인다. (남은 유료 기간에는
-                // queryPurchases가 계속 구독을 돌려주므로 앱을 열 때마다 7일씩 연장돼
-                // 정당한 사용 기간이 끊기지는 않는다)
+                // 앞으로 밀림), 해지 예약 상태면 '월 구독 최대 잔여'인 31일로 좁힌다.
+                // 지평을 잔여 기간보다 짧게(예: 7일) 잡으면 해지 예약 후 이 기기를 안 여는
+                // 사용자의 '정당하게 결제된 남은 기간'에 반대 플랫폼 Pro가 끊긴다 — 잔존
+                // 축소보다 유료 기간 보장이 우선이다. 만료일 기반 정밀 축소는 서버(RTDN,
+                // D6) 없이는 불가능해 그쪽 과제로 남긴다.
                 if (active) {
                     val autoRenewing = purchases.any {
                         it.purchaseState == Purchase.PurchaseState.PURCHASED &&
                             it.products.contains(PRODUCT_ID) && it.isAutoRenewing
                     }
-                    val horizonDays = if (autoRenewing) 35L else 7L
+                    val horizonDays = if (autoRenewing) 35L else 31L
                     AccountStore.mirrorMembership(
                         System.currentTimeMillis() + horizonDays * 86_400_000L, "google")
                 }
@@ -172,10 +173,10 @@ object SubscriptionManager : PurchasesUpdatedListener {
                     if (p.products.contains(PRODUCT_ID)) {
                         storePro = true
                         recomputeIsPro()
-                        // 방금 결제된 구독 — refresh()와 같은 규칙 (갱신 유지 35일 / 해지 예약 7일)
+                        // 방금 결제된 구독 — refresh()와 같은 규칙 (갱신 유지 35일 / 해지 예약 31일)
                         AccountStore.mirrorMembership(
                             System.currentTimeMillis() +
-                                (if (p.isAutoRenewing) 35L else 7L) * 86_400_000L, "google")
+                                (if (p.isAutoRenewing) 35L else 31L) * 86_400_000L, "google")
                     }
                 }
         }

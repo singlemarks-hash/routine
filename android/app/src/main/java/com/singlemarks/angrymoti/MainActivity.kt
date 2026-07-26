@@ -199,7 +199,12 @@ private fun Root() {
     val phase by SessionEngine.phase.collectAsStateWithLifecycle()
 
     // 계정 전환 시 그 계정의 강도·하향예약을 다시 불러온다 (#19 — 강도가 계정별이라 공유 기기 누수 차단)
-    LaunchedEffect(user?.uid) { AppState.reloadForAccount() }
+    // 고아 세션 복구도 함께 — 계정별 슬롯이라 '그 계정으로 다시 로그인했을 때'가 복구
+    // 시점인데, 콜드 스타트에만 걸어두면 앱을 완전히 껐다 켜야만 복구된다.
+    LaunchedEffect(user?.uid) {
+        AppState.reloadForAccount()
+        kotlinx.coroutines.withContext(Dispatchers.IO) { SessionEngine.recoverOrphanIfNeeded() }
+    }
 
     // 세션 종료 → 결과 화면 (iOS RootView.onChange(engine.phase) 대응)
     LaunchedEffect(phase) {
