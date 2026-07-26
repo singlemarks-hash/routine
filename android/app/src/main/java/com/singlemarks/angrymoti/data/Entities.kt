@@ -51,7 +51,15 @@ data class Reservation(
             val cal = Calendar.getInstance().apply { timeInMillis = dayStart }
             if (cal.get(Calendar.DAY_OF_WEEK) !in repeatWeekdays) return null
         } else {
-            if (oneOffDayStart != dayStart) return null
+            // '같은 로컬 날' 판정 (iOS isDate(inSameDayAs:) 1:1) — 밀리초 완전 일치를 요구하면
+            // 다른 시간대 기기(iOS)가 미러한 자정 값과 어긋나 하루짜리 발생이 통째로 사라진다.
+            val oneOff = oneOffDayStart ?: return null
+            val oneOffLocalDay = Calendar.getInstance().apply {
+                timeInMillis = oneOff
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            if (oneOffLocalDay != dayStart) return null
         }
         val fire = dayStart + startMinute * 60_000L
         // 시작일(createdAt) 이전 날짜엔 발생 없음. 그룹=방 시작일, 개인 기간 반복=고른 시작일이
@@ -62,8 +70,9 @@ data class Reservation(
             set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
         if (dayStart < startDay) return null
-        // 종료일 이후 발생 없음
-        if (endAt != null && fire > endAt) return null
+        // 종료일 이후 발생 없음 — 비교 축은 '날짜(자정)'다 (iOS 1:1). 발생 시각(fire)과
+        // 비교하면 endDate가 자정으로 저장된 레거시 값에서 마지막 날 발생이 iOS에만 보인다.
+        if (endAt != null && dayStart > endAt) return null
         return fire
     }
 

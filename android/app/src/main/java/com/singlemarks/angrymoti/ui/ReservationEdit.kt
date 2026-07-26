@@ -48,7 +48,9 @@ import androidx.compose.ui.unit.sp
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.models.ActivityTag
+import com.singlemarks.angrymoti.models.DayOutcome
 import com.singlemarks.angrymoti.models.Intensity
+import com.singlemarks.angrymoti.models.ScheduleConflict
 import com.singlemarks.angrymoti.models.ScoreRules
 import com.singlemarks.angrymoti.models.SlotPolicy
 import com.singlemarks.angrymoti.models.TimePolicy
@@ -131,14 +133,28 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     }
     if (!loaded) return
 
-    val streak = SlotPolicy.currentStreak(allSessions)
+    // 전체 세션 스트릭 루프·예약×180일 발생 스캔은 무겁다 — 입력 한 글자마다(리컴포지션)
+    // 다시 돌지 않게 캐시한다. 화면이 열려 있는 동안 데이터가 바뀔 일은 저장뿐이다.
+    val streak = remember(allSessions) { SlotPolicy.currentStreak(allSessions) }
     val allowed = SlotPolicy.allowedSlots(streak, isPro)
     // 끝난 활동은 슬롯을 차지하지 않는다 (iOS slotUsingReservations와 동일)
-    val used = allReservations.count { it.hasRemainingOccurrence() }
+    val used = remember(allReservations) { allReservations.count { it.hasRemainingOccurrence() } }
     val slotFull = allowed != null && used >= allowed && existing == null
 
-    /** 시작 30분 전 편집 잠금 */
-    val isLocked = existing?.nextOccurrence()?.let { it - System.currentTimeMillis() <= 30 * 60_000L } == true
+    // 편집 잠금 창: 발생 30분 전 ~ 발생 +10분(노쇼 확정 시점). 정각에 풀리면 알람을 놓친
+    // 직후(스윕 전 10분 안에) 예약을 아무거나 고쳐 저장해 accountableFrom을 갱신, 방금
+    // 노쇼를 면책하는 회피 경로가 열린다 — 스윕이 확정하기 전까진 어떤 편집도 막는다 (iOS 1:1).
+    val isLocked = existing?.let { r ->
+        val nowMs = System.currentTimeMillis()
+        val next = r.nextOccurrence()
+        if (next != null && next - nowMs <= 30 * 60_000L) return@let true
+        val today = DayOutcome.startOfDay(nowMs)
+        listOf(ScheduleConflict.addDays(today, -1), today).any { day ->
+            r.occurrenceOn(day)?.let { fire ->
+                fire <= nowMs && nowMs - fire <= TimePolicy.START_WINDOW_SECONDS * 1000
+            } == true
+        }
+    } == true
 
     /** 슬롯 초과(강등·연속 하락) — 보유 예약이 허용치를 넘으면 편집 잠그고 삭제만 허용(읽기 전용) */
     val overSlotLimit = allowed != null && used > allowed
@@ -275,6 +291,15 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     }
 
                     scope.launch(Dispatchers.IO) {
+                        // 일정에 실질 변화가 있는 편집인가 — 이름·태그·강도만 고친 저장으로
+                        // accountableFrom이 갱신되면 그 자체가 노쇼 면책 수단이 된다 (iOS 1:1).
+                        val scheduleChanged = existing == null ||
+                            existing.startMinute != sm ||
+                            existing.durationMinutes != durationMinutes ||
+                            existing.repeatWeekdaysCsv != resolvedDaysCsv ||
+                            existing.oneOffDayStart != resolvedOneOff ||
+                            existing.endAt != resolvedEnd ||
+                            existing.createdAt != startDay
                         val r = (existing ?: Reservation(
                             ownerUserID = owner, name = finalName, tag = finalTag,
                             startMinute = sm, durationMinutes = durationMinutes,
@@ -291,8 +316,11 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             // 책임 기준은 '지금'과 '시작일' 중 늦은 쪽.
                             // 시작일 자정으로 두면 오늘 만든 예약이 오늘 아침 발생분까지 소급
                             // 노쇼로 잡힌다(토 16시에 만든 매일 06:00 예약이 -15점 받던 결함).
-                            // 편집으로 시각을 앞당겨도 소급되지 않고, 시작일이 미래면 그 전까진 책임 없음.
-                            accountableFrom = maxOf(System.currentTimeMillis(), startDay),
+                            // 단, 시각·요일·기간이 실제로 바뀐 편집에만 갱신 — 이름만 고친
+                            // 저장은 책임 기준을 건드리지 않는다(잠금 창과 이중 방어).
+                            accountableFrom = if (scheduleChanged)
+                                maxOf(System.currentTimeMillis(), startDay)
+                            else existing!!.accountableFrom,
                             updatedAt = System.currentTimeMillis(),
                         )
                         db.reservations().upsert(r)
@@ -981,10 +1009,12 @@ fun WeeklyScheduleTab(
         // '이후 예정' — 오늘~6일 뒤 어디에도 발생이 없는 활동 (iOS laterSection 1:1).
         // 주간 표에 없다고 활동 자체가 사라진 게 아님을 보여준다.
         item(key = "later") {
-            val horizon = todayStartMillis + 7 * 86_400_000L
+            // Calendar 기반 날짜 이동 — 밀리초 산술은 DST가 있는 로케일에서 자정이 어긋나
+            // occurrenceOn(자정 키 요구)이 발생을 놓친다. 주간 그리드와 판정 축 통일.
+            val horizon = ScheduleConflict.addDays(todayStartMillis, 7)
             val laterItems = reservations.mapNotNull { r ->
                 val visibleThisWeek = (0..6).any { off ->
-                    r.occurrenceOn(todayStartMillis + off * 86_400_000L) != null
+                    r.occurrenceOn(ScheduleConflict.addDays(todayStartMillis, off)) != null
                 }
                 if (visibleThisWeek) return@mapNotNull null
                 // -1초: nextOccurrence는 '이후'만 반환하므로 자정 정각 발생이 걸러지지 않게

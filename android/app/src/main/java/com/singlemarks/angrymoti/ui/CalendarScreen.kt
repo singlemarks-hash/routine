@@ -131,7 +131,10 @@ fun CalendarScreen(onBack: () -> Unit) {
                                 val day = w * 7 + d - lead + 1
                                 Box(Modifier.weight(1f).height(56.dp), contentAlignment = Alignment.Center) {
                                     if (day in 1..daysInMonth) {
-                                        val dayStart = first.timeInMillis + (day - 1) * 86_400_000L
+                                        // Calendar 기반 날짜 이동 — 밀리초 산술은 DST가 있는
+                                        // 로케일에서 자정이 어긋나 sessionsByDay 키와 미스매치된다
+                                        val dayStart = com.singlemarks.angrymoti.models
+                                            .ScheduleConflict.addDays(first.timeInMillis, day - 1)
                                         val daySessions = sessionsByDay[dayStart].orEmpty()
                                         // 그날의 성취 아이콘 — 홈 연속달성 스트립과 같은 판정(DayOutcome) 하나를 쓴다.
                                         // 캘린더에서는 미시작/미래를 굳이 그리지 않는다 — 기록 있는 날만 아이콘.
@@ -269,7 +272,9 @@ private fun StreakHeaderCard(sessions: List<FocusSession>) {
     val byTag: List<Pair<String, Int>> = remember(successSessions) {
         successSessions.groupBy { it.tag }
             .mapValues { (_, list) -> list.sumOf { it.recordedSeconds } }
-            .toList().sortedByDescending { it.second }
+            // 동률 시 태그명 2차 정렬 — 상위 4개/'그 외' 구성이 실행·플랫폼마다
+            // 달라지지 않게 한다 (iOS 동일)
+            .toList().sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
     }
 
     Column(

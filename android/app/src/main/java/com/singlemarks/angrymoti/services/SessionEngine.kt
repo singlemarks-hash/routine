@@ -559,6 +559,9 @@ object SessionEngine {
         // 첫 동기화·방 정리 전에 돌면, 다른 기기의 성공 기록이 내려오기 전에
         // 그 자리에 노쇼를 찍거나, 취소된 방 예약에 벌점을 찍는다.
         if (!didCompleteInitialSync) return
+        // 30초 틱과 동기화 파이프라인이 동시에 돌면 같은 미발생 건에 노쇼 세션이 2개 생긴다
+        // (벌점은 결정적 ID로 1건 수렴하지만 세션 기록이 중복 표시된다) — 직렬화.
+        maintenanceMutex.withLock {
         val db = AppDb.get(appContext)
         val owner = AccountStore.currentUserID
         val reservations = db.reservations().active(owner)
@@ -631,6 +634,7 @@ object SessionEngine {
                 existing.add(key)
             }
         }
+        }   // maintenanceMutex.withLock
     }
 
     /** 문자열 키 → 결정적 UUID 문자열 (MD5, iOS와 동일 알고리즘·표기).
@@ -659,10 +663,10 @@ object SessionEngine {
 
     // MARK: 고아 세션 복구 (킬/크래시)
 
-    /** 고아 복구 재진입 차단 — 콜드 스타트에 시작 파이프라인과 계정 전환 훅(LaunchedEffect)이
-     *  거의 동시에 이 함수를 부른다. 직렬화하지 않으면 둘 다 미마감 고아를 읽고 각자
-     *  벌점을 확정해 이중 부과가 된다. */
-    private val orphanRecoveryMutex = kotlinx.coroutines.sync.Mutex()
+    /** 정비 루틴(고아 복구·노쇼 스윕) 직렬화 — 콜드 스타트의 시작 파이프라인·계정 전환 훅,
+     *  그리고 30초 틱이 서로 겹쳐 돌면 둘 다 같은 미마감 건을 읽고 각자 기록을 만든다
+     *  (고아: 벌점 이중 부과 / 스윕: 같은 자리 노쇼 세션 2건). */
+    private val maintenanceMutex = kotlinx.coroutines.sync.Mutex()
 
     suspend fun recoverOrphanIfNeeded() {
         // 촬영 중 켠 시스템 방해금지(DND)는 크래시·강제 종료 후에도 켜진 채 남는다 —
@@ -674,7 +678,7 @@ object SessionEngine {
         // 그 세션은 고아가 아니다 — 여기서 마감하면 살아있는 세션이 이탈 실패로 찍힌다.
         val current = phase.value
         if (current is Phase.Recording || current is Phase.PausedForBreak) return
-        orphanRecoveryMutex.withLock {
+        maintenanceMutex.withLock {
         // (뮤텍스 안에서 키를 다시 읽는다 — 먼저 든 쪽이 복구를 끝내고 키를 지웠으면
         //  나중 쪽은 여기서 빈손으로 돌아간다)
         val owner = AccountStore.currentUserID
@@ -727,6 +731,6 @@ object SessionEngine {
         CameraRecorder.deleteFiles(appContext, "${orphan.id}.mp4", "${orphan.id}.jpg")
         clearUsedKey()
         Prefs.breakDeadline = 0
-        }   // orphanRecoveryMutex.withLock
+        }   // maintenanceMutex.withLock
     }
 }

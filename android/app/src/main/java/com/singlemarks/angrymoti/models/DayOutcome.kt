@@ -73,7 +73,11 @@ enum class DayOutcome {
             val finished = daySessions.filter { it.outcome != null }
             return finished.groupBy { it.reservationID ?: it.id }
                 .values.mapNotNull { records ->
-                    records.maxByOrNull { it.endedAt ?: it.anchorAt }?.outcome
+                    // 동률(같은 endedAt) 때 세션 ID 사전순 — 플랫폼·실행마다 다른 쪽을 고르면
+                    // 같은 데이터가 두 기기에서 다른 아이콘이 된다 (iOS와 동일 규칙)
+                    records.maxWithOrNull(
+                        compareBy({ it.endedAt ?: it.anchorAt }, { it.id })
+                    )?.outcome
                 }
         }
 

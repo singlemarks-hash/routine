@@ -295,7 +295,8 @@ private fun ActivityTab(
         set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
         set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
     }.timeInMillis
-    val dayEnd = todayStart + 86_400_000L
+    // Calendar 기반 — 밀리초 산술은 DST가 있는 로케일에서 25시간짜리 날의 꼬리를 놓친다
+    val dayEnd = com.singlemarks.angrymoti.models.ScheduleConflict.addDays(todayStart, 1)
     val todayItems: List<Triple<Reservation, Long, SessionOutcome?>> =
         remember(reservations, sessions, todayStart) {
             // 오늘 이 예약의 확정 결과 — 기록이 여럿(긴급 중단 후 재촬영)이면 가장 나중 것.
@@ -305,7 +306,8 @@ private fun ActivityTab(
                     s.reservationID == r.id && s.outcome != null &&
                         s.scheduledAt?.let { it in todayStart until dayEnd } == true
                 }
-                .maxByOrNull { it.endedAt ?: Long.MIN_VALUE }?.outcome
+                // 동률 시 세션 ID 사전순 — 스트립·캘린더의 발생 판정과 같은 규칙 (iOS 동일)
+                .maxWithOrNull(compareBy({ it.endedAt ?: Long.MIN_VALUE }, { it.id }))?.outcome
             reservations
                 .mapNotNull { r ->
                     val fire = r.occurrenceOn(todayStart) ?: return@mapNotNull null

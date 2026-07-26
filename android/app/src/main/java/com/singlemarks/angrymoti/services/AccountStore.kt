@@ -456,13 +456,18 @@ object AccountStore {
             cloudIDs.add(key)
             if (key in existing) continue   // 로컬 우선 — 영상 참조 보존
             val outcome = doc.getString("outcome")?.takeIf { it.isNotEmpty() } ?: continue
+            val scheduledAt = docMillis(doc, "scheduledAt")
+            val startedAt = docMillis(doc, "startedAt")
+            // 시각 정보가 전혀 없는 문서는 폐기 — anchorAt이 '조회 시점의 지금'으로 떠다녀
+            // 날짜 귀속·정렬이 비결정이 된다. 정상 경로는 둘 중 하나를 반드시 채운다 (iOS 동일).
+            if (scheduledAt == null && startedAt == null) continue
             dao.upsert(com.singlemarks.angrymoti.data.FocusSession(
                 id = key, ownerUserID = uid,
                 activityName = doc.getString("activityName") ?: "",
                 tag = doc.getString("tag") ?: "",
                 intensityRaw = doc.getString("intensity") ?: "spicy",
-                scheduledAt = docMillis(doc, "scheduledAt"),
-                startedAt = docMillis(doc, "startedAt"),
+                scheduledAt = scheduledAt,
+                startedAt = startedAt,
                 endedAt = docMillis(doc, "endedAt"),
                 targetSeconds = (doc.getLong("targetSeconds") ?: 0L).toInt(),
                 recordedSeconds = (doc.getLong("recordedSeconds") ?: 0L).toInt(),
