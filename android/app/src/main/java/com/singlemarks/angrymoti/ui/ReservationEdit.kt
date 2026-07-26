@@ -523,13 +523,18 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
         // 오늘(로컬) 이전 날짜는 선택 불가 — 과거 일회성 예약을 애초에 못 만들게 (iOS in: Date()... 통일).
         // DatePicker는 UTC 기준이므로 로컬 오늘의 Y/M/D를 UTC 자정으로 환산해 하한으로 쓴다.
         val todayUtcMidnight = remember { localMidnightToUtc(todayStart()) }
+        // 시작일 상한 — 오늘부터 1개월. 무제한이면 알람 안전망의 탐색 범위를 정할 수 없다 (iOS와 동일).
+        val maxStartUtcMidnight = remember {
+            localMidnightToUtc(com.singlemarks.angrymoti.models.ReservationPolicy.maxStartDayMillis())
+        }
         val dateState = androidx.compose.material3.rememberDatePickerState(
             // DatePicker는 UTC 자정 기준이라, 로컬 자정을 그대로 넘기면 KST(UTC+9)에서
             // 전날로 표시되고 그대로 확인하면 시작일이 하루씩 뒤로 밀린다. 반드시 환산해서 넘긴다.
             initialSelectedDateMillis = localMidnightToUtc(
                 oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)),
             selectableDates = object : androidx.compose.material3.SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= todayUtcMidnight
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    utcTimeMillis in todayUtcMidnight..maxStartUtcMidnight
             })
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { showDatePicker = false },

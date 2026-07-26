@@ -418,6 +418,9 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                         if (effectiveEndDay < startDay) throw GroupStore.GroupException("종료일이 시작일보다 빠를 수 없어요.")
                         if (days > GroupPolicy.MAX_DURATION_DAYS)
                             throw GroupStore.GroupException("기간은 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월)까지 가능해요.")
+                        // 시작일 상한 — 오늘부터 1개월 (iOS ReservationPolicy와 동일)
+                        if (startDay > com.singlemarks.angrymoti.models.ReservationPolicy.maxStartDayMillis())
+                            throw GroupStore.GroupException("시작일은 오늘부터 1개월 이내로 정해주세요.")
                         // 시작은 지금부터 최소 1시간 뒤 (참여자가 10분 전 알람을 받을 수 있게 여유를 둔다)
                         if (startMoment < System.currentTimeMillis() + GroupPolicy.MIN_START_LEAD_MINUTES * 60_000L)
                             throw GroupStore.GroupException(

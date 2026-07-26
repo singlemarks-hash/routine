@@ -285,7 +285,6 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
 @Composable
 fun IntensityScreen(onBack: () -> Unit) {
     val intensity by AppState.intensity.collectAsState()
-    val completions by AppState.spicyCompletions.collectAsState()
     val isPro by SubscriptionManager.isPro.collectAsState()
 
     Column(Modifier.fillMaxSize().background(TL.ink).padding(20.dp)) {
@@ -294,7 +293,8 @@ fun IntensityScreen(onBack: () -> Unit) {
             AppState.requestIntensityChange(Intensity.SPICY)
         }
         Spacer(Modifier.height(10.dp))
-        val locked = !(completions >= 3 || isPro)
+        // 미친맛은 멤버십 전용 — 완주 3회 성실 경로는 폐지됐다 (iOS와 동일 정책)
+        val locked = !isPro
         IntensityCard(Intensity.INSANE, intensity == Intensity.INSANE, locked = locked) {
             AppState.requestIntensityChange(Intensity.INSANE)
         }
@@ -304,8 +304,7 @@ fun IntensityScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(6.dp))
         }
         Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. " +
-            "미친 매운맛은 매운맛 완주 3회 후 잠금 해제됩니다. " +
-            "(현재 ${minOf(completions, 3)}/3 · 멤버십은 조건 없이 바로 사용)",
+            "미친 매운맛은 멤버십 전용이에요.",
             color = TL.faint, fontSize = 12.sp)
     }
 }

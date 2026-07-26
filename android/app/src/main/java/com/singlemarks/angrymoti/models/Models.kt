@@ -99,7 +99,8 @@ object ScoreRules {
             SessionOutcome.COMPLETED -> ScoreEventType.COMPLETE to completionBase(durationMinutes) * m
             SessionOutcome.EXIT_FAILED -> ScoreEventType.EXIT_FAIL to -10 * m
             SessionOutcome.NO_SHOW -> ScoreEventType.NO_SHOW to -15 * m
-            SessionOutcome.EMERGENCY -> ScoreEventType.EMERGENCY to -5 * m
+            // 일정취소·긴급종료는 이탈 실패와 동일 벌점 — iOS와 값이 다르면 크로스 기기 원장이 어긋난다
+            SessionOutcome.EMERGENCY -> ScoreEventType.EMERGENCY to -10 * m
             SessionOutcome.SAFETY_ENDED -> null
         }
     }
@@ -117,8 +118,32 @@ object GroupPolicy {
     const val MIN_START_LEAD_MINUTES = 60     // 시작은 지금부터 최소 1시간 뒤
     const val JOIN_CUTOFF_MINUTES = 11        // 시작 11분 전까지만 참여 (10분 전 알람을 받을 수 있게)
     const val CODE_LENGTH = 5
-    const val NICKNAME_MAX_LENGTH = 8         // 방 닉네임 최대 글자수 (랭킹 한 줄 유지)
+    // 방 닉네임 최대 글자수. 한글 기준 8자면 넉넉하지만 영문은 한 단어도 안 들어간다.
+    // 랭킹 한 줄은 이름에 한 줄 제한이 걸려 있어 길어져도 말줄임으로 접힌다.
+    const val NICKNAME_MAX_LENGTH = 15
     const val RESULT_RETENTION_DAYS = 30      // 종료 후 결과 보존 기간
+
+    /** 방 종료 판정에 더하는 정산 유예(분) = 시작 창 + 재촬영 창 + 여유 5분.
+     *  마지막 발생이 늦게 시작해 재촬영까지 갔을 때, 진행 중인 세션을 '종료된 방'으로
+     *  오판하지 않기 위한 버퍼다. */
+    val SETTLE_GRACE_MINUTES get() = TimePolicy.START_WINDOW_MINUTES + TimePolicy.RESUME_WINDOW_MINUTES + 5
+}
+
+// MARK: 예약 정책 (iOS ReservationPolicy와 1:1)
+
+object ReservationPolicy {
+    /** 시작일은 오늘부터 최대 1개월 이내로만 잡을 수 있다.
+     *  무제한이면 알람 안전망(첫 발생 1건 보장)의 탐색 범위를 정할 수 없다. */
+    const val MAX_START_LEAD_MONTHS = 1
+
+    /** 시작일로 고를 수 있는 마지막 날의 자정(epoch millis). */
+    fun maxStartDayMillis(from: Calendar = Calendar.getInstance()): Long {
+        val c = from.clone() as Calendar
+        c.add(Calendar.MONTH, MAX_START_LEAD_MONTHS)
+        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0)
+        c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+        return c.timeInMillis
+    }
 }
 
 // MARK: 활동 슬롯 정책 — 슬롯은 언제나 '현재 연속 달성일'이 정한다

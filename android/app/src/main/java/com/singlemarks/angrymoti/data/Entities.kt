@@ -66,14 +66,17 @@ data class Reservation(
         return fire
     }
 
-    /** 다음 발생 시각 (now 이후, 28일 내) */
+    /** 다음 발생 시각 (now 이후).
+     *  탐색 범위가 좁으면(예전 28일) 한참 뒤 시작하는 예약을 못 찾아, '첫 발생 1건은
+     *  반드시 알람을 건다'는 약속이 깨진다. 필요한 최대 범위 = 시작일 상한 1개월 +
+     *  그룹 최대 기간 3개월 ≈ 130일. 여유를 둬 180일 (iOS와 동일). */
     fun nextOccurrence(now: Long = System.currentTimeMillis()): Long? {
         val cal = Calendar.getInstance().apply {
             timeInMillis = now
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }
-        repeat(28) {
+        repeat(180) {
             occurrenceOn(cal.timeInMillis)?.let { if (it > now) return it }
             cal.add(Calendar.DAY_OF_MONTH, 1)
         }
