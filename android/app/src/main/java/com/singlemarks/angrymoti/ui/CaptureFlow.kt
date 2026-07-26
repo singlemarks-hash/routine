@@ -99,7 +99,7 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
             remaining = left.toInt().coerceAtLeast(0)
             if (left <= 0) {
                 // 10분 창 종료 — 노쇼는 스위퍼가 기록. 알람만 정리하고 홈으로.
-                AlarmScheduler.stopAlarmSound()
+                AlarmScheduler.stopAlarmSound(context)
                 AlarmScheduler.cancelAlarmNotification(context)
                 AppState.route.value = com.singlemarks.angrymoti.Route.None
                 break

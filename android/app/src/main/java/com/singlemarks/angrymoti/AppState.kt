@@ -105,7 +105,7 @@ object AppState {
 
     /** 알람에서 '촬영 준비' — 알람음 끄고 거치 가이드로 */
     fun beginRecording(context: Context, pending: PendingSession) {
-        com.singlemarks.angrymoti.services.AlarmScheduler.stopAlarmSound()
+        com.singlemarks.angrymoti.services.AlarmScheduler.stopAlarmSound(context)
         com.singlemarks.angrymoti.services.AlarmScheduler.cancelAlarmNotification(context)
         route.value = Route.MountGuide(pending)
     }
@@ -142,7 +142,7 @@ object AppState {
 
     /** 알람에서 '일정 취소' — 긴급 벌점과 함께 세션 기록 */
     fun cancelSchedule(context: Context, reservation: Reservation, fireAt: Long, reason: String) {
-        com.singlemarks.angrymoti.services.AlarmScheduler.stopAlarmSound()
+        com.singlemarks.angrymoti.services.AlarmScheduler.stopAlarmSound(context)
         com.singlemarks.angrymoti.services.AlarmScheduler.cancelAlarmNotification(context)
         scope.launch(Dispatchers.IO) {
             val db = AppDb.get(context)

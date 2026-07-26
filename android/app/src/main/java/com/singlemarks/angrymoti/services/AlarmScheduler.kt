@@ -26,6 +26,8 @@ import kotlinx.coroutines.launch
 object AlarmScheduler {
     const val CHANNEL_ALARM = "alarm"
     const val CHANNEL_STATUS = "status"
+    /** 예고(-10분)·마지막 경고(+5분) — 알람 본체와 달리 기본 알림음으로 짧게 알린다 */
+    const val CHANNEL_REMINDER = "reminder"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private var alarmPlayer: MediaPlayer? = null
@@ -42,6 +44,13 @@ object AlarmScheduler {
         )
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_STATUS, "세션 상태", NotificationManager.IMPORTANCE_DEFAULT)
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_REMINDER, "시작 예고·경고",
+                NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "활동 10분 전 예고와 미시작 경고"
+                enableVibration(true)
+            }
         )
     }
 
@@ -64,7 +73,61 @@ object AlarmScheduler {
         for (r in reservations) {
             val fire = r.nextOccurrence() ?: continue
             scheduleExact(context, r.id, fire)
+            // -10분 예고 — 준비 시간을 준다 (iOS pre-alert 1:1)
+            val preAt = fire - 10 * 60_000L
+            if (preAt > System.currentTimeMillis()) {
+                scheduleKind(context, r.id, fire, "prealert", preAt)
+            }
+            // +5분 마지막 경고 — 발화 시점에 시작 여부를 확인하고 표시한다
+            scheduleKind(context, r.id, fire, "lastwarn", fire + 5 * 60_000L)
         }
+    }
+
+    /** 예고/경고 보조 알람 — 메인 알람과 다른 requestCode를 써서 서로 덮지 않는다 */
+    @SuppressLint("MissingPermission")
+    private fun scheduleKind(context: Context, reservationId: String, fireAt: Long,
+                             kind: String, triggerAt: Long) {
+        val am = context.getSystemService(AlarmManager::class.java)
+        val intent = Intent(context, AlarmReceiver::class.java)
+            .putExtra("reservationId", reservationId)
+            .putExtra("fireAt", fireAt)
+            .putExtra("kind", kind)
+        val pi = PendingIntent.getBroadcast(
+            context, (kind + reservationId).hashCode(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            return
+        }
+        am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+    }
+
+    /** 예고(-10분) 배너 */
+    fun showPreAlert(context: Context, activityName: String, fireAt: Long) {
+        val n = NotificationCompat.Builder(context, CHANNEL_REMINDER)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("'$activityName' 시작 10분 전입니다")
+            .setContentText("촬영을 준비해주세요. 정각에 알람이 울립니다.")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        context.getSystemService(NotificationManager::class.java)
+            .notify(("pre$fireAt").hashCode(), n)
+    }
+
+    /** 마지막 경고(+5분) 배너 */
+    fun showLastWarn(context: Context, activityName: String, fireAt: Long) {
+        val n = NotificationCompat.Builder(context, CHANNEL_REMINDER)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("$activityName 시작")
+            .setContentText("아직 시작하지 않았습니다. 5분이 지나면 탈락 처리됩니다.")
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .build()
+        context.getSystemService(NotificationManager::class.java)
+            .notify(("warn$fireAt").hashCode(), n)
     }
 
     @SuppressLint("MissingPermission")
@@ -103,12 +166,19 @@ object AlarmScheduler {
     }
 
     fun cancel(context: Context, reservationId: String) {
+        val am = context.getSystemService(AlarmManager::class.java)
         val intent = Intent(context, AlarmReceiver::class.java)
-        val pi = PendingIntent.getBroadcast(
-            context, reservationId.hashCode(), intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        context.getSystemService(AlarmManager::class.java).cancel(pi)
+        // 메인 + 예고 + 마지막 경고 전부 — 예약이 사라졌는데 보조 알람만 남으면
+        // 라우팅 대상 없는 배너가 계속 온다
+        for (code in listOf(reservationId.hashCode(),
+                ("prealert" + reservationId).hashCode(),
+                ("lastwarn" + reservationId).hashCode())) {
+            val pi = PendingIntent.getBroadcast(
+                context, code, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            am.cancel(pi)
+        }
     }
 
     /** 알람 발화 → 풀스크린 알림 (잠금 화면 위로 알람 화면을 띄운다) */
@@ -150,7 +220,47 @@ object AlarmScheduler {
 
     // MARK: 사운드 — USAGE_ALARM 스트림이라 미디어 볼륨·무음 모드와 무관하게 울린다
 
+    private var vibrating = false
+
+    /** 알람이 울리는 동안 반복 진동 — 무음·방해금지 상태에서 소리가 어떤 이유로든
+     *  안 들려도(볼륨 0, 이어폰 연결 등) 감각 채널이 하나 더 남는다.
+     *  안드로이드는 iOS와 달리 백그라운드에서도 걸 수 있다. */
+    @Suppress("DEPRECATION")
+    fun startAlarmVibration(context: Context) {
+        if (vibrating) return
+        vibrating = true
+        runCatching {
+            val vib = if (Build.VERSION.SDK_INT >= 31) {
+                context.getSystemService(android.os.VibratorManager::class.java).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(android.os.Vibrator::class.java)
+            } ?: return
+            val effect = android.os.VibrationEffect.createWaveform(
+                longArrayOf(0, 800, 1200), 0)   // 0.8초 진동 + 1.2초 휴지 반복
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+            vib.vibrate(effect, attrs)   // USAGE_ALARM — 방해금지에서도 울린다
+        }
+    }
+
+    fun stopAlarmVibration(context: Context) {
+        if (!vibrating) return
+        vibrating = false
+        runCatching {
+            val vib = if (Build.VERSION.SDK_INT >= 31) {
+                context.getSystemService(android.os.VibratorManager::class.java).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(android.os.Vibrator::class.java)
+            } ?: return
+            vib.cancel()
+        }
+    }
+
     fun startAlarmSound(context: Context) {
+        startAlarmVibration(context)   // 소리와 한 몸 — 무음이어도 이쪽은 남는다
         if (alarmPlayer != null) return
         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE) ?: return
@@ -173,7 +283,8 @@ object AlarmScheduler {
         }
     }
 
-    fun stopAlarmSound() {
+    fun stopAlarmSound(context: Context? = null) {
+        context?.let { stopAlarmVibration(it) }
         alarmPlayer?.run { runCatching { stop() }; release() }
         alarmPlayer = null
     }
