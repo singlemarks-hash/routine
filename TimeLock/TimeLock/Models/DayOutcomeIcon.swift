@@ -31,8 +31,9 @@ enum DayOutcomeIcon: String {
     /// - 판정 단위는 세션 낱개가 아니라 '발생(예약별 그날 1회, 즉시 시작은 세션별)'의
     ///   **최종 결과**다. 긴급 중단 후 재촬영해 완주하면 그 발생은 성공이지, 성공·실패
     ///   혼재가 아니다 — 일정 탭·홈 카드의 결과 점과 같은 기준이라 세 화면이 늘 일치한다.
-    /// - 긴급 종료(일정 취소·세션 포기)는 실패로 본다 — 일정 탭이 빨간불을 켜는 것과 동일.
-    ///   안전 종료(배터리·기기 사정)만 중립으로 판정에서 제외한다.
+    /// - 성공이 아닌 모든 최종 결과(노쇼·이탈·긴급 종료·안전 종료)는 실패로 본다 —
+    ///   일정 탭 표시등과 동일한 2색 정책. 안전 종료(무효)는 벌점화만 안 될 뿐
+    ///   완주하지 못한 사실은 같다.
     /// - 오늘은 하루가 끝나지 않았으므로 낙관 판정: 발생 1개라도 성공으로 끝났으면 일단
     ///   success, 자정이 지나 과거가 되면 과거 규칙(전부/혼재/전부실패)으로 확정된다.
     ///   자정을 넘겨 진행한 세션은 anchorDate(발생일 귀속)를 따르므로 — 밤 11시에 시작해
@@ -53,9 +54,9 @@ enum DayOutcomeIcon: String {
             records.max { ($0.endedAt ?? $0.anchorDate) < ($1.endedAt ?? $1.anchorDate) }?.outcome
         }
 
-        // 성공 / 실패(노쇼·이탈·긴급 종료) — 안전 종료(중립)만 제외
+        // 성공 / 실패 — 성공이 아니면 전부 실패 (2색 정책, 일정 탭 표시등과 동일)
         let hasSuccess = finals.contains { $0.isSuccess }
-        let hasFailure = finals.contains { $0.isFailure || $0 == .emergency }
+        let hasFailure = finals.contains { !$0.isSuccess }
 
         if target == today {
             if hasSuccess { return .success }           // 발생 1개라도 성공 — 일단 성공

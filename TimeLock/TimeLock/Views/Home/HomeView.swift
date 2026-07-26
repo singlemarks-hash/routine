@@ -197,7 +197,9 @@ struct HomeView: View {
                     header
                         .padding(.top, 6)
 
-                    streakCard
+                    // 연속달성 카드도 시간 배지·캘린더 버튼과 같은 동선 — 탭하면 기록탭
+                    NavigationLink(value: HomeRoute.calendar) { streakCard }
+                        .pressableStyle()
 
                     goalCard
 
@@ -459,14 +461,9 @@ struct HomeView: View {
         // 12시간 이내로 들어온 미완료 활동만 남은 시간 타이머(앰버) 표시
         let remaining = fire.map { Int($0.timeIntervalSince(now)) } ?? -1
         let showsTimer = done == nil && remaining > 0 && remaining <= 12 * 3600
-        // 완료 결과 점 — 일정 탭의 불빛과 완전히 같은 규칙:
-        // 성공 초록 / 안전 종료(기기 사정)는 무표시 / 그 외(노쇼·이탈·긴급 종료)는 빨강.
-        // 긴급용무 이탈을 노랑(중립)으로 두면 일정 탭의 빨간불과 어긋나 보인다.
-        let doneTint: Color? = done.flatMap { outcome -> Color? in
-            if outcome.isSuccess { return TL.jade }
-            if outcome == .safetyEnded { return nil }
-            return TL.rec
-        }
+        // 완료 결과 점 — 일정 탭의 불빛과 완전히 같은 규칙: 성공 초록, 그 외 전부 빨강.
+        // 안전 종료(무효)도 빨강이다 — 무효는 벌점화만 안 되는 것이지 완주 실패는 같다.
+        let doneTint: Color? = done.map { $0.isSuccess ? TL.jade : TL.rec }
 
         return Button {
             // 그룹 예약은 편집 잠금 — 그룹 탭에서 관리 (탈퇴로만 삭제)

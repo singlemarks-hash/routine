@@ -480,13 +480,12 @@ struct TagDonutView: View {
     /// (태그, 완주 촬영 초) — 점유율 내림차순
     let byTag: [(String, Int)]
 
-    /// 세그먼트 팔레트 — 점유율 순으로 배정, 태그 칩 테두리도 같은 색을 쓴다
-    private static let palette: [Color] = [
-        Color(red: 0.95, green: 0.33, blue: 0.24),   // 레드
-        Color(red: 0.25, green: 0.48, blue: 0.98),   // 블루
-        Color(red: 0.13, green: 0.72, blue: 0.45),   // 그린
-        Color(red: 0.55, green: 0.38, blue: 0.96),   // 퍼플
-        Color(red: 0.55, green: 0.57, blue: 0.60),   // 그레이 (그 외)
+    /// 프리셋 태그가 아닌 것(그룹·직접 입력·'그 외')용 폴백 — 서로 구분되는 무채색 계열.
+    /// 프리셋 6개는 앱 전역의 태그 색(tagTint)을 그대로 써서 칩과 도넛이 같은 색을 말한다.
+    private static let fallbackPalette: [Color] = [
+        Color(hex: 0x9AA0A6),   // 라이트 그레이
+        Color(hex: 0x6E7681),   // 스틸
+        Color(hex: 0x4D555E),   // 다크 스틸
     ]
 
     private var totalSeconds: Int { max(1, byTag.reduce(0) { $0 + $1.1 }) }
@@ -496,13 +495,22 @@ struct TagDonutView: View {
         return f.string(from: NSNumber(value: totalSeconds / 60)) ?? "\(totalSeconds / 60)"
     }
 
-    /// 상위 4개 + '그 외' 묶음 — 팔레트/범례가 무한히 늘어나지 않게
+    /// 상위 4개 + '그 외' 묶음 — 팔레트/범례가 무한히 늘어나지 않게.
+    /// 색은 시스템 태그 색(tagTint) 그대로, 프리셋이 아닌 태그만 무채색 폴백을 순환 배정.
     private var segments: [(name: String, seconds: Int, color: Color)] {
         var rows: [(String, Int)] = Array(byTag.prefix(4))
         let restSeconds = byTag.dropFirst(4).reduce(0) { $0 + $1.1 }
         if restSeconds > 0 { rows.append(("그 외", restSeconds)) }
-        return rows.enumerated().map { index, row in
-            (row.0, row.1, Self.palette[min(index, Self.palette.count - 1)])
+        var fallbackIndex = 0
+        return rows.map { row in
+            let color: Color
+            if let tint = tagTint(row.0) {
+                color = tint
+            } else {
+                color = Self.fallbackPalette[fallbackIndex % Self.fallbackPalette.count]
+                fallbackIndex += 1
+            }
+            return (row.0, row.1, color)
         }
     }
 
@@ -531,13 +539,9 @@ struct TagDonutView: View {
                           alignment: .leading, spacing: 12) {
                     ForEach(segments, id: \.name) { seg in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(seg.name)
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(TL.paper)
-                                .lineLimit(1)
-                                .padding(.horizontal, 10).padding(.vertical, 4)
-                                .background(Capsule().fill(seg.color.opacity(0.16)))
-                                .overlay(Capsule().strokeBorder(seg.color, lineWidth: 1.2))
+                            // 앱 전역과 동일한 태그 칩 — 도넛 조각도 같은 tagTint를 쓰므로
+                            // 칩과 조각이 같은 색으로 짝지어진다
+                            TagChip(name: seg.name)
                             Text(hoursMinutes(seg.seconds))
                                 .font(.tlTimer(13))
                                 .foregroundStyle(TL.muted)
