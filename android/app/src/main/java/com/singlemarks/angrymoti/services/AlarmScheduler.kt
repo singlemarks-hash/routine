@@ -127,8 +127,14 @@ object AlarmScheduler {
         am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
     }
 
+    // 알림은 (tag=예약ID, 고정 id) 조합으로 게시한다 — 예약을 지울 때 그 예약의 배너만
+    // 정확히 걷어낼 수 있고, 알람 두 개가 겹쳐도 서로의 알림을 덮지 않는다.
+    private const val NOTIF_ALARM = 1001
+    private const val NOTIF_PRE = 1002
+    private const val NOTIF_WARN = 1003
+
     /** 예고(-10분) 배너 */
-    fun showPreAlert(context: Context, activityName: String, fireAt: Long) {
+    fun showPreAlert(context: Context, reservationId: String, activityName: String, fireAt: Long) {
         val n = NotificationCompat.Builder(context, CHANNEL_REMINDER)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("'$activityName' 시작 10분 전입니다")
@@ -137,11 +143,11 @@ object AlarmScheduler {
             .setAutoCancel(true)
             .build()
         context.getSystemService(NotificationManager::class.java)
-            .notify(("pre$fireAt").hashCode(), n)
+            .notify(reservationId, NOTIF_PRE, n)
     }
 
     /** 마지막 경고(+5분) 배너 */
-    fun showLastWarn(context: Context, activityName: String, fireAt: Long) {
+    fun showLastWarn(context: Context, reservationId: String, activityName: String, fireAt: Long) {
         val n = NotificationCompat.Builder(context, CHANNEL_REMINDER)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("$activityName 시작")
@@ -151,7 +157,7 @@ object AlarmScheduler {
             .setAutoCancel(true)
             .build()
         context.getSystemService(NotificationManager::class.java)
-            .notify(("warn$fireAt").hashCode(), n)
+            .notify(reservationId, NOTIF_WARN, n)
     }
 
     @SuppressLint("MissingPermission")
@@ -203,6 +209,12 @@ object AlarmScheduler {
             )
             am.cancel(pi)
         }
+        // 이미 '표시된' 배너도 걷는다 — PendingIntent 취소는 미래 알람만 막을 뿐,
+        // 예약 삭제 직후 떠 있는 예고/경고/알람 배너는 그대로 남는다.
+        val nm = context.getSystemService(NotificationManager::class.java)
+        nm.cancel(reservationId, NOTIF_ALARM)
+        nm.cancel(reservationId, NOTIF_PRE)
+        nm.cancel(reservationId, NOTIF_WARN)
     }
 
     /** 알람 발화 → 풀스크린 알림 (잠금 화면 위로 알람 화면을 띄운다) */
@@ -213,8 +225,11 @@ object AlarmScheduler {
             putExtra("fireAt", fireAt)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
+        // requestCode를 예약별로 — 고정 1이면 알람 두 개가 겹칠 때 두 번째가 첫 번째의
+        // 라우팅 extras를 덮어써 엉뚱한 예약으로 진입한다.
         val fullPi = PendingIntent.getActivity(
-            context, 1, full, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            context, reservationId.hashCode(), full,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val n = NotificationCompat.Builder(context, CHANNEL_ALARM)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -226,12 +241,23 @@ object AlarmScheduler {
             .setContentIntent(fullPi)
             .setOngoing(true)
             .build()
-        context.getSystemService(NotificationManager::class.java).notify(1001, n)
+        context.getSystemService(NotificationManager::class.java)
+            .notify(reservationId, NOTIF_ALARM, n)
     }
 
-    fun cancelAlarmNotification(context: Context) {
+    /** 울리는 알람 배너 정리 — reservationId를 알면 그 예약 것만, 모르면 떠 있는 전부 */
+    fun cancelAlarmNotification(context: Context, reservationId: String? = null) {
         stopAlarmVibration(context)
-        context.getSystemService(NotificationManager::class.java).cancel(1001)
+        val nm = context.getSystemService(NotificationManager::class.java)
+        if (reservationId != null) {
+            nm.cancel(reservationId, NOTIF_ALARM)
+        } else {
+            runCatching {
+                nm.activeNotifications.filter { it.id == NOTIF_ALARM }
+                    .forEach { nm.cancel(it.tag, NOTIF_ALARM) }
+            }
+        }
+        nm.cancel(NOTIF_ALARM)   // 구버전(태그 없음)이 남긴 배너도 정리
     }
 
     fun postStatus(context: Context, id: Int, title: String, body: String) {

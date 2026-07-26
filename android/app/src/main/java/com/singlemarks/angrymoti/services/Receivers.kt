@@ -30,18 +30,31 @@ class AlarmReceiver : BroadcastReceiver() {
                                     kotlin.math.abs(it.scheduledAt!! - fireAt) < 60_000L
                             }
                             if (started) return@launch
-                            AlarmScheduler.showLastWarn(context.applicationContext, r.name, fireAt)
+                            AlarmScheduler.showLastWarn(context.applicationContext,
+                                reservationId, r.name, fireAt)
                         } else {
-                            AlarmScheduler.showPreAlert(context.applicationContext, r.name, fireAt)
+                            AlarmScheduler.showPreAlert(context.applicationContext,
+                                reservationId, r.name, fireAt)
                         }
                     } finally { pending.finish() }
                 }
             }
             else -> {
-                AlarmScheduler.showAlarmNotification(context, reservationId, fireAt)
-                // 앱이 안 열려도 진동은 시작한다 — 풀스크린이 못 뜨는 상황(알림 거부 등)의 보루
-                AlarmScheduler.startAlarmVibration(context.applicationContext)
-                AlarmScheduler.rescheduleAllAsync(context.applicationContext) { pending.finish() }
+                // 메인 알람도 예고/경고와 같은 유령 방어 — 삭제·비활성 예약의 잔여 알람이면
+                // 풀스크린·진동 없이 재등록만 하고 조용히 지나간다.
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    try {
+                        val db = com.singlemarks.angrymoti.data.AppDb.get(context.applicationContext)
+                        val r = db.reservations().byId(reservationId)
+                        if (r != null && r.isActive) {
+                            AlarmScheduler.showAlarmNotification(context, reservationId, fireAt)
+                            // 앱이 안 열려도 진동은 시작한다 — 풀스크린이 못 뜨는 상황(알림 거부 등)의 보루
+                            AlarmScheduler.startAlarmVibration(context.applicationContext)
+                        }
+                    } finally {
+                        AlarmScheduler.rescheduleAllAsync(context.applicationContext) { pending.finish() }
+                    }
+                }
             }
         }
     }

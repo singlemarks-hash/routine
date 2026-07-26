@@ -861,6 +861,9 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
     var members by remember { mutableStateOf(listOf<GroupStore.GroupMember>()) }
     var confirmAction by remember { mutableStateOf<String?>(null) }   // disband | leave | quit | hide
     var actionError by remember { mutableStateOf<String?>(null) }
+    // 처리 중 이중 실행 방지 — 두 번 실행되면 인원수가 두 번 줄어 목록·상세의 참여자 수가
+    // 어긋나고 허위 '정원 초과'까지 난다 (iOS working 가드 1:1)
+    var working by remember { mutableStateOf(false) }
     val myUid = AccountStore.currentUserID
 
     // 실제로 그릴 방 — 목록(rooms)의 최신 값을 따라간다. 진입 시점 스냅샷만 붙들면 시작
@@ -1052,13 +1055,17 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
             when {
                 finished || cancelledOrDisbanded -> {
                     TLGhostButton(
-                        if (finished) "방 나가기 — 내 목록에서 제거" else "방 나가기",
+                        if (working) "나가는 중…"
+                        else if (finished) "방 나가기 — 내 목록에서 제거" else "방 나가기",
                         tint = TL.muted,
                     ) {
+                        if (working) return@TLGhostButton
+                        working = true
                         scope.launch {
                             runCatching { GroupStore.hideFinishedRoom(context, room) }
                                 .onSuccess { onBack() }
                                 .onFailure { actionError = it.message ?: "처리하지 못했어요." }
+                            working = false
                         }
                     }
                 }
@@ -1100,8 +1107,9 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
             title = { Text(title, color = TL.paper, fontWeight = FontWeight.Black) },
             text = { Text(desc, color = TL.muted) },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
+                androidx.compose.material3.TextButton(enabled = !working, onClick = {
                     confirmAction = null
+                    working = true
                     scope.launch {
                         runCatching {
                             when (action) {
@@ -1111,6 +1119,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                             }
                         }.onSuccess { onBack() }
                             .onFailure { actionError = it.message ?: "처리하지 못했어요." }
+                        working = false
                     }
                 }) { Text(button, color = TL.rec, fontWeight = FontWeight.Black) }
             },

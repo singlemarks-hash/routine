@@ -79,10 +79,17 @@ object AppState {
             }.timeInMillis
             Prefs.setPendingDowngradeAt(owner, midnight)
         }
+        refreshPendingDowngrade()
     }
 
-    val pendingDowngrade: Boolean
-        get() = Prefs.pendingDowngradeAt(AccountStore.currentUserID) > System.currentTimeMillis()
+    /** 하향 예약 여부 — StateFlow라야 '내일 0시부터 매운맛' 배너가 누르는 즉시 나타난다.
+     *  (일반 프로퍼티였을 때는 다른 이유로 리컴포지션이 나야 뒤늦게 보였다) */
+    val pendingDowngrade = MutableStateFlow(false)
+
+    private fun refreshPendingDowngrade() {
+        pendingDowngrade.value =
+            Prefs.pendingDowngradeAt(AccountStore.currentUserID) > System.currentTimeMillis()
+    }
 
     fun applyPendingDowngradeIfDue() {
         val owner = AccountStore.currentUserID
@@ -92,6 +99,7 @@ object AppState {
             Prefs.setPendingDowngradeAt(owner, 0)
             intensity.value = Intensity.SPICY
         }
+        refreshPendingDowngrade()
     }
 
     fun refreshSpicyCompletions(context: Context) {

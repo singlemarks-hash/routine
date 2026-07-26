@@ -96,6 +96,15 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
 
     LaunchedEffect(reservationId) {
         withContext(Dispatchers.IO) { reservation = db.reservations().byId(reservationId) }
+        // 예약을 못 찾으면(삭제·비활성) 검은 화면에서 벨소리만 나는 상태가 된다 —
+        // 소리·알림을 정리하고 조용히 홈으로 돌려보낸다.
+        val r0 = reservation
+        if (r0 == null || !r0.isActive) {
+            AlarmScheduler.stopAlarmSound(context)
+            AlarmScheduler.cancelAlarmNotification(context, reservationId)
+            AppState.route.value = com.singlemarks.angrymoti.Route.None
+            return@LaunchedEffect
+        }
         while (true) {
             val left = (fireAt + TimePolicy.START_WINDOW_SECONDS * 1000 - System.currentTimeMillis()) / 1000
             remaining = left.toInt().coerceAtLeast(0)
@@ -369,6 +378,19 @@ fun MountGuideScreen(pending: PendingSession) {
                 color = TL.rec, fontSize = if (compact) 12.sp else 14.sp, fontWeight = FontWeight.Bold)
         }
     }
+    // 카메라 권한이 없으면 카운트다운을 시작하지 않는다 — 그대로 진행하면 15초 무반응
+    // 뒤에야 무효 처리된다 (iOS는 시작 시점에 throw → 즉시 안전 종료와 같은 취지).
+    val startCountdown: () -> Unit = start@{
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context,
+                android.Manifest.permission.CAMERA) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            android.widget.Toast.makeText(context,
+                "카메라 권한이 필요해요 — 설정 > 앱 > 권한에서 허용 후 다시 시도해주세요.",
+                android.widget.Toast.LENGTH_LONG).show()
+            return@start
+        }
+        countdown = 3
+    }
     val checklistAndStart: @Composable () -> Unit = {
         MountCheckRow("거치대에 폰을 고정했어요", check1) { if (countdown == null) check1 = !check1 }
         Spacer(Modifier.height(10.dp))
@@ -377,7 +399,7 @@ fun MountGuideScreen(pending: PendingSession) {
         TLPrimaryButton(
             if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
             enabled = check1 && check2 && countdown == null,
-        ) { countdown = 3 }
+        ) { startCountdown() }
         Spacer(Modifier.height(10.dp))
         // 반투명 흰 배경 캡슐 — 전체 화면 프리뷰 위에서도 잘 보이게
         Box(
@@ -475,7 +497,7 @@ fun MountGuideScreen(pending: PendingSession) {
                             TLPrimaryButton(
                                 if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
                                 enabled = check1 && check2 && countdown == null,
-                            ) { countdown = 3 }
+                            ) { startCountdown() }
                         }
                     }
                 }

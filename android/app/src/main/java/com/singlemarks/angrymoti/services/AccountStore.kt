@@ -86,7 +86,9 @@ object AccountStore {
         val result = auth.signInWithEmailAndPassword(email, password).await()
         val u = result.user ?: error("로그인 실패")
         if (!u.isEmailVerified) {
-            u.sendEmailVerification()
+            // 인증 대기 화면으로만 보낸다 — 로그인할 때마다 인증 메일을 다시 쏘면
+            // Firebase rate-limit(too-many-requests)에 걸려 정작 '재발송' 버튼이 막힌다.
+            // (iOS도 로그인 시 재발송하지 않는다. 재발송은 화면의 버튼으로만)
             pendingVerificationEmail.value = email
             return
         }

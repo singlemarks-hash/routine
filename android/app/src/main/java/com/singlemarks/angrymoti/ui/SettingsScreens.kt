@@ -365,7 +365,7 @@ fun IntensityScreen(onBack: () -> Unit) {
             AppState.requestIntensityChange(Intensity.INSANE)
         }
         Spacer(Modifier.height(12.dp))
-        if (AppState.pendingDowngrade) {
+        if (AppState.pendingDowngrade.collectAsState().value) {
             Text("매운맛으로 하향 예약됨 — 다음날 0시부터 적용됩니다", color = TL.amber, fontSize = 13.sp)
             Spacer(Modifier.height(6.dp))
         }
