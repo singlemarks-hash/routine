@@ -24,6 +24,12 @@ object SubscriptionManager : PurchasesUpdatedListener {
 
     val isPro = MutableStateFlow(false)
     val product = MutableStateFlow<ProductDetails?>(null)
+    /** 상품 조회가 진행 중인지 — '조회 중'과 '조회했지만 실패'를 화면이 구분해야
+     *  무한 로딩으로 거짓말하지 않는다 (iOS 1d4a01c와 동일). */
+    val loadingProduct = MutableStateFlow(false)
+    /** 구매 복원(refresh) 결과 콜백용 — 마지막 갱신에서 활성 구독을 찾았는가 */
+    @Volatile var lastRefreshFoundActive: Boolean? = null
+        private set
 
     /** 반대 플랫폼(iOS)에서 구독한 경우의 만료 시각(millis) — AccountStore 동기화가 채워준다.
      *  Pro 판정 = 이 기기 스토어 구독 ∨ 클라우드 기록이 아직 유효. */
@@ -49,17 +55,32 @@ object SubscriptionManager : PurchasesUpdatedListener {
             )
             .build()
         client = c
-        c.startConnection(object : BillingClientStateListener {
+        connect(context)
+    }
+
+    private var reconnectDelayMs = 1_000L
+
+    private fun connect(context: Context) {
+        client?.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(result: BillingResult) {
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                    reconnectDelayMs = 1_000L
                     queryProduct(); refresh()
                 }
             }
-            override fun onBillingServiceDisconnected() {}
+            override fun onBillingServiceDisconnected() {
+                // 끊긴 채로 두면 그 뒤의 모든 조회·결제가 조용히 실패한다 — 지수 백오프 재연결
+                val delay = reconnectDelayMs
+                reconnectDelayMs = (reconnectDelayMs * 2).coerceAtMost(60_000L)
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                    { connect(context) }, delay)
+            }
         })
     }
 
-    private fun queryProduct() {
+    /** 페이월에서 '다시 시도'로도 부른다 — 실패가 영구 상태로 남지 않게 */
+    fun queryProduct() {
+        loadingProduct.value = true
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(
                 listOf(
@@ -69,17 +90,22 @@ object SubscriptionManager : PurchasesUpdatedListener {
                         .build()
                 )
             ).build()
-        client?.queryProductDetailsAsync(params) { result, list ->
+        val c = client
+        if (c == null || !c.isReady) { loadingProduct.value = false; return }
+        c.queryProductDetailsAsync(params) { result, list ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                 product.value = list.firstOrNull()
             }
+            loadingProduct.value = false
         }
     }
 
-    fun refresh() {
+    fun refresh(onResult: ((Boolean) -> Unit)? = null) {
         val params = QueryPurchasesParams.newBuilder()
             .setProductType(BillingClient.ProductType.SUBS).build()
-        client?.queryPurchasesAsync(params) { result, purchases ->
+        val c = client
+        if (c == null || !c.isReady) { lastRefreshFoundActive = null; onResult?.invoke(false); return }
+        c.queryPurchasesAsync(params) { result, purchases ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                 val active = purchases.any {
                     it.purchaseState == Purchase.PurchaseState.PURCHASED &&
@@ -96,6 +122,11 @@ object SubscriptionManager : PurchasesUpdatedListener {
                 }
                 purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }
                     .forEach(::acknowledge)
+                lastRefreshFoundActive = active
+                onResult?.invoke(active)
+            } else {
+                lastRefreshFoundActive = null
+                onResult?.invoke(false)
             }
         }
     }
@@ -139,10 +170,16 @@ object SubscriptionManager : PurchasesUpdatedListener {
         }
     }
 
-    private fun acknowledge(p: Purchase) {
+    /** 미승인 구매는 Play 규정상 3일 내 자동 환불된다 — 실패하면 1회 재시도 */
+    private fun acknowledge(p: Purchase, retry: Boolean = true) {
         client?.acknowledgePurchase(
             AcknowledgePurchaseParams.newBuilder().setPurchaseToken(p.purchaseToken).build()
-        ) {}
+        ) { result ->
+            if (result.responseCode != BillingClient.BillingResponseCode.OK && retry) {
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                    { acknowledge(p, retry = false) }, 3_000L)
+            }
+        }
     }
 
     /** 정기 결제가 — 무료 체험 오퍼일 때 첫 phase는 ₩0이므로, 가격이 있는 phase를 골라 표시한다 */

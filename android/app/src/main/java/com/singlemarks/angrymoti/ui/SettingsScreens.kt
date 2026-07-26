@@ -149,6 +149,7 @@ private fun PlainMenuRow(label: String, onClick: () -> Unit) {
 /** 프로필 및 구독 관리 — 프로필 카드(로그아웃 포함) + 구독 카드 + 최하단 계정 삭제 */
 @Composable
 fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
+    val profileRestoreMessage = remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val user by AccountStore.user.collectAsState()
@@ -236,7 +237,26 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             Text("구매 복원", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().clickable { SubscriptionManager.refresh() }.padding(4.dp))
+                modifier = Modifier.fillMaxWidth().clickable {
+                    SubscriptionManager.refresh { found ->
+                        if (!found) profileRestoreMessage.value =
+                            "복원할 구독을 찾지 못했습니다. 구독하신 Google 계정으로 로그인되어 있는지 확인해 주세요."
+                    }
+                }.padding(4.dp))
+        }
+
+        profileRestoreMessage.value?.let { msg ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { profileRestoreMessage.value = null },
+                containerColor = TL.surface,
+                title = { Text("구매 복원", color = TL.paper, fontWeight = FontWeight.Black) },
+                text = { Text(msg, color = TL.muted) },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { profileRestoreMessage.value = null }) {
+                        Text("확인", color = TL.rec, fontWeight = FontWeight.Black)
+                    }
+                },
+            )
         }
         Spacer(Modifier.height(10.dp))
         Text(Legal.SUBSCRIPTION_DISCLOSURE, color = TL.faint, fontSize = 11.sp)
@@ -315,6 +335,11 @@ fun PaywallScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val isPro by SubscriptionManager.isPro.collectAsState()
     val product by SubscriptionManager.product.collectAsState()
+    val loadingProduct by SubscriptionManager.loadingProduct.collectAsState()
+    var restoreMessage by remember { mutableStateOf<String?>(null) }
+
+    // 앱 실행 때 한 번 실패하면 그걸로 끝이었다 — 페이월을 열 때마다 다시 시도한다.
+    LaunchedEffect(Unit) { if (SubscriptionManager.product.value == null) SubscriptionManager.queryProduct() }
 
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
@@ -340,7 +365,7 @@ fun PaywallScreen(onBack: () -> Unit) {
             Benefit("활동 슬롯 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 시작 (무료는 2개)")
             Benefit("타임랩스 워터마크 제거")
             Benefit("미친 매운맛 모드 (멤버십 전용)")
-            Benefit("멤버들과 함께: 랭킹게임 (준비 중)")
+            Benefit("그룹 챌린지 — 초대코드로 모여 같은 일정으로 랭킹 대결")
             Benefit("그 외 추가되는 멤버십 기능 모두 포함")
         }
         Spacer(Modifier.height(24.dp))
@@ -353,12 +378,38 @@ fun PaywallScreen(onBack: () -> Unit) {
             TLPrimaryButton(label, tint = TL.jade) {
                 (context as? Activity)?.let { SubscriptionManager.purchase(it) }
             }
-        } else {
+        } else if (loadingProduct) {
             Text("구독 상품을 불러오는 중입니다…", color = TL.faint, fontSize = 13.sp)
+        } else {
+            // 조회가 끝났는데 상품이 없다 — '불러오는 중'으로 두면 기다리면 될 줄 알고
+            // 앱을 껐다 켜는 수밖에 없다 (iOS 1d4a01c와 동일한 정직한 실패 표시)
+            Text("구독 상품을 불러오지 못했습니다.\n네트워크 연결을 확인해 주세요.",
+                color = TL.faint, fontSize = 13.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(8.dp))
+            TLGhostButton("다시 시도") { SubscriptionManager.queryProduct() }
         }
         Spacer(Modifier.height(10.dp))
         Text("구매 복원", color = TL.muted, fontSize = 13.sp,
-            modifier = Modifier.clickable { SubscriptionManager.refresh() }.padding(6.dp))
+            modifier = Modifier.clickable {
+                SubscriptionManager.refresh { found ->
+                    if (!found) restoreMessage =
+                        "복원할 구독을 찾지 못했습니다. 구독하신 Google 계정으로 로그인되어 있는지 확인해 주세요. 구독한 적이 없다면 먼저 구독을 진행해 주세요."
+                }
+            }.padding(6.dp))
+
+        restoreMessage?.let { msg ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { restoreMessage = null },
+                containerColor = TL.surface,
+                title = { Text("구매 복원", color = TL.paper, fontWeight = FontWeight.Black) },
+                text = { Text(msg, color = TL.muted) },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { restoreMessage = null }) {
+                        Text("확인", color = TL.rec, fontWeight = FontWeight.Black)
+                    }
+                },
+            )
+        }
         Spacer(Modifier.height(12.dp))
         Text(Legal.SUBSCRIPTION_DISCLOSURE, color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
