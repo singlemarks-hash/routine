@@ -433,11 +433,15 @@ object GroupStore {
             throw (e as? GroupException) ?: (e.cause as? GroupException)
                 ?: GroupException("참여에 실패했어요 — ${e.localizedMessage}")
         }
-        // 내 계정 문서의 그룹 목록 — 경합 무관(merge)이라 트랜잭션 밖
-        runCatching {
+        // 내 계정 문서의 그룹 목록 — 경합 무관(merge)이라 트랜잭션 밖.
+        // 여기서 실패를 삼키면 안 된다: 서버엔 멤버로 등록됐는데 내 그룹 목록에는 없어서,
+        // 곧바로 도는 고아 정리가 방금 만든 예약을 지워 버린다(알람 없이 노쇼만 쌓임).
+        try {
             db().collection("users").document(uid)
                 .set(mapOf("groupIDs" to FieldValue.arrayUnion(room.id)),
                     com.google.firebase.firestore.SetOptions.merge()).await()
+        } catch (_: Exception) {
+            throw GroupException("참여는 됐지만 목록 저장에 실패했어요 — 네트워크 확인 후 다시 시도해주세요.")
         }
         // 예약을 지금 만들어 두어야 시작 시각 정각의 첫 알람이 울린다 (시작일 전엔 발생 없음)
         ensureLocalReservation(context, room)
@@ -774,6 +778,9 @@ object GroupStore {
                         AccountStore.deleteMirroredEvent(e.ownerUserID, e.id)
                         dbLocal.scores().delete(e)
                     }
+                    // 세션도 클라우드 사본(sessionSummaries)까지 지운다 — 로컬만 지우면
+                    // 다음 동기화가 노쇼 세션을 되살려 연속 달성일이 매번 끊긴다 (불변식 #4)
+                    AccountStore.deleteMirroredSession(session.ownerUserID, session.id)
                     dbLocal.sessions().delete(session)
                 }
             }

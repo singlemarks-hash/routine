@@ -266,6 +266,9 @@ object AccountStore {
                     "oneOffDate" to r.oneOffDayStart,
                     "intensityOverride" to (r.intensityOverrideRaw ?: ""),
                     "createdAt" to r.createdAt,
+                    // 종료 게이트. null(무기한)도 '키는 존재'하게 써야, 읽는 쪽에서
+                    // '무기한'과 '이 필드를 모르는 옛 클라이언트가 쓴 문서'를 구분할 수 있다.
+                    "endDate" to r.endAt,
                     "accountableFrom" to r.accountableFrom,
                     "isActive" to r.isActive,
                     "updatedAt" to (r.updatedAt ?: r.createdAt),
@@ -298,15 +301,45 @@ object AccountStore {
             if (local != null) {
                 val localUpdated = local.updatedAt ?: local.createdAt
                 if (cloudUpdated > localUpdated) {
+                    // '이미 시작했나' 판정은 반드시 병합 전 값으로 한다 —
+                    // startMinute을 먼저 덮어쓴 뒤 계산하면 판정 기준이 흔들린다. (iOS와 동일)
+                    val alreadyStarted = run {
+                        val cal = java.util.Calendar.getInstance().apply {
+                            timeInMillis = local.createdAt
+                            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                        }
+                        cal.timeInMillis + local.startMinute * 60_000L <= System.currentTimeMillis()
+                    }
+                    // 발생 시작 게이트 — 노쇼 복구 루틴이 'scheduledAt < createdAt'인 기록을
+                    // 지우므로, 게이트가 미래로 밀리면 과거의 정당한 벌점이 삭제된다.
+                    // 시작 전이면 원격 값을 받고, 이미 시작했으면 더 이른 쪽을 유지한다. (불변식 #1)
+                    val remoteCreated = doc.getLong("createdAt")
+                    val mergedCreatedAt = when {
+                        remoteCreated == null -> local.createdAt
+                        alreadyStarted -> minOf(local.createdAt, remoteCreated)
+                        else -> remoteCreated
+                    }
                     dao.upsert(local.copy(
                         name = doc.getString("name") ?: local.name,
                         tag = doc.getString("tag") ?: local.tag,
                         startMinute = doc.getLong("startMinute")?.toInt() ?: local.startMinute,
                         durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: local.durationMinutes,
-                        repeatWeekdaysCsv = weekdays?.joinToString(",") ?: local.repeatWeekdaysCsv,
+                        // 파싱 실패·구버전 문서로 빈 배열이 오면 매일 반복이 하루짜리로
+                        // 붕괴하므로, 빈 결과는 무시하고 로컬 값을 지킨다. (iOS와 동일)
+                        repeatWeekdaysCsv = weekdays?.takeIf { it.isNotEmpty() }
+                            ?.joinToString(",") ?: local.repeatWeekdaysCsv,
                         oneOffDayStart = doc.getLong("oneOffDate"),
                         intensityOverrideRaw = doc.getString("intensityOverride")?.ifEmpty { null },
-                        accountableFrom = doc.getLong("accountableFrom") ?: local.accountableFrom,
+                        createdAt = mergedCreatedAt,
+                        // 종료 게이트 — 키가 없으면 '이 필드를 모르는 클라이언트가 쓴 문서'이므로
+                        // 로컬 값을 지키고, 키가 있으면(null 포함) 그대로 받는다.
+                        endAt = if (doc.contains("endDate")) doc.getLong("endDate") else local.endAt,
+                        // 책임 기준은 뒤로 밀지 않는다 — 이르게 되돌리면 이미 면책된 과거
+                        // 발생분이 다시 노쇼 대상이 된다. (불변식 #2)
+                        accountableFrom = doc.getLong("accountableFrom")?.let {
+                            maxOf(it, local.accountableFrom ?: Long.MIN_VALUE)
+                        } ?: local.accountableFrom,
                         isActive = doc.getBoolean("isActive") ?: local.isActive,
                         updatedAt = cloudUpdated,
                     ))
@@ -325,6 +358,7 @@ object AccountStore {
                     oneOffDayStart = doc.getLong("oneOffDate"),
                     intensityOverrideRaw = doc.getString("intensityOverride")?.ifEmpty { null },
                     createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                    endAt = doc.getLong("endDate"),
                     isActive = doc.getBoolean("isActive") ?: true,
                     accountableFrom = doc.getLong("accountableFrom"),
                     updatedAt = doc.getLong("updatedAt"),
