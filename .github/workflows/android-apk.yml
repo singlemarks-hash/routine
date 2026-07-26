@@ -1,0 +1,38 @@
+name: Android APK (수동)
+
+# 에뮬레이터·실기기에 바로 설치할 debug APK를 만들어 아티팩트로 올린다.
+# 로컬에 Android SDK를 갖추지 않아도 '지금 코드'를 손에 받아 볼 수 있게 하는 용도.
+# 수동 실행 전용(workflow_dispatch) — 매 푸시마다 돌리면 러너 시간만 낭비된다.
+# (컴파일 검증은 android-build.yml이 push/PR마다 이미 수행한다)
+on:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    name: Debug APK 빌드
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 설정
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 설정 (래퍼 + 캐시)
+        uses: gradle/actions/setup-gradle@v4
+
+      # debug 빌드 — 축소(minify) 없이 debug 키로 서명되므로 설치에 별도 준비가 필요 없다
+      - name: assembleDebug
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: APK 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: angrymoti-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
