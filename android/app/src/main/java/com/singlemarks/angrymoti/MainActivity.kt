@@ -39,21 +39,7 @@ class MainActivity : ComponentActivity() {
         AppState.bootstrap()
         setContent { AngryMotiTheme { Root() } }
         handleIntent(intent)
-        lifecycleScope.launch(Dispatchers.IO) {
-            // 순서 불변식 (iOS와 동일): 동기화 → 기록 수렴 → 방 정리 → 게이트 open →
-            // 노쇼 집계 → 만료 은퇴 → 재스케줄. 방 정리가 집계보다 먼저여야 취소·삭제예정
-            // 방의 예약이 사라진 뒤 집계가 돌아 부당 벌점이 안 찍히고, 만료 은퇴가 집계
-            // 뒤여야 마지막 날 노쇼가 유실되지 않는다.
-            SessionEngine.recoverOrphanIfNeeded()
-            AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십·세션 이력 병합
-            SessionEngine.reconcileDuplicateOutcomes()   // 성공 기록이 노쇼를 덮는다
-            AppState.refreshSpicyCompletions(this@MainActivity)   // 동기화된 이력으로 미친맛 해제 상태 갱신
-            com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
-            SessionEngine.markInitialSyncComplete()
-            SessionEngine.sweepNoShows()
-            SessionEngine.cleanupExpiredReservations()
-            AlarmScheduler.rescheduleAll(this@MainActivity)
-        }
+        launchSyncPipeline(includeStartupExtras = true)
         AppState.applyPendingDowngradeIfDue()
         AppState.refreshSpicyCompletions(this)
         // rescheduleAll은 위 IO 파이프라인 끝에서 클라우드 병합 이후 데이터로 한 번만 건다 —
@@ -118,14 +104,35 @@ class MainActivity : ComponentActivity() {
         SessionEngine.handleReturnEvent()
         AppState.applyPendingDowngradeIfDue()
         startForegroundTicker()
+        launchSyncPipeline()
+    }
+
+    /** 콜드 스타트에서 onCreate와 onStart가 거의 동시에 불린다 — 같은 파이프라인이 겹쳐
+     *  돌면 세션 이력이 절반만 병합된 상태로 게이트가 열려 노쇼 스윕이 잘못 돈다.
+     *  인플라이트 가드로 한 번에 하나만 돌린다 (겹치면 늦은 쪽은 건너뛴다 — 앞선 실행이
+     *  같은 일을 끝까지 해 준다). */
+    private val syncInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private fun launchSyncPipeline(includeStartupExtras: Boolean = false) {
+        if (!syncInFlight.compareAndSet(false, true)) return
         lifecycleScope.launch(Dispatchers.IO) {
-            // onCreate와 동일한 순서 불변식
-            AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
-            SessionEngine.reconcileDuplicateOutcomes()
-            com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
-            SessionEngine.markInitialSyncComplete()
-            SessionEngine.sweepNoShows()
-            SessionEngine.cleanupExpiredReservations()
+            try {
+                // 순서 불변식 (iOS와 동일): 동기화 → 기록 수렴 → 방 정리 → 게이트 open →
+                // 노쇼 집계 → 만료 은퇴 → 재스케줄. 방 정리가 집계보다 먼저여야 취소·삭제예정
+                // 방의 예약이 사라진 뒤 집계가 돌아 부당 벌점이 안 찍히고, 만료 은퇴가 집계
+                // 뒤여야 마지막 날 노쇼가 유실되지 않는다.
+                if (includeStartupExtras) SessionEngine.recoverOrphanIfNeeded()
+                AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십·세션 이력 병합
+                SessionEngine.reconcileDuplicateOutcomes()   // 성공 기록이 노쇼를 덮는다
+                if (includeStartupExtras) AppState.refreshSpicyCompletions(this@MainActivity)
+                com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
+                SessionEngine.markInitialSyncComplete()
+                SessionEngine.sweepNoShows()
+                SessionEngine.cleanupExpiredReservations()
+                AlarmScheduler.rescheduleAll(this@MainActivity)
+            } finally {
+                syncInFlight.set(false)
+            }
         }
     }
 

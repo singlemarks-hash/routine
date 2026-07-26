@@ -673,23 +673,37 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
     }
 
     if (pickingDate != null) {
-        val initial = if (pickingDate == "start") startDay else endDay
+        val isStart = pickingDate == "start"
+        // DatePicker는 UTC 자정 기준 — 로컬 자정을 그대로 넘기면 KST(UTC+9)에서 전날로
+        // 표시되고 그대로 확인하면 날짜가 하루 밀린다. 반드시 양방향 환산한다 (개인 예약과 동일).
+        val todayUtc = remember { groupLocalMidnightToUtc(groupTodayStart()) }
+        val maxStartUtc = remember {
+            groupLocalMidnightToUtc(
+                com.singlemarks.angrymoti.models.ReservationPolicy.maxStartDayMillis())
+        }
+        val startUtc = remember(startDay) { groupLocalMidnightToUtc(startDay) }
+        val maxEndUtc = remember(startDay) {
+            groupLocalMidnightToUtc(startDay + GroupPolicy.MAX_DURATION_DAYS * 86_400_000L)
+        }
         val dateState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = initial)
+            initialSelectedDateMillis = groupLocalMidnightToUtc(if (isStart) startDay else endDay),
+            // 과거·상한 밖 날짜는 애초에 못 고르게 — 제출 시점에야 오류를 보는 UX 제거 (iOS in: 1:1)
+            selectableDates = object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    if (isStart) utcTimeMillis in todayUtc..maxStartUtc
+                    else utcTimeMillis in startUtc..maxEndUtc
+            })
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { pickingDate = null },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     dateState.selectedDateMillis?.let { utc ->
-                        // DatePicker는 UTC 자정 기준 — 로컬 자정으로 변환해 저장
-                        val u = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
-                            .apply { timeInMillis = utc }
-                        val local = Calendar.getInstance().apply {
-                            set(u.get(Calendar.YEAR), u.get(Calendar.MONTH),
-                                u.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }.timeInMillis
-                        if (pickingDate == "start") startDay = local else endDay = local
+                        val local = groupUtcMidnightToLocal(utc)
+                        if (isStart) {
+                            startDay = local
+                            // 시작일이 종료일을 넘으면 종료일을 따라 밀어준다 (iOS onChange 클램프)
+                            if (endDay < local) endDay = local
+                        } else endDay = local
                     }
                     pickingDate = null
                 }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
@@ -841,26 +855,53 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
 // MARK: 방 상세 — 대기실 / 랭킹 / 최종 결과 (iOS GroupRoomDetailView 1:1)
 
 @Composable
-private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
+private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var members by remember { mutableStateOf(listOf<GroupStore.GroupMember>()) }
-    var confirmAction by remember { mutableStateOf<String?>(null) }   // disband | leave | quit
+    var confirmAction by remember { mutableStateOf<String?>(null) }   // disband | leave | quit | hide
     var actionError by remember { mutableStateOf<String?>(null) }
     val myUid = AccountStore.currentUserID
 
-    LaunchedEffect(room.id) { members = GroupStore.members(room.id) }
+    // 실제로 그릴 방 — 목록(rooms)의 최신 값을 따라간다. 진입 시점 스냅샷만 붙들면 시작
+    // 시각이 지나도 화면이 그대로여서, 곧 취소될 방에서 '활동 시작하기'가 눌린다 (iOS 1:1).
+    val rooms by GroupStore.rooms.collectAsState()
+    val room = rooms.firstOrNull { it.id == initialRoom.id } ?: initialRoom
+    // 이 방을 목록에서 한 번이라도 본 뒤 사라지면 자동으로 닫는다 — 해체·취소·보존 만료된
+    // 방의 화면을 옛 정보로 계속 띄우면 이미 없는 방의 버튼들이 살아 있는 것처럼 보인다.
+    var sawRoomInStore by remember { mutableStateOf(false) }
+    LaunchedEffect(rooms) {
+        if (rooms.any { it.id == initialRoom.id }) sawRoomInStore = true
+        else if (sawRoomInStore) onBack()
+    }
 
-    // 시작 카운트다운용 시계 — 분 단위 표시라 30초 폴링이면 충분.
+    // 화면에 들어올 때 방 상태를 즉시 다시 읽는다 — 타이머를 기다리지 않는다 (iOS .task 1:1)
+    LaunchedEffect(initialRoom.id) {
+        GroupStore.refresh(context)
+        members = GroupStore.members(initialRoom.id)
+    }
+
+    // 30초 틱 — 카운트다운 갱신 + 판정 필요 구간의 자동 확인 + 랭킹 갱신.
+    // '확인 중' 상태를 그대로 두면 사용자가 화면을 나갔다 들어와야 풀린다 (iOS 1:1).
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(30_000) }
+    LaunchedEffect(initialRoom.id) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            now = System.currentTimeMillis()
+            val cur = GroupStore.rooms.value.firstOrNull { it.id == initialRoom.id }
+            if (cur != null && cur.status == "scheduled" && (cur.hasStarted || !cur.joinOpen)) {
+                GroupStore.refresh(context)
+            }
+            members = GroupStore.members(initialRoom.id)
+        }
     }
 
     val waiting = room.status == "scheduled" && !room.hasStarted && !room.doomed
     // 시작 시각은 지났는데 아직 시작/취소 판정 전 — 여기서 탈퇴를 열면 무벌점 회피 경로,
     // 중도 포기를 열면 진행도 안 한 방에 -50이 찍힌다. 아무 액션도 노출하지 않는다.
     val pendingDecision = room.status == "scheduled" && room.hasStarted
+    // 이미 끝난(취소·해체) 방 — 정리가 아직 안 됐을 뿐. 벌점 액션을 보이면 안 된다.
+    val cancelledOrDisbanded = room.status == "cancelled" || room.status == "disbanded"
     val finished = room.isFinished
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
@@ -898,7 +939,9 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
             Spacer(Modifier.height(16.dp))
 
             // 시작 10분 이내인데 아직 2명 미만이면, 곧 폭파(자동 삭제)될 방임을 경고 (iOS 1:1)
-            if (!room.hasStarted && (room.startDate - now) <= 10 * 60_000L &&
+            // 삭제가 확정된(doomed) 방은 아래 doomed 카드가 더 정확히 안내한다 — 중복 표시 제외.
+            if (!room.doomed && room.status == "scheduled" && !room.hasStarted &&
+                (room.startDate - now) <= 10 * 60_000L &&
                 room.memberCount < GroupPolicy.MIN_MEMBERS_TO_START) {
                 Row(
                     Modifier.fillMaxWidth()
@@ -918,7 +961,8 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
 
             when {
                 room.doomed -> {
-                    // 삭제 예정 — 활동은 진행되지 않고 알람도 취소됨 (iOS doomedCard 1:1)
+                    // 삭제 예정 — 활동은 진행되지 않고 알람도 취소됨 (iOS doomedCard 1:1).
+                    // 참여자 목록은 계속 보여준다 — 시작 전이면 하단 액션으로 정리(해체·탈퇴)도 가능.
                     TLCard {
                         Row(verticalAlignment = Alignment.Top) {
                             androidx.compose.material3.Icon(AppIcon.Siren, null,
@@ -933,10 +977,22 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                             }
                         }
                     }
+                    Spacer(Modifier.height(16.dp))
+                    GroupMemberListCard(members, room, myUid)
                 }
                 pendingDecision -> {
                     TLCard {
                         Text("시작 여부를 확인하는 중입니다. 잠시 후 다시 열어주세요.",
+                            color = TL.muted, fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    GroupMemberListCard(members, room, myUid)
+                }
+                cancelledOrDisbanded -> {
+                    // 이미 취소·해체된 방이 목록 정리 전 잠깐 남은 상태 — 벌점 액션 금지,
+                    // 하단의 '방 나가기'만 노출된다.
+                    TLCard {
+                        Text("이미 취소되었거나 해체된 방이에요. 활동은 진행되지 않습니다.",
                             color = TL.muted, fontSize = 13.sp)
                     }
                 }
@@ -965,36 +1021,52 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                             color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(16.dp))
-                    TLEyebrow("참여자 ${members.size}/${GroupPolicy.MAX_MEMBERS}")
-                    Spacer(Modifier.height(8.dp))
-                    TLCard {
-                        val sorted = members.sortedBy { it.joinedAt }
-                        sorted.forEachIndexed { index, m ->
-                            Row(Modifier.padding(vertical = 9.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Text(m.nickname, color = TL.paper, fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold)
-                                if (m.id == room.hostUID) {
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("★", color = TL.amber, fontSize = 12.sp)
-                                }
-                                if (m.id == myUid) {
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("나", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.background(TL.jade, CircleShape)
-                                            .padding(horizontal = 7.dp, vertical = 2.dp))
-                                }
-                            }
-                            if (index != sorted.lastIndex) {
-                                androidx.compose.material3.HorizontalDivider(
-                                    color = TL.hairline.copy(alpha = 0.5f))
-                            }
-                        }
-                    }
+                    GroupMemberListCard(members, room, myUid)
                     Spacer(Modifier.height(8.dp))
                     Text("시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 방이 자동 삭제됩니다.",
                         color = TL.faint, fontSize = 12.sp)
+                }
+                finished -> {
+                    GroupRankingCard(members, myUid, finished = true)
                     Spacer(Modifier.height(16.dp))
+                    // 삭제 예고 — 남은 보존 일수 (iOS deletionNotice 1:1)
+                    val daysLeft = ((room.deleteAt - now) / 86_400_000L).toInt()
+                    Text(if (daysLeft > 0) "${daysLeft}일 뒤 이 방과 결과가 자동으로 삭제됩니다."
+                         else "오늘 중 이 방과 결과가 자동으로 삭제됩니다.",
+                        color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("결과는 종료 후 ${GroupPolicy.RESULT_RETENTION_DAYS}일까지 보관됩니다.",
+                        color = TL.faint, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp))
+                }
+                else -> {
+                    // 진행 중 — 알람을 놓친 참여자도 방에서 직접 시작할 수 있어야 한다.
+                    // 이 카드가 없으면 알람 한 번 놓친 것으로 그대로 노쇼가 된다 (iOS 1:1).
+                    GroupStartActivityCard(room)
+                    Spacer(Modifier.height(16.dp))
+                    GroupRankingCard(members, myUid, finished = false)
+                }
+            }
+
+            // 하단 액션 (iOS actionSection 1:1) — 방 상태별로 허용되는 정리 액션만 노출
+            Spacer(Modifier.height(16.dp))
+            when {
+                finished || cancelledOrDisbanded -> {
+                    TLGhostButton(
+                        if (finished) "방 나가기 — 내 목록에서 제거" else "방 나가기",
+                        tint = TL.muted,
+                    ) {
+                        scope.launch {
+                            runCatching { GroupStore.hideFinishedRoom(context, room) }
+                                .onSuccess { onBack() }
+                                .onFailure { actionError = it.message ?: "처리하지 못했어요." }
+                        }
+                    }
+                }
+                pendingDecision -> {
+                    // 판정 전 — 무벌점 탈퇴(회피)도 중도 포기(-50 오부과)도 열면 안 된다
+                }
+                !room.hasStarted -> {
+                    // 시작 전(대기·doomed 포함) — 벌점 없는 정리 액션
                     if (room.isHostMine) {
                         TLGhostButton("방 해체하기", tint = TL.rec) { confirmAction = "disband" }
                     } else {
@@ -1002,71 +1074,10 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                     }
                 }
                 else -> {
-                    // 진행 중 / 종료 — 랭킹
-                    TLCard(raised = true) {
-                        TLEyebrow(if (finished) "최종 결과" else "실시간 랭킹")
-                        Spacer(Modifier.height(8.dp))
-                        val ranked = GroupStore.ranked(members)
-                        val display = if (ranked.size > 7) {
-                            val top = ranked.take(5)
-                            val mine = ranked.filter { it.second.id == myUid && it.second !in top.map { t -> t.second } }
-                            top + mine
-                        } else ranked
-                        display.forEachIndexed { index, (rank, m) ->
-                            if (ranked.size > 7 && index == 5) {
-                                Text("⋯", color = TL.faint, fontSize = 14.sp,
-                                    modifier = Modifier.padding(vertical = 2.dp))
-                            }
-                            Row(Modifier.padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    when (rank) {
-                                        1 -> "🥇"; 2 -> "🥈"; 3 -> "🥉"; else -> "$rank"
-                                    },
-                                    color = TL.muted, fontSize = 15.sp, fontWeight = FontWeight.Black,
-                                    modifier = Modifier.width(34.dp))
-                                Text(
-                                    m.nickname + if (m.id == myUid) " (나)" else "",
-                                    color = if (m.quit) TL.faint else TL.paper, fontSize = 15.sp,
-                                    fontWeight = if (m.id == myUid) FontWeight.Black else FontWeight.Normal,
-                                    modifier = Modifier.weight(1f))
-                                if (m.quit) {
-                                    Text("포기", color = TL.faint, fontSize = 11.sp,
-                                        modifier = Modifier.padding(end = 8.dp))
-                                }
-                                Text(TLFormat.scoreLabel(m.score),
-                                    color = if (m.score >= 0) TL.jade else TL.rec,
-                                    fontSize = 15.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                        if (members.isEmpty()) {
-                            Text("불러오는 중…", color = TL.faint, fontSize = 13.sp)
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    if (finished) {
-                        // 삭제 예고 — 남은 보존 일수 (iOS deletionNotice 1:1)
-                        val daysLeft = ((room.deleteAt - now) / 86_400_000L).toInt()
-                        Text(if (daysLeft > 0) "${daysLeft}일 뒤 이 방과 결과가 자동으로 삭제됩니다."
-                             else "오늘 중 이 방과 결과가 자동으로 삭제됩니다.",
-                            color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(10.dp))
-                        TLGhostButton("방 나가기 — 내 목록에서 제거", tint = TL.muted) {
-                            scope.launch {
-                                runCatching { GroupStore.hideFinishedRoom(context, room) }
-                                    .onSuccess { onBack() }
-                                    .onFailure { actionError = it.message ?: "처리하지 못했어요." }
-                            }
-                        }
-                        Text("결과는 종료 후 ${GroupPolicy.RESULT_RETENTION_DAYS}일까지 보관됩니다.",
-                            color = TL.faint, fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 6.dp))
-                    } else {
-                        val meQuit = members.firstOrNull { it.id == myUid }?.quit == true
-                        if (!meQuit) {
-                            TLGhostButton("중도 포기 (${ScoreRules.GROUP_QUIT_PENALTY}점 벌점)",
-                                tint = TL.rec) { confirmAction = "quit" }
-                        }
+                    val meQuit = members.firstOrNull { it.id == myUid }?.quit == true
+                    if (!meQuit) {
+                        TLGhostButton("중도 포기 (${ScoreRules.GROUP_QUIT_PENALTY}점 벌점)",
+                            tint = TL.rec) { confirmAction = "quit" }
                     }
                 }
             }
@@ -1126,6 +1137,202 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
     }
 }
 
+/** 참여자 목록 카드 — 대기실·doomed·판정 대기 화면 공용 (iOS waitingSection 1:1) */
+@Composable
+private fun GroupMemberListCard(
+    members: List<GroupStore.GroupMember>, room: GroupRoom, myUid: String,
+) {
+    TLEyebrow("참여자 ${members.size}/${GroupPolicy.MAX_MEMBERS}")
+    Spacer(Modifier.height(8.dp))
+    TLCard {
+        val sorted = members.sortedBy { it.joinedAt }
+        sorted.forEachIndexed { index, m ->
+            Row(Modifier.padding(vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(m.nickname, color = TL.paper, fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold)
+                if (m.id == room.hostUID) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("★", color = TL.amber, fontSize = 12.sp)
+                }
+                if (m.id == myUid) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("나", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.background(TL.jade, CircleShape)
+                            .padding(horizontal = 7.dp, vertical = 2.dp))
+                }
+            }
+            if (index != sorted.lastIndex) {
+                androidx.compose.material3.HorizontalDivider(
+                    color = TL.hairline.copy(alpha = 0.5f))
+            }
+        }
+        if (members.isEmpty()) {
+            Text("불러오는 중…", color = TL.faint, fontSize = 13.sp)
+        }
+    }
+}
+
+/** 랭킹 카드 — 진행 중(실시간)·종료(최종 결과) 공용 (iOS rankingSection/resultSection 1:1) */
+@Composable
+private fun GroupRankingCard(
+    members: List<GroupStore.GroupMember>, myUid: String, finished: Boolean,
+) {
+    TLCard(raised = true) {
+        TLEyebrow(if (finished) "최종 결과" else "실시간 랭킹")
+        Spacer(Modifier.height(8.dp))
+        val ranked = GroupStore.ranked(members)
+        val display = if (ranked.size > 7) {
+            val top = ranked.take(5)
+            val topMembers = top.map { it.second }
+            val mine = ranked.filter { it.second.id == myUid && it.second !in topMembers }
+            top + mine
+        } else ranked
+        display.forEachIndexed { index, (rank, m) ->
+            if (ranked.size > 7 && index == 5) {
+                Text("⋯", color = TL.faint, fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 2.dp))
+            }
+            Row(Modifier.padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    when (rank) {
+                        1 -> "🥇"; 2 -> "🥈"; 3 -> "🥉"; else -> "$rank"
+                    },
+                    color = TL.muted, fontSize = 15.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.width(34.dp))
+                Text(
+                    m.nickname + if (m.id == myUid) " (나)" else "",
+                    color = if (m.quit) TL.faint else TL.paper, fontSize = 15.sp,
+                    fontWeight = if (m.id == myUid) FontWeight.Black else FontWeight.Normal,
+                    modifier = Modifier.weight(1f))
+                if (m.quit) {
+                    Text("포기", color = TL.faint, fontSize = 11.sp,
+                        modifier = Modifier.padding(end = 8.dp))
+                }
+                Text(TLFormat.scoreLabel(m.score),
+                    color = if (m.score >= 0) TL.jade else TL.rec,
+                    fontSize = 15.sp, fontWeight = FontWeight.Black)
+            }
+        }
+        if (members.isEmpty()) {
+            Text("불러오는 중…", color = TL.faint, fontSize = 13.sp)
+        }
+    }
+}
+
+/** '활동 시작하기'가 가능한 발생 시각 — 지금이 창[발생~+10분] 안이고 그 발생을 아직
+ *  시작(완료·취소 포함)하지 않았으면 그 시각, 아니면 null (iOS startableWindowFire 1:1) */
+private suspend fun startableWindowFire(
+    context: android.content.Context, r: com.singlemarks.angrymoti.data.Reservation,
+): Long? {
+    val now = System.currentTimeMillis()
+    val db = com.singlemarks.angrymoti.data.AppDb.get(context)
+    for (offset in -1..0) {
+        val day = Calendar.getInstance().apply {
+            timeInMillis = now
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            add(Calendar.DAY_OF_MONTH, offset)
+        }.timeInMillis
+        val fire = r.occurrenceOn(day) ?: continue
+        if (now < fire || now > fire + TimePolicy.START_WINDOW_SECONDS * 1000) continue
+        val handled = db.sessions().all(r.ownerUserID).any {
+            it.reservationID == r.id && it.scheduledAt != null &&
+                kotlin.math.abs(it.scheduledAt!! - fire) < 60_000L
+        }
+        if (!handled) return fire
+    }
+    return null
+}
+
+/** 그룹 방에서 활동을 시작하는 보조 진입 — 알람을 놓쳐도 여기서 촬영을 시작할 수 있다.
+ *  '활동 시작하기'는 예정 시각부터 10분 창 안에서만 활성화되며, 그 외엔 다음 시작까지
+ *  분 단위 카운트다운만 보인다 (iOS GroupStartActivityCard 1:1). */
+@Composable
+private fun GroupStartActivityCard(room: GroupRoom) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var reservation by remember { mutableStateOf<com.singlemarks.angrymoti.data.Reservation?>(null) }
+    var windowFire by remember { mutableStateOf<Long?>(null) }
+    var nextFire by remember { mutableStateOf<Long?>(null) }
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    // 분 단위 표시라 초당 갱신이 필요 없다 — 15초 폴링으로 예약·창 재계산까지 함께 처리
+    LaunchedEffect(room.id) {
+        while (true) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val owner = AccountStore.currentUserID
+                val r = com.singlemarks.angrymoti.data.AppDb.get(context)
+                    .reservations().byGroup(owner, room.id).firstOrNull { it.isActive }
+                reservation = r
+                windowFire = r?.let { startableWindowFire(context, it) }
+                nextFire = r?.nextOccurrence()
+            }
+            kotlinx.coroutines.delay(15_000)
+        }
+    }
+
+    TLCard {
+        TLEyebrow("활동 인증")
+        Spacer(Modifier.height(10.dp))
+        val fire = windowFire
+        val next = nextFire
+        when {
+            fire != null -> {
+                // 창 안 — 지금 시작 가능. 남은 시간을 분 단위(내림)로 — 초 단위는 불안감만 키운다.
+                val remainMinutes =
+                    ((fire + TimePolicy.START_WINDOW_SECONDS * 1000 - now) / 60_000L).coerceAtLeast(0)
+                Text("지금 활동을 시작할 수 있어요",
+                    color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text(if (remainMinutes >= 1) "남은 시간 ${remainMinutes}분" else "남은 시간 1분 미만",
+                    color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(12.dp))
+                TLPrimaryButton("활동 시작하기") {
+                    scope.launch {
+                        // 탭 '그 순간' 창을 다시 검증한다 — 15초 캐시 탓에 창이 닫힌 뒤 눌리면
+                        // 노쇼 스위퍼와 이중 기록될 수 있으므로 fresh 값으로 확인 (iOS 1:1)
+                        val r = reservation ?: return@launch
+                        val freshFire = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            startableWindowFire(context, r)
+                        }
+                        if (freshFire == null) {
+                            windowFire = null   // 창이 닫혔으면 카드만 갱신하고 시작하지 않는다
+                            return@launch
+                        }
+                        com.singlemarks.angrymoti.AppState.beginRecording(context,
+                            com.singlemarks.angrymoti.PendingSession(
+                                activityName = r.name, tag = r.tag,
+                                targetSeconds = r.durationMinutes * 60,
+                                reservationId = r.id, scheduledAt = freshFire,
+                                intensityOverrideRaw = r.intensityOverrideRaw,
+                            ))
+                    }
+                }
+            }
+            next != null -> {
+                val m = ((next - now) / 60_000L).coerceAtLeast(1)
+                val label = when {
+                    m >= 1440 -> "${m / 1440}일 뒤 시작"
+                    m >= 60 -> "${m / 60}시간 ${m % 60}분 뒤 시작"
+                    else -> "${m}분 뒤 시작"
+                }
+                Text(label, color = TL.amber, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(12.dp))
+                TLPrimaryButton("활동 시작하기", enabled = false) {}
+                Spacer(Modifier.height(6.dp))
+                Text("예정 시각부터 ${TimePolicy.START_WINDOW_MINUTES}분 안에만 시작할 수 있어요.",
+                    color = TL.faint, fontSize = 12.sp)
+            }
+            else -> {
+                Text("예정된 활동이 없어요.", color = TL.muted, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
 /** 큰 서피스 입력 필드 (ReservationEdit.TLField와 동일 룩) */
 @Composable
 private fun GroupField(value: String, onChange: (String) -> Unit, placeholder: String) {
@@ -1140,3 +1347,28 @@ private fun GroupField(value: String, onChange: (String) -> Unit, placeholder: S
             cursorColor = TL.rec),
     )
 }
+
+/** 로컬 자정 → 같은 Y/M/D의 UTC 자정 (Material3 DatePicker가 UTC 기준이라 필요) */
+private fun groupLocalMidnightToUtc(localMillis: Long): Long {
+    val local = Calendar.getInstance().apply { timeInMillis = localMillis }
+    return Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+        clear()
+        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH),
+            local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+    }.timeInMillis
+}
+
+/** UTC 자정(DatePicker 결과) → 같은 Y/M/D의 로컬 자정 */
+private fun groupUtcMidnightToLocal(utcMillis: Long): Long {
+    val u = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcMillis }
+    return Calendar.getInstance().apply {
+        set(u.get(Calendar.YEAR), u.get(Calendar.MONTH), u.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+}
+
+/** 오늘 로컬 자정 */
+private fun groupTodayStart(): Long = Calendar.getInstance().apply {
+    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+}.timeInMillis

@@ -120,8 +120,10 @@ object GroupStore {
 
     suspend fun refresh(context: Context) {
         if (!signedInMember) { rooms.value = emptyList(); return }
-        if (isRefreshing.value) return   // 동시 실행 방지 (안내 카드 중복 누적 차단)
-        isRefreshing.value = true
+        // 동시 실행 방지 (안내 카드 중복 누적·수명주기 이중 처리 차단) — 검사-후-설정을
+        // 원자로 해야 한다. 앱 복귀와 그룹 탭 진입이 겹치면 둘 다 검사를 통과해 refresh가
+        // 두 벌 돌던 경합을 CAS로 막는다.
+        if (!isRefreshing.compareAndSet(expect = false, update = true)) return
         try {
             val myUid = uid
             // 조회 실패(null)면 이번 새로고침은 통째로 건너뛴다 — 빈 목록으로 오해해
@@ -667,7 +669,10 @@ object GroupStore {
         AppDb.get(context).scores().insert(event)
         AccountStore.mirror(event)
         removeLocalReservation(context, room.id)
-        removeMembershipRef(room.id)
+        // groupIDs 정리 실패를 무시하면 안 된다 — 방이 목록에 유령으로 남아 보존 만료까지
+        // 계속 보인다. quit 표시는 이미 서버에 남았으므로 재시도해도 벌점이 중복되지 않는다.
+        if (!removeMembershipRef(room.id))
+            throw GroupException("포기는 처리됐지만 목록 정리에 실패했어요 — 네트워크 확인 후 방 나가기를 다시 시도해주세요.")
         rooms.value = rooms.value.filterNot { it.id == room.id }
         AlarmScheduler.rescheduleAll(context)
     }

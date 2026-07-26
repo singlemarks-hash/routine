@@ -159,6 +159,9 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
     val owner = AccountStore.currentUserID
     val events by db.scores().allFlow(owner).collectAsState(initial = emptyList())
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmLogout by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+    var deleting by remember { mutableStateOf(false) }
 
     val plus = events.filter { it.points > 0 }.sumOf { it.points }
     val minus = events.filter { it.points < 0 }.sumOf { it.points }
@@ -208,7 +211,8 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             Text("로그아웃", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().clickable { AccountStore.signOut() }.padding(6.dp))
+                // 오터치 한 번에 로그아웃되지 않도록 확인을 거친다 (iOS 1:1)
+                modifier = Modifier.fillMaxWidth().clickable { confirmLogout = true }.padding(6.dp))
         }
 
         // 구독 카드 — 눈썹 라벨 + 카드(멤버는 raised) + 구독하기/구매 복원 (iOS 1:1)
@@ -273,30 +277,71 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
         Spacer(Modifier.height(24.dp))
     }
 
-    if (confirmDelete) {
+    if (confirmLogout) {
         AlertDialog(
-            onDismissRequest = { confirmDelete = false },
+            onDismissRequest = { confirmLogout = false },
             containerColor = TL.surface,
-            title = { Text("정말 삭제할까요?", color = TL.paper) },
-            text = { Text("모든 예약·세션·점수·영상이 즉시 삭제되고 되돌릴 수 없어요.", color = TL.muted) },
+            title = { Text("로그아웃할까요?", color = TL.paper) },
+            text = { Text("기록은 계정에 남아 있고, 다시 로그인하면 그대로 이어집니다.", color = TL.muted) },
             confirmButton = {
                 TextButton(onClick = {
-                    confirmDelete = false
-                    scope.launch(Dispatchers.IO) {
-                        val uid = AccountStore.currentUserID
-                        for (s in db.sessions().all(uid)) {
-                            CameraRecorder.deleteFiles(context, s.videoFileName, s.thumbnailFileName)
-                        }
-                        db.reservations().deleteAll(uid)
-                        db.sessions().deleteAll(uid)
-                        db.scores().deleteAll(uid)
-                        AccountStore.deleteAccount()
-                        withContext(Dispatchers.Main) { onBack() }
-                    }
-                }) { Text("삭제", color = TL.rec, fontWeight = FontWeight.Black) }
+                    confirmLogout = false
+                    AccountStore.signOut()
+                }) { Text("로그아웃", color = TL.rec, fontWeight = FontWeight.Black) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("취소", color = TL.muted) }
+                TextButton(onClick = { confirmLogout = false }) { Text("취소", color = TL.muted) }
+            },
+        )
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) confirmDelete = false },
+            containerColor = TL.surface,
+            title = { Text("정말 삭제할까요?", color = TL.paper) },
+            text = { Text("이 기기의 예약·세션·점수·촬영본과 계정·서버 데이터가 즉시 완전 삭제되고 되돌릴 수 없어요.", color = TL.muted) },
+            confirmButton = {
+                TextButton(enabled = !deleting, onClick = {
+                    deleting = true
+                    scope.launch(Dispatchers.IO) {
+                        // 삭제 전에 uid를 붙잡아 둔다 — deleteAccount()가 성공하면 로그아웃 상태가
+                        // 되어 currentUserID가 "guest"로 바뀌므로, 뒤에 읽으면 엉뚱한 데이터를 지운다.
+                        val uid = AccountStore.currentUserID
+                        // 서버 삭제를 먼저 확정한다 — 로컬을 먼저 지우면 서버 삭제가 실패했을 때
+                        // (재인증 필요 등) 기기 데이터만 사라지고 계정·서버 기록은 남는 반쪽 삭제가 된다.
+                        val result = runCatching { AccountStore.deleteAccount() }
+                        result.onSuccess {
+                            for (s in db.sessions().all(uid)) {
+                                CameraRecorder.deleteFiles(context, s.videoFileName, s.thumbnailFileName)
+                            }
+                            db.reservations().deleteAll(uid)
+                            db.sessions().deleteAll(uid)
+                            db.scores().deleteAll(uid)
+                            withContext(Dispatchers.Main) { deleting = false; confirmDelete = false; onBack() }
+                        }.onFailure { e ->
+                            withContext(Dispatchers.Main) {
+                                deleting = false; confirmDelete = false
+                                deleteError = e.message ?: "계정 삭제에 실패했어요 — 잠시 후 다시 시도해주세요."
+                            }
+                        }
+                    }
+                }) { Text(if (deleting) "삭제 중…" else "삭제", color = TL.rec, fontWeight = FontWeight.Black) }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { confirmDelete = false }) { Text("취소", color = TL.muted) }
+            },
+        )
+    }
+
+    deleteError?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { deleteError = null },
+            containerColor = TL.surface,
+            title = { Text("계정을 삭제하지 못했어요", color = TL.paper) },
+            text = { Text(msg, color = TL.muted) },
+            confirmButton = {
+                TextButton(onClick = { deleteError = null }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Black) }
             },
         )
     }

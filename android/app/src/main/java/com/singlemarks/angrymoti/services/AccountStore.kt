@@ -44,6 +44,11 @@ object AccountStore {
             FirebaseAuth.getInstance().currentUser?.let { u ->
                 if (u.isEmailVerified || u.providerData.any { it.providerId == "google.com" }) {
                     user.value = UserInfo(u.uid, u.displayName, u.email, providerOf(u.providerData.map { it.providerId }), u.isEmailVerified)
+                } else {
+                    // 가입 후 인증 없이 앱을 껐다 켠 경우 — 로그인 화면으로 떨어뜨리지 말고
+                    // '인증 대기' 상태로 복원한다. Firebase 세션은 남아 있으므로 이 상태를
+                    // 안 잡으면 화면과 세션이 어긋난다 (iOS와 동일).
+                    pendingVerificationEmail.value = u.email
                 }
             }
         }
@@ -155,8 +160,24 @@ object AccountStore {
                 val docs = fs.collection("users").document(uid).collection("reservations").get().await()
                 for (d in docs.documents) d.reference.delete().await()
             }
+            // 세션 요약도 삭제 — 빼먹으면 활동명·태그·시각·성패가 서버에 영구히 남는다
+            // (완전 삭제 정책 위반 + 개인정보 이슈, iOS와 동일하게 반드시 포함)
+            runCatching {
+                val docs = fs.collection("users").document(uid).collection("sessionSummaries").get().await()
+                for (d in docs.documents) d.reference.delete().await()
+            }
             runCatching { fs.collection("users").document(uid).delete().await() }
-            runCatching { FirebaseAuth.getInstance().currentUser?.delete()?.await() }
+            // 인증 계정 삭제 실패를 삼키면 안 된다 — 데이터만 지워지고 Auth 계정은 살아있는데
+            // 화면은 '삭제 완료'가 되고, 같은 이메일로 재가입하면 '이미 가입된 이메일' 오류가 난다.
+            // Firebase는 로그인한 지 오래되면 requiresRecentLogin을 던진다 → 재로그인 유도.
+            try {
+                FirebaseAuth.getInstance().currentUser?.delete()?.await()
+            } catch (e: Exception) {
+                val recent = (e as? com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException) != null
+                throw IllegalStateException(
+                    if (recent) "보안을 위해 다시 로그인한 뒤 계정 삭제를 진행해주세요. (로그아웃 → 로그인 → 계정 삭제)"
+                    else "계정 삭제에 실패했어요 — 네트워크 확인 후 다시 시도해주세요.", e)
+            }
         }
         user.value = null
     }
