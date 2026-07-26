@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -727,6 +728,32 @@ fun WeeklyScheduleTab(
         5 to "목요일", 6 to "금요일", 7 to "토요일")
     val weekdays = (0..6).map { val dow = ((todayDow - 1 + it) % 7) + 1; dow to dayNames.getValue(dow) }
 
+    // 오늘 확정 결과 — 예약별로 '한 번만' 표를 만든다 (행마다 전체 스캔 금지, iOS 동일 규칙).
+    // 하루에 기록이 여럿(긴급 중단 후 재촬영)이면 가장 나중 것을 남긴다.
+    val ctx = LocalContext.current
+    val owner = AccountStore.currentUserID
+    val allSessions by AppDb.get(ctx).sessions().allFlow(owner)
+        .collectAsState(initial = emptyList())
+    val todayStartMillis = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val todayOutcomes: Map<String, com.singlemarks.angrymoti.models.SessionOutcome> =
+        remember(allSessions, todayStartMillis) {
+            val map = mutableMapOf<String, Pair<Long, com.singlemarks.angrymoti.models.SessionOutcome>>()
+            for (sess in allSessions) {
+                val rid = sess.reservationID ?: continue
+                val outcome = sess.outcome ?: continue
+                val sched = sess.scheduledAt ?: continue
+                if (sched < todayStartMillis || sched >= todayStartMillis + 86_400_000L) continue
+                val at = sess.endedAt ?: sess.startedAt ?: 0L
+                val prev = map[rid]
+                if (prev == null || at > prev.first) map[rid] = at to outcome
+            }
+            map.mapValues { it.value.second }
+        }
+    val nowMillis = System.currentTimeMillis()
+
     // 그 날 실제로 알람이 울리는 예약만 — 알람시계 로직(occurrenceOn) 한 곳으로 판정한다.
     // 요일/일회성 매칭 + 시작일(createdAt) 전·종료일(endAt) 후 자동 제외까지 함께 처리된다.
     // 그룹 예약도 (참여자 미달로 폭파될 수 있어도) 활동 기간 안이면 일정에 넣어 계획을 관리하게 한다 —
@@ -795,7 +822,21 @@ fun WeeklyScheduleTab(
                                 .padding(horizontal = 14.dp),
                         ) {
                             dayItems.forEachIndexed { index, r ->
+                                // 오늘만 상태를 계산한다 — 다른 날짜는 항상 예정(밝게, 표시등 없음)
+                                val fire = if (isToday) r.occurrenceOn(dayStart) else null
+                                val outcome = if (isToday) todayOutcomes[r.id] else null
+                                val missed = isToday && outcome == null && fire != null &&
+                                    nowMillis > fire + TimePolicy.START_WINDOW_SECONDS * 1000
+                                // 표시등: 완주=초록 / 벌점(이탈·노쇼·긴급)=빨강 / 안전종료=무표시. 두 색뿐.
+                                val light: Color? = when {
+                                    outcome == null -> null
+                                    outcome.isSuccess -> TL.jade
+                                    outcome == com.singlemarks.angrymoti.models.SessionOutcome.SAFETY_ENDED -> null
+                                    else -> TL.rec
+                                }
                                 ScheduleRow(r,
+                                    dimmed = outcome != null || missed,
+                                    light = light,
                                     onClick = {
                                         if (r.groupId != null) onOpenGroup(r.groupId!!) else onEdit(r)
                                     })
@@ -809,13 +850,71 @@ fun WeeklyScheduleTab(
                 }
             }
         }
+        // '이후 예정' — 오늘~6일 뒤 어디에도 발생이 없는 활동 (iOS laterSection 1:1).
+        // 주간 표에 없다고 활동 자체가 사라진 게 아님을 보여준다.
+        item(key = "later") {
+            val horizon = todayStartMillis + 7 * 86_400_000L
+            val laterItems = reservations.mapNotNull { r ->
+                val visibleThisWeek = (0..6).any { off ->
+                    r.occurrenceOn(todayStartMillis + off * 86_400_000L) != null
+                }
+                if (visibleThisWeek) return@mapNotNull null
+                // -1초: nextOccurrence는 '이후'만 반환하므로 자정 정각 발생이 걸러지지 않게
+                val next = r.nextOccurrence(horizon - 1000L) ?: return@mapNotNull null
+                r to next
+            }.sortedBy { it.second }
+            if (laterItems.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("이후 예정", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                    Column(
+                        Modifier.fillMaxWidth().background(TL.surface, TL.cornerL)
+                            .border(1.dp, TL.hairline.copy(alpha = 0.6f), TL.cornerL)
+                            .padding(horizontal = 14.dp),
+                    ) {
+                        laterItems.forEachIndexed { index, (r, next) ->
+                            val c = Calendar.getInstance().apply { timeInMillis = next }
+                            val dDays = ((next - todayStartMillis) / 86_400_000L).toInt()
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable {
+                                        if (r.groupId != null) onOpenGroup(r.groupId!!) else onEdit(r)
+                                    }
+                                    .padding(vertical = 11.dp)) {
+                                Text("${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일",
+                                    color = TL.paper, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(78.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(r.name, color = TL.paper, fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text("${TLFormat.timeLabel(r.startMinute)} · ${TLFormat.durationLabel(r.durationMinutes)}",
+                                        color = TL.muted, fontSize = 11.sp)
+                                }
+                                Text("D-$dDays", color = TL.ink, fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.background(TL.amber, CircleShape)
+                                        .padding(horizontal = 8.dp, vertical = 3.dp))
+                            }
+                            if (index != laterItems.lastIndex) {
+                                androidx.compose.material3.HorizontalDivider(
+                                    color = TL.hairline.copy(alpha = 0.5f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item { Spacer(Modifier.height(110.dp)) }
     }
 }
 
 /** 주간 일정 한 줄 — 시각 · (그룹아이콘)활동명 · 길이/매일·반복요일·하루 · 태그칩 (iOS timetableRow 1:1) */
 @Composable
-private fun ScheduleRow(r: Reservation, onClick: () -> Unit) {
+private fun ScheduleRow(
+    r: Reservation,
+    dimmed: Boolean = false,
+    light: Color? = null,
+    onClick: () -> Unit,
+) {
     // 시작일=종료일이면 요일 반복 여부와 무관하게 그날 하루만 진행하는 활동.
     val sameDay = r.endAt?.let { end ->
         val a = Calendar.getInstance().apply { timeInMillis = r.createdAt }
@@ -836,28 +935,43 @@ private fun ScheduleRow(r: Reservation, onClick: () -> Unit) {
         }
         else -> "매일"
     }
+    // 지나간 일정은 통째로 흐리게 — 오늘 남은 일정과 한눈에 구분된다.
+    // 결과 표시등만 원래 밝기를 유지해 성공/실패를 바로 읽을 수 있게 한다 (iOS 1:1).
+    val contentAlpha = if (dimmed) 0.42f else 1f
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 11.dp),
     ) {
-        Text(TLFormat.timeLabel(r.startMinute), color = TL.paper, fontSize = 14.sp,
-            fontWeight = FontWeight.Black, modifier = Modifier.width(78.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (r.groupId != null) {
-                    androidx.compose.material3.Icon(AppIcon.Users, null,
-                        tint = TL.amber, modifier = Modifier.size(13.dp))
-                    Spacer(Modifier.width(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f).graphicsLayer { alpha = contentAlpha }) {
+            Text(TLFormat.timeLabel(r.startMinute), color = TL.paper, fontSize = 14.sp,
+                fontWeight = FontWeight.Black, modifier = Modifier.width(78.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (r.groupId != null) {
+                        androidx.compose.material3.Icon(AppIcon.Users, null,
+                            tint = TL.amber, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text(r.name, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1)
                 }
-                Text(r.name, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1)
+                Text("${TLFormat.durationLabel(r.durationMinutes)} · $meta",
+                    color = TL.muted, fontSize = 11.sp)
             }
-            Text("${TLFormat.durationLabel(r.durationMinutes)} · $meta",
-                color = TL.muted, fontSize = 11.sp)
+        }
+        // 결과 표시등 — 8pt 원 + 은은한 후광, 태그 왼쪽 (iOS 1:1)
+        if (light != null) {
+            Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(14.dp).background(light.copy(alpha = 0.35f), CircleShape))
+                Box(Modifier.size(8.dp).background(light, CircleShape))
+            }
+            Spacer(Modifier.width(6.dp))
         }
         // 태그 칩
         Text(r.tag, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.background(TL.surface, CircleShape)
+            modifier = Modifier.graphicsLayer { alpha = if (dimmed) 0.55f else 1f }
+                .background(TL.surface, CircleShape)
                 .border(1.dp, TL.hairline, CircleShape)
                 .padding(horizontal = 12.dp, vertical = 6.dp))
     }

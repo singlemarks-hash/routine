@@ -63,7 +63,9 @@ fun OnboardingFlow() {
                 TLPrimaryButton("시작하기") { step = 1 }
             }
             1 -> {
-                Text("권한이 필요해요", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                // 허용을 권하지 않고 사실만 고지한다 — iOS 심사(5.1.1(iv)) 대응과 동일 문구.
+                // 권한 결정은 시스템 다이얼로그에서만 이루어진다.
+                Text("카메라와 알림을 사용합니다", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(20.dp))
                 TLCard {
                     Text("📷  카메라", color = TL.paper, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -84,7 +86,7 @@ fun OnboardingFlow() {
                         color = TL.amber, fontSize = 13.sp, lineHeight = 19.sp)
                 }
                 Spacer(Modifier.weight(1f))
-                TLPrimaryButton("권한 허용하기") {
+                TLPrimaryButton("계속") {
                     val perms = mutableListOf(Manifest.permission.CAMERA)
                     if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
                     permissionLauncher.launch(perms.toTypedArray())

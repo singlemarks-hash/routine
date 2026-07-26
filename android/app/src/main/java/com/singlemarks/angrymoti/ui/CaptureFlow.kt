@@ -167,6 +167,32 @@ fun MountGuideScreen(pending: PendingSession) {
     var check2 by remember { mutableStateOf(false) }   // 구도 안에 내가 보임
     var countdown by remember { mutableStateOf<Int?>(null) }
     var waitingCamera by remember { mutableStateOf(false) }
+    // 시작 창 카운트다운 — 구도 화면에도 마감이 있어야 한다. 예전엔 여기 들어오면 시간
+    // 제한이 사라져 늦게 시작해도 벌점이 없었다 (iOS와 동일 로직).
+    var started by remember { mutableStateOf(false) }
+    var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
+    // 남은 초 — 예약이 아닌 '지금 바로 시작'은 마감이 없다(null)
+    val remainingSeconds: Int? = pending.scheduledAt?.let { sched ->
+        (((sched + TimePolicy.START_WINDOW_SECONDS * 1000 - nowTick) + 999) / 1000)
+            .coerceAtLeast(0).toInt()
+    }
+    LaunchedEffect(pending.scheduledAt) {
+        if (pending.scheduledAt == null) return@LaunchedEffect
+        while (true) {
+            delay(1000)
+            nowTick = System.currentTimeMillis()
+            // 이중 방어(started + countdown == null) — 촬영으로 넘어간 뒤에는 마감 처리 금지.
+            // 하나에만 의존했다가 녹화 시작 후 홈으로 튕기던 사고가 iOS에서 실제로 있었다.
+            val remaining = (pending.scheduledAt + TimePolicy.START_WINDOW_SECONDS * 1000 -
+                System.currentTimeMillis())
+            if (!started && countdown == null && remaining <= 0) {
+                AlarmScheduler.stopAlarmSound(context)
+                AlarmScheduler.cancelAlarmNotification(context)
+                AppState.route.value = Route.None   // 노쇼는 스위퍼가 기록한다
+                break
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         // 촬영 진입 시 잠금이 남아 있으면 카메라가 안 열린다 — 여기서 한 번 더 해제 요청
@@ -212,6 +238,7 @@ fun MountGuideScreen(pending: PendingSession) {
                 else @Suppress("DEPRECATION") act.windowManager.defaultDisplay.rotation
             } ?: android.view.Surface.ROTATION_0
             CameraRecorder.setAnalysisRotation(rotation)
+            started = true   // 마감 처리 중단 — 이미 시작했다
             AppState.startArmedRecording(pending, portrait)   // 카운트다운과 병렬로 녹화 시작
         }
         when (val c = countdown) {
@@ -307,9 +334,12 @@ fun MountGuideScreen(pending: PendingSession) {
         Spacer(Modifier.height(4.dp))
         Text(pending.activityName, color = TL.paper,
             fontSize = if (compact) 20.sp else 24.sp, fontWeight = FontWeight.Black)
-        if (pending.scheduledAt != null) {
+        if (remainingSeconds != null) {
             Spacer(Modifier.height(4.dp))
-            Text("${TimePolicy.START_WINDOW_MINUTES}분 안에 시작하지 않으면 노쇼 처리됩니다",
+            // 남은 시간은 경고 문구 안에서 흐른다. 큰 타이머를 줄로 따로 세우면 헤더가
+            // 한 줄 늘어 아래 요소가 밀리고 가로에서 버튼이 화면 밖으로 나간다 (iOS 사고 이력).
+            Text("%02d:%02d 안에 시작하지 않으면 노쇼처리됩니다"
+                    .format(remainingSeconds / 60, remainingSeconds % 60),
                 color = TL.rec, fontSize = if (compact) 12.sp else 14.sp, fontWeight = FontWeight.Bold)
         }
     }
