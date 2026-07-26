@@ -900,16 +900,21 @@ final class AccountStore: ObservableObject {
             guard let id = UUID(uuidString: key),
                   let outcome = data["outcome"] as? String, !outcome.isEmpty,
                   let intensityRaw = data["intensity"] as? String else { continue }
+            let scheduledAt = ms(data["scheduledAt"])
+            let startedAt = ms(data["startedAt"])
+            // 시각 정보가 전혀 없는 문서는 폐기 — anchorDate가 '조회 시점의 지금'으로
+            // 떠다녀 날짜 귀속·정렬이 비결정이 된다. 정상 경로는 둘 중 하나를 반드시 채운다.
+            guard scheduledAt != nil || startedAt != nil else { continue }
             let s = FocusSession(
                 activityName: data["activityName"] as? String ?? "",
                 tag: data["tag"] as? String ?? "",
                 intensity: Intensity(rawValue: intensityRaw) ?? .spicy,
-                scheduledAt: ms(data["scheduledAt"]),
+                scheduledAt: scheduledAt,
                 targetSeconds: data["targetSeconds"] as? Int ?? 0,
                 reservationID: (data["reservationID"] as? String).flatMap { UUID(uuidString: $0) },
                 ownerUserID: uid)
             s.id = id
-            s.startedAt = ms(data["startedAt"])
+            s.startedAt = startedAt
             s.endedAt = ms(data["endedAt"])
             s.recordedSeconds = data["recordedSeconds"] as? Int ?? 0
             s.outcomeRaw = outcome
@@ -942,9 +947,11 @@ final class AccountStore: ObservableObject {
             SubscriptionManager.shared.cloudProUntil = nil
             return
         }
-        let doc = try? await Firestore.firestore()
-            .collection("users").document(user.id).getDocument()
-        let until = (doc?.data()?["proExpiresAt"] as? Int64)
+        // 조회 '실패'와 '기록 없음'을 구분한다 — 실패를 없음으로 처리하면 안드로이드에서
+        // 구독한 사용자의 iOS Pro가 일시 네트워크 오류 한 번에 풀린다. 실패면 기존 값 유지.
+        guard let doc = try? await Firestore.firestore()
+            .collection("users").document(user.id).getDocument() else { return }
+        let until = (doc.data()?["proExpiresAt"] as? Int64)
             .map { Date(timeIntervalSince1970: Double($0) / 1000) }
         SubscriptionManager.shared.cloudProUntil = until
         #endif

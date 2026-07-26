@@ -71,7 +71,13 @@ enum DayOutcomeIcon: String {
             $0.reservationID?.uuidString ?? $0.id.uuidString
         }
         return byOccurrence.values.compactMap { records in
-            records.max { ($0.endedAt ?? $0.anchorDate) < ($1.endedAt ?? $1.anchorDate) }?.outcome
+            // 동률(같은 endedAt) 때 세션 ID 사전순 — 플랫폼·실행마다 다른 쪽을 고르면
+            // 같은 데이터가 두 기기에서 다른 아이콘이 된다 (안드로이드와 동일 규칙)
+            records.max { a, b in
+                let (ta, tb) = (a.endedAt ?? a.anchorDate, b.endedAt ?? b.anchorDate)
+                if ta != tb { return ta < tb }
+                return a.id.uuidString < b.id.uuidString
+            }?.outcome
         }
     }
 

@@ -61,7 +61,10 @@ struct CalendarView: View {
     }
 
     private func sessions(on day: Date) -> [FocusSession] {
-        allSessions.filter { calendar.isDate($0.anchorDate, inSameDayAs: day) }
+        // 미종결(outcome nil — 크래시 직후 미복구 고아·동기화로 온 미종결 기록)은 제외한다.
+        // 상세 성적표가 outcome을 완주로 폴백해 '지급된 적 없는 +10'을 그리는 사고 방지 —
+        // 고아 복구가 곧 확정하면 그때 정상 표시된다.
+        allSessions.filter { $0.outcome != nil && calendar.isDate($0.anchorDate, inSameDayAs: day) }
     }
 
     // MARK: 월간 그리드
@@ -94,7 +97,8 @@ struct CalendarView: View {
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.faint)
                 }
-                ForEach(monthDays, id: \.self) { day in
+                // 앞쪽 빈칸 nil이 여럿이라 값 기반 ID는 중복된다(SwiftUI 미정의 동작) — 위치 ID 사용
+                ForEach(Array(monthDays.enumerated()), id: \.offset) { _, day in
                     if let day {
                         dayCell(day)
                     } else {
@@ -363,9 +367,12 @@ struct DayDetailView: View {
         outcome.isSuccess ? TL.jade : (outcome.isFailure ? TL.rec : TL.amber)
     }
 
-    /// 실패/긴급 사유 — 점수 원장의 note 우선, 없으면 세션의 긴급 사유
+    /// 실패/긴급 사유 — 점수 원장의 note 우선, 없으면 세션의 긴급 사유.
+    /// 사유가 실리는 이벤트(이탈·노쇼·긴급·취소·자리비움)는 전부 음수 점수다 — 양수까지 보면
+    /// 같은 세션에 note를 달고 저장되는 슬롯 확장 보너스 문구가 사유 자리에 끼어든다.
     private func reason(for session: FocusSession) -> String? {
-        if let note = scoreEvents.first(where: { $0.sessionID == session.id })?.note, !note.isEmpty {
+        if let note = scoreEvents.first(where: { $0.sessionID == session.id && $0.points < 0 })?.note,
+           !note.isEmpty {
             return note
         }
         return session.emergencyReason
@@ -399,7 +406,9 @@ struct StreakHeaderCard: View {
     private var byTag: [(String, Int)] {
         Dictionary(grouping: sessions.filter { $0.outcome?.isSuccess == true }, by: \.tag)
             .mapValues { $0.reduce(0) { $0 + $1.recordedSeconds } }
-            .sorted { $0.value > $1.value }
+            // 동률 시 태그명 2차 정렬 — Dictionary 순서가 비결정이라 상위 4개/'그 외' 구성이
+            // 실행·플랫폼마다 달라지는 것을 막는다 (안드로이드 동일)
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
             .map { ($0.key, $0.value) }
     }
 

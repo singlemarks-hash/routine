@@ -343,6 +343,10 @@ final class AppState: ObservableObject {
     // MARK: 계정 전환
 
     private func handleUserChanged() {
+        // 동기화 게이트 리셋 — A 계정에서 true가 된 채 B로 전환하면, B의 클라우드 이력이
+        // 내려오기 전에 스윕이 돌아 허위 노쇼를 찍고, 아직 안 내려온 B 예약의 알람 배너를
+        // 유령으로 판정해 파기한다(이쪽은 복구가 없다). 아래 Task가 B 기준으로 다시 채운다.
+        didCompleteInitialSync = false
         reloadForAccount()   // #19 — 전환된 계정의 강도·하향예약 반영 (기기 전역 누수 차단)
         // 고아 세션 복구 — 계정별 슬롯이라 '그 계정으로 다시 로그인했을 때'가 복구 시점이다.
         // 콜드 스타트에만 걸어두면 앱을 완전히 껐다 켜야만 복구된다.
@@ -492,6 +496,12 @@ final class AppState: ObservableObject {
         guard route == .none, engine.session == nil else { return }   // 다른 화면 중이면 대기
         guard modelContext != nil else { return }                     // 컨텍스트 준비 전 — 재시도
         guard let reservation = reservationByID(id) else { return }   // 계정·동기화 대기 — 재시도
+        // 소유 계정 불일치 — 남의 예약 배너를 지금 계정으로 라우팅하면 세션·벌점이 엉뚱한
+        // 계정에 귀속된다(공유 기기에서 A 로그아웃 → B 로그인 후 잔여 배너를 탭하는 경우).
+        // 즉시 폐기하지 않고 보류만 유지한다 — 콜드 스타트 중에는 계정이 아직 로딩되기 전일
+        // 수 있어서(위의 '계정 로딩 경쟁' 주석) 폐기하면 정당한 탭을 죽인다. 제 주인이 창 안에
+        // 로그인하면 그때 라우팅되고, 아니면 위의 시한(창+120초)이 조용히 걷어간다.
+        guard reservation.ownerUserID == AccountStore.shared.currentUserID else { return }
         let now = Date()
         let calendar = Calendar.current
         for offset in [-1, 0] {

@@ -750,12 +750,16 @@ final class GroupStore: ObservableObject {
                              rank: Self.scoreRankNormal)
         // 실패를 삼키면 그룹엔 포기가 반영되지 않은 채 내 벌점만 기록된다.
         try await memberRef.updateData(["quit": true])
-        // 개인 누적에도 동일 벌점 기록
+        // 개인 누적에도 동일 벌점 기록.
+        // 결정적 ID — 이 아래의 removeMembershipRef가 실패해 사용자가 재시도하면 이 블록이
+        // 다시 실행되는데, 무작위 ID면 -50이 회수 불가능하게 두 번 쌓인다. 그룹 점수 도장과
+        // 같은 키라 몇 번을 재시도해도 로컬(insert 교체)·클라우드(같은 문서) 한 건으로 수렴한다.
         if let context = modelContext {
             let event = ScoreEvent(type: .groupQuit, points: ScoreRules.groupQuitPenalty,
                                    sessionID: nil, intensity: room.intensity,
                                    note: "그룹 '\(room.name)' 중도 포기",
                                    ownerUserID: uid)
+            event.id = SessionEngine.deterministicUUID("groupquit|\(Self.quitOccurrenceKey(roomID: room.id))")
             context.insert(event)
             try? context.save()
             AccountStore.shared.mirror(event: event)

@@ -147,7 +147,9 @@ struct HomeView: View {
     @State private var goalText = ""
     @State private var showGroupLockNotice = false
 
-    private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    /// let으로 두면 상위(AccountStore publish 등)가 body를 재평가할 때마다 퍼블리셔가 새로
+    /// 만들어져 구독이 리셋된다 — 일정 탭에서 이미 겪고 @State로 고친 것과 같은 결함 유형.
+    @State private var clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     /// '오늘' 발생하는 활동 — 일정 탭의 오늘 칸과 완전히 같은 기준(요일/일회성 매칭)으로 판정한다.
     /// 그룹 방 시작일 전이거나 오늘치 시각이 지났어도, 일정 탭에 보이면 홈에도 똑같이 보이게 한다.
@@ -181,7 +183,12 @@ struct HomeView: View {
                 s.ownerUserID == owner && s.reservationID == rid && s.outcome != nil &&
                 (s.scheduledAt.map { cal.isDateInToday($0) } ?? false)
             }
-            .max { ($0.endedAt ?? .distantPast) < ($1.endedAt ?? .distantPast) }?
+            .max { a, b in
+                // 동률 시 세션 ID 사전순 — 스트립·캘린더의 발생 판정과 같은 규칙 (안드로이드 동일)
+                let (ta, tb) = (a.endedAt ?? .distantPast, b.endedAt ?? .distantPast)
+                if ta != tb { return ta < tb }
+                return a.id.uuidString < b.id.uuidString
+            }?
             .outcome
     }
 

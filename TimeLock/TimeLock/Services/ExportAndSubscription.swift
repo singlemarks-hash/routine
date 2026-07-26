@@ -221,6 +221,18 @@ final class SubscriptionManager: ObservableObject {
                 expiresAt: expires.map { $0.addingTimeInterval(3 * 86_400) }
                     ?? Date(timeIntervalSinceNow: 35 * 86_400),
                 platform: "apple")
+        } else if let latest = try? await Transaction.latest(for: Self.productID),
+                  case .verified(let transaction) = latest,
+                  transaction.revocationDate != nil {
+            // 환불(revocation) 감지 — 위 미러의 만료+3일 유예 때문에 환불받은 사용자가
+            // 전 플랫폼에서 잔여 기간 동안 유료 혜택을 계속 쓰는 창이 있었다. 구매 이력이
+            // 있고 그것이 revoke된 '구매 플랫폼 기기'에서만 클라우드 만료를 지금으로 당긴다.
+            // 자연 만료는 revocation이 아니라 여기 안 걸리므로 3일 유예 설계는 그대로고,
+            // 안드로이드 구매 사용자의 iOS(storePro=false 평상시)는 애플 트랜잭션 자체가
+            // 없어 지나간다. (안드로이드 쪽 환불 감지는 클라이언트로 불가능 — D6 RTDN 과제)
+            AccountStore.shared.mirrorMembership(expiresAt: .now, platform: "apple")
+            cloudProUntil = nil
+            recomputeIsPro()
         }
     }
 

@@ -71,10 +71,22 @@ struct ReservationEditView: View {
     private let weekdaySymbols = [(1, "일"), (2, "월"), (3, "화"), (4, "수"), (5, "목"), (6, "금"), (7, "토")]
     private let durations = TimePolicy.durationOptionsMinutes
 
-    /// 시작 30분 전 편집 잠금
+    /// 편집 잠금 창: 발생 30분 전 ~ 발생 +10분(노쇼 확정 시점).
+    /// 정각에 풀리면 알람을 놓친 직후(스윕 전 10분 안에) 예약을 아무거나 고쳐 저장해
+    /// accountableFrom을 갱신, 방금 노쇼를 면책하는 회피 경로가 열린다 — 스윕이 그 발생을
+    /// 확정하기 전까지는 어떤 편집도 막는다.
     private var isLocked: Bool {
-        guard let r = reservation, let next = r.nextOccurrence() else { return false }
-        return next.timeIntervalSinceNow <= 1800
+        guard let r = reservation else { return false }
+        if let next = r.nextOccurrence(), next.timeIntervalSinceNow <= 1800 { return true }
+        // 방금 지난 발생이 아직 노쇼 확정 전인가 — 어제·오늘 발생 중 [발생, 발생+10분] 안이면 잠금
+        let cal = Calendar.current
+        let now = Date()
+        for offset in [-1, 0] {
+            guard let day = cal.date(byAdding: .day, value: offset, to: cal.startOfDay(for: now)),
+                  let fire = r.occurrence(on: day, calendar: cal) else { continue }
+            if fire <= now, now.timeIntervalSince(fire) <= TimePolicy.startWindowSeconds { return true }
+        }
+        return false
     }
 
     /// 슬롯 초과 상태 — 멤버십 강등·연속 하락으로 보유 예약이 허용치를 넘은 경우.
@@ -648,6 +660,14 @@ struct ReservationEditView: View {
 
         let finalTag = customTag.trimmingCharacters(in: .whitespaces).isEmpty ? tag : customTag
         if let r = reservation {
+            // 일정에 실질 변화가 있는 편집인가 — 이름·태그·강도만 고친 저장으로
+            // accountableFrom이 갱신되면 그 자체가 노쇼 면책 수단이 된다.
+            let scheduleChanged = r.startMinute != startMinute
+                || r.durationMinutes != durationMinutes
+                || r.repeatWeekdays != resolvedWeekdays
+                || r.oneOffDate != resolvedOneOff
+                || r.endDate != resolvedEnd
+                || r.createdAt != startDay
             r.name = trimmedName
             r.tag = finalTag
             r.startMinute = startMinute
@@ -662,7 +682,11 @@ struct ReservationEditView: View {
             r.createdAt = startDay
             // 책임 기준은 '지금'과 '시작일' 중 늦은 쪽 — 편집으로 시각을 앞당겨도 소급 노쇼가
             // 나지 않고, 시작일이 미래면 그 전까지는 책임이 없다.
-            r.accountableFrom = max(.now, startDay)
+            // 단, 시각·요일·기간이 실제로 바뀐 편집에만 — 이름만 고친 저장은 책임 기준을
+            // 건드리지 않는다(잠금 창과 함께 노쇼 면책 회피의 이중 방어).
+            if scheduleChanged {
+                r.accountableFrom = max(.now, startDay)
+            }
             r.updatedAt = .now
             AccountStore.shared.mirrorReservation(r)   // 크로스 기기 동기화
         } else {
