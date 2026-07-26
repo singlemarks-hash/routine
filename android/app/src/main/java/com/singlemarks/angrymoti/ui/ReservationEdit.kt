@@ -849,7 +849,16 @@ fun WeeklyScheduleTab(
     onEdit: (Reservation) -> Unit,
     onOpenGroup: (String) -> Unit = {},
 ) {
-    val todayDow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
+    // 60초 틱 — 컴포지션 1회 계산으로 두면 탭을 열어둔 채 시작 창이 지나가도 행 흐림이
+    // 안 바뀌고, 자정이 지나도 요일 정렬·오늘 배지가 그대로다 (iOS 60초 타이머 1:1)
+    var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
+    val todayDow = Calendar.getInstance().apply { timeInMillis = nowMillis }.get(Calendar.DAY_OF_WEEK)
     // 오늘 요일을 맨 위에 두고 순환 정렬 (1=일 … 7=토). 예) 오늘 토→토·일·월·화·수·목·금.
     val dayNames = mapOf(1 to "일요일", 2 to "월요일", 3 to "화요일", 4 to "수요일",
         5 to "목요일", 6 to "금요일", 7 to "토요일")
@@ -862,6 +871,7 @@ fun WeeklyScheduleTab(
     val allSessions by AppDb.get(ctx).sessions().allFlow(owner)
         .collectAsState(initial = emptyList())
     val todayStartMillis = Calendar.getInstance().apply {
+        timeInMillis = nowMillis
         set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
     }.timeInMillis
@@ -879,7 +889,6 @@ fun WeeklyScheduleTab(
             }
             map.mapValues { it.value.second }
         }
-    val nowMillis = System.currentTimeMillis()
 
     // 그 날 실제로 알람이 울리는 예약만 — 알람시계 로직(occurrenceOn) 한 곳으로 판정한다.
     // 요일/일회성 매칭 + 시작일(createdAt) 전·종료일(endAt) 후 자동 제외까지 함께 처리된다.

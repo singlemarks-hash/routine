@@ -72,7 +72,9 @@ class MainActivity : ComponentActivity() {
             val r = kotlinx.coroutines.withContext(Dispatchers.IO) {
                 com.singlemarks.angrymoti.data.AppDb.get(this@MainActivity).reservations().byId(id)
             }
-            if (r == null || !r.isActive) {
+            // 소유자 확인 — 공유 기기에서 계정을 전환한 경우, 이전 계정의 알람이 현재 계정
+            // 화면으로 라우팅되면 '일정 취소' 벌점이 엉뚱한 계정에 찍힌다.
+            if (r == null || !r.isActive || r.ownerUserID != AccountStore.currentUserID) {
                 AlarmScheduler.cancelAlarmNotification(this@MainActivity)
                 return@launch
             }
@@ -122,11 +124,13 @@ class MainActivity : ComponentActivity() {
                 // 방의 예약이 사라진 뒤 집계가 돌아 부당 벌점이 안 찍히고, 만료 은퇴가 집계
                 // 뒤여야 마지막 날 노쇼가 유실되지 않는다.
                 if (includeStartupExtras) SessionEngine.recoverOrphanIfNeeded()
-                AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십·세션 이력 병합
+                val syncOk = AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십·세션 이력 병합
                 SessionEngine.reconcileDuplicateOutcomes()   // 성공 기록이 노쇼를 덮는다
                 if (includeStartupExtras) AppState.refreshSpicyCompletions(this@MainActivity)
                 com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
-                SessionEngine.markInitialSyncComplete()
+                // 동기화가 조용히 실패했으면(오프라인 등) 게이트를 열지 않는다 — 다른 기기의
+                // 성공 기록이 내려오기 전에 노쇼 스윕이 돌면 벌점이 잘못 찍혔다 사라진다.
+                if (syncOk) SessionEngine.markInitialSyncComplete()
                 SessionEngine.sweepNoShows()
                 SessionEngine.cleanupExpiredReservations()
                 AlarmScheduler.rescheduleAll(this@MainActivity)

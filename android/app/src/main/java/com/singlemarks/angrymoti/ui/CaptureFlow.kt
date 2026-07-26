@@ -86,6 +86,8 @@ import java.io.File
 @Composable
 fun AlarmScreen(reservationId: String, fireAt: Long) {
     val context = LocalContext.current
+    // 뒤로가기로 알람 화면을 이탈하지 못하게 — 알람 해제는 촬영 시작뿐이다 (iOS 1:1)
+    androidx.activity.compose.BackHandler { }
     val db = remember { AppDb.get(context) }
     var reservation by remember { mutableStateOf<com.singlemarks.angrymoti.data.Reservation?>(null) }
     var showCancel by remember { mutableStateOf(false) }
@@ -130,7 +132,10 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
             ))
         }
         Spacer(Modifier.height(12.dp))
-        Text("일정 취소 (긴급 벌점 ${ScoreRules.points(SessionOutcome.EMERGENCY, AppState.intensity.value, r.durationMinutes)?.second ?: -5}점)",
+        // 안내 점수는 실제 부과 경로(cancelSchedule)와 같은 '활동별 강도'로 계산해야 한다 —
+        // 전역 강도로 계산하면 미친맛 활동에서 안내한 점수와 실제 깎이는 점수가 어긋난다.
+        // 폴백도 실부과 기본과 같은 -10 (iOS AlarmView 1:1).
+        Text("일정 취소 (긴급 벌점 ${ScoreRules.points(SessionOutcome.EMERGENCY, r.intensityOverride ?: AppState.intensity.value, r.durationMinutes)?.second ?: -10}점)",
             color = TL.muted, fontSize = 14.sp,
             modifier = Modifier.clickable {
                 // 취소를 고민하는 동안에는 알람을 멈춘다 — 시트 위에서 계속 울리면
@@ -176,10 +181,15 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
 @Composable
 fun MountGuideScreen(pending: PendingSession) {
     val context = LocalContext.current
+    // 뒤로가기 차단 — 취소는 화면의 '취소하기' 버튼(정리 파이프라인 포함)으로만 (iOS 1:1)
+    androidx.activity.compose.BackHandler { }
     var portrait by remember { mutableStateOf(true) }
     var check1 by remember { mutableStateOf(false) }   // 거치대에 폰 고정
     var check2 by remember { mutableStateOf(false) }   // 구도 안에 내가 보임
-    var countdown by remember { mutableStateOf<Int?>(null) }
+    // rememberSaveable — 카운트다운 중 다크모드 전환 등으로 재생성되면 remember는 null로
+    // 초기화되어 enterSessionIfRecording()을 부를 주체가 사라진다: 녹화는 도는데 거치
+    // 가이드 화면에 영영 멈춘다. 복원하면 LaunchedEffect(countdown)가 이어서 진행한다.
+    var countdown by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Int?>(null) }
     var waitingCamera by remember { mutableStateOf(false) }
     // 시작 창 카운트다운 — 구도 화면에도 마감이 있어야 한다. 예전엔 여기 들어오면 시간
     // 제한이 사라져 늦게 시작해도 벌점이 없었다 (iOS와 동일 로직).
@@ -546,6 +556,9 @@ private fun SessionSquareButton(
 @Composable
 fun SessionScreen() {
     val context = LocalContext.current
+    // 뒤로가기 차단 — 세션 이탈은 긴급중단/포기 경로로만. 제스처로 배경에 빠지면
+    // 이탈 판정으로 이어질 수 있다 (iOS interactiveDismissDisabled 1:1)
+    androidx.activity.compose.BackHandler { }
     val phase by SessionEngine.phase.collectAsStateWithLifecycle()
     val breakNote by SessionEngine.breakNote.collectAsStateWithLifecycle()
     val recorded by SessionEngine.recordedSeconds.collectAsStateWithLifecycle()
@@ -623,7 +636,12 @@ fun SessionScreen() {
                     }
                 }
             }
-            SessionSquareButton(icon = AppIcon.Siren, label = "긴급중단", active = false) {
+            // 매운맛 긴급 예산(10분)을 다 쓰면 버튼을 잠근다 — 엔진이 어차피 막더라도
+            // UI가 눌리는 척하면 거짓말이다 (iOS '긴급 소진' 비활성 1:1)
+            val budgetExhausted = intensity == Intensity.SPICY && budget <= 0L
+            SessionSquareButton(icon = AppIcon.Siren,
+                label = if (budgetExhausted) "긴급 소진" else "긴급중단", active = false) {
+                if (budgetExhausted) return@SessionSquareButton
                 if (intensity == Intensity.SPICY && phase == SessionEngine.Phase.Recording) {
                     SessionEngine.startBreak()
                 } else {
@@ -899,6 +917,8 @@ fun SessionScreen() {
 @Composable
 fun SessionResultScreen() {
     val context = LocalContext.current
+    // 뒤로가기 차단 — '종료' 버튼의 저장/삭제 파이프라인을 건너뛰지 못하게 (iOS 1:1)
+    androidx.activity.compose.BackHandler { }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val s by SessionEngine.lastFinishedSession.collectAsStateWithLifecycle()
     val slotBonus by SessionEngine.lastSlotBonus.collectAsStateWithLifecycle()
@@ -1066,8 +1086,19 @@ fun SessionResultScreen() {
         // 하단 고정 버튼 — 저장은 미리보기 우측 상단 다운로드 버튼이 담당 (iOS 1:1)
         Column(Modifier.padding(horizontal = 24.dp)) {
             TLPrimaryButton("종료", tint = TL.amber) {
-                CameraRecorder.deleteFiles(context, session.videoFileName, session.thumbnailFileName)
-                AppState.dismissResult(context)
+                // 영상만 지운다 — 썸네일은 캘린더 '이 날의 기록'이 계속 쓰므로 보존한다.
+                // 화면 문구 "기록·점수는 유지됩니다"와도 이쪽이 맞다 (iOS 1:1).
+                // DB의 videoFileName도 비워 죽은 파일명이 남지 않게 한다.
+                scope.launch(Dispatchers.IO) {
+                    CameraRecorder.deleteFiles(context, session.videoFileName, null)
+                    if (session.videoFileName != null) {
+                        val db = com.singlemarks.angrymoti.data.AppDb.get(context)
+                        db.sessions().byId(session.id)?.let {
+                            db.sessions().upsert(it.copy(videoFileName = null))
+                        }
+                    }
+                    withContext(Dispatchers.Main) { AppState.dismissResult(context) }
+                }
             }
             Spacer(Modifier.height(18.dp))
         }

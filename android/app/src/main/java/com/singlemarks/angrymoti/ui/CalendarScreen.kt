@@ -163,7 +163,10 @@ fun CalendarScreen(onBack: () -> Unit) {
             val noShows = finished.count { it.outcome == com.singlemarks.angrymoti.models.SessionOutcome.NO_SHOW }
             val plus = events.filter { it.points > 0 }.sumOf { it.points }
             val minusSum = events.filter { it.points < 0 }.sumOf { it.points }
-            val completeRate = if (done > 0) successes * 100 / done else 0
+            // 완주율 분모는 '시작한 세션'(startedAt 있음) — 노쇼는 시작 자체를 안 한 것이라
+            // 분모에 넣으면 노쇼가 많을수록 완주율이 이중으로 깎여 보인다 (iOS 1:1)
+            val started = finished.count { it.startedAt != null }
+            val completeRate = if (started > 0) successes * 100 / started else 0
             val noShowRate = if (done > 0) noShows * 100 / done else 0
             @Composable fun StatTile(value: String, label: String, color: androidx.compose.ui.graphics.Color,
                                      modifier: Modifier) {

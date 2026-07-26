@@ -185,14 +185,19 @@ object AccountStore {
     // MARK: 크로스 기기 동기화 — 점수 원장 · 개인 예약 · 멤버십
 
     /** 앱 시작·복귀·로그인 시 호출되는 통합 동기화.
-     *  같은 계정이면 iOS·안드로이드 어디서든 예약/점수/멤버십/다짐 문구가 일치하게 만든다. */
-    suspend fun syncFromCloud() {
-        syncScoreEventsFromCloud()
-        syncReservationsFromCloud()
-        syncSessionSummariesFromCloud()
+     *  같은 계정이면 iOS·안드로이드 어디서든 예약/점수/멤버십/다짐 문구가 일치하게 만든다.
+     *
+     *  반환값 = 기록(점수·예약·세션) 동기화가 실제로 성공했는가. 오프라인·서버 장애로
+     *  아무것도 병합하지 못했는데 true처럼 굴면, initialSync 게이트가 열려 다른 기기의
+     *  성공 기록이 내려오기 전에 노쇼 스윕이 돌아 벌점이 잘못 찍힌다. */
+    suspend fun syncFromCloud(): Boolean {
+        val eventsOk = syncScoreEventsFromCloud()
+        val reservationsOk = syncReservationsFromCloud()
+        val sessionsOk = syncSessionSummariesFromCloud()
         syncBonusStateFromCloud()
         syncMembershipFromCloud()
         syncHomeGoalFromCloud()
+        return eventsOk && reservationsOk && sessionsOk
     }
 
     // 보너스 지급 dedup 상태 동기화 — 세션 이력을 동기화하면 새 기기에서 streak·완주수가
@@ -297,14 +302,15 @@ object AccountStore {
         }
     }
 
-    /** 개인 예약 양방향 병합 — updatedAt이 최신인 쪽이 이긴다 */
-    private suspend fun syncReservationsFromCloud() {
+    /** 개인 예약 양방향 병합 — updatedAt이 최신인 쪽이 이긴다.
+     *  반환값: 조회 성공 여부 (게스트·Firebase 미연동은 '동기화할 것 없음' = true) */
+    private suspend fun syncReservationsFromCloud(): Boolean {
         val uid = currentUserID
-        if (!firebaseAvailable || uid == "guest") return
+        if (!firebaseAvailable || uid == "guest") return true
         val snapshot = runCatching {
             FirebaseFirestore.getInstance()
                 .collection("users").document(uid).collection("reservations").get().await()
-        }.getOrNull() ?: return
+        }.getOrNull() ?: return false
 
         val dao = com.singlemarks.angrymoti.data.AppDb.get(appContext).reservations()
         val localByID = dao.allForOwner(uid)
@@ -388,6 +394,7 @@ object AccountStore {
         }
         // 클라우드에 아직 없는 로컬 개인 예약 → 최초 업로드 (기존 사용자 마이그레이션)
         localByID.filterKeys { it !in cloudIDs }.values.forEach(::mirrorReservation)
+        return true
     }
 
     // MARK: 세션 요약 동기화 — 기기 변경 시 진척 보존
@@ -422,13 +429,13 @@ object AccountStore {
 
     /** 세션 요약 병합 — 다른 기기(iOS 포함)에서 쌓인 완료 세션을 로컬에 생성(영상 없이).
      *  로컬에 이미 있으면(영상 포함 가능) 건드리지 않는다 → 영상 참조 보존. */
-    private suspend fun syncSessionSummariesFromCloud() {
+    private suspend fun syncSessionSummariesFromCloud(): Boolean {
         val uid = currentUserID
-        if (!firebaseAvailable || uid == "guest") return
+        if (!firebaseAvailable || uid == "guest") return true
         val snapshot = runCatching {
             FirebaseFirestore.getInstance()
                 .collection("users").document(uid).collection("sessionSummaries").get().await()
-        }.getOrNull() ?: return
+        }.getOrNull() ?: return false
 
         val dao = com.singlemarks.angrymoti.data.AppDb.get(appContext).sessions()
         val existing = dao.all(uid).map { it.id.lowercase() }.toSet()
@@ -455,6 +462,7 @@ object AccountStore {
         // 클라우드에 아직 없는 로컬 완료 세션 → 최초 업로드 (기존 사용자 이력 마이그레이션)
         dao.all(uid).filter { it.outcomeRaw != null && it.id.lowercase() !in cloudIDs }
             .forEach(::mirrorSession)
+        return true
     }
 
     /** 구독 상태 클라우드 기록 — 반대 플랫폼(iOS)에서도 멤버십이 인정되도록 */
@@ -483,13 +491,13 @@ object AccountStore {
 
     /** 클라우드 원장 내려받기 — 다른 기기(iOS 포함)에서 쌓인 점수 이벤트를 로컬 Room에 병합한다.
      *  mirror(업로드)와 짝을 이루는 다운로드 절반. 이벤트 ID 기준으로 중복 없이 합쳐진다. */
-    private suspend fun syncScoreEventsFromCloud() {
+    private suspend fun syncScoreEventsFromCloud(): Boolean {
         val uid = currentUserID
-        if (!firebaseAvailable || uid == "guest") return
+        if (!firebaseAvailable || uid == "guest") return true
         val snapshot = runCatching {
             FirebaseFirestore.getInstance()
                 .collection("users").document(uid).collection("scoreEvents").get().await()
-        }.getOrNull() ?: return
+        }.getOrNull() ?: return false
 
         val db = com.singlemarks.angrymoti.data.AppDb.get(appContext)
         // iOS는 대문자 UUID로 저장하므로 비교는 소문자 통일
@@ -513,6 +521,7 @@ object AccountStore {
                 note = doc.getString("note")?.takeIf { it.isNotEmpty() },
             ))
         }
+        return true
     }
 
     /** 점수 이벤트 클라우드 미러 (best-effort — 실패해도 로컬 원장이 기준) */

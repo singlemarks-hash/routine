@@ -190,10 +190,13 @@ class TimelapseEncoder(
             android.util.Log.i("AngryMoti", "encoder finish — frames=$frameCount muxerStarted=$muxerStarted")
             if (frameCount > 0) drain(true)
             runCatching { codec.stop() }; codec.release()
-            if (muxerStarted) { runCatching { muxer.stop() }; }
+            // muxer.stop() 실패(디스크 오류·유효 샘플 부족 등)를 삼키면 moov가 기록되지 않아
+            // 재생 불가인 파일이 '완주 영상'으로 통과한다 — 헛완주 방어가 여기서만 뚫리므로
+            // 실패는 실패로 돌려준다 (iOS writer.status == .failed 확인과 동일).
+            val muxerOk = if (muxerStarted) runCatching { muxer.stop() }.isSuccess else false
             muxer.release()
-            if (frameCount == 0 || !muxerStarted) {
-                android.util.Log.e("AngryMoti", "encoder produced no playable video (frames=$frameCount muxerStarted=$muxerStarted)")
+            if (frameCount == 0 || !muxerOk) {
+                android.util.Log.e("AngryMoti", "encoder produced no playable video (frames=$frameCount muxerStarted=$muxerStarted muxerOk=$muxerOk)")
                 outFile.delete(); false
             } else true
         } catch (e: Exception) {
