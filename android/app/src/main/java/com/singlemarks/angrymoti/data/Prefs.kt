@@ -54,6 +54,10 @@ object Prefs {
     fun slotBonusAwardedTier(owner: String) = sp.getInt("slotBonus.awardedTier.$owner", 0)
     fun setSlotBonusAwardedTier(owner: String, tier: Int) =
         sp.edit().putInt("slotBonus.awardedTier.$owner", tier).apply()
+    /** 위 단계가 마지막으로 바뀐 시각 — 클라우드 병합의 '최신 승리' 기준 (0 = 레거시) */
+    fun slotBonusTierUpdatedAt(owner: String) = sp.getLong("slotBonus.tierUpdatedAt.$owner", 0L)
+    fun setSlotBonusTierUpdatedAt(owner: String, at: Long) =
+        sp.edit().putLong("slotBonus.tierUpdatedAt.$owner", at).apply()
 
     /** 미친 매운맛 해제 보너스 지급 여부 (계정당 평생 1회) */
     fun unlockBonusAwarded(owner: String) = sp.getBoolean("unlockBonus.awarded.$owner", false)

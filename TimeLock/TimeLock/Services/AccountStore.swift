@@ -586,11 +586,12 @@ final class AccountStore: ObservableObject {
 
     // 보너스 지급 dedup 상태 동기화 — 세션 이력을 동기화하면 새 기기에서 streak·완주수가
     // 복원되므로, 슬롯/해제 보너스가 이미 지급됐다는 사실도 함께 옮겨야 중복 지급되지 않는다.
-    func mirrorSlotBonusTier(_ tier: Int) {
+    func mirrorSlotBonusTier(_ tier: Int, at: Date = .now) {
         #if canImport(FirebaseFirestore)
         guard backendActive, let user = currentUser, user.provider != .guest else { return }
         Firestore.firestore().collection("users").document(user.id)
-            .setData(["slotBonusAwardedTier": tier], merge: true)
+            .setData(["slotBonusAwardedTier": tier,
+                      "slotBonusTierUpdatedAt": Int64(at.timeIntervalSince1970 * 1000)], merge: true)
         #endif
     }
     func mirrorUnlockBonusAwarded() {
@@ -608,12 +609,25 @@ final class AccountStore: ObservableObject {
             .collection("users").document(uid).getDocument() else { return }
         let data = doc.data() ?? [:]
         let d = UserDefaults.standard
-        // 양방향 — 큰 쪽이 이긴다. 기존 사용자(클라우드에 상태 없음)는 로컬을 올려 다음 기기가 받게 한다.
+        // 슬롯 보너스 티어는 '최신 승리' — 큰 쪽 승리로 두면 스트릭 단절 리셋(0)이 전파되지
+        // 않고 클라우드의 옛 티어가 계속 되살아나, 재도전 사용자가 보너스를 영영 못 받는다.
+        // 타임스탬프가 양쪽 다 없는 레거시 데이터만 기존 규칙(큰 쪽 승리)으로 폴백.
         let slotKey = "slotBonus.awardedTier.\(uid)"
+        let slotAtKey = "slotBonus.tierUpdatedAt.\(uid)"
         let localTier = d.integer(forKey: slotKey)
+        let localAt = d.double(forKey: slotAtKey)   // epoch ms
         let cloudTier = data["slotBonusAwardedTier"] as? Int ?? 0
-        if cloudTier > localTier { d.set(cloudTier, forKey: slotKey) }
-        else if localTier > cloudTier { mirrorSlotBonusTier(localTier) }
+        let cloudAt = Double(data["slotBonusTierUpdatedAt"] as? Int64 ?? 0)
+        if cloudAt > localAt {
+            d.set(cloudTier, forKey: slotKey)
+            d.set(cloudAt, forKey: slotAtKey)
+        } else if localAt > cloudAt {
+            mirrorSlotBonusTier(localTier, at: Date(timeIntervalSince1970: localAt / 1000))
+        } else if cloudTier > localTier {
+            d.set(cloudTier, forKey: slotKey)          // 레거시 폴백
+        } else if localTier > cloudTier {
+            mirrorSlotBonusTier(localTier)             // 레거시 폴백
+        }
 
         let unlockKey = "unlockBonus.awarded.\(uid)"
         let localUnlock = d.bool(forKey: unlockKey)

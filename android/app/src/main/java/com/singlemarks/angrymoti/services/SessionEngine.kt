@@ -404,27 +404,48 @@ object SessionEngine {
 
     /** 연속 달성일이 슬롯 확장 단계를 '이번에' 넘었으면 +5 (같은 연속 구간 중복 지급 방지) */
     private suspend fun awardSlotBonusIfTierCrossed(s: FocusSession) {
+        // 지급 게이트 — 재설치·새 기기에서 보너스 티어 상태가 클라우드와 맞춰지기 전에
+        // 지급하면 이미 받은 전 티어를 재지급한다. 보류돼도 다음 완주 때 같은 조건으로
+        // 재평가되므로 지급이 사라지지는 않는다 (노쇼 스윕과 같은 게이트).
+        if (!didCompleteInitialSync) return
+        val owner = s.ownerUserID
         val db = AppDb.get(appContext)
-        val all = db.sessions().all(s.ownerUserID)
+        val all = db.sessions().all(owner)
         val streak = SlotPolicy.currentStreak(all)
 
-        var awarded = Prefs.slotBonusAwardedTier(s.ownerUserID)
-        if (streak < awarded) awarded = 0
+        val prevAwarded = Prefs.slotBonusAwardedTier(owner)
+        var awarded = prevAwarded
+        if (streak < awarded) awarded = 0   // 연속이 끊겼다 다시 쌓는 중 → 초기화
+        // 이 스트릭 구간의 식별자 = 시작 날짜. 같은 데이터를 가진 두 기기는 같은 값을
+        // 계산하므로, 같은 구간의 같은 티어는 어느 기기가 지급해도 같은 이벤트 ID로
+        // 수렴하고, 단절 후 새 구간의 재지급은 시작일이 달라 정상 지급된다.
+        val streakStartDay = java.util.Calendar.getInstance().apply {
+            timeInMillis = com.singlemarks.angrymoti.models.ScheduleConflict.addDays(
+                com.singlemarks.angrymoti.models.DayOutcome.startOfDay(System.currentTimeMillis()),
+                -(streak - 1).coerceAtLeast(0))
+        }.let { "%04d-%02d-%02d".format(it.get(java.util.Calendar.YEAR),
+            it.get(java.util.Calendar.MONTH) + 1, it.get(java.util.Calendar.DAY_OF_MONTH)) }
         var total = 0; var crossedDays = 0
         for ((days, _) in SlotPolicy.tiers) {
             if (days in (awarded + 1)..streak) {
-                val e = ScoreEvent(ownerUserID = s.ownerUserID, typeRaw = ScoreEventType.SLOT_BONUS.raw,
+                val e = ScoreEvent(
+                    id = deterministicId("slotBonus|${owner.lowercase()}|$streakStartDay|$days"),
+                    ownerUserID = owner, typeRaw = ScoreEventType.SLOT_BONUS.raw,
                     points = 5, sessionID = s.id, intensityRaw = s.intensityRaw,
                     note = "연속 ${days}일 달성 — 활동 슬롯 확장 보너스")
                 db.scores().insert(e); AccountStore.mirror(e)
                 total += 5; crossedDays = days; awarded = days
             }
         }
-        Prefs.setSlotBonusAwardedTier(s.ownerUserID, awarded)
-        if (total > 0) {
-            lastSlotBonus.value = crossedDays to total
-            AccountStore.mirrorSlotBonusTier(s.ownerUserID, awarded)   // 기기 변경 시 중복 지급 방지
+        // 리셋(0)도 지급과 똑같이 저장·미러한다 — 미러하지 않으면 클라우드의 옛 티어가
+        // 다음 동기화에서 되살아나 재도전 사용자가 보너스를 영영 못 받는다.
+        if (awarded != prevAwarded) {
+            val now = System.currentTimeMillis()
+            Prefs.setSlotBonusAwardedTier(owner, awarded)
+            Prefs.setSlotBonusTierUpdatedAt(owner, now)
+            AccountStore.mirrorSlotBonusTier(owner, awarded, now)
         }
+        if (total > 0) lastSlotBonus.value = crossedDays to total
     }
 
     /** (비활성) 미친 매운맛은 멤버십 전용으로 확정 — 완주 3회 '성실 경로' 폐지로 해제 보너스는 지급하지 않는다. */

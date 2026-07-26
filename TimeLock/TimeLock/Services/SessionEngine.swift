@@ -421,14 +421,29 @@ final class SessionEngine: NSObject, ObservableObject {
     /// 같은 연속 구간에서 같은 단계를 두 번 받지 않도록 계정별로 최고 지급 단계를 기억하고,
     /// 연속이 끊겨 처음부터 다시 쌓으면 단계 도달 시 다시 받을 수 있다.
     private func awardSlotBonusIfTierCrossed(session s: FocusSession, context: ModelContext) {
+        // 지급 게이트 — 재설치·새 기기에서 보너스 티어 상태가 클라우드와 맞춰지기 전에
+        // 지급하면 이미 받은 전 티어를 재지급한다. 보류돼도 다음 완주 때 같은 조건으로
+        // 재평가되므로 지급이 사라지지는 않는다 (노쇼 스윕과 같은 게이트).
+        guard AppState.shared.didCompleteInitialSync else { return }
         let owner = s.ownerUserID
         let all = (try? context.fetch(FetchDescriptor<FocusSession>(
             predicate: #Predicate { $0.ownerUserID == owner }))) ?? []
         let streak = SlotPolicy.currentStreak(sessions: all)
 
         let key = "slotBonus.awardedTier.\(owner)"
-        var awardedTier = defaults.integer(forKey: key)
+        let atKey = "slotBonus.tierUpdatedAt.\(owner)"
+        let prevAwarded = defaults.integer(forKey: key)
+        var awardedTier = prevAwarded
         if streak < awardedTier { awardedTier = 0 }   // 연속이 끊겼다 다시 쌓는 중 → 초기화
+
+        // 이 스트릭 구간의 식별자 = 시작 날짜. 같은 데이터를 가진 두 기기는 같은 값을
+        // 계산하므로, 같은 구간의 같은 티어는 어느 기기가 지급해도 같은 이벤트 ID로
+        // 수렴하고, 단절 후 새 구간의 재지급은 시작일이 달라 정상 지급된다.
+        let cal = Calendar.current
+        let streakStart = cal.date(byAdding: .day, value: -max(0, streak - 1),
+                                   to: cal.startOfDay(for: .now)) ?? .now
+        let c = cal.dateComponents([.year, .month, .day], from: streakStart)
+        let streakStartDay = String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
 
         var totalBonus = 0
         var crossedDays = 0
@@ -437,16 +452,24 @@ final class SessionEngine: NSObject, ObservableObject {
                                    sessionID: s.id, intensity: s.intensity,
                                    note: "연속 \(tier.days)일 달성 — 활동 슬롯 확장 보너스",
                                    ownerUserID: owner)
+            event.id = Self.deterministicUUID(
+                "slotBonus|\(owner.lowercased())|\(streakStartDay)|\(tier.days)")
             context.insert(event)
             AccountStore.shared.mirror(event: event)
             totalBonus += 5
             crossedDays = tier.days
             awardedTier = tier.days
         }
-        defaults.set(awardedTier, forKey: key)
+        // 리셋(0)도 지급과 똑같이 저장·미러한다 — 미러하지 않으면 클라우드의 옛 티어가
+        // 다음 동기화에서 되살아나 재도전 사용자가 보너스를 영영 못 받는다.
+        if awardedTier != prevAwarded {
+            let now = Date.now
+            defaults.set(awardedTier, forKey: key)
+            defaults.set(now.timeIntervalSince1970 * 1000, forKey: atKey)
+            AccountStore.shared.mirrorSlotBonusTier(awardedTier, at: now)
+        }
         if totalBonus > 0 {
             lastSlotBonus = (days: crossedDays, points: totalBonus)
-            AccountStore.shared.mirrorSlotBonusTier(awardedTier)   // 기기 변경 시 중복 지급 방지
         }
     }
 

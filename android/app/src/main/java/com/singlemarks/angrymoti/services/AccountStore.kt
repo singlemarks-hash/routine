@@ -213,11 +213,11 @@ object AccountStore {
 
     // 보너스 지급 dedup 상태 동기화 — 세션 이력을 동기화하면 새 기기에서 streak·완주수가
     // 복원되므로, 슬롯/해제 보너스가 이미 지급됐다는 사실도 함께 옮겨야 중복 지급되지 않는다.
-    fun mirrorSlotBonusTier(uid: String, tier: Int) {
+    fun mirrorSlotBonusTier(uid: String, tier: Int, at: Long = System.currentTimeMillis()) {
         if (!firebaseAvailable || uid == "guest") return
         runCatching {
             FirebaseFirestore.getInstance().collection("users").document(uid)
-                .set(mapOf("slotBonusAwardedTier" to tier),
+                .set(mapOf("slotBonusAwardedTier" to tier, "slotBonusTierUpdatedAt" to at),
                     com.google.firebase.firestore.SetOptions.merge())
         }
     }
@@ -236,11 +236,22 @@ object AccountStore {
             FirebaseFirestore.getInstance().collection("users").document(uid).get().await()
         }.getOrNull() ?: return
         val prefs = com.singlemarks.angrymoti.data.Prefs
-        // 양방향 — 큰 쪽이 이긴다. 기존 사용자(클라우드에 상태 없음)는 로컬을 올려 다음 기기가 받게 한다.
+        // 슬롯 보너스 티어는 '최신 승리' — 큰 쪽 승리로 두면 스트릭 단절 리셋(0)이 전파되지
+        // 않고 클라우드의 옛 티어가 계속 되살아나, 재도전 사용자가 보너스를 영영 못 받는다.
+        // 타임스탬프가 양쪽 다 없는 레거시 데이터만 기존 규칙(큰 쪽 승리)으로 폴백.
         val localTier = prefs.slotBonusAwardedTier(uid)
+        val localAt = prefs.slotBonusTierUpdatedAt(uid)
         val cloudTier = doc.getLong("slotBonusAwardedTier")?.toInt() ?: 0
-        if (cloudTier > localTier) prefs.setSlotBonusAwardedTier(uid, cloudTier)
-        else if (localTier > cloudTier) mirrorSlotBonusTier(uid, localTier)
+        val cloudAt = doc.getLong("slotBonusTierUpdatedAt") ?: 0L
+        when {
+            cloudAt > localAt -> {
+                prefs.setSlotBonusAwardedTier(uid, cloudTier)
+                prefs.setSlotBonusTierUpdatedAt(uid, cloudAt)
+            }
+            localAt > cloudAt -> mirrorSlotBonusTier(uid, localTier, localAt)
+            cloudTier > localTier -> prefs.setSlotBonusAwardedTier(uid, cloudTier)   // 레거시 폴백
+            localTier > cloudTier -> mirrorSlotBonusTier(uid, localTier)             // 레거시 폴백
+        }
 
         val localUnlock = prefs.unlockBonusAwarded(uid)
         val cloudUnlock = doc.getBoolean("unlockBonusAwarded") == true
