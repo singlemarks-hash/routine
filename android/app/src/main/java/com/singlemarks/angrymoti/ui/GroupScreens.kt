@@ -668,6 +668,29 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                     "시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 자동 취소",
                     color = TL.faint, fontSize = 12.sp, lineHeight = 18.sp)
             }
+            Spacer(Modifier.height(10.dp))
+
+            // 요약 카드 — 설정을 문장으로 재확인 (iOS summaryCard 1:1)
+            TLCard {
+                TLEyebrow("요약")
+                Spacer(Modifier.height(6.dp))
+                val sm = timeState.hour * 60 + timeState.minute
+                val common = "${GroupFormat.time(sm)} 시작 · ${TLFormat.durationLabel(durationMinutes)} · ${intensity.title}\n" +
+                    "시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있고, " +
+                    "시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 방이 자동 삭제됩니다."
+                val summary = if (isSingleDayRoom) {
+                    "${GroupFormat.day(startDay)} 하루 · $common"
+                } else {
+                    val days = when {
+                        !isRepeating -> "매일"
+                        repeatDays.isEmpty() -> "요일 미선택"
+                        repeatDays.size == 7 -> "매일"
+                        else -> GroupFormat.weekdays(repeatDays.toList())
+                    }
+                    "${GroupFormat.period(startDay, endDay)}\n$days · $common"
+                }
+                Text(summary, color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

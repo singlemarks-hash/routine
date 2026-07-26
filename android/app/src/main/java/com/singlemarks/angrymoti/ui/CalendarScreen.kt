@@ -65,12 +65,21 @@ fun CalendarScreen(onBack: () -> Unit) {
     val streak = SlotPolicy.currentStreak(
         finished.map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) })
 
-    fun dayNet(dayStart: Long): Int? {
-        val end = dayStart + 86_400_000L
-        val ids = finished.filter { it.anchorAt in dayStart until end }.map { it.id }.toSet()
-        if (ids.isEmpty()) return null
-        return events.filter { it.sessionID in ids }.sumOf { it.points }
+    // 날짜 색은 '그날 timestamp의 모든 이벤트' 합 — 세션에 매인 이벤트만 보면 그룹
+    // 중도포기(-50)·보너스처럼 세션 없는 점수가 날짜 색에 반영되지 않는다 (iOS 1:1).
+    // 셀(≈30개)마다 전수 필터하지 않도록 한 번만 집계해 remember로 캐시한다.
+    fun localDayStart(t: Long): Long = Calendar.getInstance().apply {
+        timeInMillis = t
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val netByDay: Map<Long, Int> = remember(finished, events) {
+        val recordDays = finished.map { localDayStart(it.anchorAt) }.toSet()
+        val sums = events.groupBy { localDayStart(it.timestamp) }
+            .mapValues { (_, list) -> list.sumOf { it.points } }
+        recordDays.associateWith { day -> sums[day] ?: 0 }
     }
+    fun dayNet(dayStart: Long): Int? = netByDay[dayStart]
 
     LazyColumn(Modifier.fillMaxSize().background(TL.ink).padding(horizontal = 20.dp)) {
         item {
@@ -189,6 +198,39 @@ fun CalendarScreen(onBack: () -> Unit) {
             }
             Spacer(Modifier.height(16.dp))
         }
+        item {
+            // 태그별 시간 분포 — 완주 세션의 순수 촬영 시간을 태그로 묶어 표시 (iOS 1:1)
+            val byTag = remember(finished) {
+                finished.filter { it.outcome!!.isSuccess }
+                    .groupBy { it.tag }
+                    .mapValues { (_, list) -> list.sumOf { it.recordedSeconds } }
+                    .toList().sortedByDescending { it.second }
+            }
+            if (byTag.isNotEmpty()) {
+                TLCard {
+                    TLEyebrow("태그별 시간 분포")
+                    Spacer(Modifier.height(8.dp))
+                    val maxSeconds = byTag.first().second.coerceAtLeast(1)
+                    byTag.forEach { (tag, seconds) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(tag.ifEmpty { "태그 없음" }, color = TL.paper,
+                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.weight(1f))
+                            Text(TLFormat.hms(seconds.toLong()), color = TL.muted, fontSize = 12.sp)
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        Box(Modifier.fillMaxWidth().height(5.dp)
+                            .background(TL.hairline.copy(alpha = 0.4f), CircleShape)) {
+                            Box(Modifier
+                                .fillMaxWidth((seconds.toFloat() / maxSeconds).coerceIn(0f, 1f))
+                                .height(5.dp).background(TL.jade, CircleShape))
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
         selectedDay?.let { dayStart ->
             val end = dayStart + 86_400_000L
             val daySessions = finished.filter { it.anchorAt in dayStart until end }
@@ -201,7 +243,7 @@ fun CalendarScreen(onBack: () -> Unit) {
             }
             daySessions.forEach { s ->
                 item {
-                    SessionRow(s)
+                    SessionRow(s, events)
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -212,7 +254,7 @@ fun CalendarScreen(onBack: () -> Unit) {
 
 /** 접힘: 성취 원·시작 시각·활동명·점수·화살표 / 펼침: 결과·강도·썸네일·사유·순수촬영시간 (iOS DayDetailView 1:1) */
 @Composable
-private fun SessionRow(s: FocusSession) {
+private fun SessionRow(s: FocusSession, events: List<com.singlemarks.angrymoti.data.ScoreEvent>) {
     val context = LocalContext.current
     var expanded by remember(s.id) { mutableStateOf(false) }
     val outcome = s.outcome
@@ -253,11 +295,14 @@ private fun SessionRow(s: FocusSession) {
             }
             Spacer(Modifier.height(8.dp))
             s.thumbnailFileName?.let { name ->
-                val thumb = remember(name) {
-                    runCatching {
-                        android.graphics.BitmapFactory.decodeFile(
-                            File(CameraRecorder.sessionDir(context), name).absolutePath)
-                    }.getOrNull()
+                // IO 스레드에서 디코드 — 컴포지션 중 파일 디코드는 프레임 드랍을 만든다
+                val thumb by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, name) {
+                    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching {
+                            android.graphics.BitmapFactory.decodeFile(
+                                File(CameraRecorder.sessionDir(context), name).absolutePath)
+                        }.getOrNull()
+                    }
                 }
                 thumb?.let {
                     Image(it.asImageBitmap(), null,
@@ -266,7 +311,11 @@ private fun SessionRow(s: FocusSession) {
                     Spacer(Modifier.height(8.dp))
                 }
             }
-            s.emergencyReason?.let {
+            // 실패/긴급 사유 — 점수 원장의 note 우선, 없으면 세션의 긴급 사유 (iOS 1:1).
+            // 세션 사유만 보면 알람 화면의 '일정 취소' 사유(원장에만 기록)가 안 보인다.
+            val reason = events.firstOrNull { it.sessionID == s.id && !it.note.isNullOrEmpty() }?.note
+                ?: s.emergencyReason
+            reason?.let {
                 Text("사유: $it", color = TL.amber, fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
             }

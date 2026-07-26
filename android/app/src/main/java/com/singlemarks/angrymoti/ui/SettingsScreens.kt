@@ -169,6 +169,21 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
         TLScreenHeader("프로필 및 구독 관리", onBack = onBack)
 
+        if (user?.provider == "guest") {
+            // 게스트 — 로그아웃·계정 삭제·구독은 계정 기능이다. iOS guestCard처럼 로그인 유도만.
+            TLCard {
+                Text("게스트 모드", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(6.dp))
+                Text("게스트 기록은 이 기기에만 저장되고 계정과는 분리됩니다. 계정을 만들면 이후의 기록이 계정에 저장돼 기기를 바꿔도 유지됩니다.",
+                    color = TL.muted, fontSize = 13.sp)
+                Spacer(Modifier.height(12.dp))
+                TLPrimaryButton("계정 만들기 · 로그인") {
+                    AccountStore.signOut()   // 게스트 해제 → 로그인 화면으로
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        } else {
+
         // 프로필 카드 — 아바타 이니셜 + 이름/이메일 + 제공자 칩 + 구분선 + 점수 3단 + 로그아웃 (iOS 1:1)
         TLCard(raised = true) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -275,6 +290,7 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
             color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         Spacer(Modifier.height(24.dp))
+        }   // 게스트 분기 끝
     }
 
     if (confirmLogout) {
@@ -536,19 +552,31 @@ fun LedgerScreen(onBack: () -> Unit) {
     val db = remember { AppDb.get(context) }
     val events by db.scores().allFlow(AccountStore.currentUserID).collectAsState(initial = emptyList())
 
+    // 최근 20건만 — 전건을 다 그리면 반년치 원장에서 스크롤이 무거워지고,
+    // iOS 표기(최근 20건 + 강도 병기)와도 어긋난다.
+    val recent = events.take(20)
+
     Column(Modifier.fillMaxSize().background(TL.ink).padding(20.dp)) {
         TLScreenHeader("점수 원장", onBack = onBack)
+        TLEyebrow("최근 20건")
+        Spacer(Modifier.height(8.dp))
+        if (recent.isEmpty()) {
+            TLCard {
+                Text("아직 기록이 없습니다. 첫 세션을 완주하면 상점이 적립됩니다.",
+                    color = TL.muted, fontSize = 13.sp)
+            }
+        }
         androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(events.size) { i ->
-                val e = events[i]
+            items(recent.size) { i ->
+                val e = recent[i]
                 TLCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(e.type.title, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             e.note?.let { Text(it, color = TL.faint, fontSize = 12.sp) }
-                            // 12시간제로 통일 (iOS 점수 원장 .shortened 표기 기준)
+                            // 12시간제 + 강도 병기 (iOS 점수 원장 표기 기준)
                             Text("${java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA)
-                                .format(java.util.Date(e.timestamp))} ${TLFormat.clock(e.timestamp)}",
+                                .format(java.util.Date(e.timestamp))} ${TLFormat.clock(e.timestamp)} · ${e.intensity.title}",
                                 color = TL.faint, fontSize = 11.sp)
                         }
                         Text(TLFormat.scoreLabel(e.points),
@@ -562,9 +590,13 @@ fun LedgerScreen(onBack: () -> Unit) {
 }
 
 
-/** 프라이버시 — 촬영본·데이터 처리 요약 (iOS 프라이버시 화면 대응) */
+/** 프라이버시 — 촬영본·데이터 처리 요약 + 기록 썸네일 전체 삭제 (iOS 프라이버시 화면 대응) */
 @Composable
 fun PrivacyScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var confirmDeleteAll by remember { mutableStateOf(false) }
+    var deletedToast by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
         TLScreenHeader("프라이버시", onBack = onBack)
         TLCard {
@@ -586,6 +618,50 @@ fun PrivacyScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text("계정 기능을 위한 이메일·이름, 그리고 상점·벌점 기록뿐이에요. 자세한 내용은 개인정보처리방침을 확인하세요.",
                 color = TL.muted, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        TLCard {
+            Text("🗑  기록 썸네일", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("기록 썸네일은 언제든 아래에서 완전히 삭제할 수 있어요. 세션 기록과 점수 원장은 유지됩니다.",
+                color = TL.muted, fontSize = 13.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("기록 썸네일 전체 삭제", color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable { confirmDeleteAll = true }.padding(vertical = 4.dp))
+        }
+    }
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = false },
+            containerColor = TL.surface,
+            title = { Text("모든 기록 썸네일을 삭제할까요?", color = TL.paper) },
+            text = { Text("삭제한 썸네일은 복구할 수 없습니다. 세션 기록과 점수 원장은 유지됩니다.", color = TL.muted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteAll = false
+                    scope.launch(Dispatchers.IO) {
+                        val db = AppDb.get(context)
+                        val owner = AccountStore.currentUserID
+                        for (s in db.sessions().all(owner)) {
+                            if (s.videoFileName == null && s.thumbnailFileName == null) continue
+                            CameraRecorder.deleteFiles(context, s.videoFileName, s.thumbnailFileName)
+                            db.sessions().upsert(s.copy(videoFileName = null, thumbnailFileName = null))
+                        }
+                        withContext(Dispatchers.Main) { deletedToast = true }
+                    }
+                }) { Text("전체 삭제 (기록·점수는 유지)", color = TL.rec, fontWeight = FontWeight.Black) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteAll = false }) { Text("취소", color = TL.muted) }
+            },
+        )
+    }
+    if (deletedToast) {
+        LaunchedEffect(Unit) {
+            android.widget.Toast.makeText(context, "기록 썸네일을 모두 삭제했어요",
+                android.widget.Toast.LENGTH_SHORT).show()
+            deletedToast = false
         }
     }
 }
