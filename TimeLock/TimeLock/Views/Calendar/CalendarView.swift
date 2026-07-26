@@ -548,25 +548,31 @@ struct TagDonutView: View {
                     .foregroundStyle(TL.faint)
             }
 
-            HStack(spacing: 18) {
+            // 폭이 넘치지 않는 구조여야 한다 — 넘치면 스크롤 내용 전체가 그 폭에 맞춰
+            // 늘어나 이웃 카드(캘린더)까지 함께 넓어진다. 그래서 도넛은 고정 크기,
+            // 범례는 한 줄에 하나씩(칩은 최대 폭 제한 + 말줄임)으로 항상 압축 가능하게 둔다.
+            // (2열 LazyVGrid는 가로 컨텍스트에서 필요 이상으로 폭을 요구해 이 사고를 냈다)
+            HStack(alignment: .center, spacing: 14) {
                 donut
-                    .frame(width: 168, height: 168)
+                    .frame(width: 150, height: 150)
 
-                // 범례 — 태그 칩(세그먼트 색 테두리) + 시:분
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
-                          alignment: .leading, spacing: 12) {
+                // 범례 — 태그 칩(앱 전역과 동일) + 시:분
+                VStack(alignment: .leading, spacing: 9) {
                     ForEach(segments, id: \.name) { seg in
-                        VStack(alignment: .leading, spacing: 4) {
-                            // 앱 전역과 동일한 태그 칩 — 도넛 조각도 같은 tagTint를 쓰므로
-                            // 칩과 조각이 같은 색으로 짝지어진다
+                        HStack(spacing: 8) {
+                            // 도넛 조각도 같은 tagTint를 쓰므로 칩과 조각이 같은 색으로 짝지어진다
                             TagChip(name: seg.name)
+                                .lineLimit(1)
+                                .frame(maxWidth: 96, alignment: .leading)
+                            Spacer(minLength: 2)
                             Text(hoursMinutes(seg.seconds))
                                 .font(.tlTimer(13))
                                 .foregroundStyle(TL.muted)
-                                .padding(.leading, 4)
+                                .lineLimit(1)
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -589,8 +595,8 @@ struct TagDonutView: View {
             ForEach(Array(arcs.enumerated()), id: \.offset) { _, arc in
                 Circle()
                     .trim(from: arc.from + gap / 2, to: max(arc.from + gap / 2, arc.to - gap / 2))
-                    .stroke(arc.seg.color, style: StrokeStyle(lineWidth: 27, lineCap: .butt))
-                    .frame(width: 134, height: 134)
+                    .stroke(arc.seg.color, style: StrokeStyle(lineWidth: 24, lineCap: .butt))
+                    .frame(width: 116, height: 116)   // 선 두께까지 150 프레임 안에 들어오는 크기
                     .rotationEffect(.degrees(-90))
             }
 
@@ -603,7 +609,7 @@ struct TagDonutView: View {
                         .font(.system(size: 11, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.35), radius: 1.5)
-                        .offset(x: cos(mid) * 67, y: sin(mid) * 67)
+                        .offset(x: cos(mid) * 58, y: sin(mid) * 58)   // 링 중심선 위
                 }
             }
 
@@ -619,7 +625,7 @@ struct TagDonutView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            .frame(width: 92)
+            .frame(width: 78)
         }
     }
 }
