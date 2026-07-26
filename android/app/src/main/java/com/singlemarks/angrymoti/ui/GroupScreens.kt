@@ -149,6 +149,11 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
         if (openRoomId != null && rooms.any { it.id == openRoomId }) {
             nav = GroupNav.Detail(openRoomId)
             onRoomOpened()
+        } else if (openRoomId != null) {
+            // 방이 끝내 안 실리면 요청을 접는다 — 남겨두면 한참 뒤 refresh로 방이 나타나는
+            // 순간 뜬금없이 상세로 자동 이동한다.
+            kotlinx.coroutines.delay(10_000)
+            if (rooms.none { it.id == openRoomId }) onRoomOpened()
         }
     }
 

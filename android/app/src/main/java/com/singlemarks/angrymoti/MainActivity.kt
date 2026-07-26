@@ -41,7 +41,6 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         launchSyncPipeline(includeStartupExtras = true)
         AppState.applyPendingDowngradeIfDue()
-        AppState.refreshSpicyCompletions(this)
         // rescheduleAll은 위 IO 파이프라인 끝에서 클라우드 병합 이후 데이터로 한 번만 건다 —
         // 여기서 또 걸면 옛 데이터 기준으로 걸었다가 다시 거는 낭비이자 경합 여지다.
     }
@@ -126,7 +125,6 @@ class MainActivity : ComponentActivity() {
                 if (includeStartupExtras) SessionEngine.recoverOrphanIfNeeded()
                 val syncOk = AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십·세션 이력 병합
                 SessionEngine.reconcileDuplicateOutcomes()   // 성공 기록이 노쇼를 덮는다
-                if (includeStartupExtras) AppState.refreshSpicyCompletions(this@MainActivity)
                 com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
                 // 동기화가 조용히 실패했으면(오프라인 등) 게이트를 열지 않는다 — 다른 기기의
                 // 성공 기록이 내려오기 전에 노쇼 스윕이 돌면 벌점이 잘못 찍혔다 사라진다.

@@ -54,6 +54,9 @@ import kotlinx.coroutines.launch
  * 출석부 — 로그인/회원가입 (iOS AuthView 1:1).
  * 이메일(인증 필수) · Google · 게스트. 회원가입은 비밀번호 8자 이상 + 확인 일치 + 메일 인증.
  */
+/** 회원가입 비밀번호 최소 길이 — 라벨·검증·오류 매핑이 모두 이 값을 쓴다 */
+private const val PASSWORD_MIN_LENGTH = 8
+
 @Composable
 fun AuthScreen() {
     val scope = rememberCoroutineScope()
@@ -173,7 +176,7 @@ fun AuthScreen() {
                 colors = fieldColors, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(password, { password = it },
-                label = { Text(if (mode == "signup") "비밀번호 (8자 이상)" else "비밀번호") },
+                label = { Text(if (mode == "signup") "비밀번호 (${PASSWORD_MIN_LENGTH}자 이상)" else "비밀번호") },
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = fieldColors, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -203,7 +206,7 @@ fun AuthScreen() {
                 email.isNotBlank() && password.isNotEmpty()
             } else {
                 name.isNotBlank() && email.isNotBlank() &&
-                    password.length >= 8 && password == passwordConfirm
+                    password.length >= PASSWORD_MIN_LENGTH && password == passwordConfirm
             }
             TLPrimaryButton(
                 if (busy) "확인 중…" else if (mode == "signin") "로그인" else "회원가입",
@@ -304,7 +307,7 @@ private fun friendlyAuthError(t: Throwable): String {
         m.contains("password is invalid") || m.contains("INVALID_LOGIN_CREDENTIALS") ->
             "이메일 또는 비밀번호가 맞지 않아요."
         m.contains("already in use") -> "이미 가입된 이메일이에요. 로그인해주세요."
-        m.contains("at least 6 characters") -> "비밀번호는 8자 이상으로 설정해주세요."
+        m.contains("at least 6 characters") -> "비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상으로 설정해주세요."
         m.contains("network") -> "네트워크 연결을 확인해주세요."
         else -> m
     }

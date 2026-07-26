@@ -38,7 +38,6 @@ object AppState {
     val route = MutableStateFlow<Route>(Route.None)
     val onboarded = MutableStateFlow(false)   // init()에서 Prefs 반영
     val intensity = MutableStateFlow(Intensity.SPICY)
-    val spicyCompletions = MutableStateFlow(0)
 
     fun bootstrap() {
         onboarded.value = Prefs.onboarded
@@ -102,12 +101,6 @@ object AppState {
         refreshPendingDowngrade()
     }
 
-    fun refreshSpicyCompletions(context: Context) {
-        scope.launch(Dispatchers.IO) {
-            spicyCompletions.value = AppDb.get(context).sessions()
-                .spicyCompletions(AccountStore.currentUserID)
-        }
-    }
 
     // MARK: 촬영 플로우 라우팅 (iOS와 동일한 상태 전이)
 
@@ -144,7 +137,6 @@ object AppState {
     fun sessionFinished() { route.value = Route.Result }
     fun dismissResult(context: Context) {
         com.singlemarks.angrymoti.services.SessionEngine.reset()
-        refreshSpicyCompletions(context)
         route.value = Route.None
     }
 

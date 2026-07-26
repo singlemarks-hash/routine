@@ -65,7 +65,7 @@ object CameraRecorder {
     // @Volatile — resume()(main)와 onFrame(analysisExecutor)에서 함께 접근하므로 가시성 보장. [P3-5]
     @Volatile private var lastPresenceCheckAt = 0L
     @Volatile private var absenceStartedAt = 0L
-    private var presenceBusy = false
+    @Volatile private var presenceBusy = false   // 분석 스레드/메인 간 가시성 보장
     // 얼굴 감지 — ACCURATE 모드 + 최소 크기 완화: 옆얼굴·부분 얼굴도 최대한 잡는다
     // (검사가 5초에 1회뿐이라 정확 모드의 비용 부담 없음)
     private val faceDetector by lazy {

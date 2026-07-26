@@ -61,17 +61,43 @@ sealed class HomeNav {
     data class ReservationEdit(val reservationId: String?) : HomeNav()
 }
 
+/** HomeNav ↔ 문자열 — rememberSaveable로 재생성에도 현재 화면을 지키기 위한 Saver */
+private val HomeNavSaver = androidx.compose.runtime.saveable.Saver<HomeNav, String>(
+    save = { n ->
+        when (n) {
+            HomeNav.Home -> "home"
+            HomeNav.Calendar -> "calendar"
+            HomeNav.MyPage -> "mypage"
+            is HomeNav.ReservationEdit -> "edit:${n.reservationId ?: ""}"
+        }
+    },
+    restore = { s ->
+        when {
+            s == "calendar" -> HomeNav.Calendar
+            s == "mypage" -> HomeNav.MyPage
+            s.startsWith("edit:") -> HomeNav.ReservationEdit(s.removePrefix("edit:").ifEmpty { null })
+            else -> HomeNav.Home
+        }
+    },
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeShell() {
     val context = LocalContext.current
     val owner = AccountStore.currentUserID
     val db = remember { AppDb.get(context) }
-    var nav by remember { mutableStateOf<HomeNav>(HomeNav.Home) }
-    var tab by remember { mutableStateOf("activity") }   // activity | schedule | group
-    var pendingGroupRoomId by remember { mutableStateOf<String?>(null) }   // 일정→그룹방 직접 진입
-    var showQuickStart by remember { mutableStateOf(false) }
-    var showGoalEditor by remember { mutableStateOf(false) }
+    // rememberSaveable — 다크모드 전환 등 재생성에도 현재 화면·탭·시트 상태를 지킨다.
+    // remember만 쓰면 마이페이지를 보다가 재생성되는 순간 홈 활동 탭으로 튕긴다.
+    var nav by androidx.compose.runtime.saveable.rememberSaveable(stateSaver = HomeNavSaver) {
+        mutableStateOf<HomeNav>(HomeNav.Home)
+    }
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("activity") }   // activity | schedule | group
+    var pendingGroupRoomId by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf<String?>(null)   // 일정→그룹방 직접 진입
+    }
+    var showQuickStart by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showGoalEditor by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     // 다짐 문구는 AccountStore flow를 구독 — 계정 전환·다른 기기 동기화가 즉시 반영된다
     val goalText by AccountStore.homeGoal.collectAsState()
     LaunchedEffect(owner) { AccountStore.reloadHomeGoal() }   // 계정 전환·최초 진입 시 로컬값 로드
@@ -211,7 +237,8 @@ fun HomeShell() {
 
     if (showGoalEditor) {
         ModalBottomSheet(onDismissRequest = { showGoalEditor = false }, containerColor = TL.surface) {
-            var draft by remember { mutableStateOf(goalText) }
+            // 입력 중 재생성돼도 쓰던 문구를 잃지 않게 saveable
+            var draft by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(goalText) }
             Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
                 Text("나의 다짐", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(16.dp))
@@ -255,6 +282,24 @@ private fun ActivityTab(
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
+
+    // 오늘 발생 활동 — 일정 탭 오늘 칸과 완전히 같은 기준(occurrenceOn 단일 판정).
+    // 1초 틱마다 예약×세션 전수 스캔을 반복하지 않도록, 입력(예약·세션·날짜)이 바뀔 때만
+    // 다시 계산한다. 카운트다운 문구는 now로 매초 갱신되지만 목록 자체는 캐시된다.
+    val todayStart = java.util.Calendar.getInstance().apply {
+        timeInMillis = now
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val dayEnd = todayStart + 86_400_000L
+    val todayReservations = remember(reservations, sessions, todayStart) {
+        fun startedToday(r: Reservation) = sessions.any { s ->
+            s.reservationID == r.id && s.scheduledAt?.let { it in todayStart until dayEnd } == true
+        }
+        reservations
+            .filter { it.occurrenceOn(todayStart) != null && !startedToday(it) }
+            .sortedBy { it.startMinute }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
@@ -305,25 +350,8 @@ private fun ActivityTab(
         }
         item { Text("오늘 예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black,
             modifier = Modifier.padding(top = 6.dp)) }
-        // 오늘 발생하는 활동 — 일정 탭 오늘 칸과 완전히 같은 기준(요일/일회성 매칭).
-        // 그룹 방 시작일 전이거나 오늘치 시각이 지났어도, 일정 탭에 보이면 홈에도 똑같이 보이게 한다.
+        // 그룹 방 시작일 전이거나 오늘치 시각이 지났어도, 일정 탭에 보이면 홈에도 똑같이 보인다.
         // 단, 오늘 이미 촬영을 시작(완료·실패·노쇼)한 활동은 '할 일'이 아니므로 뺀다.
-        val todayCal = java.util.Calendar.getInstance().apply { timeInMillis = now }
-        val todayStart = todayCal.clone().let {
-            (it as java.util.Calendar).apply {
-                set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
-                set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-            }.timeInMillis
-        }
-        val dayEnd = todayStart + 86_400_000L
-        fun startedToday(r: Reservation) = sessions.any { s ->
-            s.reservationID == r.id && s.scheduledAt?.let { it in todayStart until dayEnd } == true
-        }
-        // 알람시계 로직(occurrenceOn) 한 곳으로 오늘 발생 여부 판정 — 시작일 전·종료일 후 자동 제외.
-        fun occursToday(r: Reservation) = r.occurrenceOn(todayStart) != null
-        val todayReservations = reservations
-            .filter { occursToday(it) && !startedToday(it) }
-            .sortedBy { it.startMinute }
         if (todayReservations.isEmpty()) {
             item {
                 TLCard {

@@ -22,6 +22,7 @@ object GoogleSignIn {
         val option = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)   // 처음 쓰는 계정도 목록에 표시
             .setServerClientId(WEB_CLIENT_ID)
+            .setNonce(java.util.UUID.randomUUID().toString())   // 토큰 재사용(replay) 방어
             .build()
         val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
         val credential = manager.getCredential(activityContext, request).credential

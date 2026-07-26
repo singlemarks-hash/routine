@@ -280,14 +280,17 @@ object GroupStore {
     ): GroupRoom {
         if (!signedInMember) throw GroupException("그룹 기능은 네트워크 연결과 로그인이 필요해요.")
 
-        // 초대코드 — 헷갈리는 문자(0/O/1/I) 제외, 중복 시 재발급
+        // 초대코드 — 헷갈리는 문자(0/O/1/I) 제외, 중복 시 재발급.
+        // 고유가 확인되면 즉시 멈춘다 — 계속 돌면 확인된 코드를 최대 4번 더 재검사하는 낭비.
         var code = randomCode()
-        repeat(5) {
-            val dup = runCatching {
-                db().collection("groups").whereEqualTo("code", code).limit(1).get().await()
-            }.getOrNull()
-            if (dup == null || dup.isEmpty) return@repeat
-            code = randomCode()
+        run {
+            repeat(5) {
+                val dup = runCatching {
+                    db().collection("groups").whereEqualTo("code", code).limit(1).get().await()
+                }.getOrNull()
+                if (dup == null || dup.isEmpty) return@run
+                code = randomCode()
+            }
         }
 
         val roomRef = db().collection("groups").document()

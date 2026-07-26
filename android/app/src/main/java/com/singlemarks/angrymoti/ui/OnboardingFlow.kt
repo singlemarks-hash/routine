@@ -38,7 +38,8 @@ import com.singlemarks.angrymoti.ui.theme.TL
  */
 @Composable
 fun OnboardingFlow() {
-    var step by remember { mutableIntStateOf(0) }
+    // 재생성(다크모드 전환 등)에도 진행 단계를 지킨다 — remember면 1단계로 되돌아간다
+    var step by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()

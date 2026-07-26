@@ -952,7 +952,8 @@ fun SessionResultScreen() {
     val scale by animateFloatAsState(if (pop) 1f else 0.45f, tween(500), label = "pop")
 
     var showPlayer by remember { mutableStateOf(false) }
-    var saved by remember { mutableStateOf(false) }
+    // 재생성돼도 '이미 저장했다'는 사실을 잃지 않게 — 잃으면 중복 저장 유도
+    var saved by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
@@ -1010,13 +1011,16 @@ fun SessionResultScreen() {
                 Spacer(Modifier.height(18.dp))
                 TLCard(raised = true) {
                     TLEyebrow("타임랩스 미리보기")
+                    // IO 스레드에서 디코드 — 컴포지션 중 파일 디코드는 프레임 드랍을 만든다
                     val thumb = session.thumbnailFileName?.let { name ->
-                        remember(name) {
-                            runCatching {
-                                android.graphics.BitmapFactory.decodeFile(
-                                    File(CameraRecorder.sessionDir(context), name).absolutePath)
-                            }.getOrNull()
-                        }
+                        androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, name) {
+                            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                runCatching {
+                                    android.graphics.BitmapFactory.decodeFile(
+                                        File(CameraRecorder.sessionDir(context), name).absolutePath)
+                                }.getOrNull()
+                            }
+                        }.value
                     }
                     // 결과물 비율을 실제 촬영 프레임(썸네일)에서 그대로 가져와 프레임을 피팅한다 —
                     // 가로 촬영이면 16:9 가로 프레임, 세로면 9:16 세로 프레임. (썸네일 없을 때만 9:16 기본)

@@ -49,9 +49,6 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE id = :id")
     suspend fun byId(id: String): FocusSession?
 
-    @Query("SELECT COUNT(*) FROM sessions WHERE ownerUserID = :owner AND intensityRaw = 'spicy' AND outcomeRaw = 'completed'")
-    suspend fun spicyCompletions(owner: String): Int
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(s: FocusSession)
 
@@ -86,7 +83,7 @@ interface ScoreDao {
     suspend fun deleteAll(owner: String)
 }
 
-@Database(entities = [Reservation::class, FocusSession::class, ScoreEvent::class], version = 4, exportSchema = false)
+@Database(entities = [Reservation::class, FocusSession::class, ScoreEvent::class], version = 5, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun reservations(): ReservationDao
     abstract fun sessions(): SessionDao
@@ -116,10 +113,24 @@ abstract class AppDb : RoomDatabase() {
             }
         }
 
+        /** v5: 조회 인덱스 — 모든 DAO가 ownerUserID(+참조 ID)로 거르는데 인덱스가 없으면
+         *  반년치 데이터에서 홈/캘린더 진입이 풀스캔이 된다. 이름은 Room 기대 규칙
+         *  (index_<table>_<column>)과 일치해야 스키마 검증을 통과한다. */
+        private val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reservations_ownerUserID` ON `reservations` (`ownerUserID`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reservations_groupId` ON `reservations` (`groupId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sessions_ownerUserID` ON `sessions` (`ownerUserID`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sessions_reservationID` ON `sessions` (`reservationID`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_score_events_ownerUserID` ON `score_events` (`ownerUserID`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_score_events_sessionID` ON `score_events` (`sessionID`)")
+            }
+        }
+
         @Volatile private var instance: AppDb? = null
         fun get(context: Context): AppDb = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDb::class.java, "angrymoti.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build().also { instance = it }
         }
     }

@@ -73,7 +73,6 @@ fun MyPageScreen(onBack: () -> Unit) {
 
     when (sub) {
         "profile" -> { ProfileEditScreen(onBack = { sub = "menu" }, openPaywall = { sub = "paywall" }); return }
-        "intensity" -> { IntensityScreen(onBack = { sub = "menu" }); return }
         "paywall" -> { PaywallScreen(onBack = { sub = "menu" }); return }
         "cheer" -> { CheerDeveloperScreen(onBack = { sub = "menu" }, openPaywall = { sub = "paywall" }); return }
         "ledger" -> { LedgerScreen(onBack = { sub = "menu" }); return }
@@ -103,7 +102,11 @@ fun MyPageScreen(onBack: () -> Unit) {
         // 텍스트 메뉴 (투명 행) — 강도는 활동/그룹별로 각각 설정하므로 전역 강도 탭 제거
         PlainMenuRow("프라이버시") { sub = "privacy" }
         PlainMenuRow("점수 원장") { sub = "ledger" }
-        PlainMenuRow("앱 언어") {}
+        // 영어화는 v1.1로 연기 — 무동작 행 대신 준비 중임을 알린다 (iOS '준비 중' 표기와 동일 취지)
+        PlainMenuRow("앱 언어") {
+            android.widget.Toast.makeText(context, "앱 언어 설정은 준비 중이에요",
+                android.widget.Toast.LENGTH_SHORT).show()
+        }
         PlainMenuRow("이용약관") { open(Legal.TERMS_URL) }
         PlainMenuRow("개인정보처리방침") { open(Legal.PRIVACY_URL) }
 
@@ -363,33 +366,8 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
     }
 }
 
-/** 강도 설정 — 상향 즉시 / 하향 익일 0시, 잠금 해제 n/3 */
-@Composable
-fun IntensityScreen(onBack: () -> Unit) {
-    val intensity by AppState.intensity.collectAsState()
-    val isPro by SubscriptionManager.isPro.collectAsState()
-
-    Column(Modifier.fillMaxSize().background(TL.ink).padding(20.dp)) {
-        TLScreenHeader("강도 설정", onBack = onBack)
-        IntensityCard(Intensity.SPICY, intensity == Intensity.SPICY, locked = false) {
-            AppState.requestIntensityChange(Intensity.SPICY)
-        }
-        Spacer(Modifier.height(10.dp))
-        // 미친맛은 멤버십 전용 — 완주 3회 성실 경로는 폐지됐다 (iOS와 동일 정책)
-        val locked = !isPro
-        IntensityCard(Intensity.INSANE, intensity == Intensity.INSANE, locked = locked) {
-            AppState.requestIntensityChange(Intensity.INSANE)
-        }
-        Spacer(Modifier.height(12.dp))
-        if (AppState.pendingDowngrade.collectAsState().value) {
-            Text("매운맛으로 하향 예약됨 — 다음날 0시부터 적용됩니다", color = TL.amber, fontSize = 13.sp)
-            Spacer(Modifier.height(6.dp))
-        }
-        Text("올리는 건 즉시 적용되고, 내리는 건 다음날 0시부터 적용됩니다. " +
-            "미친 매운맛은 멤버십 전용이에요.",
-            color = TL.faint, fontSize = 12.sp)
-    }
-}
+// (강도 설정 화면은 제거 — 강도는 활동/그룹별로 각각 설정하는 정책으로 바뀌어
+//  전역 강도 메뉴 자체가 사라졌고, 이 화면으로 들어오는 경로가 없었다)
 
 /** 페이월 — 멤버십 (Google Play Billing) */
 @Composable

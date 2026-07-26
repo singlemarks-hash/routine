@@ -58,7 +58,7 @@ object SubscriptionManager : PurchasesUpdatedListener {
         connect(context)
     }
 
-    private var reconnectDelayMs = 1_000L
+    @Volatile private var reconnectDelayMs = 1_000L   // Billing 콜백 스레드/메인 간 가시성 보장
 
     private fun connect(context: Context) {
         client?.startConnection(object : BillingClientStateListener {

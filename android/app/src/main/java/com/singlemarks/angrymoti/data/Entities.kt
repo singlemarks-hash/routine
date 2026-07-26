@@ -10,7 +10,8 @@ import java.util.UUID
 
 // iOS SwiftData 모델과 1:1. 모든 엔티티는 ownerUserID로 계정별 격리 (게스트 = "guest").
 
-@Entity(tableName = "reservations")
+@Entity(tableName = "reservations",
+    indices = [androidx.room.Index("ownerUserID"), androidx.room.Index("groupId")])
 data class Reservation(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val ownerUserID: String = "guest",
@@ -126,7 +127,8 @@ data class Reservation(
     }
 }
 
-@Entity(tableName = "sessions")
+@Entity(tableName = "sessions",
+    indices = [androidx.room.Index("ownerUserID"), androidx.room.Index("reservationID")])
 data class FocusSession(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val ownerUserID: String = "guest",
@@ -149,7 +151,8 @@ data class FocusSession(
     val anchorAt get() = startedAt ?: scheduledAt ?: System.currentTimeMillis()
 }
 
-@Entity(tableName = "score_events")
+@Entity(tableName = "score_events",
+    indices = [androidx.room.Index("ownerUserID"), androidx.room.Index("sessionID")])
 data class ScoreEvent(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     val ownerUserID: String = "guest",

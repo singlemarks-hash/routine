@@ -805,7 +805,7 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
         val rows = if (isPro)
             listOf("기본" to "${SlotPolicy.MEMBER_FLOOR_SLOTS}개", "연속 30일" to "무제한")
         else
-            listOf("기본" to "2개") + SlotPolicy.tiers.map { (d, s) ->
+            listOf("기본" to "${SlotPolicy.BASE_SLOTS}개") + SlotPolicy.tiers.map { (d, s) ->
                 "연속 ${d}일" to (s?.let { "${it}개" } ?: "무제한")
             }
         val currentLabel = when {
