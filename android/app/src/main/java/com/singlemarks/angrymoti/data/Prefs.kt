@@ -58,4 +58,11 @@ object Prefs {
     var guestName: String?
         get() = sp.getString("guestName", null)
         set(v) = sp.edit().putString("guestName", v).apply()
+
+    /** '진행(active)을 실제로 목격한' 방 ID들 — 방 문서가 사라졌을 때 '시작 전에 정리된 방'
+     *  (벌점 회수)과 '보존 만료로 정리된 방'(정당한 벌점 유지)을 구분하는 근거.
+     *  추측이 아니라 관측한 사실만 기록한다 (iOS group.seenActiveRoomIDs와 동일). */
+    var seenActiveRoomIDs: Set<String>
+        get() = sp.getStringSet("group.seenActiveRoomIDs", emptySet()) ?: emptySet()
+        set(v) = sp.edit().putStringSet("group.seenActiveRoomIDs", v).apply()
 }

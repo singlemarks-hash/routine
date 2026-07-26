@@ -6,6 +6,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.Timestamp
 import com.singlemarks.angrymoti.data.AppDb
+import com.singlemarks.angrymoti.data.Prefs
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.data.ScoreEvent
 import com.singlemarks.angrymoti.models.GroupPolicy
@@ -45,6 +46,8 @@ object GroupStore {
         val endDate: Long,
         val status: String,          // scheduled | active | cancelled | disbanded
         val memberCount: Int,
+        /** 참여 마감 후 인원 미달로 시작 시각에 삭제될 방 — 알람 취소·점수화 차단 대상 */
+        val doomed: Boolean = false,
     ) {
         val intensity get() = Intensity.from(intensityRaw)
         // startDate = 실제 시작 순간(시작일 + 시작 시각). 생성 시 그 값으로 저장한다(iOS와 통일).
@@ -52,10 +55,41 @@ object GroupStore {
         /** 참여 가능 = 아직 scheduled이고 시작 11분 전이 지나지 않음 (10분 전 알람을 받을 수 있게) */
         val joinOpen get() = status == "scheduled" &&
             System.currentTimeMillis() < startDate - GroupPolicy.JOIN_CUTOFF_MINUTES * 60_000L
-        val isFinished get() = System.currentTimeMillis() >= endDate
+
+        /**
+         * 방의 실제 종료 시각 = 마지막 발생일의 시작 시각 + 활동 길이 + 정산 유예(25분).
+         * endDate(종료일 23:59:59)로 판정하면 오전에 끝난 하루짜리 방이 하루 종일
+         * '진행 중'으로 남는다 (iOS finishedAt과 동일 로직).
+         */
+        val finishedAt: Long get() {
+            fun startOfDay(t: Long): Long = Calendar.getInstance().apply {
+                timeInMillis = t
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val firstDay = startOfDay(startDate)
+            val lastDay = startOfDay(endDate)
+            val days = repeatWeekdays.toSet()
+            // 마지막 발생일: 종료일부터 거꾸로 8일 안에서 고른 요일이 오는 첫 날.
+            // 못 찾으면 종료일(늦게 끝나는 쪽이 안전). 요일 없는 레거시 = 시작일 하루.
+            var occurrenceDay = if (days.isEmpty()) firstDay else lastDay
+            if (days.isNotEmpty()) {
+                for (offset in 0 until 8) {
+                    val day = lastDay - offset * 86_400_000L
+                    if (day < firstDay) break
+                    val wd = Calendar.getInstance().apply { timeInMillis = day }
+                        .get(Calendar.DAY_OF_WEEK)
+                    if (wd in days) { occurrenceDay = day; break }
+                }
+            }
+            val base = occurrenceDay + startMinute * 60_000L
+            return base + (durationMinutes + GroupPolicy.SETTLE_GRACE_MINUTES) * 60_000L
+        }
+
+        val isFinished get() = System.currentTimeMillis() >= finishedAt
+        val deleteAt get() = finishedAt + GroupPolicy.RESULT_RETENTION_DAYS * 86_400_000L
         val isHostMine get() = hostUID == AccountStore.currentUserID
-        val isExpired get() = System.currentTimeMillis() >=
-            endDate + GroupPolicy.RESULT_RETENTION_DAYS * 86_400_000L
+        val isExpired get() = System.currentTimeMillis() >= deleteAt
     }
 
     data class GroupMember(
@@ -96,35 +130,83 @@ object GroupStore {
             val next = mutableListOf<GroupRoom>()
             for (id in ids) {
                 val snapshot = runCatching { db().collection("groups").document(id).get().await() }
-                    .getOrNull() ?: continue
+                    .getOrNull()
+                if (snapshot == null) {
+                    // 조회 실패는 '방이 없다'가 아니다 — 아무것도 지우지 않고 이전 상태를 유지한다.
+                    // (여기서 next에 안 넣으면 진행 중인 방이 목록에서 통째로 사라져 보인다)
+                    rooms.value.firstOrNull { it.id == id }?.let { next.add(it) }
+                    continue
+                }
                 var room = if (snapshot.exists()) roomFrom(snapshot) else null
+                if (room == null && snapshot.exists()) {
+                    // 파싱 실패(필수 필드 누락) — 삭제로 오해하지 말고 이전 객체 유지
+                    rooms.value.firstOrNull { it.id == id }?.let { next.add(it) }
+                    continue
+                }
                 if (room == null) {
-                    // 방 문서가 사라짐 = 해체·취소된 방을 다른 기기가 이미 지운 경우
-                    disbandedNotices.value += "참여했던 그룹방이 해체되었어요."
-                    removeMembershipRef(id)
-                    removeLocalReservation(context, id, purgeNoShows = true)
+                    // 방 문서가 사라짐 — 이유는 알 수 없다. '진행을 목격한 방'이면 보존 만료
+                    // 정리이므로 정당한 벌점을 유지하고, 목격한 적 없으면 시작 전에 정리된
+                    // 방이므로 미리 찍힌 벌점까지 되돌린다.
+                    val everRan = id in Prefs.seenActiveRoomIDs
+                    if (!removeMembershipRef(id)) continue   // 참조 정리 실패 — 다음 새로고침에 재시도
+                    disbandedNotices.value += if (everRan)
+                        "참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요."
+                    else
+                        "참여했던 그룹방이 시작되지 못하고 정리되었어요. 관련 벌점은 취소했습니다."
+                    removeLocalReservation(context, id, purgeNoShows = !everRan)
+                    forgetRoomActive(id)
                     continue
                 }
                 if (room.status == "disbanded") {
+                    if (!removeMembershipRef(id)) { next.add(room); continue }
                     if (!room.isHostMine) disbandedNotices.value += "'${room.name}' 방을 방장이 해체했어요."
-                    removeMembershipRef(id)
                     // 해체는 시작 전에만 가능 — 미리 만들어 둔 예약과 혹시 찍힌 노쇼까지 정리
                     removeLocalReservation(context, id, purgeNoShows = true)
+                    forgetRoomActive(id)
                     // 서버 정리: 내 멤버 문서를 지우고, 마지막 참여자였다면 방 문서까지 삭제
                     cleanupDisbandedRoom(id, myUid)
                     continue
+                }
+                // doomed 승계 — 조회 실패 회차에 판정이 풀려 예약·알람이 되살아나지 않게
+                if (rooms.value.firstOrNull { it.id == id }?.doomed == true) {
+                    room = room.copy(doomed = true)
+                }
+                // 참여 마감 후 인원 미달 = 시작 시각에 삭제될 방(doomed).
+                // 서버 소스 강제 — 오프라인 캐시가 '나 혼자'로 답해 멀쩡한 방을
+                // 삭제 예정으로 오판하면 예약·알람이 부당하게 죽는다.
+                if (room.status == "scheduled" && !room.hasStarted && !room.joinOpen) {
+                    val memberSnap = runCatching {
+                        db().collection("groups").document(id).collection("members")
+                            .get(com.google.firebase.firestore.Source.SERVER).await()
+                    }.getOrNull()
+                    if (memberSnap != null) {
+                        val liveCount = memberSnap.count { it.getBoolean("quit") != true }
+                        room = room.copy(memberCount = liveCount,
+                            doomed = liveCount < GroupPolicy.MIN_MEMBERS_TO_START)
+                    }
+                    if (room.doomed) {
+                        // 진행되지 않을 방 — 알람을 끄고, 미리 찍힌 기록도 점수화 전에 되돌린다
+                        removeLocalReservation(context, id, purgeNoShows = true)
+                        next.add(room)
+                        continue
+                    }
                 }
                 // 시작 시각 도래 — 실제 멤버 수가 최소 인원 이상이면 활성화, 미만이면 취소.
                 // 판정 근거는 비정규화 카운터(memberCount)가 아니라 '실제 멤버 문서 수'다 —
                 // 카운터 드리프트로 멤버가 충분한 방이 잘못 취소·삭제되던 문제(#04)를 차단.
                 if (room.status == "scheduled" && room.hasStarted) {
                     val roomRef = db().collection("groups").document(id)
+                    // 멤버 문서를 못 읽었으면 판정 자체를 미룬다. 캐시된 카운터로 '취소'를
+                    // 내리면 정상 진행 중인 방이 폭파된다 — 네트워크 복구 후 재판정하면 된다.
                     val actualCount = runCatching {
                         roomRef.collection("members").get().await()
                             .count { it.getBoolean("quit") != true }
-                    }.getOrDefault(room.memberCount)
+                    }.getOrNull()
+                    if (actualCount == null) { next.add(room); continue }
                     val decided = if (actualCount >= GroupPolicy.MIN_MEMBERS_TO_START) "active" else "cancelled"
-                    // compare-and-set — 아직 scheduled일 때만 바꾼다(여러 기기 동시 판정 방지) + 카운터 보정
+                    // compare-and-set — 아직 scheduled일 때만 바꾼다(여러 기기 동시 판정 방지) + 카운터 보정.
+                    // 커밋 실패면 판정을 적용하지 않는다 — 서버는 scheduled인데 로컬만 cancelled로
+                    // 굴러가면 멀쩡한 방의 예약을 지우게 된다.
                     val finalStatus = runCatching {
                         db().runTransaction { txn ->
                             val snap = txn.get(roomRef)
@@ -133,26 +215,28 @@ object GroupStore {
                                 decided
                             } else (snap.getString("status") ?: decided)
                         }.await()
-                    }.getOrDefault(decided)
+                    }.getOrNull()
+                    if (finalStatus == null) { next.add(room); continue }
                     room = room.copy(status = finalStatus, memberCount = actualCount)
                 }
                 if (room.status == "cancelled") {
+                    if (!removeMembershipRef(id)) { next.add(room); continue }
                     if (room.isHostMine) {
                         cancelledNotices.value += "'${room.name}' — 참여자가 부족해 그룹방이 취소되었습니다."
                     }
-                    removeMembershipRef(id)
                     // mass-delete 금지 — 각자 자기 멤버 문서만 지우고, 마지막 참여자면 방 문서 삭제.
-                    // (한 기기가 전원 문서를 통째로 지우던 파괴적 경로 제거 — 오판이어도 폭파 안 됨)
                     cleanupDisbandedRoom(id, myUid)
                     // 취소된 방은 예약 제거 + 그 예약에 잘못 찍힌 노쇼 기록까지 되돌린다
                     removeLocalReservation(context, id, purgeNoShows = true)
+                    forgetRoomActive(id)
                     continue
                 }
-                // 30일 보존 기간 만료 → 서버에서 삭제
+                // 보존 기간 만료 → 서버에서 삭제 (finishedAt + 30일)
                 if (room.isExpired) {
-                    removeMembershipRef(id)
+                    if (!removeMembershipRef(id)) { next.add(room); continue }
                     deleteRoomDocuments(id)
                     removeLocalReservation(context, id)
+                    forgetRoomActive(id)
                     continue
                 }
                 // 그룹 예약은 참여 시점에 만들어지지만, 재설치·기기 변경 대비로 여기서도 보장한다.
@@ -160,17 +244,19 @@ object GroupStore {
                     ensureLocalReservation(context, room)
                 }
                 if (room.status == "active") {
-                    if (room.isFinished) {
-                        removeLocalReservation(context, id)
-                    } else if (isMemberActive(id, myUid)) {
+                    markRoomActive(id)
+                    // 끝난 방의 예약은 여기서 지우지 않는다 — 마지막 날 노쇼 집계 근거가
+                    // 사라진다. 은퇴는 cleanupExpiredReservations(다음날 0시)가 맡는다.
+                    if (!room.isFinished && isMemberActive(id, myUid)) {
                         ensureLocalReservation(context, room)
                     }
                 }
                 next.add(room)
             }
-            // 서버 기준으로 살아있는 방만 남기고, 그 외 그룹 예약은 고아로 보고 정리.
-            // (ids 조회가 성공했을 때만 여기 도달하므로 오삭제 위험 없음)
-            pruneOrphanGroupReservations(context, next.map { it.id }.toSet())
+            // 고아 예약 정리 기준은 ids(멤버십 목록)다 — next가 아니다.
+            // next를 쓰면 방 문서 조회 1회 실패만으로 진행 중인 그룹 예약이 삭제되고,
+            // 다음 새로고침에 새로 만들어져 완료한 날까지 전부 노쇼로 재집계된다.
+            pruneOrphanGroupReservations(context, ids.toSet())
             rooms.value = next.sortedBy { it.startDate }
             AlarmScheduler.rescheduleAll(context)
         } finally {
@@ -530,16 +616,19 @@ object GroupStore {
 
     /** 시작 전 자유 탈퇴 — 멤버 삭제 + 인원수 감소 */
     suspend fun leaveBeforeStart(context: Context, room: GroupRoom) {
-        if (!signedInMember) return
+        if (!signedInMember) throw GroupException("네트워크 연결이 필요해요.")
         val roomRef = db().collection("groups").document(room.id)
         val memberRef = roomRef.collection("members").document(uid)
         // 내 닉네임을 takenNicknames에서 풀어 재사용 가능하게(#15) — 삭제 전에 읽어 둔다
         val myNick = runCatching { memberRef.get().await().getString("nickname") }.getOrNull()
-        runCatching { memberRef.delete().await() }
+        // 핵심 쓰기는 실패를 삼키지 않는다 — 삼키면 '나갔다'고 오해한 채 예약이 남고,
+        // 다음 새로고침이 그 방을 여전히 내 방으로 보고 알람을 되살린다.
+        memberRef.delete().await()
         val updates = mutableMapOf<String, Any>("memberCount" to FieldValue.increment(-1))
         myNick?.let { updates["takenNicknames"] = FieldValue.arrayRemove(it.lowercase()) }
         runCatching { roomRef.update(updates).await() }
-        removeMembershipRef(room.id)
+        if (!removeMembershipRef(room.id))
+            throw GroupException("나가기는 됐지만 목록 정리에 실패했어요. 잠시 후 다시 시도해주세요.")
         removeLocalReservation(context, room.id)   // 미리 만들어 둔 예약 정리
         rooms.value = rooms.value.filterNot { it.id == room.id }
         AlarmScheduler.rescheduleAll(context)
@@ -574,10 +663,19 @@ object GroupStore {
 
     /** 방장 전용, 시작 전 해체 — 참여자들은 다음 새로고침에서 안내를 받는다 */
     suspend fun disband(context: Context, room: GroupRoom) {
-        if (!signedInMember || !room.isHostMine) return
-        runCatching {
-            db().collection("groups").document(room.id).update("status", "disbanded").await()
-        }
+        if (!signedInMember) throw GroupException("네트워크 연결이 필요해요.")
+        if (!room.isHostMine) throw GroupException("방장만 해체할 수 있어요.")
+        // 서버 상태 재확인 — 로컬 스냅샷이 낡았을 수 있다. 이미 시작한 방을 해체하면
+        // 참여자들의 진행 중 벌점·기록이 통째로 무효가 되는 회피 경로가 열린다.
+        val live = runCatching {
+            db().collection("groups").document(room.id)
+                .get(com.google.firebase.firestore.Source.SERVER).await()
+        }.getOrNull() ?: throw GroupException("방 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요.")
+        val liveStatus = live.getString("status") ?: "scheduled"
+        val liveStart = live.getTimestamp("startDate")?.toDate()?.time ?: room.startDate
+        if (liveStatus != "scheduled" || System.currentTimeMillis() >= liveStart)
+            throw GroupException("이미 시작된 방은 해체할 수 없어요.")
+        db().collection("groups").document(room.id).update("status", "disbanded").await()
         removeMembershipRef(room.id)
         // 방장 자신의 멤버 문서 정리 — 혼자였던 방이면 문서까지 즉시 삭제,
         // 참여자가 있으면 status로 해체를 알린 뒤 마지막 참여자가 문서를 지운다
@@ -589,7 +687,8 @@ object GroupStore {
 
     /** 종료된 방 '나가기' — 내 목록에서만 사라진다 (다른 참여자의 결과는 유지) */
     suspend fun hideFinishedRoom(context: Context, room: GroupRoom) {
-        removeMembershipRef(room.id)
+        if (!removeMembershipRef(room.id))
+            throw GroupException("처리하지 못했어요. 네트워크를 확인하고 다시 시도해주세요.")
         // 끝난 방이라도 로컬 예약은 남아 일정·홈에 계속 뜬다 — 반드시 함께 정리한다.
         removeLocalReservation(context, room.id)
         rooms.value = rooms.value.filterNot { it.id == room.id }
@@ -659,9 +758,15 @@ object GroupStore {
     private suspend fun myRoomIDs(): List<String>? {
         val myUid = uid
         if (myUid.isEmpty() || myUid == "guest") return null
+        // getDocument는 문서가 없어도 성공한다(빈 스냅샷). 소스를 지정하지 않으면 로컬
+        // 캐시로도 답하므로, 새 기기·재설치처럼 캐시가 빈 상태를 '가입한 방 0개'로 읽어
+        // 멀쩡한 그룹 활동이 전부 삭제된다 (iOS에서 실제로 났던 사고).
+        // 서버에서 읽고, 문서가 없으면 '모름'(null)으로 돌려 이번 새로고침을 건너뛴다.
         val doc = runCatching {
-            db().collection("users").document(myUid).get().await()
+            db().collection("users").document(myUid)
+                .get(com.google.firebase.firestore.Source.SERVER).await()
         }.getOrNull() ?: return null
+        if (!doc.exists()) return null
         @Suppress("UNCHECKED_CAST")
         return doc.get("groupIDs") as? List<String> ?: emptyList()
     }
@@ -680,14 +785,26 @@ object GroupStore {
         }
     }
 
-    private suspend fun removeMembershipRef(roomID: String) {
+    /** 실패를 삼키면 안 된다 — groupIDs에 방이 남으면 다음 새로고침이 그 방을 여전히
+     *  '내 방'으로 보고 예약을 다시 만들어 알람이 되살아난다. 성공 여부를 돌려준다. */
+    private suspend fun removeMembershipRef(roomID: String): Boolean {
         val myUid = uid
-        if (myUid.isEmpty() || myUid == "guest") return
-        runCatching {
+        if (myUid.isEmpty() || myUid == "guest") return false
+        return runCatching {
             db().collection("users").document(myUid)
                 .set(mapOf("groupIDs" to FieldValue.arrayRemove(roomID)),
                     com.google.firebase.firestore.SetOptions.merge()).await()
-        }
+        }.isSuccess
+    }
+
+    // MARK: '진행을 목격한 방' 마커 — 방 문서가 사라진 이유(시작 전 정리 vs 보존 만료)를 구분
+
+    private fun markRoomActive(id: String) {
+        if (id !in Prefs.seenActiveRoomIDs) Prefs.seenActiveRoomIDs = Prefs.seenActiveRoomIDs + id
+    }
+
+    private fun forgetRoomActive(id: String) {
+        if (id in Prefs.seenActiveRoomIDs) Prefs.seenActiveRoomIDs = Prefs.seenActiveRoomIDs - id
     }
 
     /** 해체된 방의 서버 흔적 정리 — 내 멤버 문서 삭제, 남은 멤버가 없으면 방 문서까지 삭제 */

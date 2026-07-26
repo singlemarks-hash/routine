@@ -140,6 +140,7 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
     val refreshing by GroupStore.isRefreshing.collectAsState()
     val isPro by SubscriptionManager.isPro.collectAsState()
     var nav by remember { mutableStateOf<GroupNav>(GroupNav.List) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { GroupStore.refresh(context) }
 
@@ -205,53 +206,79 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
             Spacer(Modifier.height(10.dp))
         }
 
-        if (locked && rooms.isEmpty()) {
-            // 멤버십 잠금 패널 (iOS lockedPanel 1:1)
-            Spacer(Modifier.height(40.dp))
-            Column(
-                Modifier.fillMaxWidth().background(TL.surface, TL.cornerL)
-                    .border(1.dp, TL.hairline, TL.cornerL).padding(28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(Modifier.size(64.dp).background(TL.raised, CircleShape),
-                    contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.Icon(AppIcon.Lock, null,
-                        tint = TL.amber, modifier = Modifier.size(26.dp))
-                }
-                Spacer(Modifier.height(16.dp))
-                Text("그룹 챌린지는 멤버십 전용", color = TL.paper,
-                    fontSize = 19.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.height(8.dp))
-                Text("초대코드로 지인들과 모여 같은 일정으로 대결해요.\n노쇼도 완주도 전부 랭킹에 반영됩니다.",
-                    color = TL.muted, fontSize = 13.sp, textAlign = TextAlign.Center, lineHeight = 20.sp)
-                Spacer(Modifier.height(20.dp))
-                TLPrimaryButton("멤버십 구독하고 시작하기", tint = TL.jade) { nav = GroupNav.Paywall }
+        // 탭은 누구에게나 열어둔다 (iOS 3ae6c2a). 참여 중인 방은 구독이 끊겨도 계속
+        // 굴러가고 노쇼 벌점도 쌓인다 — 나가려면 그 방에 들어갈 수 있어야 한다.
+        // 결제는 '새로 시작하는 행동'(만들기·참여하기)에서만 요구한다.
+
+        // 조회 실패 안내 — 그룹 활동은 로컬에 있는데 방 목록이 비어 있으면 조회가 실패한
+        // 것이다(성공했다면 고아 정리가 사라진 방의 활동까지 정리했을 것). 빈 화면만
+        // 보여주면 탈퇴할 방을 못 찾아 슬롯을 비울 방법이 없어진다.
+        val hasGroupReservations = remember { mutableStateOf(false) }
+        LaunchedEffect(rooms, refreshing) {
+            hasGroupReservations.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.singlemarks.angrymoti.data.AppDb.get(context).reservations()
+                    .allForOwner(AccountStore.currentUserID).any { it.groupId != null }
             }
-        } else {
-            // iOS 1:1 — 버튼 세로 스택 (그룹방 만들기 rec / 초대코드로 참여하기 ghost)
-            TLPrimaryButton("그룹방 만들기") {
-                if (locked) nav = GroupNav.Paywall else nav = GroupNav.Create
+        }
+        if (rooms.isEmpty() && hasGroupReservations.value && !refreshing) {
+            TLCard {
+                Column {
+                    Text("방 정보를 불러오지 못했습니다", color = TL.paper,
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Text("참여 중인 그룹 활동이 있는데 방 목록을 읽지 못했어요. 네트워크를 확인하고 다시 시도해 주세요.",
+                        color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
+                    Spacer(Modifier.height(10.dp))
+                    TLGhostButton("다시 시도") {
+                        scope.launch { GroupStore.refresh(context) }
+                    }
+                }
             }
             Spacer(Modifier.height(10.dp))
-            TLGhostButton("초대코드로 참여하기") {
-                if (locked) nav = GroupNav.Paywall else nav = GroupNav.Join
+        }
+
+        if (locked) {
+            // 비구독 안내 — 잠금이 아니라 안내다 (iOS membershipPromo 1:1)
+            TLCard {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Icon(AppIcon.Lock, null,
+                            tint = TL.amber, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("새 그룹은 멤버십 전용이에요", color = TL.paper,
+                            fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("참여 중인 방은 그대로 보고 관리할 수 있어요. 방을 새로 만들거나 초대코드로 참여하려면 멤버십이 필요합니다.",
+                        color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
+                }
             }
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(10.dp))
+        }
 
-            // '내 그룹' 섹션 헤더 (iOS와 동일하게 목록을 별도로 묶는다)
-            Text("내 그룹", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.height(12.dp))
+        // iOS 1:1 — 버튼 세로 스택 (그룹방 만들기 rec / 초대코드로 참여하기 ghost)
+        TLPrimaryButton("그룹방 만들기") {
+            if (locked) nav = GroupNav.Paywall else nav = GroupNav.Create
+        }
+        Spacer(Modifier.height(10.dp))
+        TLGhostButton("초대코드로 참여하기") {
+            if (locked) nav = GroupNav.Paywall else nav = GroupNav.Join
+        }
+        Spacer(Modifier.height(22.dp))
 
-            if (rooms.isEmpty()) {
-                TLCard {
-                    Text("참여 중인 그룹이 없습니다. 방을 만들어 초대코드를 공유하거나, 받은 코드로 참여해 보세요.",
-                        color = TL.muted, fontSize = 13.sp, lineHeight = 20.sp)
-                }
-            } else {
-                rooms.forEach { room ->
-                    GroupRoomCard(room) { nav = GroupNav.Detail(room.id) }
-                    Spacer(Modifier.height(10.dp))
-                }
+        // '내 그룹' 섹션 헤더 (iOS와 동일하게 목록을 별도로 묶는다)
+        Text("내 그룹", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(12.dp))
+
+        if (rooms.isEmpty()) {
+            TLCard {
+                Text("참여 중인 그룹이 없습니다. 방을 만들어 초대코드를 공유하거나, 받은 코드로 참여해 보세요.",
+                    color = TL.muted, fontSize = 13.sp, lineHeight = 20.sp)
+            }
+        } else {
+            rooms.forEach { room ->
+                GroupRoomCard(room) { nav = GroupNav.Detail(room.id) }
+                Spacer(Modifier.height(10.dp))
             }
         }
         Spacer(Modifier.height(110.dp))   // 하단 토글에 안 가리게
@@ -260,9 +287,12 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
 
 @Composable
 private fun GroupRoomCard(room: GroupRoom, onClick: () -> Unit) {
-    // iOS statusChip 1:1 — 종료(faint) / 진행 중(jade) / 시작 D-N(amber), 테두리 캡슐
+    // iOS statusChip 1:1 — 우선순위: 삭제 예정(rec) > 종료(faint) > 확인 중(amber)
+    // > 진행 중(jade) > 시작 D-N(amber)
     val (statusLabel, statusColor) = when {
+        room.doomed -> "삭제 예정" to TL.rec
         room.isFinished -> "종료" to TL.faint
+        room.status == "scheduled" && room.hasStarted -> "확인 중" to TL.amber
         room.hasStarted -> "진행 중" to TL.jade
         else -> "${GroupFormat.dDay(room.startDate)} 시작" to TL.amber
     }
@@ -816,6 +846,7 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var members by remember { mutableStateOf(listOf<GroupStore.GroupMember>()) }
     var confirmAction by remember { mutableStateOf<String?>(null) }   // disband | leave | quit
+    var actionError by remember { mutableStateOf<String?>(null) }
     val myUid = AccountStore.currentUserID
 
     LaunchedEffect(room.id) { members = GroupStore.members(room.id) }
@@ -826,7 +857,10 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
         while (true) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(30_000) }
     }
 
-    val waiting = room.status == "scheduled" && !room.hasStarted
+    val waiting = room.status == "scheduled" && !room.hasStarted && !room.doomed
+    // 시작 시각은 지났는데 아직 시작/취소 판정 전 — 여기서 탈퇴를 열면 무벌점 회피 경로,
+    // 중도 포기를 열면 진행도 안 한 방에 -50이 찍힌다. 아무 액션도 노출하지 않는다.
+    val pendingDecision = room.status == "scheduled" && room.hasStarted
     val finished = room.isFinished
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
@@ -883,6 +917,29 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
             }
 
             when {
+                room.doomed -> {
+                    // 삭제 예정 — 활동은 진행되지 않고 알람도 취소됨 (iOS doomedCard 1:1)
+                    TLCard {
+                        Row(verticalAlignment = Alignment.Top) {
+                            androidx.compose.material3.Icon(AppIcon.Siren, null,
+                                tint = TL.rec, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text("참여 인원이 모자라 이 방은 시작 시각에 삭제됩니다.",
+                                    color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(4.dp))
+                                Text("참여 마감이 지나 더 들어올 수 없어요. 활동은 진행되지 않고 알람도 취소했습니다.",
+                                    color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
+                            }
+                        }
+                    }
+                }
+                pendingDecision -> {
+                    TLCard {
+                        Text("시작 여부를 확인하는 중입니다. 잠시 후 다시 열어주세요.",
+                            color = TL.muted, fontSize = 13.sp)
+                    }
+                }
                 waiting -> {
                     // 최초 시작 전 '활동 인증' 카드 통일 — 카운트다운 + 코드(방장) + 참여 마감 안내 (iOS 1:1)
                     TLCard {
@@ -988,8 +1045,18 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(16.dp))
                     if (finished) {
+                        // 삭제 예고 — 남은 보존 일수 (iOS deletionNotice 1:1)
+                        val daysLeft = ((room.deleteAt - now) / 86_400_000L).toInt()
+                        Text(if (daysLeft > 0) "${daysLeft}일 뒤 이 방과 결과가 자동으로 삭제됩니다."
+                             else "오늘 중 이 방과 결과가 자동으로 삭제됩니다.",
+                            color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(10.dp))
                         TLGhostButton("방 나가기 — 내 목록에서 제거", tint = TL.muted) {
-                            scope.launch { GroupStore.hideFinishedRoom(context, room); onBack() }
+                            scope.launch {
+                                runCatching { GroupStore.hideFinishedRoom(context, room) }
+                                    .onSuccess { onBack() }
+                                    .onFailure { actionError = it.message ?: "처리하지 못했어요." }
+                            }
                         }
                         Text("결과는 종료 후 ${GroupPolicy.RESULT_RETENTION_DAYS}일까지 보관됩니다.",
                             color = TL.faint, fontSize = 12.sp,
@@ -1025,18 +1092,34 @@ private fun GroupRoomDetailScreen(room: GroupRoom, onBack: () -> Unit) {
                 androidx.compose.material3.TextButton(onClick = {
                     confirmAction = null
                     scope.launch {
-                        when (action) {
-                            "disband" -> GroupStore.disband(context, room)
-                            "leave" -> GroupStore.leaveBeforeStart(context, room)
-                            else -> GroupStore.quitAfterStart(context, room)
-                        }
-                        onBack()
+                        runCatching {
+                            when (action) {
+                                "disband" -> GroupStore.disband(context, room)
+                                "leave" -> GroupStore.leaveBeforeStart(context, room)
+                                else -> GroupStore.quitAfterStart(context, room)
+                            }
+                        }.onSuccess { onBack() }
+                            .onFailure { actionError = it.message ?: "처리하지 못했어요." }
                     }
                 }) { Text(button, color = TL.rec, fontWeight = FontWeight.Black) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmAction = null }) {
                     Text("취소", color = TL.muted)
+                }
+            },
+        )
+    }
+
+    actionError?.let { msg ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { actionError = null },
+            containerColor = TL.surface,
+            title = { Text("처리하지 못했어요", color = TL.paper, fontWeight = FontWeight.Black) },
+            text = { Text(msg, color = TL.muted) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { actionError = null }) {
+                    Text("확인", color = TL.rec, fontWeight = FontWeight.Black)
                 }
             },
         )
