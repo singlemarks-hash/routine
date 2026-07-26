@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -898,19 +899,17 @@ fun WeeklyScheduleTab(
         Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // 상단 — '주간 일정' 타이틀 + '+추가' 버튼 (iOS 1:1)
+        // 상단 — 중앙 '주간 일정' 타이틀 + 우측 '+추가' (iOS 네비게이션 바 인라인 타이틀 1:1)
         item {
-            Row(verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                Text("주간 일정", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.weight(1f))
+            Box(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                Text("주간 일정", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.align(Alignment.Center))
                 Row(verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .background(TL.surface, CircleShape)
-                        .border(1.dp, TL.hairline, CircleShape)
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                        .clip(CircleShape)
                         .clickable(onClick = onAdd)
-                        .padding(horizontal = 16.dp, vertical = 9.dp)) {
-                    Text("+ 추가", color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    Text("+ 추가", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

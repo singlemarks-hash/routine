@@ -83,25 +83,34 @@ fun CalendarScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(20.dp))
         }
         item {
-            // 캘린더 전체가 하나의 큰 카드 (iOS 1:1)
-            TLCard(raised = true) {
-                // 월 네비게이션
+            // 캘린더 전체가 하나의 큰 카드 — 셀에는 배경을 깔지 않는다(타일 격자 느낌 방지).
+            // 오늘·선택된 날만 raised 박스로 표시한다 (iOS monthGrid 1:1).
+            Column(
+                Modifier.fillMaxWidth().background(TL.surface, TL.cornerL).padding(16.dp),
+            ) {
+                // 월 네비게이션 — chevron 아이콘 (iOS 1:1)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("‹", color = TL.muted, fontSize = 22.sp, modifier = Modifier.clickable {
+                    Box(Modifier.size(32.dp).clip(TL.cornerS).clickable {
                         month = (month.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
-                    }.padding(horizontal = 10.dp))
+                    }, contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.Icon(AppIcon.ChevronLeft, "이전 달",
+                            tint = TL.muted, modifier = Modifier.size(22.dp))
+                    }
                     Spacer(Modifier.weight(1f))
                     Text("${month.get(Calendar.YEAR)}년 ${month.get(Calendar.MONTH) + 1}월",
-                        color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                        color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
                     Spacer(Modifier.weight(1f))
-                    Text("›", color = TL.muted, fontSize = 22.sp, modifier = Modifier.clickable {
+                    Box(Modifier.size(32.dp).clip(TL.cornerS).clickable {
                         month = (month.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
-                    }.padding(horizontal = 10.dp))
+                    }, contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.Icon(AppIcon.ChevronRight, "다음 달",
+                            tint = TL.muted, modifier = Modifier.size(22.dp))
+                    }
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth()) {
                     listOf("일", "월", "화", "수", "목", "금", "토").forEach {
-                        Text(it, color = TL.faint, fontSize = 12.sp,
+                        Text(it, color = TL.faint, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier.weight(1f))
                     }
@@ -130,25 +139,30 @@ fun CalendarScreen(onBack: () -> Unit) {
                                         val icon = if (judged == DayOutcome.NOT_STARTED) null else judged
                                         val isSelected = selectedDay == dayStart
                                         val isToday = dayStart == todayStart
+                                        // 셀 배경은 오늘·선택된 날만 raised — 빨간 테두리·빨간 숫자
+                                        // 강조는 쓰지 않는다 (iOS dayCell 1:1)
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             modifier = Modifier
-                                                .background(if (isSelected) TL.raised else TL.surface, TL.cornerS)
-                                                .let {
-                                                    if (isToday) it.border(1.5.dp, TL.rec, TL.cornerS) else it
-                                                }
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 3.dp)   // 셀 사이 간격 (iOS grid spacing 6)
+                                                .clip(TL.cornerS)
+                                                .background(
+                                                    if (isToday || isSelected) TL.raised
+                                                    else androidx.compose.ui.graphics.Color.Transparent,
+                                                    TL.cornerS)
                                                 .clickable { selectedDay = dayStart }
-                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                                .padding(vertical = 6.dp),
                                         ) {
-                                            Text("$day", color = if (isToday) TL.rec else TL.paper,
-                                                fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                            Text("$day", color = if (isToday) TL.paper else TL.muted,
+                                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                             Spacer(Modifier.height(4.dp))
                                             if (icon != null) {
                                                 Image(painterResource(dayOutcomeDrawable(icon)), null,
                                                     Modifier.size(17.dp))
                                             } else {
                                                 Box(Modifier.padding(vertical = 6.5.dp).size(4.dp)
-                                                    .background(TL.hairline, CircleShape))
+                                                    .background(TL.hairline.copy(alpha = 0.4f), CircleShape))
                                             }
                                         }
                                     }

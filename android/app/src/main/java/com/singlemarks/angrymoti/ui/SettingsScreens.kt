@@ -248,6 +248,7 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
                         color = TL.muted, fontSize = 13.sp)
                 }
                 if (isPro) {
+                    Spacer(Modifier.width(10.dp))   // 설명 문구와 배지가 붙어 보이지 않게
                     androidx.compose.material3.Icon(
                         AppIcon.BadgeCheck,
                         null, tint = TL.jade, modifier = Modifier.size(24.dp))

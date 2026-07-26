@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cameraswitch
@@ -69,6 +70,7 @@ object AppIcon {
     val Check = Icons.Filled.Check
     val Users = Icons.Filled.Groups
     val UserRound = Icons.Filled.Person
+    val UserCircle = Icons.Filled.AccountCircle   // 홈 헤더 마이페이지 (iOS person.crop.circle.fill)
     val UserRoundCheck = Icons.Filled.HowToReg
     val Clock = Icons.Filled.Schedule
     val CircleDot = Icons.Filled.LocalFireDepartment   // 활동 탭 = 불 아이콘

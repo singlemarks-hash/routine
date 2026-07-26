@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -123,44 +124,45 @@ fun HomeShell() {
     val sessions by db.sessions().allFlow(owner).collectAsState(initial = emptyList())
 
     Column(Modifier.fillMaxSize().background(TL.ink)) {
-        // 헤더 — 누적 성공 시간 배지 필(→기록) · 마이페이지 원형 버튼 (iOS 홈 헤더 1:1).
+        // 헤더 — 누적 성공 시간 배지 필(→기록) · 마이페이지 아이콘 (iOS 홈 헤더 1:1).
+        // iOS처럼 활동 탭에만 붙는다 — 일정·그룹 탭은 각자 제 타이틀을 갖고 있어서
+        // 이 헤더까지 얹으면 상단이 두 겹이 된다.
         // 점수 배지는 누적 시간으로 교체: 홈에서 매일 마주하는 숫자는 벌점이 아니라 쌓인 시간이어야 한다.
         // (캘린더 원형 버튼은 제거 — 시간 배지와 연속달성 카드가 이미 기록탭 진입로다)
-        val totalSuccessSeconds = remember(sessions) {
-            sessions.filter { it.outcome?.isSuccess == true }.sumOf { it.recordedSeconds }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .background(TL.surface, CircleShape)
-                    .border(1.dp, TL.hairline, CircleShape)
-                    .clickable { nav = HomeNav.Calendar }
-                    .padding(horizontal = 16.dp, vertical = 9.dp),
-            ) {
-                Image(painterResource(R.drawable.stat_clock), null, Modifier.size(26.dp))
-                Spacer(Modifier.width(8.dp))
-                // 숫자는 연속달성 일수(38sp)보다 낮은 위계로 — 홈의 주인공은 스트릭이다.
-                // "N시간 n분" — 1시간 미만도 0시간이 아니라 분으로 보인다.
-                hourMinuteParts(totalSuccessSeconds).forEachIndexed { i, (value, unit) ->
-                    if (i > 0) Spacer(Modifier.width(3.dp))
-                    Text(value, color = TL.jade, fontSize = 17.sp, fontWeight = FontWeight.Black,
-                        maxLines = 1)
-                    Text(unit, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
+        if (tab == "activity") {
+            val totalSuccessSeconds = remember(sessions) {
+                sessions.filter { it.outcome?.isSuccess == true }.sumOf { it.recordedSeconds }
             }
-            Spacer(Modifier.weight(1f))
-            // 마이페이지 — 배경 없는 사람 아이콘 (iOS person.crop.circle.fill 1:1)
-            Box(Modifier.size(45.dp).background(TL.surface, CircleShape)
-                .border(1.dp, TL.hairline, CircleShape)
-                .clickable { nav = HomeNav.MyPage }, contentAlignment = Alignment.Center) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .background(TL.surface, CircleShape)
+                        .border(1.dp, TL.hairline, CircleShape)
+                        .clickable { nav = HomeNav.Calendar }
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                ) {
+                    Image(painterResource(R.drawable.stat_clock), null, Modifier.size(26.dp))
+                    Spacer(Modifier.width(8.dp))
+                    // 숫자는 연속달성 일수(38sp)보다 낮은 위계로 — 홈의 주인공은 스트릭이다.
+                    // "N시간 n분" — 1시간 미만도 0시간이 아니라 분으로 보인다.
+                    hourMinuteParts(totalSuccessSeconds).forEachIndexed { i, (value, unit) ->
+                        if (i > 0) Spacer(Modifier.width(3.dp))
+                        Text(value, color = TL.jade, fontSize = 17.sp, fontWeight = FontWeight.Black,
+                            maxLines = 1)
+                        Text(unit, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                // 마이페이지 — 배경·테두리 없는 사람 원 아이콘 (iOS person.crop.circle.fill 1:1)
                 androidx.compose.material3.Icon(
-                    AppIcon.UserRound,
-                    contentDescription = "마이페이지", tint = TL.paper,
-                    modifier = Modifier.size(21.dp))
+                    AppIcon.UserCircle,
+                    contentDescription = "마이페이지", tint = TL.muted,
+                    modifier = Modifier.size(45.dp).clip(CircleShape)
+                        .clickable { nav = HomeNav.MyPage })
             }
         }
 
@@ -549,23 +551,24 @@ fun repeatSuffix(r: Reservation): String {
 private fun QuickStartSheet(onStart: (PendingSession) -> Unit) {
     var name by remember { mutableStateOf("") }
     var tag by remember { mutableStateOf(com.singlemarks.angrymoti.models.ActivityTag.presets.first()) }
-    var minutes by remember { mutableStateOf(10) }
+    var minutes by remember { mutableStateOf(60) }   // 기본 1시간 (iOS 1:1)
 
     Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
         Text("지금 바로 시작", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(16.dp))
-        TLEyebrow("활동명 (필수)")
+        // 라벨 없이 입력창·태그가 바로 이어진다 (iOS QuickStartSheet 1:1)
         androidx.compose.material3.OutlinedTextField(
             name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            placeholder = { Text("무엇에 집중하나요?", color = TL.faint) },
+            placeholder = { Text("활동명 (예: 모의고사 풀기)", color = TL.faint) },
             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                 focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
                 focusedBorderColor = TL.rec, unfocusedBorderColor = TL.hairline, cursorColor = TL.rec),
         )
         Spacer(Modifier.height(14.dp))
-        TLEyebrow("태그")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            com.singlemarks.angrymoti.models.ActivityTag.presets.take(4).forEach { p ->
+        // 태그 프리셋 전부 — 가로 스크롤 (iOS 1:1, 4개만 잘라 보여주지 않는다)
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(com.singlemarks.angrymoti.models.ActivityTag.presets.size) { i ->
+                val p = com.singlemarks.angrymoti.models.ActivityTag.presets[i]
                 TagChip(p, tag == p) { tag = p }
             }
         }
@@ -585,12 +588,13 @@ private fun QuickStartSheet(onStart: (PendingSession) -> Unit) {
             }
         }
         Spacer(Modifier.height(20.dp))
-        if (name.isBlank()) {
-            Text("활동명을 입력해야 시작할 수 있어요", color = TL.amber, fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 8.dp))
-        }
         TLPrimaryButton("촬영 준비하기", enabled = name.isNotBlank()) {
             onStart(PendingSession(name.trim(), tag, minutes * 60))
+        }
+        // 경고는 버튼 아래 (iOS 1:1)
+        if (name.isBlank()) {
+            Text("활동명을 입력해야 시작할 수 있습니다.", color = TL.amber, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
         }
     }
 }
