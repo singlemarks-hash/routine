@@ -120,8 +120,11 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     if (r.tag in ActivityTag.presets) tag = r.tag else customTag = r.tag
                 }
             }
-            // 미친맛 미해제면 매운맛으로 (전역 기본이 미친맛이어도)
-            if (!insaneUnlocked && intensity == Intensity.INSANE) intensity = Intensity.SPICY
+            // 신규 생성만 미친맛 미해제 시 매운맛으로 (전역 기본이 미친맛이어도).
+            // 기존 예약은 저장된 값을 그대로 보여준다 — 예전에는 미해제 상태에서 열면 화면을
+            // 매운맛으로 내려놓고, 이름만 고쳐 저장해도 그 매운맛이 기록돼 원래 설정이 지워졌다.
+            // (미친맛 버튼은 미해제면 어차피 눌리지 않으므로 새로 고를 수는 없다)
+            if (existing == null && !insaneUnlocked && intensity == Intensity.INSANE) intensity = Intensity.SPICY
             loaded = true
         }
     }
@@ -141,8 +144,12 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
 
     /** 슬롯 초과(강등·연속 하락) — 보유 예약이 허용치를 넘으면 편집 잠그고 삭제만 허용(읽기 전용) */
     val overSlotLimit = allowed != null && used > allowed
-    val editReadOnly = existing != null && overSlotLimit
-    /** 입력 필드·저장 잠금 = 시작 임박 ∨ 슬롯 초과 읽기 전용 (삭제는 예외로 isLocked만 적용) */
+    /** 미친 매운맛으로 만든 활동인데 지금은 그 등급을 쓸 수 없는 상태(멤버십 만료 등).
+     *  강도를 임의로 내리면 이미 쌓인 2배 벌점 기준이 바뀌므로 그대로 유지하고,
+     *  조회와 삭제만 허용한다. (다시 쓰려면 멤버십을 복구하면 된다) */
+    val lockedInsane = existing?.intensityOverride == Intensity.INSANE && !insaneUnlocked
+    val editReadOnly = existing != null && (overSlotLimit || lockedInsane)
+    /** 입력 필드·저장 잠금 = 시작 임박 ∨ 읽기 전용 (삭제는 예외로 isLocked만 적용) */
     val fieldLocked = isLocked || editReadOnly
 
     /** 이미 시작한 활동은 시작일을 바꿀 수 없다.
@@ -152,9 +159,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
      *  시작일을 자유롭게 미룰 수 있으면 그 이전의 정당한 벌점이 전부 삭제되는 회피
      *  경로가 열린다. 첫 발생이 이미 지났다면(=노쇼가 생길 수 있었다면) 잠근다.
      *  아직 시작 전인 예약은 지울 기록 자체가 없으므로 자유롭게 바꿔도 안전하다. */
-    val startDateLocked = existing?.let {
-        startOfDayLocal(it.createdAt) + it.startMinute * 60_000L <= System.currentTimeMillis()
-    } == true
+    val startDateLocked = existing?.let { lockedStartDay(it) != null } == true
 
     val timeState = rememberTimePickerState(
         initialHour = startMinute / 60, initialMinute = startMinute % 60, is24Hour = false)
@@ -174,41 +179,102 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     val finalName = name.trim()
                     val finalTag = customTag.trim().ifEmpty { tag }
                     val sm = timeState.hour * 60 + timeState.minute
-                    // 슬롯 초과 읽기 전용 — 편집 저장 차단(삭제만 허용). 버튼도 비활성이지만 백스톱.
-                    if (editReadOnly) { error = "슬롯 한도를 초과해 편집이 잠겼어요. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."; return@save }
+                    // 읽기 전용 — 편집 저장 차단(삭제만 허용). 버튼도 비활성이지만 백스톱.
+                    if (editReadOnly) {
+                        error = if (lockedInsane)
+                            "미친 매운맛 활동은 지금 편집할 수 없어요. 조회와 삭제만 가능합니다."
+                        else
+                            "슬롯 한도를 초과해 편집이 잠겼어요. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."
+                        return@save
+                    }
                     if (finalName.isEmpty()) { error = "활동명을 입력해주세요."; return@save }
                     if (slotFull) { error = "활동 슬롯이 가득 찼어요. 연속 달성일을 쌓으면 슬롯이 늘어나요."; return@save }
-                    val overlap = allReservations.any { other ->
-                        other.id != existing?.id && other.overlaps(sm, durationMinutes) &&
-                            (other.isRepeating || !weeklyRepeat ||
-                                other.oneOffDayStart == todayStart())
-                    }
-                    if (overlap) { error = "같은 시간대에 이미 다른 활동이 있어요."; return@save }
 
                     // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
                     // 잠긴 예약(이미 시작함)은 UI가 시작일을 못 바꾸게 하지만, 저장 경로에서도
-                    // 한 번 더 기존 createdAt을 강제한다 — 시작 게이트가 움직이면 노쇼 복구
+                    // 한 번 더 실제 발생 시작일을 강제한다 — 시작 게이트가 움직이면 노쇼 복구
                     // 루틴이 과거의 정당한 벌점을 지워버린다.
-                    val startDay = if (startDateLocked && existing != null)
-                        startOfDayLocal(existing!!.createdAt)
-                    else oneOffDay ?: nextOneOffDay(sm)          // 시작일(자정)
-                    // 화면은 종료일을 시작일 이상으로 보정해 보여주므로 저장도 같은 값을 써야 한다.
-                    // (보정 전 원본을 쓰면 화면은 정상인데 저장만 실패하는 모순이 생긴다)
-                    val endDayNorm = startOfDayLocal(oneOffEndDay ?: startDay).coerceAtLeast(startDay)
+                    val startDay = existing?.let { lockedStartDay(it) }
+                        ?: (oneOffDay ?: nextOneOffDay(sm))      // 시작일(자정)
+                    // 종료일은 화면 값을 그대로 쓴다 — 시작일로 끌어붙이는 보정(coerceAtLeast)을
+                    // 쓰면 시작일=종료일이 되어 요일 반복 UI가 사라지고, 저장 시 고른 요일이
+                    // 전체 요일로 덮여 월·수·금 반복이 조용히 매일로 바뀐다. 시작일 픽커가
+                    // 기간 길이를 보존해 종료일을 함께 밀어주므로 여기선 검증만 한다.
+                    val endDayNorm = startOfDayLocal(oneOffEndDay ?: startDay)
                     // 시작일=종료일이면 그날 하루뿐이라 요일 반복이 무의미 — 항상 전체 요일로 저장.
                     val isSingleDay = !noEndDate && endDayNorm == startDay
                     val isWeekly = weeklyRepeat && !isSingleDay
                     // 검증: 요일 반복이면 요일 최소 1개 (하루짜리는 요일 반복 UI가 없으므로 제외)
                     if (isWeekly && repeatDays.isEmpty()) { error = "반복할 요일을 선택하세요."; return@save }
+                    // 검증: 시작일 상한 (신규 생성만). 기존 예약은 상한 도입 전에 만들어진 먼
+                    // 시작일을 가질 수 있는데, 이름만 고치는 정상 편집까지 막으면 손댈 방법이 없다.
+                    if (existing == null &&
+                        startDay > com.singlemarks.angrymoti.models.ReservationPolicy.maxStartDayMillis()) {
+                        error = "시작일은 오늘부터 ${com.singlemarks.angrymoti.models.ReservationPolicy.MAX_START_LEAD_MONTHS}개월 이내로 정해주세요."
+                        return@save
+                    }
                     // 검증: 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남 (두 모드 공통)
                     if (!noEndDate) {
                         if (endDayNorm < startDay) { error = "종료일은 시작일 이후여야 해요."; return@save }
                         if (endDayNorm < todayStart()) { error = "종료일이 이미 지났어요."; return@save }
                     }
-                    val resolvedDaysCsv = if (isWeekly) repeatDays.sorted().joinToString(",")
-                        else "1,2,3,4,5,6,7"
+                    val resolvedDays = if (isWeekly) repeatDays else setOf(1, 2, 3, 4, 5, 6, 7)
+                    val resolvedDaysCsv = resolvedDays.sorted().joinToString(",")
                     val resolvedOneOff = if (isWeekly) null else startDay   // 매일·하루 모드는 시작일 마커
                     val resolvedEnd = if (!noEndDate) endDayNorm + 86_400_000L - 1 else null
+
+                    // 검증 A: 이 설정이 애초에 성립하는가 — 기간 '전체'에 고른 요일이 한 번이라도
+                    // 오는가. (예: 월~수 기간에 금·토를 고르면 평생 울리지 않는다)
+                    // 기준을 '남은 발생'이 아니라 '기간 전체'로 잡아야, 마지막 날을 앞둔 예약의
+                    // 이름만 고치는 정상 편집이 막히지 않는다. 요일은 7개뿐이라 8일이면 판정된다.
+                    val conflictRule = com.singlemarks.angrymoti.models.ScheduleConflict
+                    var anyOccurrence = false
+                    for (offset in 0..8) {
+                        val day = conflictRule.addDays(startDay, offset)
+                        if (resolvedEnd != null && day > resolvedEnd) break
+                        if (Calendar.getInstance().apply { timeInMillis = day }
+                                .get(Calendar.DAY_OF_WEEK) in resolvedDays) { anyOccurrence = true; break }
+                    }
+                    if (!anyOccurrence) {
+                        error = "선택한 기간 안에 고른 요일이 없어요. 요일이나 기간을 조정해주세요."
+                        return@save
+                    }
+
+                    // 검증 B: 신규 생성은 앞으로 울릴 발생이 남아 있어야 한다.
+                    // (예: 밤 8시에 '오늘 아침 8시 하루'를 만들면 태어날 때부터 죽은 예약)
+                    // 기존 예약 편집에는 적용하지 않는다 — 마지막 날을 지나가는 중인 예약도
+                    // 이름 수정·조기 종료 같은 정상 편집이 가능해야 한다.
+                    if (existing == null) {
+                        var futureOccurrence = false
+                        val scanStart = maxOf(startDay, todayStart())
+                        for (offset in 0..8) {
+                            val day = conflictRule.addDays(scanStart, offset)
+                            if (resolvedEnd != null && day > resolvedEnd) break
+                            if (Calendar.getInstance().apply { timeInMillis = day }
+                                    .get(Calendar.DAY_OF_WEEK) !in resolvedDays) continue
+                            if (day + sm * 60_000L > System.currentTimeMillis()) { futureOccurrence = true; break }
+                        }
+                        if (!futureOccurrence) {
+                            error = "이미 지난 시각이에요. 시작 시각이나 날짜를 조정해주세요."
+                            return@save
+                        }
+                    }
+
+                    // 검증: 실제로 부딪히는 예약만 차단 — 기간이 겹치고, 그 안에서 같은
+                    // 요일·시간대일 때 (자정 넘김 꼬리 포함). 기간을 안 보면 이미 끝난 활동이
+                    // 새 활동을 영영 막고, 날짜가 다른 하루짜리끼리도 충돌로 잡힌다.
+                    val myHi = resolvedEnd?.let { startOfDayLocal(it) }
+                    val clashing = allReservations.firstOrNull { other ->
+                        if (other.id == existing?.id) return@firstOrNull false
+                        val (bLo, bHi) = other.activeDayRange()
+                        conflictRule.conflicts(
+                            startDay, myHi, resolvedDays, sm, durationMinutes,
+                            bLo, bHi, other.occupiedWeekdays(), other.startMinute, other.durationMinutes)
+                    }
+                    if (clashing != null) {
+                        error = "${TLFormat.timeLabel(clashing.startMinute)} '${clashing.name}' 예약과 시간이 겹칩니다."
+                        return@save
+                    }
 
                     scope.launch(Dispatchers.IO) {
                         val r = (existing ?: Reservation(
@@ -255,7 +321,11 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
             }
             if (editReadOnly) {
-                Text("활동 슬롯이 ${allowed}개로 줄어 보유한 예약이 한도를 넘었어요. 초과한 동안에는 편집이 잠기고 삭제만 할 수 있어요. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요.",
+                Text(
+                    if (lockedInsane)
+                        "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다."
+                    else
+                        "활동 슬롯이 ${allowed}개로 줄어 보유한 예약이 한도를 넘었어요. 초과한 동안에는 편집이 잠기고 삭제만 할 수 있어요. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요.",
                     color = TL.amber, fontSize = 13.sp,
                     modifier = Modifier.fillMaxWidth()
                         .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
@@ -388,7 +458,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 TLEyebrow("반복")
                 TLCard {
                     val startDayVal = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
-                    val endDayVal = (oneOffEndDay ?: startDayVal).coerceAtLeast(startDayVal)
+                    // 종료일을 시작일로 끌어붙이지 않고 실제 값을 그대로 보여준다 — 붙이면
+                    // 시작일=종료일이 되어 요일 반복 UI가 사라지고 반복이 매일로 덮인다.
+                    val endDayVal = oneOffEndDay ?: startDayVal
                     // 시작일=종료일이면 그날 하루뿐이라 요일 반복 설정 자체가 무의미하다
                     // (그 요일이 빠지면 발생이 0번이 되는 모순도 막는다) — 이 경우 요일 반복 UI를 숨긴다.
                     val isSingleDay = !noEndDate && startOfDayLocal(startDayVal) == startOfDayLocal(endDayVal)
@@ -419,7 +491,24 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         Spacer(Modifier.weight(1f))
                         Switch(
                             checked = noEndDate,
-                            onCheckedChange = { if (!fieldLocked) noEndDate = it },
+                            onCheckedChange = { on ->
+                                if (fieldLocked) return@Switch
+                                noEndDate = on
+                                // 종료일을 켜는 순간의 보정. 하한은 '시작일'이 아니라 '시작일과
+                                // 오늘 중 늦은 쪽' — 무기한 예약은 종료일 값이 시작일(과거)로
+                                // 채워져 있어, 시작일에만 맞추면 이미 지난 날짜가 그대로 남는다.
+                                // 요일 반복 중이면 종료일을 시작일에 붙이면 안 된다. 붙는 순간
+                                // 시작일=종료일이 되어 요일 반복 UI가 사라지고, 저장 시 고른
+                                // 요일이 전체 요일로 덮여 월·수·금 반복이 조용히 하루짜리가 된다.
+                                if (!on) {
+                                    var floor = maxOf(startDayVal, todayStart())
+                                    if (weeklyRepeat && floor == startDayVal) {
+                                        floor = com.singlemarks.angrymoti.models.ScheduleConflict
+                                            .addDays(floor, 6)
+                                    }
+                                    if ((oneOffEndDay ?: Long.MIN_VALUE) < floor) oneOffEndDay = floor
+                                }
+                            },
                             colors = SwitchDefaults.colors(checkedTrackColor = TL.rec),
                         )
                     }
@@ -543,7 +632,22 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     // DatePicker는 UTC 자정 기준 — 로컬 자정으로 변환해 저장
-                    dateState.selectedDateMillis?.let { oneOffDay = utcMidnightToLocal(it) }
+                    dateState.selectedDateMillis?.let { picked ->
+                        val newStart = utcMidnightToLocal(picked)
+                        // 시작일을 뒤로 옮기면 종료일도 함께 밀어준다. 종료일을 시작일에
+                        // '붙이지' 말고 기간 길이를 유지한 채 통째로 민다 — 붙이면
+                        // 시작일=종료일이 되어 요일 반복 UI가 사라지고, 저장 시 고른 요일이
+                        // 전체 요일로 덮여 월·수·금 반복이 조용히 하루짜리가 된다.
+                        val oldStart = oneOffDay ?: newStart
+                        val end = oneOffEndDay
+                        if (end != null && end < newStart) {
+                            val spanDays = ((startOfDayLocal(end) - startOfDayLocal(oldStart) +
+                                43_200_000L) / 86_400_000L).toInt().coerceAtLeast(0)
+                            oneOffEndDay = com.singlemarks.angrymoti.models.ScheduleConflict
+                                .addDays(newStart, spanDays)
+                        }
+                        oneOffDay = newStart
+                    }
                     showDatePicker = false
                 }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
             },
@@ -555,16 +659,17 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
         ) { androidx.compose.material3.DatePicker(state = dateState) }
     }
 
-    // 종료일 선택 다이얼로그 — 하한은 시작일(로컬 자정)
+    // 종료일 선택 다이얼로그 — 하한은 '시작일과 오늘 중 늦은 쪽' (이미 지난 종료일은 못 고르게)
     if (showEndDatePicker) {
         val startLocalMidnight = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
-        // 시작일(로컬 자정)을 UTC 자정으로 환산해 하한으로 사용
-        val startUtcMidnight = remember(startLocalMidnight) { localMidnightToUtc(startLocalMidnight) }
+        val floorLocalMidnight = maxOf(startLocalMidnight, todayStart())
+        // 로컬 자정을 UTC 자정으로 환산해 하한으로 사용
+        val floorUtcMidnight = remember(floorLocalMidnight) { localMidnightToUtc(floorLocalMidnight) }
         val endState = androidx.compose.material3.rememberDatePickerState(
             initialSelectedDateMillis = localMidnightToUtc(
-                maxOf(oneOffEndDay ?: startLocalMidnight, startLocalMidnight)),
+                maxOf(oneOffEndDay ?: floorLocalMidnight, floorLocalMidnight)),
             selectableDates = object : androidx.compose.material3.SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= startUtcMidnight
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= floorUtcMidnight
             })
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { showEndDatePicker = false },
@@ -608,6 +713,28 @@ private fun startOfDayLocal(millis: Long): Long = Calendar.getInstance().apply {
     set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
     set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
 }.timeInMillis
+
+/** 잠긴 예약이 강제로 써야 할 시작일(그 날 자정). 잠기지 않았으면 null.
+ *
+ *  기준은 createdAt이 아니라 '실제 발생이 시작되는 날'이다. 레거시 일회성 예약은
+ *  createdAt이 '만든 시각'이라 실제 날짜(oneOffDayStart)보다 훨씬 이르고, createdAt으로
+ *  판정하면 미래 날짜의 일회성 예약도 이미 시작한 것으로 잠겨 버린다. 그 상태로 저장하면
+ *  시작일이 만든 날로 끌려가 '만든 날부터 그 날까지 매일'로 바뀌는 손상이 난다.
+ *  시작 게이트 당일에 시각만 더해도 안 된다 — 그날이 고른 요일이 아닐 수 있다.
+ *  (7/20 월요일부터 '토요일마다'면 첫 발생은 7/25이지 7/20이 아니다)
+ *  요일은 7개뿐이라 8일이면 실제 첫 발생을 반드시 찾는다. */
+private fun lockedStartDay(r: Reservation): Long? {
+    val startDay = r.activeDayRange().first
+    var firstFire: Long? = null
+    for (offset in 0 until 8) {
+        val day = com.singlemarks.angrymoti.models.ScheduleConflict.addDays(startDay, offset)
+        val fire = r.occurrenceOn(day) ?: continue
+        firstFire = fire
+        break
+    }
+    val fire = firstFire ?: return null
+    return if (fire <= System.currentTimeMillis()) startDay else null
+}
 
 /** 큰 서피스 입력 필드 — iOS 텍스트필드 1:1 (배경 서피스, 테두리 없음) */
 @Composable

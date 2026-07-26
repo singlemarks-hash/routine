@@ -146,6 +146,79 @@ object ReservationPolicy {
     }
 }
 
+// MARK: 일정 충돌 판정 (iOS ScheduleConflict와 1:1)
+// 개인 예약 편집과 그룹 방 생성·참여가 같은 규칙을 쓰도록 한곳에 모은다.
+//
+// 예전에는 '요일이 겹치고 시각이 겹치면 충돌'로만 봤다. 그 결과:
+//  - 이미 끝난 활동(6월 종료)이 8월 활동 생성을 막았다 — 기간을 안 봤기 때문
+//  - 서로 다른 날짜의 하루짜리끼리 충돌 판정됐다 — 둘 다 요일 전체로 저장되므로
+//  - 자정을 넘기는 활동(23시 시작 8시간)이 다음날 새벽 활동과 안 겹친다고 판정됐다
+
+object ScheduleConflict {
+
+    private fun weekdayOf(dayStart: Long): Int =
+        Calendar.getInstance().apply { timeInMillis = dayStart }.get(Calendar.DAY_OF_WEEK)
+
+    fun addDays(dayStart: Long, days: Int): Long =
+        Calendar.getInstance().apply {
+            timeInMillis = dayStart
+            add(Calendar.DAY_OF_MONTH, days)
+        }.timeInMillis
+
+    /** 특정 날짜에 이 일정이 점유하는 분 구간들.
+     *  그날 시작하는 구간과, 전날 시작해 자정을 넘어 이어진 구간을 함께 본다.
+     *  (활동 길이 상한이 하루보다 짧아 넘침은 최대 하루다) */
+    private fun intervals(
+        day: Long, lo: Long, hi: Long?, weekdays: Set<Int>,
+        startMinute: Int, durationMinutes: Int,
+    ): List<Pair<Int, Int>> {
+        fun occurs(d: Long): Boolean {
+            if (d < lo) return false
+            if (hi != null && d > hi) return false
+            return weekdayOf(d) in weekdays
+        }
+        val result = mutableListOf<Pair<Int, Int>>()
+        val end = startMinute + durationMinutes
+        if (occurs(day)) result += startMinute to minOf(end, 1440)
+        if (end > 1440 && occurs(addDays(day, -1))) result += 0 to (end - 1440)   // 전날에서 넘어온 꼬리
+        return result
+    }
+
+    /** 두 일정이 실제로 부딪히는가. 범위(lo/hi)는 자정 epoch millis, hi = null이면 무기한.
+     *
+     *  요일·시각만 비교하면 두 종류의 오답이 난다.
+     *   - 오탐: 기간이 딱 하루만 겹치는데 그 하루가 둘 다 발생하지 않는 요일인 경우
+     *   - 미탐: 자정을 넘긴 꼬리가 상대의 기간 안에 들어가는 경우
+     *  그래서 겹치는 기간의 '실제 날짜'를 훑어 그날의 점유 구간을 직접 비교한다.
+     *  주간 패턴은 7일이면 한 바퀴 돌고 넘침은 하루뿐이라 8일만 보면 충분하다. */
+    fun conflicts(
+        aLo: Long, aHi: Long?, aWeekdays: Set<Int>, aStart: Int, aDuration: Int,
+        bLo: Long, bHi: Long?, bWeekdays: Set<Int>, bStart: Int, bDuration: Int,
+    ): Boolean {
+        val lo = maxOf(aLo, bLo)
+        val hi: Long? = when {
+            aHi != null && bHi != null -> minOf(aHi, bHi)
+            aHi != null -> aHi
+            else -> bHi
+        }
+        // 넘침 꼬리가 하루 뒤까지 갈 수 있으므로 마지막 날 다음날까지 본다.
+        val limit = hi?.let { addDays(it, 1) }
+        if (limit != null && limit < lo) return false   // 하루 여유를 줘도 안 겹침
+
+        for (offset in 0 until 8) {
+            val day = addDays(lo, offset)
+            if (limit != null && day > limit) break
+            val aIntervals = intervals(day, aLo, aHi, aWeekdays, aStart, aDuration)
+            if (aIntervals.isEmpty()) continue
+            val bIntervals = intervals(day, bLo, bHi, bWeekdays, bStart, bDuration)
+            for (x in aIntervals) for (y in bIntervals) {
+                if (x.first < y.second && y.first < x.second) return true
+            }
+        }
+        return false
+    }
+}
+
 // MARK: 활동 슬롯 정책 — 슬롯은 언제나 '현재 연속 달성일'이 정한다
 
 object SlotPolicy {

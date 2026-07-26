@@ -96,11 +96,33 @@ data class Reservation(
         return nextOccurrence(now) != null
     }
 
-    /** 같은 날 시간 구간 겹침 판정 */
+    /** 같은 날 시간 구간 겹침 판정.
+     *  주의: 자정을 넘기는 활동은 이 함수만으로 판정할 수 없다 — ScheduleConflict를 쓸 것. */
     fun overlaps(otherStartMinute: Int, otherDuration: Int): Boolean {
         val aEnd = startMinute + durationMinutes
         val bEnd = otherStartMinute + otherDuration
         return startMinute < bEnd && otherStartMinute < aEnd
+    }
+
+    /** 이 예약이 실제로 발생하는 날짜 범위(자정 millis). second = null이면 무기한.
+     *  레거시 일회성(요일 없음 + 날짜 마커)은 그 하루만이다 — createdAt은 '만든 시각'이라
+     *  실제 발생일과 다를 수 있어 그대로 범위 시작으로 쓰면 안 된다. */
+    fun activeDayRange(): Pair<Long, Long?> {
+        fun dayStart(t: Long): Long = Calendar.getInstance().apply {
+            timeInMillis = t
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        if (!isRepeating && oneOffDayStart != null) return oneOffDayStart to oneOffDayStart
+        return dayStart(createdAt) to endAt?.let { dayStart(it) }
+    }
+
+    /** 이 예약이 점유하는 요일이 무엇인가 (레거시 일회성은 그 날짜의 요일) */
+    fun occupiedWeekdays(): Set<Int> {
+        if (isRepeating) return repeatWeekdays.toSet()
+        return oneOffDayStart?.let {
+            setOf(Calendar.getInstance().apply { timeInMillis = it }.get(Calendar.DAY_OF_WEEK))
+        } ?: emptySet()
     }
 }
 

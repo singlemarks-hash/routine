@@ -356,33 +356,29 @@ object GroupStore {
         }
     }
 
-    /** 내 예약과 방 일정이 겹치는지 검사 — 겹치면 예약 이름을 담아 던진다 */
+    /** 내 예약과 방 일정이 겹치는지 검사 — 겹치면 예약 이름을 담아 던진다.
+     *  개인 예약 편집과 완전히 같은 규칙(ScheduleConflict)을 쓴다 — 예전 '요일·시각만 비교'
+     *  로직은 이미 끝난 개인 활동이 새 방 생성을 영영 막았고, 자정을 넘기는 활동은
+     *  다음날 새벽 방과 안 겹친다고 오판했다. */
     suspend fun checkScheduleConflict(
         context: Context, startMinute: Int, durationMinutes: Int,
         repeatWeekdays: List<Int>, startDate: Long, endDate: Long,
     ) {
         val mine = AppDb.get(context).reservations().active(AccountStore.currentUserID)
-        val cal = Calendar.getInstance()
+        fun dayStart(t: Long): Long = Calendar.getInstance().apply {
+            timeInMillis = t
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val roomLo = dayStart(startDate)
+        val roomHi = dayStart(endDate)
         for (r in mine) {
-            if (!r.overlaps(startMinute, durationMinutes)) continue
-            if (r.isRepeating) {
-                if (r.repeatWeekdays.any { it in repeatWeekdays }) {
-                    throw GroupException("기존 예약 '${r.name}'과(와) 시간이 겹쳐요. " +
-                        "개인 예약을 옮기거나 삭제해야 참여할 수 있어요.")
-                }
-            } else {
-                val day = r.oneOffDayStart ?: continue
-                cal.timeInMillis = day
-                val weekday = cal.get(Calendar.DAY_OF_WEEK)
-                val startDay = Calendar.getInstance().apply {
-                    timeInMillis = startDate
-                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-                }.timeInMillis
-                if (day >= startDay && day <= endDate && weekday in repeatWeekdays) {
-                    throw GroupException("기존 예약 '${r.name}'과(와) 시간이 겹쳐요. " +
-                        "개인 예약을 옮기거나 삭제해야 참여할 수 있어요.")
-                }
+            val (bLo, bHi) = r.activeDayRange()
+            if (com.singlemarks.angrymoti.models.ScheduleConflict.conflicts(
+                    roomLo, roomHi, repeatWeekdays.toSet(), startMinute, durationMinutes,
+                    bLo, bHi, r.occupiedWeekdays(), r.startMinute, r.durationMinutes)) {
+                throw GroupException("기존 예약 '${r.name}'과(와) 시간이 겹쳐요. " +
+                    "개인 예약을 옮기거나 삭제해야 참여할 수 있어요.")
             }
         }
     }
