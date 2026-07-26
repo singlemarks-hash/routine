@@ -188,7 +188,7 @@ fun MountGuideScreen(pending: PendingSession) {
             if (!started && countdown == null && remaining <= 0) {
                 AlarmScheduler.stopAlarmSound(context)
                 AlarmScheduler.cancelAlarmNotification(context)
-                AppState.route.value = Route.None   // 노쇼는 스위퍼가 기록한다
+                AppState.route.value = com.singlemarks.angrymoti.Route.None   // 노쇼는 스위퍼가 기록한다
                 break
             }
         }
