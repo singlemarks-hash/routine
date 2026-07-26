@@ -320,7 +320,10 @@ private fun ActivityTab(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // 연속달성 카드 — 좌측 일수 + 우측 5일 스트립, 탭하면 기록탭 (iOS 홈 1:1)
-        item { StreakCard(sessions = sessions, todayStart = todayStart, onClick = onOpenCalendar) }
+        item {
+            StreakCard(sessions = sessions, reservations = reservations,
+                todayStart = todayStart, onClick = onOpenCalendar)
+        }
         // 다짐/목표 카드 — 탭하면 입력 시트 (iOS 홈 1:1)
         item {
             Box(
@@ -439,6 +442,7 @@ private fun ActivityTab(
 @Composable
 private fun StreakCard(
     sessions: List<com.singlemarks.angrymoti.data.FocusSession>,
+    reservations: List<Reservation>,
     todayStart: Long,
     onClick: () -> Unit,
 ) {
@@ -480,6 +484,11 @@ private fun StreakCard(
                 val dayEnd = com.singlemarks.angrymoti.models.ScheduleConflict.addDays(day, 1)
                 val daySessions = sessions.filter { it.anchorAt in day until dayEnd }
                 val icon = DayOutcome.judge(daySessions, day) ?: DayOutcome.NOT_STARTED
+                // 기록도 없고 그날 발생 예정인 예약도 없으면 '비어 있는 날' — 회색 체크
+                // 대신 대시로 그린다. 예정 여부는 알람과 같은 occurrenceOn 하나로 판정
+                // (요일만 보면 시작일·종료일 게이트가 빠져 실제와 어긋난다).
+                val isEmpty = daySessions.isEmpty() &&
+                    reservations.none { it.occurrenceOn(day) != null }
                 val isToday = offset == 0
                 val d = java.util.Calendar.getInstance().apply { timeInMillis = day }
 
@@ -493,9 +502,16 @@ private fun StreakCard(
                         color = if (isToday) TL.paper else TL.faint,
                         fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(5.dp))
-                    Image(painterResource(dayOutcomeDrawable(icon)), null,
-                        Modifier.size(24.dp)
-                            .alpha(if (offset > 0) 0.45f else 1f))   // 아직 오지 않은 날은 흐리게
+                    Box(Modifier.size(24.dp).alpha(if (offset > 0) 0.45f else 1f),   // 아직 오지 않은 날은 흐리게
+                        contentAlignment = Alignment.Center) {
+                        if (isEmpty) {
+                            Box(Modifier.width(14.dp).height(5.dp)
+                                .background(TL.faint, CircleShape))
+                        } else {
+                            Image(painterResource(dayOutcomeDrawable(icon)), null,
+                                Modifier.size(24.dp))
+                        }
+                    }
                     Spacer(Modifier.height(5.dp))
                     Text("${d.get(java.util.Calendar.DAY_OF_MONTH)}",
                         color = if (isToday) TL.paper else TL.muted,

@@ -324,16 +324,28 @@ struct HomeView: View {
                     let daySessions = mySessions.filter { cal.isDate($0.anchorDate, inSameDayAs: day) }
                     let icon = DayOutcomeIcon.judge(daySessions: daySessions, day: day, now: now)
                         ?? .notStarted
+                    // 기록도 없고 그날 발생 예정인 예약도 없으면 '비어 있는 날' — 회색 체크
+                    // 대신 대시로 그린다. 예정 여부는 알람과 같은 occurrence(on:) 하나로 판정
+                    // (요일만 보면 시작일·종료일 게이트가 빠져 실제와 어긋난다).
+                    let isEmpty = daySessions.isEmpty &&
+                        !reservations.contains { $0.occurrence(on: day) != nil }
                     let isToday = offset == 0
 
                     VStack(spacing: 5) {
                         Text(weekdayNames[cal.component(.weekday, from: day)])
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(isToday ? TL.paper : TL.faint)
-                        Image(icon.assetName)
-                            .resizable().scaledToFit()
-                            .frame(width: 24, height: 24)
-                            .opacity(offset > 0 ? 0.45 : 1)   // 아직 오지 않은 날은 흐리게
+                        Group {
+                            if isEmpty {
+                                Capsule().fill(TL.faint)
+                                    .frame(width: 14, height: 5)
+                            } else {
+                                Image(icon.assetName)
+                                    .resizable().scaledToFit()
+                            }
+                        }
+                        .frame(width: 24, height: 24)
+                        .opacity(offset > 0 ? 0.45 : 1)   // 아직 오지 않은 날은 흐리게
                         Text("\(cal.component(.day, from: day))")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
                             .foregroundStyle(isToday ? TL.paper : TL.muted)
