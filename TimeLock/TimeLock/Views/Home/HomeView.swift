@@ -297,20 +297,23 @@ struct HomeView: View {
         let today = cal.startOfDay(for: now)
         let weekdayNames = ["", "일", "월", "화", "수", "목", "금", "토"]
 
-        return HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
                     Text("연속달성")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.muted)
-                    Image("fire").resizable().scaledToFit().frame(width: 14, height: 14)
+                    Image("fire").resizable().scaledToFit().frame(width: 15, height: 15)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text("\(streak)")
-                        .font(.tlTimer(30))
+                        .font(.tlTimer(38))
                         .foregroundStyle(TL.jade)
+                        // 세 자리 연속(예: 132일)이면 스스로 줄어들어 요일 칸을 밀지 않는다
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     Text("일")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.muted)
                 }
             }
@@ -353,7 +356,9 @@ struct HomeView: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
+        // 왼쪽 블록은 살짝 더 들여쓰고, 오른쪽은 요일 칸이 자체 여백을 갖고 있어 좁게
+        .padding(.leading, 18)
+        .padding(.trailing, 12)
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
         .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
