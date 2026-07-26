@@ -166,7 +166,10 @@ object AppState {
                     ownerUserID = AccountStore.currentUserID, typeRaw = type.raw,
                     points = pts, sessionID = s.id, intensityRaw = effective.raw, note = reason)
                 db.scores().insert(e); AccountStore.mirror(e)
-                com.singlemarks.angrymoti.services.GroupStore.reportScore(reservation, pts)
+                com.singlemarks.angrymoti.services.GroupStore.reportScore(
+                    reservation, pts,
+                    com.singlemarks.angrymoti.services.SessionEngine.occurrenceKey(s),
+                    com.singlemarks.angrymoti.services.GroupStore.SCORE_RANK_NORMAL)
             }
         }
         route.value = Route.None

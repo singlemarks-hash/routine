@@ -15,6 +15,7 @@ import com.singlemarks.angrymoti.models.ScoreRules
 import com.singlemarks.angrymoti.models.SessionOutcome
 import com.singlemarks.angrymoti.models.SlotPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 import java.util.Date
@@ -364,7 +365,7 @@ object GroupStore {
         val snapshot = runCatching {
             db().collection("groups").document(roomID).collection("members").get().await()
         }.getOrNull() ?: return emptyList()
-        return snapshot.documents.mapNotNull { doc ->
+        val list = snapshot.documents.mapNotNull { doc ->
             val nickname = doc.getString("nickname") ?: return@mapNotNull null
             GroupMember(
                 id = doc.id, nickname = nickname,
@@ -374,6 +375,20 @@ object GroupStore {
                     ?: System.currentTimeMillis(),
             )
         }
+        // 랭킹을 그리기 전에 내 점수가 표식 합계와 맞는지 확인한다. 방금 읽은 값을 그대로
+        // 대조에 쓴다(왕복 추가 없음). 캐시 응답이면 오래된 값으로 멀쩡한 점수를 망치므로
+        // 서버에서 온 응답일 때만 본다. 고쳤으면 이번 화면에 바로 반영한다.
+        if (!snapshot.metadata.isFromCache) {
+            val mineIdx = list.indexOfFirst { it.id == uid }
+            if (mineIdx >= 0) {
+                repairMyScore(roomID, list[mineIdx].score)?.let { fixed ->
+                    return list.toMutableList().apply {
+                        this[mineIdx] = this[mineIdx].copy(score = fixed)
+                    }
+                }
+            }
+        }
+        return list
     }
 
     /** 점수 내림차순 + 공동 등수(1224 방식). 동점이면 같은 등수, 다음 등수는 인원만큼 건너뛴다. */
@@ -393,19 +408,122 @@ object GroupStore {
         return result
     }
 
-    // MARK: 그룹 점수 반영 (세션 판정 시 호출)
+    // MARK: 그룹 점수 반영 (세션 판정 시 호출) — iOS와 동일한 멱등 원장(도장) 방식
 
-    /** 그룹 예약에서 나온 상벌점을 서버의 내 멤버 점수에 합산한다. 실패해도 로컬 원장이 원본. */
-    fun reportScore(reservation: Reservation?, points: Int) {
+    /** 노쇼는 '아직 결과를 못 본' 추정치라 가장 낮은 등급이다. */
+    const val SCORE_RANK_NO_SHOW = 0
+    /** 실제로 화면을 통과한 결과(완주·이탈실패·긴급종료·일정취소)는 노쇼를 덮는다. */
+    const val SCORE_RANK_NORMAL = 1
+
+    /** 중도 포기 벌점의 표식 키 — 방마다 한 번뿐이라 방 ID로 고정한다. */
+    fun quitOccurrenceKey(roomID: String) = "groupquit|$roomID"
+
+    /** 발생 키를 문서 ID로 — iOS와 바이트 단위 동일해야 두 플랫폼이 같은 도장을 찍는다.
+     *  iOS: deterministicUUID("groupscore|{key}").uuidString.lowercased() = MD5 hex 소문자 8-4-4-4-12 */
+    private fun markId(occurrenceKey: String): String {
+        val hex = java.security.MessageDigest.getInstance("MD5")
+            .digest("groupscore|$occurrenceKey".toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}" +
+            "-${hex.substring(16, 20)}-${hex.substring(20, 32)}"
+    }
+
+    private val scoreScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
+    /** 세션 판정 경로용 래퍼 — 실패해도 로컬 원장이 원본이므로 던지지 않는다. */
+    fun reportScore(reservation: Reservation?, points: Int, occurrenceKey: String, rank: Int) {
         val roomID = reservation?.groupId ?: return
+        scoreScope.launch {
+            runCatching { applyScore(roomID, points, occurrenceKey, rank) }
+        }
+    }
+
+    /**
+     * 그룹 점수를 바꾸는 **유일한** 경로. 점수 변화는 반드시 표식(도장)을 남기고 일어난다.
+     *
+     * 그룹 점수는 더하기 방식이라 기기가 둘이면 같은 발생을 각자 집계해 두 번 들어간다.
+     * 그래서 발생마다 members/{uid}/scored/{markID}에 '반영함' 표식을 남기고, 표식 확인과
+     * 점수 합산을 한 트랜잭션에 묶는다. 표식에는 등급(rank)을 함께 적어, 같은 발생에
+     * 노쇼(추정)와 완주(사실)가 겹치면 사실이 이기고 차액만 보정된다 — 순서 무관 멱등.
+     */
+    suspend fun applyScore(roomID: String, points: Int, occurrenceKey: String, rank: Int) {
         if (!backendActive || points == 0) return
         val myUid = uid
         if (myUid.isEmpty() || myUid == "guest") return
-        runCatching {
-            db().collection("groups").document(roomID)
-                .collection("members").document(myUid)
-                .update("score", FieldValue.increment(points.toLong()))
+        val memberRef = db().collection("groups").document(roomID)
+            .collection("members").document(myUid)
+        val markRef = memberRef.collection("scored").document(markId(occurrenceKey))
+        db().runTransaction { txn ->
+            val snap = txn.get(markRef)
+            var delta = points.toLong()
+            if (snap.exists()) {
+                val oldRank = snap.getLong("rank")?.toInt() ?: SCORE_RANK_NORMAL
+                val oldPoints = snap.getLong("points")?.toInt() ?: 0
+                if (rank < oldRank) return@runTransaction null          // 더 확실한 결과가 이미 있다
+                if (rank == oldRank && points == oldPoints) return@runTransaction null  // 같은 값 재요청
+                delta = (points - oldPoints).toLong()                   // 차액만 보정
+            }
+            txn.set(markRef, mapOf("points" to points, "rank" to rank, "at" to Timestamp.now()))
+            if (delta != 0L) txn.update(memberRef, "score", FieldValue.increment(delta))
+            null
+        }.await()
+    }
+
+    /** 잘못 찍힌 노쇼를 지울 때 그 발생의 반영을 되돌린다. 표식에 적힌 값만큼만 빼고
+     *  표식을 지운다 — 이미 완주 등급으로 덮인 표식은 건드리지 않는다(그건 정당한 점수다). */
+    fun revokeScore(reservation: Reservation?, occurrenceKey: String) {
+        val roomID = reservation?.groupId ?: return
+        if (!backendActive) return
+        val myUid = uid
+        if (myUid.isEmpty() || myUid == "guest") return
+        val memberRef = db().collection("groups").document(roomID)
+            .collection("members").document(myUid)
+        val markRef = memberRef.collection("scored").document(markId(occurrenceKey))
+        scoreScope.launch {
+            runCatching {
+                db().runTransaction { txn ->
+                    val snap = txn.get(markRef)
+                    if (!snap.exists()) return@runTransaction null
+                    val points = snap.getLong("points")?.toInt() ?: return@runTransaction null
+                    val oldRank = snap.getLong("rank")?.toInt() ?: SCORE_RANK_NORMAL
+                    if (oldRank != SCORE_RANK_NO_SHOW) return@runTransaction null
+                    txn.delete(markRef)
+                    txn.update(memberRef, "score", FieldValue.increment(-points.toLong()))
+                    null
+                }.await()
+            }
         }
+    }
+
+    /**
+     * 서버의 내 점수를 표식 합계로 다시 맞춘다. 점수는 더하기로 쌓이는 값이라 트랜잭션이
+     * 한 번이라도 실패하면 조용히 어긋난 채 영원히 그대로다 — 표식이 원장이고 점수는 캐시다.
+     * `observed`(합계를 세기 전에 읽은 점수)가 트랜잭션 안에서도 그대로일 때만 바꾼다.
+     * 달라졌으면 방금 들어온 정당한 점수이므로 이번 보정은 포기한다. 맞춘 경우에만 새 점수 반환.
+     */
+    suspend fun repairMyScore(roomID: String, observed: Int): Int? {
+        if (!backendActive) return null
+        val myUid = uid
+        if (myUid.isEmpty() || myUid == "guest") return null
+        val memberRef = db().collection("groups").document(roomID)
+            .collection("members").document(myUid)
+        val marks = runCatching {
+            memberRef.collection("scored")
+                .get(com.google.firebase.firestore.Source.SERVER).await()
+        }.getOrNull() ?: return null
+        val total = marks.documents.sumOf { (it.getLong("points") ?: 0L).toInt() }
+        if (total == observed) return null
+        val done = runCatching {
+            db().runTransaction { txn ->
+                val snap = txn.get(memberRef)
+                if (!snap.exists()) return@runTransaction false
+                if ((snap.getLong("score") ?: 0L).toInt() != observed) return@runTransaction false
+                txn.update(memberRef, "score", total.toLong())
+                true
+            }.await()
+        }.getOrNull() == true
+        return if (done) total else null
     }
 
     // MARK: 탈퇴 · 해체 · 나가기
@@ -432,12 +550,15 @@ object GroupStore {
         if (!signedInMember) return
         val memberRef = db().collection("groups").document(room.id)
             .collection("members").document(uid)
+        // 벌점을 먼저 넣고 포기 표시를 나중에 한다. 둘로 나뉜 쓰기라 중간에 끊길 수 있는데,
+        // 순서가 반대면 '포기했는데 벌점은 없는' 상태로 남는다. 둘 다 표식/플래그라
+        // 재시도가 나머지를 채운다. 벌점은 반드시 표식(도장)을 거친다 — 건너뛰면
+        // repairMyScore가 이 -50을 지워버린다.
         runCatching {
-            memberRef.update(mapOf(
-                "quit" to true,
-                "score" to FieldValue.increment(ScoreRules.GROUP_QUIT_PENALTY.toLong()),
-            )).await()
+            applyScore(room.id, ScoreRules.GROUP_QUIT_PENALTY,
+                quitOccurrenceKey(room.id), SCORE_RANK_NORMAL)
         }
+        runCatching { memberRef.update("quit", true).await() }
         // 개인 누적에도 동일 벌점 기록
         val event = ScoreEvent(
             ownerUserID = uid, typeRaw = ScoreEventType.GROUP_QUIT.raw,

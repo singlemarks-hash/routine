@@ -378,9 +378,12 @@ object SessionEngine {
                 sessionID = s.id, intensityRaw = s.intensityRaw, note = note)
             db.scores().insert(e)
             AccountStore.mirror(e)
-            // 그룹 예약이면 서버 그룹 점수에도 합산
+            // 그룹 예약이면 서버 그룹 점수에도 합산 — 발생당 한 번만 (도장)
             s.reservationID?.let { rid ->
-                GroupStore.reportScore(db.reservations().byId(rid), points)
+                GroupStore.reportScore(db.reservations().byId(rid), points,
+                    occurrenceKey(s),
+                    if (outcome == SessionOutcome.NO_SHOW) GroupStore.SCORE_RANK_NO_SHOW
+                    else GroupStore.SCORE_RANK_NORMAL)
             }
         }
 
@@ -516,7 +519,9 @@ object SessionEngine {
                         sessionID = noShow.id, intensityRaw = effIntensity.raw,
                         note = "${TimePolicy.START_WINDOW_MINUTES}분 내 미시작")
                     db.scores().insert(e); AccountStore.mirror(e)
-                    GroupStore.reportScore(r, pts)   // 그룹 예약이면 그룹 점수에도 반영
+                    // 그룹 예약이면 그룹 점수에도 반영 — 노쇼 등급 도장 (실제 결과가 오면 덮인다)
+                    GroupStore.reportScore(r, pts,
+                        occurrenceKey(r.id, fire), GroupStore.SCORE_RANK_NO_SHOW)
                 }
                 existing.add(key)
             }
@@ -525,6 +530,20 @@ object SessionEngine {
 
     /** 문자열 키 → 결정적 UUID 문자열 (MD5, iOS와 동일 알고리즘·표기).
      *  같은 노쇼(예약+발생시각)는 어느 기기에서 스윕해도 같은 이벤트 ID를 갖는다. */
+    /** 발생(활동 1회)을 식별하는 키 — 그룹 점수 도장의 이름이 된다.
+     *  iOS와 바이트 단위로 같아야 두 플랫폼이 같은 도장을 찍는다:
+     *  iOS는 UUID 대문자 + epoch '초' ("{RID}-{sec}"). 안드 내부 인덱스는 밀리초를 쓰므로
+     *  서버로 가는 이 키만 반드시 초 단위 + 대문자로 정규화한다. */
+    fun occurrenceKey(s: FocusSession): String {
+        val rid = s.reservationID ?: return s.id
+        val sched = s.scheduledAt ?: return s.id
+        return "${rid.uppercase()}-${sched / 1000}"
+    }
+
+    /** 예약ID+발생시각으로 직접 만들 때 (노쇼 스위퍼 경로) */
+    fun occurrenceKey(reservationID: String, fireMillis: Long): String =
+        "${reservationID.uppercase()}-${fireMillis / 1000}"
+
     private fun deterministicId(key: String): String {
         val hex = java.security.MessageDigest.getInstance("MD5")
             .digest(key.toByteArray())
@@ -556,7 +575,10 @@ object SessionEngine {
                 sessionID = s.id, intensityRaw = s.intensityRaw,
                 note = "촬영 중 앱 종료 (배터리·강제 종료 등)")
             db.scores().insert(e); AccountStore.mirror(e)
-            s.reservationID?.let { rid -> GroupStore.reportScore(db.reservations().byId(rid), pts) }
+            s.reservationID?.let { rid ->
+                GroupStore.reportScore(db.reservations().byId(rid), pts,
+                    occurrenceKey(s), GroupStore.SCORE_RANK_NORMAL)
+            }
         }
         // 크래시로 남은 파셜 영상은 재생 불가(moov 미기록)하고 어떤 세션도 참조하지 않는다 —
         // 디스크만 차지하므로 정리한다.
