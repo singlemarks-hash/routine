@@ -66,7 +66,11 @@ final class SessionEngine: NSObject, ObservableObject {
 
     // 킬/크래시 판별용 영속 플래그
     private enum Key {
+        /// 레거시(전역) 키 — 계정 무관 단일 슬롯이라 B 계정이 세션을 시작하면 A 계정의
+        /// 고아 세션 ID를 덮어써 영구 미복구가 됐다. 지금은 계정별 키를 쓰고,
+        /// 이 전역 키는 업데이트 직후 1회 마이그레이션 폴백으로만 읽는다.
         static let activeSessionID = "engine.activeSessionID"
+        static func activeSessionID(for owner: String) -> String { "engine.activeSessionID.\(owner)" }
         static let breakDeadline   = "engine.breakDeadline"   // 재촬영 창 마감 시각 (epoch)
     }
 
@@ -112,7 +116,7 @@ final class SessionEngine: NSObject, ObservableObject {
         phase = .recording
         isFinalizing = false
 
-        defaults.set(session.id.uuidString, forKey: Key.activeSessionID)
+        defaults.set(session.id.uuidString, forKey: Key.activeSessionID(for: session.ownerUserID))
         defaults.removeObject(forKey: Key.breakDeadline)
 
         // 촬영 시작과 함께 '알림차단' 기본 활성화 (세션 화면 버튼으로 해제 가능)
@@ -546,7 +550,10 @@ final class SessionEngine: NSObject, ObservableObject {
         tick?.invalidate(); tick = nil
         isFinalizing = false
         AlarmScheduler.shared.muteAllNotifications = false   // 세션 종료 시 알림차단 해제
-        defaults.removeObject(forKey: Key.activeSessionID)
+        if let owner = session?.ownerUserID {
+            defaults.removeObject(forKey: Key.activeSessionID(for: owner))
+        }
+        defaults.removeObject(forKey: Key.activeSessionID)   // 레거시 전역 키도 정리
         defaults.removeObject(forKey: Key.breakDeadline)
         UIApplication.shared.isIdleTimerDisabled = false
         session = nil
@@ -730,18 +737,35 @@ final class SessionEngine: NSObject, ObservableObject {
     /// - 이탈로 백그라운드 간 뒤 종료됨 → 이탈 실패(강제 종료)
     /// - 포그라운드 도중 사라짐 → 크래시로 보고 안전 종료 (벌점 없음, 촬영분 보존)
     func recoverOrphanIfNeeded() {
-        guard let context = modelContext,
-              let idString = defaults.string(forKey: Key.activeSessionID),
+        guard let context = modelContext else { return }
+        let owner = AccountStore.shared.currentUserID
+        // 계정별 키 우선 — 계정 무관 단일 슬롯이던 시절엔 B 계정이 세션을 시작하는 순간
+        // A 계정의 고아 ID가 덮여 영구 미복구가 됐다. 레거시 전역 키는 업데이트 직후
+        // 이어받기 위해 폴백으로만 읽는다.
+        let ownerKey = Key.activeSessionID(for: owner)
+        let usedLegacyKey = defaults.string(forKey: ownerKey) == nil
+        guard let idString = defaults.string(forKey: ownerKey)
+                ?? defaults.string(forKey: Key.activeSessionID),
               let id = UUID(uuidString: idString) else { return }
+        func clearUsedKey() {
+            defaults.removeObject(forKey: usedLegacyKey ? Key.activeSessionID : ownerKey)
+        }
 
         let descriptor = FetchDescriptor<FocusSession>(predicate: #Predicate { $0.id == id })
         guard let orphan = try? context.fetch(descriptor).first, orphan.outcome == nil else {
-            defaults.removeObject(forKey: Key.activeSessionID)
+            clearUsedKey()
             return
         }
         // 계정 스코프 — 다른 계정의 미완료 세션은 지금 로그인한 계정으로 마감/노출하지 않는다.
-        // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단)
-        guard orphan.ownerUserID == AccountStore.shared.currentUserID else { return }
+        // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단.)
+        // 레거시 전역 키에서 남의 세션을 읽은 경우, 그 계정이 복구할 수 있도록 계정별 키로 옮겨 둔다.
+        guard orphan.ownerUserID == owner else {
+            if usedLegacyKey {
+                defaults.set(idString, forKey: Key.activeSessionID(for: orphan.ownerUserID))
+                defaults.removeObject(forKey: Key.activeSessionID)
+            }
+            return
+        }
         // 촬영 도중 앱이 죽으면(배터리 방전·강제 종료·크래시) 강도와 무관하게 이탈 실패로 본다.
         // 모든 건 사용자 책임 — 저전력·강제종료로 세션이 날아가면 벌점 긴급이탈.
         let outcome: SessionOutcome = .exitFailed
@@ -763,7 +787,7 @@ final class SessionEngine: NSObject, ObservableObject {
         // 디스크만 차지하므로 정리한다.
         let partial = SessionStorage.directory.appendingPathComponent("\(orphan.id.uuidString).mov")
         try? FileManager.default.removeItem(at: partial)
-        defaults.removeObject(forKey: Key.activeSessionID)
+        clearUsedKey()
         defaults.removeObject(forKey: Key.breakDeadline)
         AlarmScheduler.shared.cancelBreakNotifications()
     }

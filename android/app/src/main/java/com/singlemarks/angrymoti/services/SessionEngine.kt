@@ -94,7 +94,7 @@ object SessionEngine {
         breakWarnPosted = false
         phase.value = Phase.Recording
 
-        Prefs.activeSessionId = s.id
+        Prefs.setActiveSessionId(owner, s.id)
         Prefs.breakDeadline = 0
 
         startTick()
@@ -438,7 +438,8 @@ object SessionEngine {
         AlarmScheduler.restoreDndIfNeeded(appContext)   // 세션이 켰던 방해 금지 자동 해제
         tickJob?.cancel(); tickJob = null
         isFinalizing = false
-        Prefs.activeSessionId = null
+        session?.ownerUserID?.let { Prefs.setActiveSessionId(it, null) }
+        Prefs.legacyActiveSessionId = null   // 레거시 전역 키도 정리
         Prefs.breakDeadline = 0
         session = null
         SessionService.stop(appContext)
@@ -664,15 +665,34 @@ object SessionEngine {
         // (Prefs 영속 플래그 기준이라 프로세스가 죽었다 살아나도 판별된다.
         //  세션이 실제로 진행 중이면(프로세스 생존 + 액티비티만 재생성) 건드리지 않는다)
         if (phase.value is Phase.Idle) AlarmScheduler.restoreDndIfNeeded(appContext)
-        val id = Prefs.activeSessionId ?: return
+        // 엔진이 실제로 세션을 진행 중이면(프로세스 생존 + 액티비티만 재생성된 onCreate)
+        // 그 세션은 고아가 아니다 — 여기서 마감하면 살아있는 세션이 이탈 실패로 찍힌다.
+        val current = phase.value
+        if (current is Phase.Recording || current is Phase.PausedForBreak) return
+        val owner = AccountStore.currentUserID
+        // 계정별 키 우선, 레거시 전역 키는 업데이트 직후 이어받기 폴백으로만 읽는다
+        val ownerId = Prefs.activeSessionId(owner)
+        val usedLegacyKey = ownerId == null
+        val id = ownerId ?: Prefs.legacyActiveSessionId ?: return
+        fun clearUsedKey() {
+            if (usedLegacyKey) Prefs.legacyActiveSessionId = null
+            else Prefs.setActiveSessionId(owner, null)
+        }
         val db = AppDb.get(appContext)
         val orphan = db.sessions().byId(id)
         if (orphan == null || orphan.outcome != null) {
-            Prefs.activeSessionId = null; return
+            clearUsedKey(); return
         }
         // 계정 스코프 — 다른 계정의 미완료 세션은 지금 로그인한 계정으로 마감/노출하지 않는다.
-        // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단)
-        if (orphan.ownerUserID != AccountStore.currentUserID) return
+        // (해당 계정이 다시 로그인하면 그때 복구. 남의 녹화·기록이 새 계정에 새는 것을 차단.)
+        // 레거시 전역 키에서 남의 세션을 읽었으면, 그 계정이 복구할 수 있게 계정별 키로 옮긴다.
+        if (orphan.ownerUserID != owner) {
+            if (usedLegacyKey) {
+                Prefs.setActiveSessionId(orphan.ownerUserID, id)
+                Prefs.legacyActiveSessionId = null
+            }
+            return
+        }
         // 촬영 도중 앱이 죽으면(배터리 방전·강제 종료·크래시) 강도와 무관하게 이탈 실패로 본다.
         // 모든 건 사용자 책임 — 저전력·강제종료로 세션이 날아가면 벌점 긴급이탈.
         val outcome = SessionOutcome.EXIT_FAILED
@@ -692,7 +712,7 @@ object SessionEngine {
         // 크래시로 남은 파셜 영상은 재생 불가(moov 미기록)하고 어떤 세션도 참조하지 않는다 —
         // 디스크만 차지하므로 정리한다.
         CameraRecorder.deleteFiles(appContext, "${orphan.id}.mp4", "${orphan.id}.jpg")
-        Prefs.activeSessionId = null
+        clearUsedKey()
         Prefs.breakDeadline = 0
     }
 }

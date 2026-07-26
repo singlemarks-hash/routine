@@ -87,7 +87,10 @@ data class Reservation(
     /** 앞으로 울릴 발생이 남아 있는가 — 슬롯 점유 판정 전용.
      *  끝난 활동은 오늘 일정에 계속 보이더라도 자리는 이미 돌려준 상태다 (iOS와 동일). */
     fun hasRemainingOccurrence(now: Long = System.currentTimeMillis()): Boolean {
-        val end = endAt ?: return true   // 무기한 — 스캔 없이 항상 점유
+        // 레거시 단발성(요일 없음 + 날짜 마커)은 endAt이 없어도 그 하루가 끝이다.
+        // 무기한으로 보면 날짜가 지난 옛 하루짜리가 슬롯을 영영 물고 있는다 (iOS와 동일 수정).
+        val end = endAt ?: (if (!isRepeating) oneOffDayStart else null)
+            ?: return true   // 무기한 — 스캔 없이 항상 점유
         fun dayStart(t: Long): Long = Calendar.getInstance().apply {
             timeInMillis = t
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)

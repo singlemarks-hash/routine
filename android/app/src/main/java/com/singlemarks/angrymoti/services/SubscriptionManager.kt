@@ -113,12 +113,21 @@ object SubscriptionManager : PurchasesUpdatedListener {
                 }
                 storePro = active
                 recomputeIsPro()
-                // 클라우드에 기록해 iOS 기기에서도 멤버십이 인정되게 한다
-                // (Play Billing은 클라이언트에서 만료일을 못 얻으므로 월 구독+유예 35일로 추정 —
-                //  구독 유지 중엔 앱을 열 때마다 앞으로 밀리고, 해지 후엔 자연 소멸)
+                // 클라우드에 기록해 iOS 기기에서도 멤버십이 인정되게 한다.
+                // Play Billing은 클라이언트에서 만료일을 못 얻는다 — 대신 isAutoRenewing으로
+                // '해지 예약' 여부는 안다. 갱신 유지 중엔 월 구독+여유 35일(앱을 열 때마다
+                // 앞으로 밀림), 해지 예약 상태면 7일로 좁혀 결제 종료 후 반대 플랫폼에
+                // Pro가 최대 35일 잔존하던 것을 7일 이내로 줄인다. (남은 유료 기간에는
+                // queryPurchases가 계속 구독을 돌려주므로 앱을 열 때마다 7일씩 연장돼
+                // 정당한 사용 기간이 끊기지는 않는다)
                 if (active) {
+                    val autoRenewing = purchases.any {
+                        it.purchaseState == Purchase.PurchaseState.PURCHASED &&
+                            it.products.contains(PRODUCT_ID) && it.isAutoRenewing
+                    }
+                    val horizonDays = if (autoRenewing) 35L else 7L
                     AccountStore.mirrorMembership(
-                        System.currentTimeMillis() + 35L * 86_400_000L, "google")
+                        System.currentTimeMillis() + horizonDays * 86_400_000L, "google")
                 }
                 purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }
                     .forEach(::acknowledge)
@@ -163,8 +172,10 @@ object SubscriptionManager : PurchasesUpdatedListener {
                     if (p.products.contains(PRODUCT_ID)) {
                         storePro = true
                         recomputeIsPro()
+                        // 방금 결제된 구독 — refresh()와 같은 규칙 (갱신 유지 35일 / 해지 예약 7일)
                         AccountStore.mirrorMembership(
-                            System.currentTimeMillis() + 35L * 86_400_000L, "google")
+                            System.currentTimeMillis() +
+                                (if (p.isAutoRenewing) 35L else 7L) * 86_400_000L, "google")
                     }
                 }
         }

@@ -211,10 +211,15 @@ final class SubscriptionManager: ObservableObject {
         }
         storePro = pro
         recomputeIsPro()
-        // 클라우드에 기록해 안드로이드 기기에서도 멤버십이 인정되게 한다
+        // 클라우드에 기록해 안드로이드 기기에서도 멤버십이 인정되게 한다.
+        // 실제 만료 시각 + 3일 유예 — 유예가 없으면 자동 갱신 직후 iOS 앱을 아직 안 연
+        // 동안 반대 플랫폼이 만료 시각을 지나 Pro가 잠깐 풀린다(갱신-미러 공백).
+        // 3일이면 청구 재시도·시계 오차까지 덮고, 해지 후 잔존도 3일로 짧다.
+        // (만료 시각이 없는 예외 케이스만 기존 35일 추정 폴백)
         if pro {
             AccountStore.shared.mirrorMembership(
-                expiresAt: expires ?? Date(timeIntervalSinceNow: 35 * 86_400),
+                expiresAt: expires.map { $0.addingTimeInterval(3 * 86_400) }
+                    ?? Date(timeIntervalSinceNow: 35 * 86_400),
                 platform: "apple")
         }
     }

@@ -253,7 +253,11 @@ final class Reservation {
     /// '지울 것도 없는데 슬롯이 가득 참' 상태가 된다.
     /// 무기한 예약과 종료일이 지난 예약은 훑지 않고 즉시 판정한다.
     func hasRemainingOccurrence(after date: Date = .now, calendar: Calendar = .current) -> Bool {
-        guard let end = endDate else { return true }                       // 무기한
+        // 레거시 단발성(요일 없음 + 날짜 마커)은 endDate가 없어도 그 하루가 끝이다.
+        // 무기한으로 보면 날짜가 지난 옛 하루짜리가 슬롯을 영영 물고 있어
+        // '지울 것도 없는데 슬롯이 가득 참'이 된다.
+        let effectiveEnd = endDate ?? (isRepeating ? nil : oneOffDate)
+        guard let end = effectiveEnd else { return true }                  // 무기한
         if calendar.startOfDay(for: date) > calendar.startOfDay(for: end) { return false }
         return nextOccurrence(after: date, calendar: calendar) != nil
     }

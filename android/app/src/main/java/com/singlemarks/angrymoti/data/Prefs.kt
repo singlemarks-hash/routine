@@ -28,8 +28,15 @@ object Prefs {
     fun setPendingDowngradeAt(owner: String, v: Long) =
         sp.edit().putLong("pendingDowngradeAt.$owner", v).apply()
 
-    /** 진행 중 세션 복구용 */
-    var activeSessionId: String?
+    /** 진행 중 세션 복구용 — 계정별 슬롯.
+     *  계정 무관 단일 슬롯이던 시절엔 B 계정이 세션을 시작하는 순간 A 계정의 고아 세션
+     *  ID가 덮여 영구 미복구가 됐다. 레거시(전역) 키는 업데이트 직후 이어받기 폴백 전용. */
+    fun activeSessionId(owner: String): String? = sp.getString("activeSessionId.$owner", null)
+    fun setActiveSessionId(owner: String, v: String?) =
+        sp.edit().putString("activeSessionId.$owner", v).apply()
+
+    /** 레거시 전역 키 (마이그레이션 폴백) */
+    var legacyActiveSessionId: String?
         get() = sp.getString("activeSessionId", null)
         set(v) = sp.edit().putString("activeSessionId", v).apply()
 
