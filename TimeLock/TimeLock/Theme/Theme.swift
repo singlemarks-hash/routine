@@ -327,25 +327,36 @@ struct TLCard<Content: View>: View {
 
 // MARK: - 태그 칩
 
-/// 핵심 대주제 6개 태그의 엄선 색상 (다크 배경에서 서로 뚜렷이 구분). 프리셋이 아니면 nil → 회색.
-/// '악기'는 '연주'로 이름이 바뀌었지만, 기존 데이터도 같은 색으로 보이도록 별칭 유지.
+/// 핵심 대주제 6개 태그 + 그룹의 엄선 색상 (다크 배경에서 서로 뚜렷이 구분).
+/// 직접 입력 태그만 nil → 회색. '악기'는 '연주'로 이름이 바뀌었지만 기존 데이터도 같은 색으로 보이도록 별칭 유지.
+/// '그룹'이 회색이던 시절엔 커스텀 태그와 같은 색이라 도넛에서 조각이 구분되지 않았다 —
+/// 그룹은 옛 '작업' 골드를 물려받고, '작업'은 브랜드 라임으로 옮겼다.
 func tagTint(_ name: String) -> Color? {
     switch name {
     case "공부":            return Color(hex: 0x5B8DEF)   // 블루
     case "독서":            return Color(hex: 0xB07CF0)   // 바이올렛
     case "운동":            return Color(hex: 0xFF7A66)   // 코랄
-    case "작업":            return Color(hex: 0xF2A93C)   // 골드
+    case "작업":            return Color(hex: 0xAFE746)   // 라임 (메인 브랜드 컬러)
+    case "그룹":            return Color(hex: 0xF2A93C)   // 골드 (옛 '작업' 색 승계)
     case "연주", "악기":     return Color(hex: 0xF473B3)   // 핑크
     case "글쓰기":          return Color(hex: 0x35C8AE)   // 틸
     default:               return nil
     }
 }
 
+/// 선택(원색 솔리드) 칩 위 글자색 — 밝은 원색(라임 등)은 흰 글씨가 묻히므로 잉크로 반전한다.
+/// 상대 휘도 0.6 기준: 라임(0.75)만 잉크, 나머지 프리셋(0.3~0.5)은 기존 흰 글씨 유지.
+private func brightTint(_ tint: Color) -> Bool {
+    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+    UIColor(tint).getRed(&r, green: &g, blue: &b, alpha: &a)
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.6
+}
+
 struct TagChip: View {
     let name: String
     var selected = false
     var body: some View {
-        // 프리셋 6개는 고유 색, 그 외(그룹·직접 입력 태그)는 기존 회색 유지.
+        // 프리셋 6개+그룹은 고유 색, 그 외(직접 입력 태그)는 기존 회색 유지.
         let tint = tagTint(name)
         Text(name)
             .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -357,7 +368,7 @@ struct TagChip: View {
     }
     private func textColor(_ tint: Color?) -> Color {
         guard let tint else { return selected ? TL.ink : TL.muted }
-        return selected ? .white : tint
+        return selected ? (brightTint(tint) ? TL.ink : .white) : tint
     }
     private func bgColor(_ tint: Color?) -> Color {
         guard let tint else { return selected ? TL.paper : TL.surface }

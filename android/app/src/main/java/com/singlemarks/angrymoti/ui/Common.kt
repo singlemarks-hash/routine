@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontFamily
@@ -207,18 +208,21 @@ fun dayOutcomeDrawable(outcome: com.singlemarks.angrymoti.models.DayOutcome): In
     com.singlemarks.angrymoti.models.DayOutcome.NOT_STARTED -> com.singlemarks.angrymoti.R.drawable.day_not_started
 }
 
-/** 핵심 대주제 6개만 각각 고유 색. 그룹·직접 입력 태그는 null(회색 유지). iOS tagTint()와 1:1. */
+/** 핵심 대주제 6개 + 그룹의 고유 색. 직접 입력 태그만 null(회색 유지). iOS tagTint()와 1:1.
+ *  '그룹'이 회색이던 시절엔 커스텀 태그와 같은 색이라 도넛에서 조각이 구분되지 않았다 —
+ *  그룹은 옛 '작업' 골드를 물려받고, '작업'은 브랜드 라임으로 옮겼다. */
 fun tagTint(name: String): Color? = when (name) {
     "공부"        -> Color(0xFF5B8DEF)   // 블루
     "독서"        -> Color(0xFFB07CF0)   // 바이올렛
     "운동"        -> Color(0xFFFF7A66)   // 코랄
-    "작업"        -> Color(0xFFF2A93C)   // 골드
+    "작업"        -> Color(0xFFAFE746)   // 라임 (메인 브랜드 컬러)
+    "그룹"        -> Color(0xFFF2A93C)   // 골드 (옛 '작업' 색 승계)
     "연주", "악기" -> Color(0xFFF473B3)   // 핑크
     "글쓰기"      -> Color(0xFF35C8AE)   // 틸
     else         -> null
 }
 
-/** 태그 칩 — 프리셋 6개는 고유색, 그 외(그룹·커스텀)는 회색. 선택 시 종이색 캡슐 (iOS TagChip) */
+/** 태그 칩 — 프리셋 6개+그룹은 고유색, 그 외(커스텀)는 회색. 선택 시 원색 캡슐 (iOS TagChip) */
 @Composable
 fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
     val tint = tagTint(name)
@@ -234,7 +238,8 @@ fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
     }
     val fg = when {
         tint == null -> if (selected) TL.ink else TL.muted
-        selected -> Color.White
+        // 밝은 원색(라임 등) 위 흰 글씨는 묻힌다 — 상대 휘도 0.6 기준으로 잉크 반전 (iOS 1:1)
+        selected -> if (tint.luminance() > 0.6f) TL.ink else Color.White
         else -> tint
     }
     Box(
