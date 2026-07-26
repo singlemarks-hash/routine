@@ -107,7 +107,6 @@ struct HomeView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
     private var allActiveReservations: [Reservation]
-    @Query private var allEvents: [ScoreEvent]
     @Query private var allSessions: [FocusSession]
 
     /// 현재 계정의 예약만
@@ -115,14 +114,21 @@ struct HomeView: View {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
     }
 
-    /// 누적 총점 = 지금까지의 상점·벌점 전체 합
-    private var totalScore: Int {
-        allEvents.filter { $0.ownerUserID == account.currentUserID }
-            .reduce(0) { $0 + $1.points }
+    /// 현재 계정의 세션만
+    private var mySessions: [FocusSession] {
+        allSessions.filter { $0.ownerUserID == account.currentUserID }
     }
-    /// 총점 색 — 상점 우세 초록, 벌점 우세 빨강, 0은 중립
-    private var totalScoreTint: Color {
-        totalScore > 0 ? TL.jade : (totalScore < 0 ? TL.rec : TL.paper)
+
+    /// 누적 활동 성공 시간 — 완주 세션의 순수 촬영 시간 합(시간 단위 내림).
+    /// 상/벌점 배지를 대체한다: 홈에서 매일 마주하는 숫자는 벌점이 아니라 쌓인 시간이어야 한다.
+    private var totalSuccessHours: Int {
+        mySessions.filter { $0.outcome?.isSuccess == true }
+            .reduce(0) { $0 + $1.recordedSeconds } / 3600
+    }
+    private var totalSuccessHoursLabel: String {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        return f.string(from: NSNumber(value: totalSuccessHours)) ?? "\(totalSuccessHours)"
     }
 
     @State private var now = Date()
@@ -150,29 +156,38 @@ struct HomeView: View {
 
     /// '오늘' 발생하는 활동 — 일정 탭의 오늘 칸과 완전히 같은 기준(요일/일회성 매칭)으로 판정한다.
     /// 그룹 방 시작일 전이거나 오늘치 시각이 지났어도, 일정 탭에 보이면 홈에도 똑같이 보이게 한다.
-    /// 단, 오늘 이미 촬영을 시작(완료·실패·노쇼)한 활동은 '할 일'이 아니므로 목록에서 뺀다.
-    private var upcoming: [(reservation: Reservation, fire: Date?)] {
+    /// 이미 완료(성공·실패)한 활동도 목록에 남긴다 — 흐림 처리 + 결과 점으로 '오늘 한 일'이
+    /// 보여야 하루가 쌓이는 감각이 든다. 미완료가 먼저, 완료는 아래로.
+    private var upcoming: [(reservation: Reservation, fire: Date?, done: SessionOutcome?)] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: now)
         return reservations
-            .compactMap { r -> (Reservation, Date?)? in
+            .compactMap { r -> (Reservation, Date?, SessionOutcome?)? in
                 // 알람시계 로직(occurrence) 한 곳으로 오늘 발생 여부 판정 —
                 // 시작일 전·종료일 후는 자동 제외. 오늘치 시각이 지났어도 발생 자체는 유효.
-                guard let fire = r.occurrence(on: today), !startedToday(r) else { return nil }
-                return (r, fire)
+                guard let fire = r.occurrence(on: today) else { return nil }
+                return (r, fire, todayOutcome(r))
             }
-            .sorted { ($0.1 ?? .distantFuture) < ($1.1 ?? .distantFuture) }
+            .sorted {
+                // 미완료 우선, 같은 그룹 안에서는 발생 시각순
+                if ($0.2 == nil) != ($1.2 == nil) { return $0.2 == nil }
+                return ($0.1 ?? .distantFuture) < ($1.1 ?? .distantFuture)
+            }
     }
 
-    /// 오늘 이 예약으로 이미 세션을 시작(또는 노쇼 확정)했는가 — 완료·실패·진행 중이면 '오늘 할 일'에서 제외.
-    private func startedToday(_ r: Reservation) -> Bool {
+    /// 오늘 이 예약의 확정 결과 — 기록이 여럿(긴급 중단 후 재촬영)이면 가장 나중 것.
+    /// nil = 아직 시작 전(또는 진행 중 — 촬영 중엔 홈이 보일 일이 없다).
+    private func todayOutcome(_ r: Reservation) -> SessionOutcome? {
         let cal = Calendar.current
         let rid = r.id
         let owner = account.currentUserID
-        return allSessions.contains { s in
-            s.ownerUserID == owner && s.reservationID == rid &&
-            (s.scheduledAt.map { cal.isDateInToday($0) } ?? false)
-        }
+        return allSessions
+            .filter { s in
+                s.ownerUserID == owner && s.reservationID == rid && s.outcome != nil &&
+                (s.scheduledAt.map { cal.isDateInToday($0) } ?? false)
+            }
+            .max { ($0.endedAt ?? .distantPast) < ($1.endedAt ?? .distantPast) }?
+            .outcome
     }
 
     var body: some View {
@@ -181,6 +196,8 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                         .padding(.top, 6)
+
+                    streakCard
 
                     goalCard
 
@@ -230,20 +247,20 @@ struct HomeView: View {
         }
     }
 
-    // MARK: 헤더 — 누적 상점 + 마이페이지
+    // MARK: 헤더 — 누적 성공 시간 + 마이페이지
 
     private var header: some View {
         HStack(spacing: 10) {
-            // 누적 총점 배지 (좌측 정렬) — 양수 스마일 / 음수 앵그리. 탭 → 기록 캘린더.
+            // 누적 활동 성공 시간 배지 (좌측 정렬) — 탭 → 기록 캘린더.
             NavigationLink(value: HomeRoute.calendar) {
                 HStack(spacing: 8) {
-                    Image(totalScore < 0 ? "MotiAngry" : "MotiSmile")
+                    Image("clock")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 30, height: 30)
-                    Text(scoreLabel)
-                        .font(.tlTimer(22))
-                        .foregroundStyle(totalScoreTint)
+                        .frame(width: 26, height: 26)
+                    (Text(totalSuccessHoursLabel).foregroundStyle(TL.jade)
+                     + Text("시간").foregroundStyle(TL.muted))
+                        .font(.tlTimer(21))
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 9)
@@ -254,7 +271,7 @@ struct HomeView: View {
 
             Spacer()
 
-            // 기록관리 — 점수 배지와 동일하게 기록 캘린더로 진입
+            // 기록관리 — 시간 배지와 동일하게 기록 캘린더로 진입
             NavigationLink(value: HomeRoute.calendar) {
                 Image(systemName: "calendar")
                     .font(.system(size: 22, weight: .semibold))
@@ -275,14 +292,75 @@ struct HomeView: View {
         }
     }
 
-    private var scoreLabel: String {
-        let magnitude = abs(totalScore)
-        let body = magnitude >= 1000
-            ? String(format: "%.1fK", Double(magnitude) / 1000).replacingOccurrences(of: ".0K", with: "K")
-            : "\(magnitude)"
-        if totalScore > 0 { return "+\(body)" }
-        if totalScore < 0 { return "-\(body)" }
-        return "0"
+    // MARK: 연속달성 카드 — 좌측 일수 + 우측 5일 스트립 (D-3 ~ 내일)
+
+    private var streakCard: some View {
+        let streak = SlotPolicy.currentStreak(sessions: mySessions)
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        let weekdayNames = ["", "일", "월", "화", "수", "목", "금", "토"]
+
+        return HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Text("연속달성")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(TL.muted)
+                    Image("fire").resizable().scaledToFit().frame(width: 14, height: 14)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text("\(streak)")
+                        .font(.tlTimer(30))
+                        .foregroundStyle(TL.jade)
+                    Text("일")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(TL.muted)
+                }
+            }
+
+            Spacer(minLength: 6)
+
+            // 최근 3일 + 오늘 + 내일. 판정은 기록 캘린더와 같은 규칙(DayOutcomeIcon) 하나.
+            HStack(spacing: 0) {
+                ForEach(-3...1, id: \.self) { offset in
+                    let day = cal.date(byAdding: .day, value: offset, to: today) ?? today
+                    let daySessions = mySessions.filter { cal.isDate($0.anchorDate, inSameDayAs: day) }
+                    let icon = DayOutcomeIcon.judge(daySessions: daySessions, day: day, now: now)
+                        ?? .notStarted
+                    let isToday = offset == 0
+
+                    VStack(spacing: 5) {
+                        Text(weekdayNames[cal.component(.weekday, from: day)])
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(isToday ? TL.paper : TL.faint)
+                        Image(icon.assetName)
+                            .resizable().scaledToFit()
+                            .frame(width: 24, height: 24)
+                            .opacity(offset > 0 ? 0.45 : 1)   // 아직 오지 않은 날은 흐리게
+                        Text("\(cal.component(.day, from: day))")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(isToday ? TL.paper : TL.muted)
+                    }
+                    .frame(width: 44)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: TL.cornerS, style: .continuous)
+                            .fill(isToday ? TL.raised : .clear)
+                    )
+                    // 열 사이 헤어라인 (마지막 열 제외)
+                    .overlay(alignment: .trailing) {
+                        if offset < 1 {
+                            Rectangle().fill(TL.hairline.opacity(0.35)).frame(width: 1, height: 30)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
+        .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+            .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
     }
 
     // MARK: 다짐/목표 카드
@@ -308,7 +386,7 @@ struct HomeView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 110)
+            .frame(minHeight: 84)   // 연속달성 카드가 들어온 만큼 다짐 카드는 낮게
             .padding(16)
             .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
             .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
@@ -345,9 +423,14 @@ struct HomeView: View {
     @ViewBuilder
     private var upcomingSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("오늘 예정된 활동")
-                .font(.tlTitle(20))
-                .foregroundStyle(TL.paper)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("오늘 예정된 활동")
+                    .font(.tlTitle(20))
+                    .foregroundStyle(TL.paper)
+                Text(todayDateLabel)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TL.faint)
+            }
 
             if upcoming.isEmpty {
                 TLCard {
@@ -356,16 +439,26 @@ struct HomeView: View {
                 }
             } else {
                 ForEach(upcoming, id: \.reservation.id) { item in
-                    reservationCard(item.reservation, fire: item.fire)
+                    reservationCard(item.reservation, fire: item.fire, done: item.done)
                 }
             }
         }
     }
 
-    private func reservationCard(_ reservation: Reservation, fire: Date?) -> some View {
-        // 12시간 이내로 들어온 활동만 남은 시간 타이머(앰버) 표시
+    private var todayDateLabel: String {
+        let comps = Calendar.current.dateComponents([.month, .day], from: now)
+        return "\(comps.month ?? 1)월 \(comps.day ?? 1)일"
+    }
+
+    private func reservationCard(_ reservation: Reservation, fire: Date?,
+                                 done: SessionOutcome?) -> some View {
+        // 12시간 이내로 들어온 미완료 활동만 남은 시간 타이머(앰버) 표시
         let remaining = fire.map { Int($0.timeIntervalSince(now)) } ?? -1
-        let showsTimer = remaining > 0 && remaining <= 12 * 3600
+        let showsTimer = done == nil && remaining > 0 && remaining <= 12 * 3600
+        // 완료 결과 점 — 일정 탭의 불빛과 같은 규칙 (성공 초록 / 실패 빨강 / 중립 앰버)
+        let doneTint: Color? = done.map {
+            $0.isSuccess ? TL.jade : ($0.isFailure ? TL.rec : TL.amber)
+        }
 
         return Button {
             // 그룹 예약은 편집 잠금 — 그룹 탭에서 관리 (탈퇴로만 삭제)
@@ -395,6 +488,10 @@ struct HomeView: View {
                                 .lineLimit(1)
                                 .layoutPriority(1)   // 이름보다 카운트다운 문구를 우선 확보
                         } else {
+                            if let doneTint {
+                                // 오늘 결과 점 — 태그 칩 왼편 (일정 탭과 동일 문법)
+                                Circle().fill(doneTint).frame(width: 9, height: 9)
+                            }
                             TagChip(name: reservation.tag)
                         }
                     }
@@ -415,6 +512,8 @@ struct HomeView: View {
                     .foregroundStyle(TL.muted)
                 }
             }
+            // 완료한 활동은 흐림 처리로 목록에 남긴다 (일정 탭의 '지나감'과 동일 문법)
+            .opacity(done == nil ? 1 : 0.42)
         }
         .pressableStyle()
     }

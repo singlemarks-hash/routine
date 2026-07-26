@@ -30,10 +30,11 @@ struct CalendarView: View {
         everyScoreEvent.filter { $0.ownerUserID == account.currentUserID }
     }
 
-    // 홈 우상단 누적점수 배지에서 푸시되는 화면 — 자체 NavigationStack 없음
+    // 홈 우상단 누적시간 배지에서 푸시되는 화면 — 자체 NavigationStack 없음
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 20) {
+                StreakHeaderCard(sessions: allSessions)
                 monthGrid
                 DashboardSection(sessions: allSessions, scoreEvents: scoreEvents)
             }
@@ -106,35 +107,30 @@ struct CalendarView: View {
 
     private func dayCell(_ day: Date) -> some View {
         let daySessions = sessions(on: day).filter { $0.outcome != nil }
-        // 그날의 누적 상·벌점 합계로 원 색을 정한다 — 양수 초록 / 음수 빨강 / 0은 앰버
-        let dayScore = scoreEvents
-            .filter { calendar.isDate($0.timestamp, inSameDayAs: day) }
-            .reduce(0) { $0 + $1.points }
-        let hasRecords = !daySessions.isEmpty
-        let state: Color? = hasRecords
-            ? (dayScore > 0 ? TL.jade : (dayScore < 0 ? TL.rec : TL.amber))
-            : nil
+        // 그날의 성취 아이콘 — 홈 연속달성 스트립과 같은 판정(DayOutcomeIcon) 하나를 쓴다.
+        // 캘린더에서는 미시작/미래(notStarted)를 굳이 그리지 않는다 — 기록 있는 날만 아이콘.
+        let judged = DayOutcomeIcon.judge(daySessions: daySessions, day: day)
+        let icon: DayOutcomeIcon? = (judged == .notStarted) ? nil : judged
         let isToday = calendar.isDateInToday(day)
 
         return Button {
             if !daySessions.isEmpty { selectedDay = day }
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 4) {
                 Text("\(calendar.component(.day, from: day))")
                     .font(.tlTimer(14))
                     .foregroundStyle(isToday ? TL.paper : TL.muted)
-                // 미니 REC 링 — 캘린더 완주 마크
-                if let state {
-                    Circle()
-                        .strokeBorder(state, lineWidth: 2.5)
-                        .background(Circle().fill(state.opacity(0.22)))
-                        .frame(width: 14, height: 14)
+                if let icon {
+                    Image(icon.assetName)
+                        .resizable().scaledToFit()
+                        .frame(width: 17, height: 17)
                 } else {
-                    Circle().fill(TL.hairline.opacity(0.4)).frame(width: 4, height: 4).padding(5)
+                    Circle().fill(TL.hairline.opacity(0.4)).frame(width: 4, height: 4)
+                        .padding(.vertical, 6.5)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
+            .frame(height: 46)
             .background(
                 RoundedRectangle(cornerRadius: TL.cornerS)
                     .fill(isToday ? TL.raised : .clear)
@@ -369,6 +365,243 @@ struct DayDetailView: View {
     }
 }
 
+// MARK: - 연속달성 헤더 카드 (+ 태그별 시간 분포 도넛 토글)
+
+struct StreakHeaderCard: View {
+    let sessions: [FocusSession]
+    /// 도넛은 기본 접힘 — 펼치지 않는 한 캘린더가 아래로 밀리지 않는다
+    @State private var showTagDonut = false
+
+    private var detail: (days: Int, successes: Int) { SlotPolicy.streakDetail(sessions: sessions) }
+    private var best: Int { SlotPolicy.bestStreak(sessions: sessions) }
+
+    /// 누적 완주 시간(시) — 홈 상단 배지와 같은 정의
+    private var totalHoursLabel: String {
+        let hours = sessions.filter { $0.outcome?.isSuccess == true }
+            .reduce(0) { $0 + $1.recordedSeconds } / 3600
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        return f.string(from: NSNumber(value: hours)) ?? "\(hours)"
+    }
+
+    /// 평균 일정 = 현재 연속달성 기간에 성공한 일정 수 ÷ 연속일수.
+    /// (예: 월 3개·화 1개·수 2개 성공으로 3일 연속이면 6÷3 = 2.0개)
+    private var averageLabel: String {
+        let d = detail
+        guard d.days > 0 else { return "0.0" }
+        return String(format: "%.1f", Double(d.successes) / Double(d.days))
+    }
+
+    private var byTag: [(String, Int)] {
+        Dictionary(grouping: sessions.filter { $0.outcome?.isSuccess == true }, by: \.tag)
+            .mapValues { $0.reduce(0) { $0 + $1.recordedSeconds } }
+            .sorted { $0.value > $1.value }
+            .map { ($0.key, $0.value) }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 5) {
+                        Text("연속달성")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(TL.muted)
+                        Image("fire").resizable().scaledToFit().frame(width: 15, height: 15)
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text("\(detail.days)")
+                            .font(.tlTimer(36))
+                            .foregroundStyle(TL.jade)
+                        Text("일")
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundStyle(TL.muted)
+                    }
+                    (Text("총 ").foregroundStyle(TL.muted)
+                     + Text(totalHoursLabel).foregroundStyle(TL.jade)
+                     + Text("시간을 기록했어요!").foregroundStyle(TL.muted))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                }
+
+                Spacer(minLength: 12)
+
+                VStack(alignment: .trailing, spacing: 12) {
+                    sideStat(label: "최고기록", icon: "record", value: "\(best)", unit: "일")
+                    sideStat(label: "평균 일정", icon: "average", value: averageLabel, unit: "개")
+                }
+            }
+
+            if showTagDonut, !byTag.isEmpty {
+                TagDonutView(byTag: byTag)
+                    .padding(.top, 18)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            // 토글 손잡이 — 태그별 시간 분포 열기/닫기
+            if !byTag.isEmpty {
+                Button {
+                    withAnimation(TLMotion.snappy) { showTagDonut.toggle() }
+                } label: {
+                    Image(systemName: showTagDonut ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(TL.faint)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 12)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
+    }
+
+    private func sideStat(label: String, icon: String, value: String, unit: String) -> some View {
+        VStack(alignment: .trailing, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TL.muted)
+                Image(icon).resizable().scaledToFit().frame(width: 14, height: 14)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value).font(.tlTimer(19)).foregroundStyle(TL.paper)
+                Text(unit)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TL.muted)
+            }
+        }
+    }
+}
+
+// MARK: - 태그별 시간 분포 도넛
+
+struct TagDonutView: View {
+    /// (태그, 완주 촬영 초) — 점유율 내림차순
+    let byTag: [(String, Int)]
+
+    /// 세그먼트 팔레트 — 점유율 순으로 배정, 태그 칩 테두리도 같은 색을 쓴다
+    private static let palette: [Color] = [
+        Color(red: 0.95, green: 0.33, blue: 0.24),   // 레드
+        Color(red: 0.25, green: 0.48, blue: 0.98),   // 블루
+        Color(red: 0.13, green: 0.72, blue: 0.45),   // 그린
+        Color(red: 0.55, green: 0.38, blue: 0.96),   // 퍼플
+        Color(red: 0.55, green: 0.57, blue: 0.60),   // 그레이 (그 외)
+    ]
+
+    private var totalSeconds: Int { max(1, byTag.reduce(0) { $0 + $1.1 }) }
+    private var totalMinutesLabel: String {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        return f.string(from: NSNumber(value: totalSeconds / 60)) ?? "\(totalSeconds / 60)"
+    }
+
+    /// 상위 4개 + '그 외' 묶음 — 팔레트/범례가 무한히 늘어나지 않게
+    private var segments: [(name: String, seconds: Int, color: Color)] {
+        var rows: [(String, Int)] = Array(byTag.prefix(4))
+        let restSeconds = byTag.dropFirst(4).reduce(0) { $0 + $1.1 }
+        if restSeconds > 0 { rows.append(("그 외", restSeconds)) }
+        return rows.enumerated().map { index, row in
+            (row.0, row.1, Self.palette[min(index, Self.palette.count - 1)])
+        }
+    }
+
+    /// 시:분 표기 — "655:24" = 655시간 24분 (모든 활동이 5·10분 단위라 초는 표시하지 않는다)
+    private func hoursMinutes(_ seconds: Int) -> String {
+        String(format: "%d:%02d", seconds / 3600, (seconds % 3600) / 60)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("태그별 시간 분포")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(TL.paper)
+                Text("(시간 : 분)")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TL.faint)
+            }
+
+            HStack(spacing: 18) {
+                donut
+                    .frame(width: 168, height: 168)
+
+                // 범례 — 태그 칩(세그먼트 색 테두리) + 시:분
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
+                          alignment: .leading, spacing: 12) {
+                    ForEach(segments, id: \.name) { seg in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(seg.name)
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(TL.paper)
+                                .lineLimit(1)
+                                .padding(.horizontal, 10).padding(.vertical, 4)
+                                .background(Capsule().fill(seg.color.opacity(0.16)))
+                                .overlay(Capsule().strokeBorder(seg.color, lineWidth: 1.2))
+                            Text(hoursMinutes(seg.seconds))
+                                .font(.tlTimer(13))
+                                .foregroundStyle(TL.muted)
+                                .padding(.leading, 4)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var donut: some View {
+        // 세그먼트 사이 미세 간격으로 조각을 분리해 읽기 쉽게 한다
+        let gap = segments.count > 1 ? 0.008 : 0.0
+        var running = 0.0
+        // 시작/끝 각도를 먼저 계산해 두고 그린다 (뷰 빌더 안에서 누적 변수를 못 쓰므로)
+        let arcs: [(seg: (name: String, seconds: Int, color: Color), from: Double, to: Double)] =
+            segments.map { seg in
+                let fraction = Double(seg.seconds) / Double(totalSeconds)
+                let from = running
+                running += fraction
+                return (seg, from, running)
+            }
+
+        return ZStack {
+            ForEach(Array(arcs.enumerated()), id: \.offset) { _, arc in
+                Circle()
+                    .trim(from: arc.from + gap / 2, to: max(arc.from + gap / 2, arc.to - gap / 2))
+                    .stroke(arc.seg.color, style: StrokeStyle(lineWidth: 27, lineCap: .butt))
+                    .frame(width: 134, height: 134)
+                    .rotationEffect(.degrees(-90))
+            }
+
+            // 점유율 라벨 — 조각 중앙 각도에 배치 (7% 미만 조각은 생략해 겹침 방지)
+            ForEach(Array(arcs.enumerated()), id: \.offset) { _, arc in
+                let fraction = arc.to - arc.from
+                if fraction >= 0.07 {
+                    let mid = (arc.from + arc.to) / 2 * 2 * .pi - .pi / 2
+                    Text("\(Int((fraction * 100).rounded()))%")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.35), radius: 1.5)
+                        .offset(x: cos(mid) * 67, y: sin(mid) * 67)
+                }
+            }
+
+            // 중앙 — 총 n분
+            VStack(spacing: 3) {
+                Image(systemName: "clock")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TL.faint)
+                (Text("총 ").foregroundStyle(TL.muted)
+                 + Text(totalMinutesLabel).foregroundStyle(TL.jade)
+                 + Text("분").foregroundStyle(TL.muted))
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .frame(width: 92)
+        }
+    }
+}
+
 // MARK: - 누적 대시보드
 
 struct DashboardSection: View {
@@ -392,70 +625,56 @@ struct DashboardSection: View {
         return Int(Double(noShows) / Double(finished.count) * 100)
     }
 
-    /// 연속 달성일 — 슬롯 정책과 동일한 정의를 공유 (SlotPolicy)
-    private var streak: Int { SlotPolicy.currentStreak(sessions: sessions) }
-
-    private var byTag: [(String, Int)] {
-        Dictionary(grouping: finished.filter { $0.outcome?.isSuccess == true }, by: \.tag)
-            .mapValues { $0.reduce(0) { $0 + $1.recordedSeconds } }
-            .sorted { $0.value > $1.value }
-            .map { ($0.key, $0.value) }
-    }
-
-    // 컴팩트 레이아웃 — 3열×2줄 + 축소된 카드로 캘린더와 함께 한 화면에 들어온다
+    // 카드 1장 — 좌측 큰 총점, 우측 2×2 (상점/완주율 · 벌점/노쇼율).
+    // 연속달성·태그 분포는 상단 헤더 카드로 이사했다.
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             TLEyebrow(text: "누적 대시보드")
 
-            HStack(spacing: 8) {
-                statCard(value: "\(totalReward + totalPenalty)", label: "총점",
-                         tint: totalReward + totalPenalty >= 0 ? TL.jade : TL.rec)
-                statCard(value: "\(streak)일", label: "연속 달성일", tint: TL.paper)
-                statCard(value: "\(completionRate)%", label: "완주율", tint: TL.jade)
-            }
-            HStack(spacing: 8) {
-                statCard(value: "\(noShowRate)%", label: "노쇼율", tint: noShowRate > 0 ? TL.rec : TL.muted)
-                statCard(value: "+\(totalReward)", label: "총 상점", tint: TL.jade)
-                statCard(value: "\(totalPenalty)", label: "총 벌점", tint: TL.rec)
-            }
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("총점")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TL.muted)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(totalReward + totalPenalty)")
+                            .font(.tlTimer(36))
+                            .foregroundStyle(totalReward + totalPenalty >= 0 ? TL.jade : TL.rec)
+                        Text("점")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(TL.muted)
+                    }
+                }
 
-            if !byTag.isEmpty {
-                TLCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TLEyebrow(text: "태그별 시간 분포")
-                        let maxSeconds = byTag.first?.1 ?? 1
-                        ForEach(byTag, id: \.0) { tag, seconds in
-                            VStack(alignment: .leading, spacing: 3) {
-                                HStack {
-                                    Text(tag).font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.paper)
-                                    Spacer()
-                                    Text(TLFormat.hms(seconds)).font(.tlTimer(12)).foregroundStyle(TL.muted)
-                                }
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(TL.hairline.opacity(0.4))
-                                        Capsule().fill(TL.jade)
-                                            .frame(width: geo.size.width * CGFloat(seconds) / CGFloat(max(1, maxSeconds)))
-                                    }
-                                }
-                                .frame(height: 5)
-                            }
-                        }
+                Spacer(minLength: 12)
+
+                VStack(alignment: .trailing, spacing: 12) {
+                    HStack(spacing: 22) {
+                        miniStat(label: "총 상점", value: "\(totalReward)", tint: TL.jade)
+                        miniStat(label: "완주율", value: "\(completionRate)%", tint: TL.jade)
+                    }
+                    HStack(spacing: 22) {
+                        // 벌점은 빨간색이 이미 '깎였다'를 말하므로 절대값으로 표기
+                        miniStat(label: "총 벌점", value: "\(abs(totalPenalty))", tint: TL.rec)
+                        miniStat(label: "노쇼율", value: "\(noShowRate)%",
+                                 tint: noShowRate > 0 ? TL.rec : TL.muted)
                     }
                 }
             }
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
         }
     }
 
-    private func statCard(value: String, label: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value).font(.tlTimer(19)).foregroundStyle(tint)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(TL.muted)
-                .lineLimit(1).minimumScaleFactor(0.8)
+    private func miniStat(label: String, value: String, tint: Color) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(label)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(TL.muted)
+            Text(value)
+                .font(.tlTimer(16))
+                .foregroundStyle(tint)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous).fill(TL.surface))
+        .frame(minWidth: 52, alignment: .trailing)
     }
 }

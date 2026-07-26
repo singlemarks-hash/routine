@@ -74,9 +74,17 @@ enum SlotPolicy {
     /// 오늘(기록 없으면 어제)부터 거꾸로 — 실패 없이 완주한 날의 연속 수.
     /// 캘린더 대시보드의 '연속 달성일'과 동일한 정의를 공유한다.
     static func currentStreak(sessions: [FocusSession]) -> Int {
+        streakDetail(sessions: sessions).days
+    }
+
+    /// 현재 연속달성의 (일수, 그 기간의 성공 세션 수).
+    /// 성공 수는 기록탭 '평균 일정'(연속달성을 이루는 동안 하루 평균 몇 개를 소화했나)의
+    /// 분자다 — 같은 걷기 루프에서 함께 세어 정의가 어긋나지 않게 한다.
+    static func streakDetail(sessions: [FocusSession]) -> (days: Int, successes: Int) {
         let calendar = Calendar.current
         let finished = sessions.filter { $0.outcome != nil }
         var count = 0
+        var successes = 0
         var day = calendar.startOfDay(for: .now)
         while true {
             let daySessions = finished.filter { calendar.isDate($0.anchorDate, inSameDayAs: day) }
@@ -84,6 +92,7 @@ enum SlotPolicy {
             let failure = daySessions.contains { $0.outcome?.isFailure == true }
             if success && !failure {
                 count += 1
+                successes += daySessions.filter { $0.outcome?.isSuccess == true }.count
             } else if count == 0 && daySessions.isEmpty && calendar.isDateInToday(day) {
                 // 오늘 아직 기록 없음 → 어제부터 계산
             } else {
@@ -92,7 +101,44 @@ enum SlotPolicy {
             guard let prev = calendar.date(byAdding: .day, value: -1, to: day) else { break }
             day = prev
         }
-        return count
+        return (count, successes)
+    }
+
+    /// 역대 최장 연속달성 — '성공이 있고 실패가 없는 날'이 달력상 연속으로 이어진 최대 길이.
+    /// currentStreak과 같은 날짜 판정을 쓰되 전체 이력을 훑는다 (기록탭 '최고기록').
+    static func bestStreak(sessions: [FocusSession]) -> Int {
+        let calendar = Calendar.current
+        let finished = sessions.filter { $0.outcome != nil }
+        guard !finished.isEmpty else { return 0 }
+
+        // 날짜별 성공/실패 집계
+        var byDay: [Date: (success: Bool, failure: Bool)] = [:]
+        for s in finished {
+            let day = calendar.startOfDay(for: s.anchorDate)
+            var entry = byDay[day] ?? (false, false)
+            if s.outcome?.isSuccess == true { entry.success = true }
+            if s.outcome?.isFailure == true { entry.failure = true }
+            byDay[day] = entry
+        }
+        let qualifying = byDay.filter { $0.value.success && !$0.value.failure }
+            .keys.sorted()
+
+        var best = 0
+        var run = 0
+        var prevDay: Date?
+        for day in qualifying {
+            if let prev = prevDay,
+               let next = calendar.date(byAdding: .day, value: 1, to: prev),
+               calendar.isDate(next, inSameDayAs: day) {
+                run += 1
+            } else {
+                run = 1
+            }
+            best = max(best, run)
+            prevDay = day
+        }
+        // 현재 진행 중인 스트릭이 더 길 수는 없지만(부분집합), 정의가 어긋나지 않게 보정
+        return max(best, currentStreak(sessions: sessions))
     }
 }
 
