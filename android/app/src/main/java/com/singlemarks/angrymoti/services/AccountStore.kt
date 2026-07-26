@@ -474,6 +474,19 @@ object AccountStore {
         }
     }
 
+    /** 세션 요약을 클라우드에서도 삭제한다.
+     *  로컬만 지우면 다음 동기화가 이 노쇼를 다시 만들어 매 실행마다 삭제/부활이 반복되고
+     *  연속 달성일이 계속 끊긴다. */
+    fun deleteMirroredSession(owner: String, sessionID: String) {
+        if (!firebaseAvailable || owner == "guest") return
+        runCatching {
+            FirebaseFirestore.getInstance()
+                .collection("users").document(owner)
+                .collection("sessionSummaries").document(sessionID.lowercase())
+                .delete()
+        }
+    }
+
     fun mirror(event: ScoreEvent) {
         if (!firebaseAvailable || event.ownerUserID == "guest") return
         runCatching {

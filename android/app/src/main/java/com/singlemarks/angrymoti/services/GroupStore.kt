@@ -344,7 +344,8 @@ object GroupStore {
     suspend fun checkSlotAvailable(context: Context) {
         val dbLocal = AppDb.get(context)
         val owner = AccountStore.currentUserID
-        val reservations = dbLocal.reservations().active(owner)
+        // 끝난 활동은 슬롯을 차지하지 않는다 — 오늘 일정에 남아 있어도 자리는 이미 돌려줬다
+        val reservations = dbLocal.reservations().active(owner).filter { it.hasRemainingOccurrence() }
         val finished = dbLocal.sessions().all(owner).filter { it.outcome != null }
             .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) }
         val streak = SlotPolicy.currentStreak(finished)

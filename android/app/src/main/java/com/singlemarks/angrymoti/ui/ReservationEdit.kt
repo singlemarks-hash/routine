@@ -131,7 +131,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             .map { Triple(it.anchorAt, it.outcome!!.isSuccess, it.outcome!!.isFailure) }
     )
     val allowed = SlotPolicy.allowedSlots(streak, isPro)
-    val used = allReservations.size
+    // 끝난 활동은 슬롯을 차지하지 않는다 (iOS slotUsingReservations와 동일)
+    val used = allReservations.count { it.hasRemainingOccurrence() }
     val slotFull = allowed != null && used >= allowed && existing == null
 
     /** 시작 30분 전 편집 잠금 */

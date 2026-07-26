@@ -83,6 +83,19 @@ data class Reservation(
         return null
     }
 
+    /** 앞으로 울릴 발생이 남아 있는가 — 슬롯 점유 판정 전용.
+     *  끝난 활동은 오늘 일정에 계속 보이더라도 자리는 이미 돌려준 상태다 (iOS와 동일). */
+    fun hasRemainingOccurrence(now: Long = System.currentTimeMillis()): Boolean {
+        val end = endAt ?: return true   // 무기한 — 스캔 없이 항상 점유
+        fun dayStart(t: Long): Long = Calendar.getInstance().apply {
+            timeInMillis = t
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        if (dayStart(now) > dayStart(end)) return false
+        return nextOccurrence(now) != null
+    }
+
     /** 같은 날 시간 구간 겹침 판정 */
     fun overlaps(otherStartMinute: Int, otherDuration: Int): Boolean {
         val aEnd = startMinute + durationMinutes

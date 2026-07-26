@@ -40,11 +40,19 @@ class MainActivity : ComponentActivity() {
         setContent { AngryMotiTheme { Root() } }
         handleIntent(intent)
         lifecycleScope.launch(Dispatchers.IO) {
+            // 순서 불변식 (iOS와 동일): 동기화 → 기록 수렴 → 방 정리 → 게이트 open →
+            // 노쇼 집계 → 만료 은퇴 → 재스케줄. 방 정리가 집계보다 먼저여야 취소·삭제예정
+            // 방의 예약이 사라진 뒤 집계가 돌아 부당 벌점이 안 찍히고, 만료 은퇴가 집계
+            // 뒤여야 마지막 날 노쇼가 유실되지 않는다.
             SessionEngine.recoverOrphanIfNeeded()
             AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십·세션 이력 병합
+            SessionEngine.reconcileDuplicateOutcomes()   // 성공 기록이 노쇼를 덮는다
             AppState.refreshSpicyCompletions(this@MainActivity)   // 동기화된 이력으로 미친맛 해제 상태 갱신
             com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
+            SessionEngine.markInitialSyncComplete()
             SessionEngine.sweepNoShows()
+            SessionEngine.cleanupExpiredReservations()
+            AlarmScheduler.rescheduleAll(this@MainActivity)
         }
         AppState.applyPendingDowngradeIfDue()
         AppState.refreshSpicyCompletions(this)
@@ -87,9 +95,13 @@ class MainActivity : ComponentActivity() {
         SessionEngine.handleReturnEvent()
         AppState.applyPendingDowngradeIfDue()
         lifecycleScope.launch(Dispatchers.IO) {
+            // onCreate와 동일한 순서 불변식
             AccountStore.syncFromCloud()   // 다른 기기 예약·점수·멤버십 병합
+            SessionEngine.reconcileDuplicateOutcomes()
             com.singlemarks.angrymoti.services.GroupStore.refresh(this@MainActivity)
+            SessionEngine.markInitialSyncComplete()
             SessionEngine.sweepNoShows()
+            SessionEngine.cleanupExpiredReservations()
         }
     }
 }

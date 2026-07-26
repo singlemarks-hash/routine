@@ -451,9 +451,113 @@ object SessionEngine {
         lastFinishedSession.value = null
     }
 
+    // MARK: 파이프라인 순서 게이트
+
+    /** 첫 동기화·방 정리가 끝나기 전에는 노쇼를 집계하지 않는다.
+     *  순서 불변식: syncFromCloud → reconcile → GroupStore.refresh → 게이트 open →
+     *  sweepNoShows → cleanupExpired → reschedule. 방 정리가 집계보다 먼저여야
+     *  '삭제 예정·취소된 방'의 예약이 사라진 뒤 집계가 돌아 부당 벌점이 안 찍힌다. */
+    @Volatile var didCompleteInitialSync = false
+        private set
+
+    fun markInitialSyncComplete() { didCompleteInitialSync = true }
+
+    // MARK: 기록 수렴 — 같은 발생에 노쇼와 실제 기록이 겹치면 노쇼를 지운다
+
+    /** 노쇼를 무효화할 수 있는 건 '시작 창 안에 시작한' 기록뿐이다. 창 밖 시작까지
+     *  승자로 치면 25분 늦게 시작해도 벌점이 사라져 10분 정책 자체가 무너진다.
+     *  촬영 없이 끝난 기록(일정취소)은 종료 시각 기준. */
+    private fun startedWithinWindow(s: FocusSession, scheduled: Long): Boolean {
+        val deadline = scheduled + TimePolicy.START_WINDOW_SECONDS * 1000
+        s.startedAt?.let { return it <= deadline }
+        return (s.endedAt ?: Long.MAX_VALUE) <= deadline
+    }
+
+    /** 동기화로 성공 기록이 내려오면 그 자리의 노쇼는 잘못된 기록이므로 벌점까지 함께
+     *  지운다. 클라우드 사본과 그룹 점수 도장(revokeScore)도 같이 되돌려야
+     *  다음 동기화에서 되살아나지 않는다 (iOS reconcileDuplicateOutcomes 1:1). */
+    suspend fun reconcileDuplicateOutcomes() {
+        val db = AppDb.get(appContext)
+        val owner = AccountStore.currentUserID
+        val sessions = db.sessions().all(owner).filter { it.outcomeRaw != null }
+
+        val slots = mutableMapOf<String, MutableList<FocusSession>>()
+        for (s in sessions) {
+            val rid = s.reservationID ?: continue
+            val sched = s.scheduledAt ?: continue
+            slots.getOrPut("$rid-$sched") { mutableListOf() }.add(s)
+        }
+        for ((_, group) in slots) {
+            if (group.size < 2) continue
+            val scheduled = group.firstNotNullOfOrNull { it.scheduledAt } ?: continue
+            val hasWinner = group.any {
+                it.outcome != SessionOutcome.NO_SHOW && startedWithinWindow(it, scheduled)
+            }
+            if (!hasWinner) continue
+            for (s in group.filter { it.outcome == SessionOutcome.NO_SHOW }) {
+                for (e in db.scores().bySession(s.id)) {
+                    AccountStore.deleteMirroredEvent(e.ownerUserID, e.id)
+                    db.scores().delete(e)
+                }
+                s.reservationID?.let { rid ->
+                    GroupStore.revokeScore(db.reservations().byId(rid), occurrenceKey(s))
+                }
+                AccountStore.deleteMirroredSession(s.ownerUserID, s.id)
+                CameraRecorder.deleteFiles(appContext, s.videoFileName, s.thumbnailFileName)
+                db.sessions().delete(s)
+            }
+        }
+    }
+
+    // MARK: 만료 예약 은퇴 — 종료 '다음날 0시'에 소프트 삭제
+
+    /** 마지막 발생의 활동 종료 시각. 무기한(endAt=null)은 만료 없음. */
+    private fun finalActivityEnd(r: Reservation): Long? {
+        val end = r.endAt ?: return null
+        val endDay = java.util.Calendar.getInstance().apply {
+            timeInMillis = end
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        for (offset in 0..7) {   // 요일 7개 → 7일 역스캔이면 충분
+            val fire = r.occurrenceOn(endDay - offset * 86_400_000L) ?: continue
+            return fire + r.durationMinutes * 60_000L
+        }
+        return null
+    }
+
+    /** 종료된 예약(그룹 포함)을 다음날 0시에 은퇴시킨다. 당일엔 일정에 남고, 슬롯은
+     *  hasRemainingOccurrence 기준으로 이미 즉시 반환된 상태다. 하드 삭제가 아닌
+     *  소프트 삭제인 이유: 로컬만 지우면 클라우드 사본이 다음 동기화에서 되살린다. */
+    suspend fun cleanupExpiredReservations() {
+        val db = AppDb.get(appContext)
+        val owner = AccountStore.currentUserID
+        val now = System.currentTimeMillis()
+        var changed = false
+        for (r in db.reservations().active(owner)) {
+            val finalEnd = finalActivityEnd(r) ?: continue
+            val retireAt = java.util.Calendar.getInstance().apply {
+                timeInMillis = finalEnd
+                set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                add(java.util.Calendar.DAY_OF_MONTH, 1)
+            }.timeInMillis
+            if (now < retireAt) continue
+            val retired = r.copy(isActive = false, updatedAt = now)
+            db.reservations().upsert(retired)
+            AccountStore.mirrorReservation(retired)   // 다른 기기 전파 (소프트 삭제)
+            AlarmScheduler.cancel(appContext, r.id)
+            changed = true
+        }
+        if (changed) AlarmScheduler.rescheduleAll(appContext)
+    }
+
     // MARK: 노쇼 스위퍼 — 예약 '생성 이후' 발생분만 대상 + 과거 버그 기록 복구
 
     suspend fun sweepNoShows() {
+        // 첫 동기화·방 정리 전에 돌면, 다른 기기의 성공 기록이 내려오기 전에
+        // 그 자리에 노쇼를 찍거나, 취소된 방 예약에 벌점을 찍는다.
+        if (!didCompleteInitialSync) return
         val db = AppDb.get(appContext)
         val owner = AccountStore.currentUserID
         val reservations = db.reservations().active(owner)
