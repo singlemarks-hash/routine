@@ -217,7 +217,7 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
         LaunchedEffect(rooms, refreshing) {
             hasGroupReservations.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 com.singlemarks.angrymoti.data.AppDb.get(context).reservations()
-                    .allForOwner(AccountStore.currentUserID).any { it.groupId != null }
+                    .active(AccountStore.currentUserID).any { it.groupId != null }
             }
         }
         if (rooms.isEmpty() && hasGroupReservations.value && !refreshing) {

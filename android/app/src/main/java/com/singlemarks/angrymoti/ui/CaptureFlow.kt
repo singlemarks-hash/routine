@@ -169,7 +169,9 @@ fun MountGuideScreen(pending: PendingSession) {
     var waitingCamera by remember { mutableStateOf(false) }
     // 시작 창 카운트다운 — 구도 화면에도 마감이 있어야 한다. 예전엔 여기 들어오면 시간
     // 제한이 사라져 늦게 시작해도 벌점이 없었다 (iOS와 동일 로직).
-    var started by remember { mutableStateOf(false) }
+    // rememberSaveable — 다크모드 전환 등으로 Activity가 재생성돼도 '이미 시작했다'는
+    // 사실을 잃지 않는다. 잃으면 녹화 중인데 마감 처리로 홈에 튕긴다 (iOS 사고 유형).
+    var started by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
     // 남은 초 — 예약이 아닌 '지금 바로 시작'은 마감이 없다(null)
     val remainingSeconds: Int? = pending.scheduledAt?.let { sched ->

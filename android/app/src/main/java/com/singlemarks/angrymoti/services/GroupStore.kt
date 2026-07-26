@@ -505,15 +505,25 @@ object GroupStore {
     /** 중도 포기 벌점의 표식 키 — 방마다 한 번뿐이라 방 ID로 고정한다. */
     fun quitOccurrenceKey(roomID: String) = "groupquit|$roomID"
 
-    /** 발생 키를 문서 ID로 — iOS와 바이트 단위 동일해야 두 플랫폼이 같은 도장을 찍는다.
-     *  iOS: deterministicUUID("groupscore|{key}").uuidString.lowercased() = MD5 hex 소문자 8-4-4-4-12 */
-    private fun markId(occurrenceKey: String): String {
+    /** MD5 → UUID 형식 소문자 (iOS deterministicUUID와 바이트 단위 동일) */
+    private fun md5Uuid(key: String): String {
         val hex = java.security.MessageDigest.getInstance("MD5")
-            .digest("groupscore|$occurrenceKey".toByteArray())
+            .digest(key.toByteArray())
             .joinToString("") { "%02x".format(it) }
         return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}" +
             "-${hex.substring(16, 20)}-${hex.substring(20, 32)}"
     }
+
+    /** 발생 키를 문서 ID로 — iOS와 바이트 단위 동일해야 두 플랫폼이 같은 도장을 찍는다. */
+    private fun markId(occurrenceKey: String): String = md5Uuid("groupscore|$occurrenceKey")
+
+    /** 그룹 예약 결정적 ID — iOS stableReservationID와 동일 해시.
+     *  그룹 예약은 클라우드에 미러되지 않아 기기마다 새로 만들어지는데, ID가 무작위면
+     *  ① 클라우드 세션 기록이 예약에 연결되지 않아 재설치·기기 추가 시 완주한 날까지
+     *  소급 노쇼로 재집계되고 ② 발생 키(예약ID 기반)가 플랫폼마다 갈려 점수 도장이
+     *  이중으로 찍힌다 — 멱등 원장이 크로스 플랫폼에서 무효가 된다. */
+    fun stableReservationId(roomID: String, owner: String): String =
+        md5Uuid("groupres|${roomID.lowercase()}|${owner.lowercase()}")
 
     private val scoreScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
@@ -635,20 +645,20 @@ object GroupStore {
         AlarmScheduler.rescheduleAll(context)
     }
 
-    /** 시작 후 중도 포기 — 벌점 -50 (그룹 점수 + 개인 누적), 남은 그룹 일정 삭제 */
+    /** 시작 후 중도 포기 — 벌점 -50 (그룹 점수 + 개인 누적), 남은 그룹 일정 삭제.
+     *  서버 쓰기 실패는 삼키지 않고 던진다 — 삼키면 서버엔 포기가 없는데 로컬만
+     *  벌점·예약 삭제가 남아, 다음 새로고침에 방이 되살아나고 재시도마다 개인
+     *  벌점이 중복으로 쌓인다 (iOS와 동일한 실패 전파). */
     suspend fun quitAfterStart(context: Context, room: GroupRoom) {
-        if (!signedInMember) return
+        if (!signedInMember) throw GroupException("네트워크 연결이 필요해요. 잠시 후 다시 시도해주세요.")
         val memberRef = db().collection("groups").document(room.id)
             .collection("members").document(uid)
-        // 벌점을 먼저 넣고 포기 표시를 나중에 한다. 둘로 나뉜 쓰기라 중간에 끊길 수 있는데,
-        // 순서가 반대면 '포기했는데 벌점은 없는' 상태로 남는다. 둘 다 표식/플래그라
-        // 재시도가 나머지를 채운다. 벌점은 반드시 표식(도장)을 거친다 — 건너뛰면
-        // repairMyScore가 이 -50을 지워버린다.
-        runCatching {
-            applyScore(room.id, ScoreRules.GROUP_QUIT_PENALTY,
-                quitOccurrenceKey(room.id), SCORE_RANK_NORMAL)
-        }
-        runCatching { memberRef.update("quit", true).await() }
+        // 벌점을 먼저 넣고 포기 표시를 나중에 한다. 순서가 반대면 중간에 끊겼을 때
+        // '포기했는데 벌점은 없는' 상태로 남는다. 둘 다 표식/플래그라 재시도가 채운다.
+        // 벌점은 반드시 표식(도장)을 거친다 — 건너뛰면 repairMyScore가 -50을 지운다.
+        applyScore(room.id, ScoreRules.GROUP_QUIT_PENALTY,
+            quitOccurrenceKey(room.id), SCORE_RANK_NORMAL)
+        memberRef.update("quit", true).await()
         // 개인 누적에도 동일 벌점 기록
         val event = ScoreEvent(
             ownerUserID = uid, typeRaw = ScoreEventType.GROUP_QUIT.raw,
@@ -703,7 +713,13 @@ object GroupStore {
     private suspend fun ensureLocalReservation(context: Context, room: GroupRoom) {
         val dao = AppDb.get(context).reservations()
         val owner = AccountStore.currentUserID
-        if (dao.byGroup(owner, room.id).any { it.isActive }) return
+        val stableId = stableReservationId(room.id, owner)
+        val existing = dao.byGroup(owner, room.id).firstOrNull { it.isActive }
+        if (existing != null) {
+            // 과거 버전이 무작위 ID로 만든 예약 — 결정적 ID로 옮기고 딸린 세션도 갱신
+            if (existing.id != stableId) migrateReservationId(context, existing, stableId)
+            return
+        }
         // 일회성 그룹(요일 없음)은 방 시작일 하루만 발생 → oneOffDayStart 지정
         val oneOff = if (room.repeatWeekdays.isEmpty()) {
             java.util.Calendar.getInstance().apply {
@@ -713,6 +729,7 @@ object GroupStore {
             }.timeInMillis
         } else null
         dao.upsert(Reservation(
+            id = stableId,
             ownerUserID = owner, name = room.name, tag = "그룹",
             startMinute = room.startMinute, durationMinutes = room.durationMinutes,
             repeatWeekdaysCsv = room.repeatWeekdays.joinToString(","),
@@ -721,6 +738,21 @@ object GroupStore {
             groupId = room.id, endAt = room.endDate,
             intensityOverrideRaw = room.intensityRaw,
         ))
+    }
+
+    /** 무작위 ID 그룹 예약을 결정적 ID로 이관 — 세션의 reservationID와 클라우드 요약까지
+     *  함께 갱신해야 발생 키가 하나로 모인다. */
+    private suspend fun migrateReservationId(context: Context, old: Reservation, stableId: String) {
+        val db = AppDb.get(context)
+        for (sess in db.sessions().all(old.ownerUserID)) {
+            if (sess.reservationID != old.id) continue
+            val moved = sess.copy(reservationID = stableId)
+            db.sessions().upsert(moved)
+            AccountStore.mirrorSession(moved)
+        }
+        AlarmScheduler.cancel(context, old.id)
+        db.reservations().delete(old)
+        db.reservations().upsert(old.copy(id = stableId))
     }
 
     /** purgeNoShows: 방이 무산(취소·해체)됐을 때 — 그 예약에 찍힌 노쇼 세션·벌점을 함께 되돌린다 */

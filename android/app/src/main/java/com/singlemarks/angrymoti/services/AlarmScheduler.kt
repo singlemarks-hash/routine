@@ -206,6 +206,7 @@ object AlarmScheduler {
     }
 
     fun cancelAlarmNotification(context: Context) {
+        stopAlarmVibration(context)
         context.getSystemService(NotificationManager::class.java).cancel(1001)
     }
 
@@ -229,6 +230,11 @@ object AlarmScheduler {
     fun startAlarmVibration(context: Context) {
         if (vibrating) return
         vibrating = true
+        // 사용자가 알림을 무시하면 정지 경로(앱 진입)에 영영 도달하지 않는다 —
+        // 시작 창(10분)이 끝나면 스스로 멈춘다. 창이 끝나면 노쇼라 더 울릴 이유도 없다.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+            { stopAlarmVibration(context.applicationContext) },
+            com.singlemarks.angrymoti.models.TimePolicy.START_WINDOW_SECONDS * 1000)
         runCatching {
             val vib = if (Build.VERSION.SDK_INT >= 31) {
                 context.getSystemService(android.os.VibratorManager::class.java).defaultVibrator
