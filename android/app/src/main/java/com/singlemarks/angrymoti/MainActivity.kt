@@ -4,6 +4,10 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,7 +26,9 @@ import com.singlemarks.angrymoti.ui.MountGuideScreen
 import com.singlemarks.angrymoti.ui.OnboardingFlow
 import com.singlemarks.angrymoti.ui.SessionResultScreen
 import com.singlemarks.angrymoti.ui.SessionScreen
+import androidx.compose.ui.Modifier
 import com.singlemarks.angrymoti.ui.theme.AngryMotiTheme
+import com.singlemarks.angrymoti.ui.theme.TL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.lifecycle.lifecycleScope
@@ -224,7 +230,13 @@ private fun Root() {
             is Route.MountGuide -> MountGuideScreen(r.pending)
             Route.Session -> SessionScreen()
             Route.Result -> SessionResultScreen()
-            Route.None -> HomeShell()
+            // 홈 셸(홈·일정·그룹 + 기록·마이페이지·예약 편집)은 상태바 아래부터 그린다 —
+            // edge-to-edge 기본값(targetSdk 35) 그대로 두면 상단 배지가 상태바와 겹친다.
+            // 배경은 인셋 밖까지 채워 상태바 뒤도 잉크색으로 이어지게 한다 (iOS 세이프 에어리어 1:1).
+            // (알람·거치·촬영·결과 화면은 의도된 전체 화면이라 그대로 둔다)
+            Route.None -> Box(
+                Modifier.fillMaxSize().background(TL.ink).statusBarsPadding()
+            ) { HomeShell() }
         }
     }
 }
