@@ -258,9 +258,13 @@ struct HomeView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 26, height: 26)
-                    (Text(totalSuccessHoursLabel).foregroundStyle(TL.jade)
-                     + Text("시간").foregroundStyle(TL.muted))
-                        .font(.tlTimer(21))
+                    // 숫자는 연속달성 일수(30pt)보다 낮은 위계로 — 홈의 주인공은 스트릭이다
+                    (Text(totalSuccessHoursLabel)
+                        .font(.tlTimer(17))
+                        .foregroundStyle(TL.jade)
+                     + Text("시간")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TL.muted))
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 9)
@@ -455,9 +459,13 @@ struct HomeView: View {
         // 12시간 이내로 들어온 미완료 활동만 남은 시간 타이머(앰버) 표시
         let remaining = fire.map { Int($0.timeIntervalSince(now)) } ?? -1
         let showsTimer = done == nil && remaining > 0 && remaining <= 12 * 3600
-        // 완료 결과 점 — 일정 탭의 불빛과 같은 규칙 (성공 초록 / 실패 빨강 / 중립 앰버)
-        let doneTint: Color? = done.map {
-            $0.isSuccess ? TL.jade : ($0.isFailure ? TL.rec : TL.amber)
+        // 완료 결과 점 — 일정 탭의 불빛과 완전히 같은 규칙:
+        // 성공 초록 / 안전 종료(기기 사정)는 무표시 / 그 외(노쇼·이탈·긴급 종료)는 빨강.
+        // 긴급용무 이탈을 노랑(중립)으로 두면 일정 탭의 빨간불과 어긋나 보인다.
+        let doneTint: Color? = done.flatMap { outcome -> Color? in
+            if outcome.isSuccess { return TL.jade }
+            if outcome == .safetyEnded { return nil }
+            return TL.rec
         }
 
         return Button {
