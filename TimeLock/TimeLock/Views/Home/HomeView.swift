@@ -104,6 +104,7 @@ struct HomeView: View {
     @Binding var path: NavigationPath
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var subscription: SubscriptionManager
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Reservation> { $0.isActive }, sort: \Reservation.startMinute)
     private var allActiveReservations: [Reservation]
@@ -280,11 +281,16 @@ struct HomeView: View {
 
             // (캘린더 버튼은 제거 — 시간 배지와 연속달성 카드가 이미 기록탭 진입로다)
 
-            // 마이페이지
+            // 마이페이지 — 멤버십이면 아바타 자체가 골드 그라디언트 (비구독은 기존 회색)
             NavigationLink(value: HomeRoute.myPage) {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 45))
-                    .foregroundStyle(TL.muted)
+                    .foregroundStyle(
+                        subscription.isPro
+                        ? AnyShapeStyle(LinearGradient(
+                            colors: [Color(hex: 0xFFDF8E), TL.amber, Color(hex: 0xCE7F12)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing))
+                        : AnyShapeStyle(TL.muted))
             }
             .pressableStyle()
         }

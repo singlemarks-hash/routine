@@ -35,8 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -157,12 +159,26 @@ fun HomeShell() {
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                // 마이페이지 — 배경·테두리 없는 사람 원 아이콘 (iOS person.crop.circle.fill 1:1)
+                // 마이페이지 — 배경·테두리 없는 사람 원 아이콘 (iOS person.crop.circle.fill 1:1).
+                // 멤버십이면 아바타 자체가 골드 그라디언트 (iOS 1:1).
+                val isPro by com.singlemarks.angrymoti.services.SubscriptionManager.isPro.collectAsState()
+                val goldBrush = androidx.compose.ui.graphics.Brush.linearGradient(
+                    listOf(Color(0xFFFFDF8E), TL.amber, Color(0xFFCE7F12)))
                 androidx.compose.material3.Icon(
                     AppIcon.UserCircle,
-                    contentDescription = "마이페이지", tint = TL.muted,
+                    contentDescription = "마이페이지",
+                    tint = if (isPro) Color.White else TL.muted,
                     modifier = Modifier.size(45.dp).clip(CircleShape)
-                        .clickable { nav = HomeNav.MyPage })
+                        .clickable { nav = HomeNav.MyPage }
+                        .then(if (isPro) Modifier
+                            .graphicsLayer { alpha = 0.99f }   // 오프스크린 강제 — SrcAtop이 아이콘에만 먹게
+                            .drawWithCache {
+                                onDrawWithContent {
+                                    drawContent()
+                                    drawRect(goldBrush,
+                                        blendMode = androidx.compose.ui.graphics.BlendMode.SrcAtop)
+                                }
+                            } else Modifier))
             }
         }
 
