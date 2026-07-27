@@ -11,7 +11,7 @@ import Foundation
 
 enum DayOutcomeIcon: String {
     case success        // 판정 대상 기록이 전부 성공
-    case half           // 성공·실패 혼재 (과거 날짜에만)
+    case half           // 성공·실패 혼재
     case fail           // 전부 실패 (노쇼·이탈)
     case notStarted     // 아직 시작 안 함(오늘) / 아직 오지 않은 날(미래)
 
