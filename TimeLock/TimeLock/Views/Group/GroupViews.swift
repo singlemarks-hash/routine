@@ -1121,7 +1121,7 @@ struct GroupRoomDetailView: View {
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("• 시작 10분 전까지만 참여할 수 있어요.")
-                    Text("• 초대는 방장만 가능해요.")
+                    Text("• 초대코드는 방장만 볼 수 있어요")
                 }
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(TL.amber)
