@@ -325,14 +325,10 @@ struct GroupCreateView: View {
                     showSlotPolicy = true
                 }
                 field("방 이름 (참여자 전원의 활동명이 됩니다)") {
+                    // 길이 제한 없음 — 방 이름으로 챌린지 규칙을 설명하는 경우가 있어
+                    // (예: "매일 아침 6시, 늦으면 벌금") 개인 활동명 한도를 적용하지 않는다.
                     TextField("예: 영어공부 매일 30분 도전!", text: $name)
                         .groupFieldStyle()
-                        // 이 이름이 곧 참여자 전원의 활동명이라 개인 예약과 같은 한도를 쓴다.
-                        .onChange(of: name) { _, new in
-                            if new.count > ActivityTag.nameMaxLength {
-                                name = String(new.prefix(ActivityTag.nameMaxLength))
-                            }
-                        }
                 }
                 field("내 닉네임 (이 방에서만 사용 · 최대 \(GroupPolicy.nicknameMaxLength)자)") {
                     TextField("예: 열공대장", text: $nickname)
