@@ -334,6 +334,11 @@ struct WeeklyScheduleView: View {
         }
     }
 
+    /// 미친 매운맛만 표시 — 매운맛(기본값)은 무표기라 목록이 조용하다.
+    private func intensityEmoji(_ reservation: Reservation) -> String? {
+        (reservation.intensityOverride ?? app.intensity) == .insane ? "🔥" : nil
+    }
+
     private func laterRow(_ item: DayItem) -> some View {
         let cal = Calendar.current
         let month = cal.component(.month, from: item.fire)
@@ -357,6 +362,9 @@ struct WeeklyScheduleView: View {
                         if item.reservation.isGroupReservation {
                             Image(systemName: "person.3.fill")
                                 .font(.system(size: 10)).foregroundStyle(TL.amber)
+                        }
+                        if let emoji = intensityEmoji(item.reservation) {
+                            Text(emoji).font(.system(size: 12))
                         }
                         Text(item.reservation.name)
                             .font(.system(size: 14, weight: .semibold))
@@ -397,6 +405,9 @@ struct WeeklyScheduleView: View {
                                 Image(systemName: "person.3.fill")
                                     .font(.system(size: 10))
                                     .foregroundStyle(TL.amber)
+                            }
+                            if let emoji = intensityEmoji(reservation) {
+                                Text(emoji).font(.system(size: 12))
                             }
                             Text(reservation.name)
                                 .font(.system(size: 14, weight: .semibold))
