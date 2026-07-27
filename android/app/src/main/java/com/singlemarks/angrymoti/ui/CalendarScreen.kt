@@ -575,8 +575,9 @@ private fun ReportRow(
     val context = LocalContext.current
     val outcome = s.outcome
     val pts = outcome?.let { ScoreRules.points(it, s.intensity, s.targetSeconds / 60)?.second }
-    // 상세 행의 성취 원은 3색 — 성공 초록 / 벌점 실패 빨강 / 그 외(긴급·안전) 앰버 (iOS 1:1).
-    // 캘린더·홈의 2색 정책과 달리, 성적표에서는 '벌점이 없는 실패'를 구분해 보여준다.
+    // 상세 행의 성취 원은 3색 — 성공 초록 / 실패(이탈·노쇼·긴급) 빨강 / 안전 종료만 앰버 (iOS 1:1).
+    // 앰버(중립)는 기기 사정으로 무효 처리된 안전 종료에만 쓴다 — 긴급 종료는 사용자가
+    // 스스로 그만둔 실패라 빨강이다.
     val circleColor = when {
         outcome?.isSuccess == true -> TL.jade
         outcome?.isFailure == true -> TL.rec

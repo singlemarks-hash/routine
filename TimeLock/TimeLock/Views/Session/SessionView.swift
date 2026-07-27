@@ -508,7 +508,7 @@ struct SessionResultView: View {
                     withAnimation(TLMotion.bouncy) { successPop = true }
                     withAnimation(.easeOut(duration: 0.9).delay(0.1)) { successRipple = true }
                 }
-            } else if outcome.isFailure || outcome == .emergency {
+            } else if outcome.isFailure {
                 Image("MotiAngry")
                     .resizable().scaledToFit()
                     .frame(width: 84, height: 84)

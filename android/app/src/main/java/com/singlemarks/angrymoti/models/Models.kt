@@ -56,7 +56,9 @@ enum class SessionOutcome(val raw: String) {
         EMERGENCY -> "긴급 종료"; SAFETY_ENDED -> "안전 종료"
     }
     val isSuccess get() = this == COMPLETED
-    val isFailure get() = this == EXIT_FAILED || this == NO_SHOW
+    /** 캘린더 색 판정에서 '실패'(빨강)로 치는가. 긴급 종료도 사용자가 스스로 그만둔
+     * 실패라 빨강이다 — 노랑(중립)은 기기 사정으로 무효 처리된 안전 종료뿐이다. (iOS 1:1) */
+    val isFailure get() = this == EXIT_FAILED || this == NO_SHOW || this == EMERGENCY
 
     companion object {
         fun from(raw: String?) = entries.firstOrNull { it.raw == raw }

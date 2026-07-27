@@ -465,8 +465,9 @@ enum SessionOutcome: String, Codable {
         }
     }
     var isSuccess: Bool { self == .completed }
-    /// 캘린더 색 판정에서 '실패'로 치는가 (안전 종료는 중립)
-    var isFailure: Bool { self == .exitFailed || self == .noShow }
+    /// 캘린더 색 판정에서 '실패'(빨강)로 치는가. 긴급 종료도 사용자가 스스로 그만둔
+    /// 실패라 빨강이다 — 노랑(중립)은 기기 사정으로 무효 처리된 안전 종료뿐이다.
+    var isFailure: Bool { self == .exitFailed || self == .noShow || self == .emergency }
 }
 
 @Model
