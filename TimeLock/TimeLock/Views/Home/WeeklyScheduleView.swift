@@ -371,10 +371,11 @@ struct WeeklyScheduleView: View {
                                 .layoutPriority(1)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     Text("\(timeLabel(item.reservation.startMinute)) · \(TLFormat.durationLabel(item.reservation.durationMinutes)) · \(item.reservation.repeatLabel())")
                         .font(.system(size: 11)).foregroundStyle(TL.muted)
                 }
-                Spacer()
+                Spacer(minLength: 0)
                 Text("D-\(dday)")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .foregroundStyle(TL.ink)
@@ -416,10 +417,11 @@ struct WeeklyScheduleView: View {
                                     .layoutPriority(1)
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         Text("\(TLFormat.durationLabel(reservation.durationMinutes)) · \(reservation.repeatLabel())")
                             .font(.system(size: 11)).foregroundStyle(TL.muted)
                     }
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
                 .opacity(state.isPast ? 0.42 : 1)
 
