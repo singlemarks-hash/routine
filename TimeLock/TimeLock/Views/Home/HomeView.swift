@@ -281,16 +281,12 @@ struct HomeView: View {
 
             // (캘린더 버튼은 제거 — 시간 배지와 연속달성 카드가 이미 기록탭 진입로다)
 
-            // 마이페이지 — 멤버십이면 아바타 자체가 골드 그라디언트 (비구독은 기존 회색)
+            // 마이페이지 — 전용 에셋. 멤버십은 별 배지 붙은 profile_member (비구독은 profile)
             NavigationLink(value: HomeRoute.myPage) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 45))
-                    .foregroundStyle(
-                        subscription.isPro
-                        ? AnyShapeStyle(LinearGradient(
-                            colors: [Color(hex: 0xFFDF8E), TL.amber, Color(hex: 0xCE7F12)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing))
-                        : AnyShapeStyle(TL.muted))
+                Image(subscription.isPro ? "profile_member" : "profile")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 45)
             }
             .pressableStyle()
         }

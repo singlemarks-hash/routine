@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -35,10 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -159,26 +158,17 @@ fun HomeShell() {
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                // 마이페이지 — 배경·테두리 없는 사람 원 아이콘 (iOS person.crop.circle.fill 1:1).
-                // 멤버십이면 아바타 자체가 골드 그라디언트 (iOS 1:1).
+                // 마이페이지 — 전용 에셋. 멤버십은 별 배지 붙은 profile_member (iOS 1:1).
+                // 멤버 에셋은 배지 폭만큼 가로가 넓다(31:20 vs 21:20) — 높이만 고정하고
+                // 원본 비율대로 그린다.
                 val isPro by com.singlemarks.angrymoti.services.SubscriptionManager.isPro.collectAsState()
-                val goldBrush = androidx.compose.ui.graphics.Brush.linearGradient(
-                    listOf(Color(0xFFFFDF8E), TL.amber, Color(0xFFCE7F12)))
-                androidx.compose.material3.Icon(
-                    AppIcon.UserCircle,
+                Image(
+                    painterResource(if (isPro) R.drawable.profile_member else R.drawable.profile),
                     contentDescription = "마이페이지",
-                    tint = if (isPro) Color.White else TL.muted,
-                    modifier = Modifier.size(45.dp).clip(CircleShape)
-                        .clickable { nav = HomeNav.MyPage }
-                        .then(if (isPro) Modifier
-                            .graphicsLayer { alpha = 0.99f }   // 오프스크린 강제 — SrcAtop이 아이콘에만 먹게
-                            .drawWithCache {
-                                onDrawWithContent {
-                                    drawContent()
-                                    drawRect(goldBrush,
-                                        blendMode = androidx.compose.ui.graphics.BlendMode.SrcAtop)
-                                }
-                            } else Modifier))
+                    modifier = Modifier.height(45.dp)
+                        .width(if (isPro) 70.dp else 47.dp)   // 45 × (31/20), 45 × (21/20)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { nav = HomeNav.MyPage })
             }
         }
 

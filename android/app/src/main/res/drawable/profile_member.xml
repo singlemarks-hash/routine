@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 홈 프로필 아이콘 (멤버십) — 골드 링 + 초록 별 배지. iOS 'profile_member' 1:1 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="31dp" android:height="20dp"
+    android:viewportWidth="31" android:viewportHeight="20">
+    <path android:strokeWidth="1.5" android:strokeAlpha="0.85"
+        android:pathData="M20.7393 0.75C25.9375 0.75 30.1298 4.88787 30.1299 9.96484C30.1299 15.0419 25.9376 19.1797 20.7393 19.1797C15.5411 19.1795 11.3496 15.0418 11.3496 9.96484C11.3497 4.88798 15.5412 0.750187 20.7393 0.75Z">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear"
+                android:startX="10.5996" android:startY="14.2917"
+                android:endX="30.8796" android:endY="5.63827">
+                <item android:offset="0" android:color="#FFFAD621"/>
+                <item android:offset="0.2019" android:color="#F1FFFFFF"/>
+                <item android:offset="0.4952" android:color="#D9FFD500"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#D9FFFFFF"
+        android:pathData="M30.8796 9.96499C30.8796 15.4555 26.3365 19.93 20.7396 19.93C15.1527 19.93 10.5996 15.4555 10.5996 9.96499C10.5996 4.4647 15.1527 0 20.7396 0C26.3365 0 30.8796 4.4647 30.8796 9.96499ZM14.6258 15.9342C16.1468 17.5266 18.4531 18.445 20.7297 18.445C23.0162 18.445 25.3125 17.5266 26.8434 15.9342C25.7599 14.2538 23.4038 13.2964 20.7297 13.2964C18.0356 13.2964 15.6994 14.2734 14.6258 15.9342ZM17.3198 7.95245C17.3198 10.0529 18.8209 11.616 20.7297 11.6356C22.6483 11.6551 24.1395 10.0529 24.1395 7.95245C24.1395 5.97899 22.6384 4.3377 20.7297 4.3377C18.8309 4.3377 17.3099 5.97899 17.3198 7.95245Z"/>
+    <path android:strokeColor="#FFC4C4C4" android:strokeWidth="1.5"
+        android:pathData="M20.531 0.752491C25.7279 0.634962 30.0127 4.67699 30.1275 9.75266C30.2423 14.8284 26.1446 19.0599 20.9476 19.1775C15.7508 19.2948 11.4668 15.2529 11.3521 10.1773C11.2374 5.10171 15.3342 0.870203 20.531 0.752491Z"/>
+    <path android:fillColor="#FF00DC9C"
+        android:pathData="M 7,5 a 4,4 0 1,1 8,0 a 4,4 0 1,1 -8,0 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M16 5C16 7.75488 13.7598 10 11 10C8.2451 10 6 7.75488 6 5C6 2.24019 8.2451 0 11 0C13.7598 0 16 2.24019 16 5ZM10.701 2.21078L10.152 3.93137L8.35294 3.91666C7.98039 3.91176 7.88725 4.30392 8.16176 4.5049L9.62745 5.54902L9.05882 7.2598C8.94118 7.60781 9.2549 7.83821 9.54901 7.61273L11 6.55389L12.451 7.61273C12.75 7.83821 13.0588 7.60781 12.9461 7.2598L12.3725 5.54902L13.8382 4.49999C14.1078 4.30882 14.0245 3.91176 13.6471 3.91666L11.848 3.93137L11.299 2.21078C11.1912 1.87255 10.8088 1.87255 10.701 2.21078Z"/>
+</vector>
