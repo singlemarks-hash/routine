@@ -34,8 +34,10 @@ enum DayOutcomeIcon: String {
     /// - 성공이 아닌 모든 최종 결과(노쇼·이탈·긴급 종료·안전 종료)는 실패로 본다 —
     ///   일정 탭 표시등과 동일한 2색 정책. 안전 종료(무효)는 벌점화만 안 될 뿐
     ///   완주하지 못한 사실은 같다.
-    /// - 오늘은 하루가 끝나지 않았으므로 낙관 판정: 발생 1개라도 성공으로 끝났으면 일단
-    ///   success, 자정이 지나 과거가 되면 과거 규칙(전부/혼재/전부실패)으로 확정된다.
+    /// - 오늘은 하루가 끝나지 않았으므로 **아직 실패가 없을 때만** 낙관 판정한다:
+    ///   성공만 있으면 success로 두고, 남은 발생이 실패로 끝나면 그때 half로 내려간다.
+    ///   반대로 성공·실패가 이미 하나씩 확정된 날은 낙관할 여지가 없다 — 무엇이 더
+    ///   와도 혼재를 벗어나지 못하는 흡수 상태라, 오늘도 곧바로 half로 확정한다.
     ///   자정을 넘겨 진행한 세션은 anchorDate(발생일 귀속)를 따르므로 — 밤 11시에 시작해
     ///   새벽에 완주해도 시작한 그날의 success로 남는다 (연속달성 정책과 동일).
     static func judge(daySessions: [FocusSession], day: Date,
@@ -51,7 +53,12 @@ enum DayOutcomeIcon: String {
         let hasFailure = finals.contains { !$0.isSuccess }
 
         if target == today {
-            if hasSuccess { return .success }           // 발생 1개라도 성공 — 일단 성공
+            // 혼재는 '흡수 상태'다 — 성공과 실패가 이미 하나씩 확정된 뒤에는 남은 발생이
+            // 무엇으로 끝나든 결과가 혼재를 벗어나지 못한다. 그래서 낙관 판정의 대상이
+            // 아니다. (성공만 있는 날을 success로 두는 것이 낙관 판정의 전부다 — 뒤에
+            // 실패가 붙으면 그때 half로 내려간다.)
+            if hasSuccess && hasFailure { return .half }
+            if hasSuccess { return .success }           // 아직 실패 없음 — 일단 성공
             if hasFailure { return .fail }
             return .notStarted                          // 아직 아무것도 시작 안 함
         }
