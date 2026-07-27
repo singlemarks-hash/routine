@@ -1122,7 +1122,7 @@ struct GroupRoomDetailView: View {
                     InviteCodeCard(code: room.code)   // '활동 시작하기' 버튼 자리에 코드
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("• 시작 10분 전까지만 참여할 수 있어요.")
+                    Text("• 시작 10분 전까지만 참여할 수 있어요")
                     Text("• 초대코드는 방장만 볼 수 있어요")
                 }
                 .font(.system(size: 12, weight: .semibold))
