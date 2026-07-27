@@ -334,6 +334,11 @@ struct WeeklyScheduleView: View {
         }
     }
 
+    /// 미친 매운맛만 표시 — 매운맛(기본값)은 무표기라 목록이 조용하다.
+    private func isInsane(_ reservation: Reservation) -> Bool {
+        (reservation.intensityOverride ?? app.intensity) == .insane
+    }
+
     private func laterRow(_ item: DayItem) -> some View {
         let cal = Calendar.current
         let month = cal.component(.month, from: item.fire)
@@ -354,13 +359,17 @@ struct WeeklyScheduleView: View {
                 .frame(width: 74, alignment: .leading)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        if item.reservation.isGroupReservation {
-                            Image(systemName: "person.3.fill")
-                                .font(.system(size: 10)).foregroundStyle(TL.amber)
-                        }
                         Text(item.reservation.name)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(TL.paper).lineLimit(1)
+                        if isInsane(item.reservation) {
+                            Text("🔥").font(.system(size: 12)).layoutPriority(1)
+                        }
+                        if item.reservation.isGroupReservation {
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 10)).foregroundStyle(TL.amber)
+                                .layoutPriority(1)
+                        }
                     }
                     Text("\(timeLabel(item.reservation.startMinute)) · \(TLFormat.durationLabel(item.reservation.durationMinutes)) · \(item.reservation.repeatLabel())")
                         .font(.system(size: 11)).foregroundStyle(TL.muted)
@@ -393,15 +402,19 @@ struct WeeklyScheduleView: View {
                         .frame(width: 74, alignment: .leading)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
-                            if reservation.isGroupReservation {
-                                Image(systemName: "person.3.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(TL.amber)
-                            }
                             Text(reservation.name)
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(TL.paper)
                                 .lineLimit(1)
+                            if isInsane(reservation) {
+                                Text("🔥").font(.system(size: 12)).layoutPriority(1)
+                            }
+                            if reservation.isGroupReservation {
+                                Image(systemName: "person.3.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(TL.amber)
+                                    .layoutPriority(1)
+                            }
                         }
                         Text("\(TLFormat.durationLabel(reservation.durationMinutes)) · \(reservation.repeatLabel())")
                             .font(.system(size: 11)).foregroundStyle(TL.muted)
