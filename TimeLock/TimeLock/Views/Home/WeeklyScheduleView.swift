@@ -349,7 +349,10 @@ struct WeeklyScheduleView: View {
         return Button {
             open(item.reservation)
         } label: {
-            HStack(spacing: 12) {
+            // spacing 6 — 제목이 잘릴 때 이모지·아이콘과 태그 사이 최소 간격.
+            // 한 글자라도 더 보이는 쪽을 택했다. 시각 칸은 74pt 고정 폭 왼쪽 정렬이라
+            // 이 값이 줄어도 시각↔제목 간격은 체감 변화가 없다.
+            HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(month)월 \(day)일")
                         .font(.system(size: 13, weight: .bold)).foregroundStyle(TL.paper)
@@ -376,7 +379,6 @@ struct WeeklyScheduleView: View {
                         .font(.system(size: 11)).foregroundStyle(TL.muted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.trailing, 4)
                 Text("D-\(dday)")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .foregroundStyle(TL.ink)
@@ -394,7 +396,9 @@ struct WeeklyScheduleView: View {
         Button {
             open(reservation)
         } label: {
-            HStack(spacing: 12) {
+            // spacing 6 — laterRow와 동일. 제목이 잘릴 때 이모지·아이콘과 태그 사이
+            // 최소 간격을 좁혀 제목 글자를 한 자라도 더 보여준다.
+            HStack(spacing: 6) {
                 // 지나간 일정은 통째로 흐리게 — 오늘 남은 일정과 한눈에 구분된다.
                 // 결과 표시등만 원래 밝기를 유지해 성공/실패를 바로 읽을 수 있게 한다.
                 Group {
@@ -423,7 +427,6 @@ struct WeeklyScheduleView: View {
                             .font(.system(size: 11)).foregroundStyle(TL.muted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.trailing, 4)
                 }
                 .opacity(state.isPast ? 0.42 : 1)
 
