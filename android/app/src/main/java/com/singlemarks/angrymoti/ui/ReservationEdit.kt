@@ -619,10 +619,26 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         .clickable(enabled = !isLocked) {
                             scope.launch(Dispatchers.IO) {
                                 AlarmScheduler.cancel(context, r.id)
-                                // 소프트 삭제 — 하드 삭제하면 클라우드 사본이 다음 동기화에서
-                                // 예약을 되살린다. iOS와 동일하게 비활성화로 처리하고 전파.
-                                val deleted = r.copy(isActive = false,
-                                    updatedAt = System.currentTimeMillis())
+                                // 오늘 발생이 이미 '진행된' 예약은 통째로 지우지 않고 오늘로
+                                // 은퇴시킨다(endAt = 오늘). 진행됨 = 오늘 기록 확정 또는 시작 창
+                                // 마감(노쇼 확정 예정). 통째로 지우면 기록탭엔 벌점이 있는데
+                                // 일정 탭 오늘 칸이 텅 비어 모순돼 보인다. 은퇴하면 시작 안 한
+                                // 미래분만 소멸하고 오늘 행은 자정까지 남으며, isActive가 유지돼
+                                // 노쇼 스위퍼도 계속 집계한다 (iOS 1:1).
+                                val today = todayStart()
+                                val fire = r.occurrenceOn(today)
+                                val progressedToday = fire != null && (
+                                    fire + TimePolicy.START_WINDOW_SECONDS * 1000 < System.currentTimeMillis() ||
+                                    db.sessions().all(r.ownerUserID).any { s ->
+                                        s.reservationID == r.id && s.outcome != null &&
+                                            (s.scheduledAt ?: 0L) in today until (today + 86_400_000L)
+                                    })
+                                // 소프트 처리 — 하드 삭제하면 클라우드 사본이 다음 동기화에서
+                                // 예약을 되살린다. iOS와 동일하게 비활성/은퇴로 처리하고 전파.
+                                val deleted = if (progressedToday)
+                                    r.copy(endAt = today, updatedAt = System.currentTimeMillis())
+                                else
+                                    r.copy(isActive = false, updatedAt = System.currentTimeMillis())
                                 db.reservations().upsert(deleted)
                                 AccountStore.mirrorReservation(deleted)
                                 withContext(Dispatchers.Main) { onDone() }

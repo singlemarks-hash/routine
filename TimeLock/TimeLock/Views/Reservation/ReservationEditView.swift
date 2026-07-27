@@ -723,9 +723,39 @@ struct ReservationEditView: View {
 
     private func delete() {
         guard let r = reservation, !isLocked else { return }
-        r.isActive = false
+
+        // 오늘 발생이 이미 '진행된' 예약은 통째로 지우지 않고 오늘로 은퇴시킨다.
+        // 진행됨 = 오늘 기록이 확정됐거나(완주·실패·긴급 등) 시작 창이 이미 닫힘(노쇼 확정 예정).
+        // 통째로 지우면 기록탭에는 오늘 벌점이 박혀 있는데 일정 탭 오늘 칸은 텅 비어
+        // "오늘 아무것도 안 했는데 왜 실패지?"가 된다. endDate = 오늘로 두면 내일부터
+        // 발생이 없고(시작 안 한 미래분은 전부 소멸), 오늘 행은 자정까지 남으며,
+        // 만료 예약 정리가 날이 바뀌면 알아서 치운다. 슬롯은 hasRemainingOccurrence가
+        // 남은 발생 없음으로 판정해 즉시 반납된다. 은퇴는 isActive를 유지하므로
+        // 노쇼 스위퍼가 미기록 노쇼를 계속 집계할 수 있다(삭제로 벌점을 피하는 구멍 차단).
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        let progressedToday: Bool = {
+            guard let fire = r.occurrence(on: today) else { return false }
+            if fire.addingTimeInterval(TimePolicy.startWindowSeconds) < .now { return true }
+            // 술어는 검증된 형태만 — 옵셔널 값 비교 술어는 실기기에서만 조용히 실패한
+            // 전례가 있다(WeeklyScheduleView 참고). 나머지 조건은 메모리에서 거른다.
+            let descriptor = FetchDescriptor<FocusSession>(
+                predicate: #Predicate { $0.scheduledAt != nil })
+            let sessions = (try? context.fetch(descriptor)) ?? []
+            return sessions.contains { s in
+                guard s.reservationID == r.id, s.outcome != nil,
+                      let scheduled = s.scheduledAt else { return false }
+                return cal.isDate(scheduled, inSameDayAs: today)
+            }
+        }()
+
+        if progressedToday {
+            r.endDate = today
+        } else {
+            r.isActive = false      // 시작 전 — 흔적 없이 소멸
+        }
         r.updatedAt = .now
-        AccountStore.shared.mirrorReservation(r)   // 삭제도 다른 기기에 전파
+        AccountStore.shared.mirrorReservation(r)   // 삭제·은퇴 모두 다른 기기에 전파
         try? context.save()
         rescheduleAlarms()
         dismiss()
