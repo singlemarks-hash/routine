@@ -376,7 +376,7 @@ struct WeeklyScheduleView: View {
                         .font(.system(size: 11)).foregroundStyle(TL.muted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.trailing, 4)
+                .padding(.trailing, 2)
                 Text("D-\(dday)")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .foregroundStyle(TL.ink)
@@ -423,7 +423,7 @@ struct WeeklyScheduleView: View {
                             .font(.system(size: 11)).foregroundStyle(TL.muted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.trailing, 4)
+                    .padding(.trailing, 2)
                 }
                 .opacity(state.isPast ? 0.42 : 1)
 
