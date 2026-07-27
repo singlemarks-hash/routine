@@ -1044,7 +1044,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                         Text("• 시작 10분 전까지만 참여할 수 있어요.",
                             color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(2.dp))
-                        Text("• 초대는 방장만 가능해요.",
+                        Text("• 초대코드는 방장만 볼 수 있어요",
                             color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(16.dp))

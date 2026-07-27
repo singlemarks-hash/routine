@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.singlemarks.angrymoti.data.AppDb
@@ -380,7 +381,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             // ── 활동명 (필수) — 큰 서피스 입력 필드 (iOS 1:1)
             Column {
                 TLEyebrow("활동명 (필수)")
-                TLField(name, { name = it }, "예: 기출문제 3회분", enabled = !fieldLocked)
+                TLField(name, { name = it.take(ActivityTag.NAME_MAX_LENGTH) },
+                    "예: 기출문제 3회분", enabled = !fieldLocked)
             }
 
             // ── 태그 — 프리셋 칩 + '직접 입력' 필드 (iOS 1:1)
@@ -395,7 +397,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                TLField(customTag, { customTag = it }, "직접 입력", enabled = !fieldLocked)
+                TLField(customTag, { customTag = ActivityTag.truncatedToTagWidth(it) },
+                    "직접 입력", enabled = !fieldLocked)
             }
 
             // ── 강도 — 활동별 설정 (그룹 방 만들기와 동일, 혼자 하는 활동이라 '참여자 전원' 문구 제거)
@@ -1043,9 +1046,23 @@ fun WeeklyScheduleTab(
                                 Text("${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일",
                                     color = TL.paper, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.width(78.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(r.name, color = TL.paper, fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Column(Modifier.weight(1f).padding(end = 6.dp)) {
+                                    // 순서: 제목 → 🔥(미친맛) → 그룹 아이콘 (iOS laterRow 1:1)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(r.name, color = TL.paper, fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false))
+                                        if (isInsane(r)) {
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("🔥", fontSize = 12.sp)
+                                        }
+                                        if (r.groupId != null) {
+                                            Spacer(Modifier.width(4.dp))
+                                            androidx.compose.material3.Icon(AppIcon.Users, null,
+                                                tint = TL.amber, modifier = Modifier.size(13.dp))
+                                        }
+                                    }
                                     Text("${TLFormat.timeLabel(r.startMinute)} · ${TLFormat.durationLabel(r.durationMinutes)}",
                                         color = TL.muted, fontSize = 11.sp)
                                 }
@@ -1053,6 +1070,8 @@ fun WeeklyScheduleTab(
                                     fontWeight = FontWeight.Black,
                                     modifier = Modifier.background(TL.amber, CircleShape)
                                         .padding(horizontal = 8.dp, vertical = 3.dp))
+                                Spacer(Modifier.width(6.dp))
+                                TagBadge(r.tag)
                             }
                             if (index != laterItems.lastIndex) {
                                 androidx.compose.material3.HorizontalDivider(
@@ -1103,18 +1122,27 @@ private fun ScheduleRow(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 11.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f).graphicsLayer { alpha = contentAlpha }) {
+            // 태그와의 최소 간격 6dp — 제목이 잘릴 때 한 글자라도 더 보이는 쪽을 택했다 (iOS 1:1)
+            modifier = Modifier.weight(1f).padding(end = 6.dp)
+                .graphicsLayer { alpha = contentAlpha }) {
             Text(TLFormat.timeLabel(r.startMinute), color = TL.paper, fontSize = 14.sp,
                 fontWeight = FontWeight.Black, modifier = Modifier.width(78.dp))
             Column(Modifier.weight(1f)) {
+                // 순서: 제목 → 🔥(미친맛) → 그룹 아이콘 (iOS 1:1). 제목이 길면 제목만
+                // 말줄임되고 아이콘은 밀려나지 않는다 (weight fill=false).
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(r.name, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false))
+                    if (isInsane(r)) {
+                        Spacer(Modifier.width(4.dp))
+                        Text("🔥", fontSize = 12.sp)
+                    }
                     if (r.groupId != null) {
+                        Spacer(Modifier.width(4.dp))
                         androidx.compose.material3.Icon(AppIcon.Users, null,
                             tint = TL.amber, modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.width(4.dp))
                     }
-                    Text(r.name, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1)
                 }
                 Text("${TLFormat.durationLabel(r.durationMinutes)} · $meta",
                     color = TL.muted, fontSize = 11.sp)
@@ -1128,11 +1156,11 @@ private fun ScheduleRow(
             }
             Spacer(Modifier.width(6.dp))
         }
-        // 태그 칩
-        Text(r.tag, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.graphicsLayer { alpha = if (dimmed) 0.55f else 1f }
-                .background(TL.surface, CircleShape)
-                .border(1.dp, TL.hairline, CircleShape)
-                .padding(horizontal = 12.dp, vertical = 6.dp))
+        // 태그 칩 — 태그별 고유 색 (iOS TagChip 비선택 규칙과 동일)
+        TagBadge(r.tag, alpha = if (dimmed) 0.55f else 1f)
     }
 }
+
+/** 미친 매운맛만 표시 — 매운맛(기본값)은 무표기라 목록이 조용하다 (iOS isInsane 1:1). */
+private fun isInsane(r: Reservation): Boolean =
+    (r.intensityOverride ?: com.singlemarks.angrymoti.AppState.intensity.value) == Intensity.INSANE

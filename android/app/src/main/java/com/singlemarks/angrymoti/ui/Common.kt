@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -250,6 +251,23 @@ fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         Text(name, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** 목록 표시 전용 태그 칩 — TagChip의 비선택 색 규칙(원색 글자·16% 배경·38% 테두리)과 동일.
+ * 일정 탭 행처럼 탭 동작이 없는 자리에서 쓴다 (iOS는 같은 TagChip 하나로 쓰지만
+ * 안드로이드 목록 행은 칩 크기가 달라 표시용을 분리). */
+@Composable
+fun TagBadge(name: String, alpha: Float = 1f) {
+    val tint = tagTint(name)
+    Box(
+        modifier = Modifier
+            .graphicsLayer { this.alpha = alpha }
+            .background(tint?.copy(alpha = 0.16f) ?: TL.surface, CircleShape)
+            .border(1.dp, tint?.copy(alpha = 0.38f) ?: TL.hairline, CircleShape)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(name, color = tint ?: TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
