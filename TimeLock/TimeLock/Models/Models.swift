@@ -198,6 +198,27 @@ enum Intensity: String, Codable, CaseIterable, Identifiable {
 
 enum ActivityTag {
     static let presets = ["공부", "독서", "운동", "작업", "연주", "글쓰기"]
+
+    /// 태그 입력 한도 — 일정 목록의 태그 칩이 반드시 한 줄로 끝나게 하는 '폭' 예산.
+    /// 글자 수로 재면 한글 6자와 영문 6자의 폭이 두 배 차이라 영문만 지나치게 손해를 본다.
+    /// 전각(한글 등) 2 · 반각(영문·숫자) 1로 세어 한글 6자 = 영문 12자 = 12로 맞춘다.
+    static let tagWidthBudget = 12
+
+    /// 활동명 최대 글자 수. 목록에서는 어차피 한 줄로 말줄임되므로 폭이 아닌 글자 수로 센다 —
+    /// 여기서 막는 목적은 화면 붕괴가 아니라 비상식적인 길이의 입력 자체를 잘라내는 것이다.
+    static let nameMaxLength = 23
+
+    /// 폭 예산에 맞춰 자른 문자열 — 예산을 넘기는 글자부터 버린다.
+    static func truncatedToTagWidth(_ text: String) -> String {
+        var width = 0
+        var result = ""
+        for ch in text {
+            width += ch.unicodeScalars.allSatisfy(\.isASCII) ? 1 : 2
+            if width > tagWidthBudget { break }
+            result.append(ch)
+        }
+        return result
+    }
 }
 
 // MARK: - 예약

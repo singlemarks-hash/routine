@@ -289,6 +289,11 @@ struct ReservationEditView: View {
                 .padding(14)
                 .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
                 .disabled(editingDisabled)
+                .onChange(of: name) { _, new in
+                    if new.count > ActivityTag.nameMaxLength {
+                        name = String(new.prefix(ActivityTag.nameMaxLength))
+                    }
+                }
         }
     }
 
@@ -311,7 +316,11 @@ struct ReservationEditView: View {
                 .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerS))
                 .disabled(editingDisabled)
                 .onChange(of: customTag) { _, newValue in
-                    if !newValue.trimmingCharacters(in: .whitespaces).isEmpty { tag = newValue }
+                    // 폭 예산을 넘기면 잘라낸다 — 되감긴 값으로 onChange가 한 번 더 돌지만
+                    // 그때는 capped == newValue라 그대로 멎는다.
+                    let capped = ActivityTag.truncatedToTagWidth(newValue)
+                    if capped != newValue { customTag = capped }
+                    if !capped.trimmingCharacters(in: .whitespaces).isEmpty { tag = capped }
                 }
         }
     }
