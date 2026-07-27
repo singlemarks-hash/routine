@@ -375,7 +375,7 @@ struct WeeklyScheduleView: View {
                     Text("\(timeLabel(item.reservation.startMinute)) · \(TLFormat.durationLabel(item.reservation.durationMinutes)) · \(item.reservation.repeatLabel())")
                         .font(.system(size: 11)).foregroundStyle(TL.muted)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
                 Text("D-\(dday)")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .foregroundStyle(TL.ink)
@@ -421,7 +421,7 @@ struct WeeklyScheduleView: View {
                         Text("\(TLFormat.durationLabel(reservation.durationMinutes)) · \(reservation.repeatLabel())")
                             .font(.system(size: 11)).foregroundStyle(TL.muted)
                     }
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 8)
                 }
                 .opacity(state.isPast ? 0.42 : 1)
 
