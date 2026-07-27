@@ -105,8 +105,18 @@ struct ReservationEditView: View {
 
     /// 편집 화면(기존 예약)에서 읽기 전용이 되는 조건 — 슬롯 초과 또는 잠긴 미친맛
     private var isEditReadOnly: Bool { reservation != nil && (isOverSlotLimit || isLockedInsane) }
-    /// 입력 필드·저장 비활성 조건 = 시작 임박 ∨ 슬롯 초과 읽기 전용 (삭제는 예외)
-    private var editingDisabled: Bool { isLocked || isEditReadOnly }
+
+    /// 은퇴한 예약 — 삭제(오늘로 은퇴) 또는 자연 종료로 앞으로 발생이 없다.
+    /// 일정 탭에는 오늘 자정까지만 남는 '보여주기 전용' 상태다. 편집·저장은 물론
+    /// 삭제 버튼도 잠근다 — 이미 삭제(종료)된 것을 또 삭제할 수는 없고, 여기서
+    /// 무언가를 바꿀 수 있으면 은퇴로 닫아둔 노쇼 집계·기록 정합이 다시 열린다.
+    private var isRetired: Bool {
+        guard let r = reservation else { return false }
+        return !r.hasRemainingOccurrence()
+    }
+
+    /// 입력 필드·저장 비활성 조건 = 시작 임박 ∨ 슬롯 초과 읽기 전용 ∨ 은퇴 (삭제는 은퇴만 잠금)
+    private var editingDisabled: Bool { isLocked || isEditReadOnly || isRetired }
 
     /// 이미 시작한 활동은 시작일을 바꿀 수 없다.
     ///
@@ -198,11 +208,15 @@ struct ReservationEditView: View {
                                 withAnimation(TLMotion.smooth) { proxy.scrollTo("errorBanner", anchor: .top) }
                             }
                     }
-                    if isLocked {
-                        lockNotice
-                    }
-                    if isEditReadOnly {
-                        readOnlyNotice
+                    if isRetired {
+                        retiredNotice          // 은퇴 안내 하나만 — 다른 잠금 사유는 의미 없음
+                    } else {
+                        if isLocked {
+                            lockNotice
+                        }
+                        if isEditReadOnly {
+                            readOnlyNotice
+                        }
                     }
                     if reservation == nil {
                         slotPolicyNotice
@@ -212,7 +226,7 @@ struct ReservationEditView: View {
                     intensitySection
                     timeAndDurationSection
                     repeatSection
-                    if reservation != nil {
+                    if reservation != nil && !isRetired {
                         Button("예약 삭제") { showDeleteConfirm = true }
                             .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
                             .disabled(isLocked)   // 읽기 전용(슬롯 초과)에서도 삭제는 허용
@@ -229,10 +243,12 @@ struct ReservationEditView: View {
                     Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("저장") { save() }
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(editingDisabled ? TL.faint : TL.rec)
-                        .disabled(editingDisabled)
+                    if !isRetired {           // 은퇴한 예약은 저장 버튼 자체가 없다 — 보여주기 전용
+                        Button("저장") { save() }
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(editingDisabled ? TL.faint : TL.rec)
+                            .disabled(editingDisabled)
+                    }
                 }
             }
             .confirmationDialog("이 예약을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -250,6 +266,18 @@ struct ReservationEditView: View {
     }
 
     // MARK: 섹션
+
+    /// 은퇴한(삭제·종료된) 예약 안내 — 보여주기 전용, 오늘 자정까지만 목록에 남는다.
+    private var retiredNotice: some View {
+        TLCard {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "clock.badge.xmark.fill").foregroundStyle(TL.amber)
+                Text("이 활동은 삭제(종료)되어 더 이상 수정할 수 없습니다. 오늘 기록 확인용으로 자정까지만 일정에 표시되고, 이후에는 목록에서 사라집니다. 지난 기록은 기록 탭에서 계속 볼 수 있어요.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(TL.paper)
+            }
+        }
+    }
 
     private var lockNotice: some View {
         TLCard {

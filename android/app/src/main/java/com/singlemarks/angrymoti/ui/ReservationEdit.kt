@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -164,8 +165,13 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
      *  조회와 삭제만 허용한다. (다시 쓰려면 멤버십을 복구하면 된다) */
     val lockedInsane = existing?.intensityOverride == Intensity.INSANE && !insaneUnlocked
     val editReadOnly = existing != null && (overSlotLimit || lockedInsane)
-    /** 입력 필드·저장 잠금 = 시작 임박 ∨ 읽기 전용 (삭제는 예외로 isLocked만 적용) */
-    val fieldLocked = isLocked || editReadOnly
+    /** 은퇴한 예약 — 삭제(오늘로 은퇴) 또는 자연 종료로 앞으로 발생이 없다.
+     *  일정 탭에는 오늘 자정까지만 남는 '보여주기 전용' 상태다. 편집·저장은 물론
+     *  삭제 버튼도 잠근다 — 이미 삭제(종료)된 것을 또 삭제할 수는 없고, 여기서
+     *  무언가를 바꿀 수 있으면 은퇴로 닫아둔 노쇼 집계·기록 정합이 다시 열린다 (iOS 1:1). */
+    val isRetired = existing?.hasRemainingOccurrence() == false
+    /** 입력 필드·저장 잠금 = 시작 임박 ∨ 읽기 전용 ∨ 은퇴 (삭제는 은퇴만 잠금) */
+    val fieldLocked = isLocked || editReadOnly || isRetired
 
     /** 이미 시작한 활동은 시작일을 바꿀 수 없다.
      *
@@ -189,7 +195,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             Text(if (existing == null) "활동 예약" else "예약 편집",
                 color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
-            TLPillButton("저장", tint = TL.rec, enabled = !fieldLocked, onClick = save@{
+            // 은퇴한 예약은 저장 버튼 자체가 없다 — 보여주기 전용 (iOS 1:1)
+            if (!isRetired) TLPillButton("저장", tint = TL.rec, enabled = !fieldLocked, onClick = save@{
                     // 검증 — 오류는 최상단에 즉시 표시
                     val finalName = name.trim()
                     val finalTag = customTag.trim().ifEmpty { tag }
@@ -332,6 +339,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         withContext(Dispatchers.Main) { onDone() }
                     }
                 })
+            else Box(Modifier.alpha(0f)) {   // 자리만 지키는 투명 필 — 타이틀 중앙 유지
+                TLPillButton("저장", enabled = false, onClick = {})
+            }
         }
 
         Column(
@@ -344,12 +354,19 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                         .background(TL.rec.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
             }
-            if (isLocked) {
+            if (isRetired) {
+                // 은퇴 안내 하나만 — 다른 잠금 사유는 의미 없음 (iOS retiredNotice 1:1)
+                Text("이 활동은 삭제(종료)되어 더 이상 수정할 수 없습니다. 오늘 기록 확인용으로 자정까지만 일정에 표시되고, 이후에는 목록에서 사라집니다. 지난 기록은 기록 탭에서 계속 볼 수 있어요.",
+                    color = TL.amber, fontSize = 13.sp,
+                    modifier = Modifier.fillMaxWidth()
+                        .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
+            }
+            if (isLocked && !isRetired) {
                 Text("시작 30분 전에는 편집할 수 없어요", color = TL.amber, fontSize = 13.sp,
                     modifier = Modifier.fillMaxWidth()
                         .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
             }
-            if (editReadOnly) {
+            if (editReadOnly && !isRetired) {
                 Text(
                     if (lockedInsane)
                         "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다."
@@ -612,7 +629,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 }
             }
 
-            existing?.let { r ->
+            // 은퇴한 예약은 삭제 버튼도 없다 — 이미 삭제(종료)된 것을 또 삭제할 수 없다
+            existing?.takeIf { !isRetired }?.let { r ->
                 Text("예약 삭제", color = TL.rec, fontSize = 17.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.fillMaxWidth()
                         .background(TL.surface, TL.cornerL)
