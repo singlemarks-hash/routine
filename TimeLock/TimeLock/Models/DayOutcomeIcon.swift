@@ -34,6 +34,9 @@ enum DayOutcomeIcon: String {
     /// - 성공이 아닌 모든 최종 결과(노쇼·이탈·긴급 종료·안전 종료)는 실패로 본다 —
     ///   일정 탭 표시등과 동일한 2색 정책. 안전 종료(무효)는 벌점화만 안 될 뿐
     ///   완주하지 못한 사실은 같다.
+    /// - 단 하나의 예외: 그날 최종 결과가 **전부 안전 종료(무효)**면 half(노란 체크)를 쓴다.
+    ///   전부가 기기 사정으로 무효가 된 날에 빨간 X를 찍으면 사용자 잘못이 아닌 것을
+    ///   실패로 기록하는 셈이다. 극히 드문 상황이라 별도 아이콘 없이 half를 승계한다.
     /// - 오늘은 하루가 끝나지 않았으므로 **아직 실패가 없을 때만** 낙관 판정한다:
     ///   성공만 있으면 success로 두고, 남은 발생이 실패로 끝나면 그때 half로 내려간다.
     ///   반대로 성공·실패가 이미 하나씩 확정된 날은 낙관할 여지가 없다 — 무엇이 더
@@ -47,6 +50,10 @@ enum DayOutcomeIcon: String {
         if target > today { return .notStarted }        // 아직 오지 않은 날
 
         let finals = finalOutcomes(daySessions: daySessions)
+
+        // 전부 안전 종료(무효)인 날 — 사용자 잘못이 아니므로 빨간 X 대신 노란 체크(half).
+        // 오늘이어도 같다: 이후 성공/실패가 확정되면 아래 일반 규칙이 다시 판정한다.
+        if !finals.isEmpty && finals.allSatisfy({ $0 == .safetyEnded }) { return .half }
 
         // 성공 / 실패 — 성공이 아니면 전부 실패 (2색 정책, 일정 탭 표시등과 동일)
         let hasSuccess = finals.contains { $0.isSuccess }
