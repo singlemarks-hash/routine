@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.displayCutoutPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -422,7 +423,8 @@ fun MountGuideScreen(pending: PendingSession) {
             previewView(Modifier.fillMaxSize())
             dashedGuideOverlay()
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                // statusBarsPadding — 헤더(거치 가이드·활동명)가 펀치홀·상태바와 겹치지 않게
+                Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(18.dp))
@@ -430,12 +432,11 @@ fun MountGuideScreen(pending: PendingSession) {
                 Spacer(Modifier.height(16.dp))
                 orientationRow()
                 // 안내 문구 — 방향·전환 아이콘 바로 아래, 가운데 정렬(Column 중앙). 프레임과 넉넉히 떨어져 간섭 없음.
+                // 배경 캡슐 없이 반투명 글씨만 — 프리뷰 위에 자연스럽게 얹힌다.
                 Spacer(Modifier.height(16.dp))
-                Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                        .padding(horizontal = 12.dp, vertical = 6.dp))
+                Text("영역 안에 내 모습이 보이도록 고정",
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))   // 가운데는 점선 프레임(별도 레이어)이 차지한다
                 checklistAndStart()
                 Spacer(Modifier.height(14.dp))
@@ -448,13 +449,13 @@ fun MountGuideScreen(pending: PendingSession) {
             Row(Modifier.fillMaxSize()) {
                 // 좌: 프리뷰 영역 — 상단 중앙에 안내 문구 (우측 패널과 간섭 없음)
                 Box(Modifier.weight(1f).fillMaxHeight()) {
-                    Text("영역 안에 내 모습이 보이도록 고정", color = Color.White,
+                    // 배경 캡슐 없이 반투명 글씨만 — 프리뷰 위에 자연스럽게 (세로와 동일)
+                    Text("영역 안에 내 모습이 보이도록 고정",
+                        color = Color.White.copy(alpha = 0.75f),
                         fontSize = 12.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(top = 44.dp)
-                            .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                            .padding(horizontal = 12.dp, vertical = 6.dp))
+                            .padding(top = 44.dp))
                 }
                 // 우측 컨트롤 — 스크롤 없이 한 화면에 담기도록 타이포·간격을 축소하고,
                 // 촬영/취소를 한 줄로 배치해 세로 여백을 확보한다. SpaceBetween으로 여백감 유지.
@@ -560,15 +561,15 @@ private fun SessionSquareButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        modifier = Modifier.size(64.dp)   // iOS squareButton 64×64
+        modifier = Modifier.size(77.dp)   // iOS 64×64의 1.2배 — 안드로이드는 화면 여백이 넉넉해 키움
             .background(if (active) TL.paper else TL.raised, TL.cornerM)
             .clickable(onClick = onClick),
     ) {
         androidx.compose.material3.Icon(icon, null,
-            tint = if (active) TL.ink else TL.paper, modifier = Modifier.size(19.dp))
-        Spacer(Modifier.height(5.dp))
+            tint = if (active) TL.ink else TL.paper, modifier = Modifier.size(23.dp))
+        Spacer(Modifier.height(6.dp))
         Text(label, color = if (active) TL.ink else TL.muted,
-            fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -701,7 +702,8 @@ fun SessionScreen() {
                 Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
                     color = TL.paper, fontSize = 36.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.weight(1f))
-                Box(Modifier.weight(3f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                // weight 4 — 프리뷰가 화면 1/3 이상을 차지하도록 유연 공간의 몫을 키움
+                Box(Modifier.weight(4f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     previewCard(9f / 16f)
                 }
                 Spacer(Modifier.weight(1f))
@@ -721,11 +723,12 @@ fun SessionScreen() {
                         remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
                         totalMinutes = target / 60,
                         tint = if (target - recorded <= 60) TL.jade else TL.rec,   // 1분 전 초록 (iOS 동일)
-                        modifier = Modifier.size(190.dp),
+                        // 가로는 좌측 절반이 통째로 다이얼 몫이라 여백이 넉넉하다 — 190은 작아 보임
+                        modifier = Modifier.size(240.dp),
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
-                        color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)   // iOS 가로 타이머 28
+                        color = TL.paper, fontSize = 30.sp, fontWeight = FontWeight.Black)
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(
