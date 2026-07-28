@@ -74,10 +74,13 @@ fun CalendarScreen(onBack: () -> Unit) {
         finished.groupBy { DayOutcome.startOfDay(it.anchorAt) }
     }
 
-    LazyColumn(Modifier.fillMaxSize().background(TL.ink).padding(horizontal = 20.dp)) {
-        item {
-            Box(Modifier.padding(top = 14.dp)) { TLScreenHeader("기록", onBack = onBack) }
+    // 헤더(뒤로가기·'기록')는 스크롤 밖 고정 — 아래로 내려가도 맨 위로 돌아오지 않고
+    // 바로 뒤로 갈 수 있다.
+    Column(Modifier.fillMaxSize().background(TL.ink)) {
+        Box(Modifier.padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 6.dp)) {
+            TLScreenHeader("기록", onBack = onBack)
         }
+        LazyColumn(Modifier.weight(1f).padding(horizontal = 20.dp)) {
         item {
             StreakHeaderCard(sessions = sessions)
             Spacer(Modifier.height(20.dp))
@@ -226,6 +229,7 @@ fun CalendarScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(16.dp))
         }
         item { Spacer(Modifier.height(24.dp)) }
+        }
     }
 
     // 날짜 상세 — iOS DayDetailView처럼 시트로 띄운다 (기록 있는 날만 열린다)

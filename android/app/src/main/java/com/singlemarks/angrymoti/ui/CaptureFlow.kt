@@ -66,6 +66,7 @@ import com.singlemarks.angrymoti.AppState
 import com.singlemarks.angrymoti.PendingSession
 import com.singlemarks.angrymoti.R
 import com.singlemarks.angrymoti.data.AppDb
+import com.singlemarks.angrymoti.services.AccountStore
 import com.singlemarks.angrymoti.models.AbsencePolicy
 import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScoreRules
@@ -806,10 +807,13 @@ fun SessionScreen() {
                     },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // 링 안쪽 여유 — 스트로크(14)+간격을 확보해 글씨가 링에 닿지 않게
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 34.dp)) {
                         Text(TLFormat.hms(left.toLong()), color = TL.paper,
-                            fontSize = timerFont, fontWeight = FontWeight.Black)
-                        Text("안에 재촬영을 시작하세요", color = TL.muted, fontSize = 13.sp)
+                            fontSize = timerFont, fontWeight = FontWeight.Black, maxLines = 1)
+                        Text("안에 재촬영을 시작하세요", color = TL.muted, fontSize = 12.sp,
+                            maxLines = 1, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -865,18 +869,19 @@ fun SessionScreen() {
                             Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                         ) {
-                            Text("촬영 일시중단", color = TL.amber, fontSize = 12.sp,
+                            // 가로는 링이 주인공 — 제목을 줄이고 링을 키운다
+                            Text("촬영 일시중단", color = TL.amber, fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(4.dp))
                             Text(if (breakNote == null) "긴급 용무 중" else "촬영이 중단됐어요",
-                                color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                                color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Black)
                             breakNote?.let {
-                                Spacer(Modifier.height(8.dp))
-                                Text(it, color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                                    textAlign = TextAlign.Center, lineHeight = 19.sp)
+                                Spacer(Modifier.height(6.dp))
+                                Text(it, color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center, lineHeight = 17.sp)
                             }
-                            Spacer(Modifier.height(16.dp))
-                            breakRing(178.dp, 40.sp)
+                            Spacer(Modifier.height(12.dp))
+                            breakRing(230.dp, 44.sp)
                         }
                         Column(
                             Modifier.weight(1f), verticalArrangement = Arrangement.Center,
@@ -984,14 +989,24 @@ fun SessionResultScreen() {
                 color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(12.dp))
             ScoreRules.points(outcome, session.intensity, session.targetSeconds / 60)?.let { (_, pts) ->
-                Text(
-                    if (pts >= 0) "+${pts}점 상점" else "${pts}점 벌점",
-                    color = if (pts >= 0) TL.jade else TL.rec,
-                    fontSize = 15.sp, fontWeight = FontWeight.Black,
-                    modifier = Modifier.background(TL.surface, TL.cornerS)
-                        .border(1.dp, TL.hairline, TL.cornerS)
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                )
+                // iOS 1:1 — 테두리 없는 서피스 캡슐 + '적립' 문구, 벌점이면 누적 회수 병기
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (pts >= 0) "+${pts}점 적립" else "${pts}점 벌점",
+                        color = if (pts >= 0) TL.jade else TL.rec,
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.background(TL.surface, CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                    if (pts < 0) {
+                        val events by AppDb.get(context).scores()
+                            .allFlow(AccountStore.currentUserID)
+                            .collectAsStateWithLifecycle(initialValue = emptyList())
+                        Text("누적 벌점 ${events.count { it.points < 0 }}회", color = TL.rec,
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
             } ?: Text("벌점 없음", color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
 
             slotBonus?.let { (days, pts) ->
