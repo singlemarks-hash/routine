@@ -48,11 +48,10 @@ private struct ShootStep: View {
 
             Spacer()
 
-            // 책상에서 촬영 중인 모티 — 우측 하단 배치.
-            // TODO: 전용 에셋(onboarding_shoot)이 들어오면 이름만 교체.
+            // 책상에서 타임랩스 촬영 중인 모티 — 우측 정렬
             HStack {
                 Spacer()
-                Image("OnboardingCharacter")
+                Image("OnboardingShoot")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 300)
@@ -61,7 +60,6 @@ private struct ShootStep: View {
                     .animation(.spring(response: 0.6, dampingFraction: 0.7), value: appeared)
                     .onAppear { appeared = true }
             }
-            .padding(.trailing, 8)
 
             Spacer()
 
