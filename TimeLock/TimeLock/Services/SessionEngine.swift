@@ -58,6 +58,14 @@ final class SessionEngine: NSObject, ObservableObject {
     /// 종료 처리 진행 중 재진입 방지. phase는 finalize에서 단 한 번만 .finished로 바뀐다.
     private var isFinalizing = false
 
+    // MARK: 촬영 정지 복구 (발열·타앱 점유로 카메라가 잠깐 멈추는 실기기 상황)
+    /// 정지를 감지하고 카메라를 되살려 본 시각. nil이면 아직 복구를 시도하지 않은 상태.
+    private var stallRecoveryStartedAt: Date?
+    /// 복구 유예 — 이 시간 안에 프레임이 재개되면 아무 판정도 하지 않고 촬영을 잇는다.
+    private static let stallRecoveryGrace: TimeInterval = 10
+    private static let storageBreakNote = "저장공간이 부족합니다. 저장공간을 확보 후 촬영을 재개하세요."
+    private static let systemBreakNote = "기기 상태(발열 등)로 카메라가 잠시 멈췄습니다. 잠깐 식힌 뒤 촬영을 재개하세요. 벌점은 없습니다."
+
     private(set) var session: FocusSession?
     private var modelContext: ModelContext?
     private var tick: Timer?
@@ -113,6 +121,7 @@ final class SessionEngine: NSObject, ObservableObject {
         absencePenaltyApplied = false
         absenceEpisodeCount = 0
         breakBudgetRemaining = TimePolicy.resumeWindowSeconds   // 세션마다 긴급 예산 리필
+        stallRecoveryStartedAt = nil
         phase = .recording
         isFinalizing = false
 
@@ -149,18 +158,38 @@ final class SessionEngine: NSObject, ObservableObject {
             return
         }
         guard phase == .recording else { return }
-        // 촬영 신호 점검 — 프레임이 끊기면(제어센터·타앱·카메라 뺏김 등 캡처 인터럽션) 이탈로 처리한다(#12).
-        // 단 배터리/저장공간이 원인이면 사용자 잘못이 아니므로 무벌점 안전종료(#11). 어느 쪽이든
-        // '실제 촬영 없이 완주(만점)'로 오인하는 것은 막는다.
+        // 촬영 신호 점검 — 프레임이 끊기면 '실제 촬영 없이 완주(만점)'로 오인하는 것을 막는다(#12).
+        // 다만 프레임이 끊겼다는 결과만으로 사용자를 이탈로 몰면 안 된다: 발열(시스템 압력)·
+        // 타앱의 카메라 점유처럼 사용자가 어쩔 수 없는 사유가 실기기에서 흔하다.
+        // 순서: 무효(프레임 0) → 저장공간 유예 → **1회 자동 복구 시도** → 사유별 판정.
         if Date().timeIntervalSince(CameraRecorder.shared.lastFrameAt) > CameraRecorder.shared.captureStallLimit {
             // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
-            if CameraRecorder.shared.frameCount == 0 { safetyEnd(note: "카메라 시작 실패") }
+            if CameraRecorder.shared.frameCount == 0 { safetyEnd(note: "카메라 시작 실패"); return }
             // 저장공간이 꽉 차 프레임이 끊긴 경우 = 기기 사정 → 유예(일시중단)로 재개 기회를 준다.
-            else if isStorageCritical { enterStorageBreak(session: s) }
-            // 그 외(제어센터·타앱 등 캡처 인터럽션) = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
-            else { handleExitEvent() }
+            // (공간은 저절로 생기지 않으므로 복구 시도 없이 바로 안내한다)
+            if isStorageCritical { enterDeviceBreak(session: s, note: Self.storageBreakNote); return }
+
+            // 발열·타앱 점유로 끊긴 카메라는 대개 몇 초 안에 스스로 돌아온다.
+            // 곧바로 판정하면 자리에 앉아 촬영 중인 사용자가 긴급 용무로 밀려난다(실기기 신고 유형).
+            // 세션을 한 번 되살려 보고, 유예 시간 안에 프레임이 재개되면 아무 일도 없던 것처럼 잇는다.
+            guard let recoveryStartedAt = stallRecoveryStartedAt else {
+                stallRecoveryStartedAt = Date()
+                CameraRecorder.shared.resumeSessionIfNeeded()
+                return
+            }
+            guard Date().timeIntervalSince(recoveryStartedAt) >= Self.stallRecoveryGrace else { return }
+            stallRecoveryStartedAt = nil
+            // 복구 실패 — 이제야 사유를 가른다.
+            // 기기 사정(발열·타앱 점유)이면 벌점 없는 유예, 사유가 사용자 쪽이면 이탈.
+            if CameraRecorder.shared.isInterruptedBySystem {
+                enterDeviceBreak(session: s, note: Self.systemBreakNote)
+            } else {
+                handleExitEvent()
+            }
             return
         }
+        // 프레임이 정상적으로 돌아왔다 — 복구 시도 상태를 비운다.
+        stallRecoveryStartedAt = nil
         // 표시·완주 판정용 촬영 시간은 틱(1초)으로 센다.
         // 프레임 기반(프레임 수 × 캡처 간격)은 캡처 간격이 동적이라 표시가
         // 간격 단위로 점프한다 — 통화/중단 동안은 틱이 멈추므로 순수 촬영 시간과 일치.
@@ -271,14 +300,16 @@ final class SessionEngine: NSObject, ObservableObject {
         return free < 500_000_000   // 500MB
     }
 
-    /// 저장공간 부족으로 촬영이 막힌 경우 — 강도와 무관하게 일시중단(유예)하고 안내를 띄운다.
-    /// 사용자가 공간을 확보하고 재촬영을 누르면 이어진다. 예산 소진/미재촬영 시 실패(기존 규칙).
-    private func enterStorageBreak(session s: FocusSession) {
+    /// 기기 사정(저장공간 부족·발열로 인한 카메라 중단 등)으로 촬영이 막힌 경우 —
+    /// 강도와 무관하게 일시중단(유예)하고 안내를 띄운다. 사용자 잘못이 아니므로 이탈 벌점을
+    /// 매기지 않는다. 사용자가 문제를 해결하고 재촬영을 누르면 이어진다.
+    /// (예산 소진/미재촬영 시 실패는 기존 규칙 그대로 — 무한 유예는 회피 경로가 되므로)
+    private func enterDeviceBreak(session s: FocusSession, note: String) {
         guard phase == .recording, !isFinalizing else { return }
         guard breakBudgetRemaining >= 1 else { failBreakExpired(session: s); return }
         let deadline = Date().addingTimeInterval(breakBudgetRemaining)
         CameraRecorder.shared.pause()
-        breakNote = "저장공간이 부족합니다. 저장공간을 확보 후 촬영을 재개하세요."
+        breakNote = note
         phase = .pausedForBreak(deadline: deadline)
         defaults.set(deadline.timeIntervalSince1970, forKey: Key.breakDeadline)
         AlarmScheduler.shared.scheduleBreakNotifications(deadline: deadline)
@@ -299,6 +330,7 @@ final class SessionEngine: NSObject, ObservableObject {
         // 재촬영 시작은 새 에피소드 — 남아 있던 부재 판정 상태를 비운다
         absenceWarning = false
         absencePenaltyApplied = false
+        stallRecoveryStartedAt = nil   // 재개 직후 이전 정지 상태가 남아 오판하지 않게
         breakNote = nil
         phase = .recording
         defaults.removeObject(forKey: Key.breakDeadline)
@@ -383,9 +415,15 @@ final class SessionEngine: NSObject, ObservableObject {
         guard let s = session, phase == .recording, !isFinalizing else { return }
         // 워밍업(첫 60초)은 표본이 적어 판단 보류
         guard recordedSeconds >= 60 else { return }
+        // 기기 사정으로 카메라가 멈췄거나 최근에 멈춘 적이 있으면 촬영량이 뒤처지는 게 당연하다.
+        // 이 판정은 '설비가 멀쩡한데도 안 찍히는' 경우를 잡는 것이지, 발열로 끊긴 사용자를
+        // 무효 종료시키려는 게 아니다. (정지 한계에 못 미치는 짧은 중단이 쌓이면 여기 걸린다)
+        if CameraRecorder.shared.isInterruptedBySystem { return }
+        if let interruptedAt = CameraRecorder.shared.lastSystemInterruptionAt,
+           Date().timeIntervalSince(interruptedAt) < 180 { return }
         if CameraRecorder.shared.capturedSeconds < recordedSeconds / 2 {
             if isStorageCritical {
-                enterStorageBreak(session: s)   // 저장공간 부족 = 유예(일시중단)로 재개 기회를 준다
+                enterDeviceBreak(session: s, note: Self.storageBreakNote)   // 저장공간 부족 = 유예로 재개 기회
             } else {
                 AlarmScheduler.shared.playChime()
                 UINotificationFeedbackGenerator().notificationOccurred(.error)

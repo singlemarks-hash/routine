@@ -58,8 +58,28 @@ final class CameraRecorder: NSObject, ObservableObject {
     @Published private(set) var absentSeconds: Int = 0
     private var absenceStartedAt: TimeInterval?
     private var lastPresenceCheckAt: TimeInterval = 0
-    /// 감지 주기 — 5초에 1회만 Vision을 돌려 배터리·발열 영향 최소화 (프레임당 아님)
-    private let presenceCheckInterval: TimeInterval = 5
+    /// 감지 주기 — 평상시 5초에 1회만 Vision을 돌려 배터리·발열 영향 최소화 (프레임당 아님).
+    /// 기기가 뜨거워지면(systemPressure) 간격을 늘려 부하를 덜어 준다 — 발열이 심해지면
+    /// iOS가 캡처 세션을 통째로 중단시키고, 그게 '프레임 정지'로 보여 긴급용무 오진입이 된다.
+    private var presenceCheckInterval: TimeInterval {
+        switch systemPressureLevel {
+        case .serious:  return 10
+        case .critical, .shutdown: return 20
+        default:        return 5
+        }
+    }
+    /// 현재 기기 열/전력 압력 단계 — 카메라 부하 조절과 인터럽션 사유 판정에 쓴다.
+    @Published private(set) var systemPressureLevel: AVCaptureDevice.SystemPressureState.Level = .nominal
+    private var pressureObservation: NSKeyValueObservation?
+
+    /// 카메라가 '기기 사정'으로 멈춘 상태인가 — 사용자가 앱을 나간 것과 구분한다.
+    /// 시스템 압력(발열)·다른 앱의 카메라 점유·미디어 서비스 리셋 등이 여기 해당한다.
+    /// 이때의 프레임 정지는 사용자 잘못이 아니므로 벌점 없이 유예로 처리해야 한다.
+    @Published private(set) var isInterruptedBySystem = false
+    /// 마지막으로 기기 사정 인터럽션이 있었던 시각.
+    /// 정지 한계(30초)에 못 미치는 짧은 중단이 반복되면 촬영량만 조용히 뒤처지는데,
+    /// 그 상태로 촬영 건강도를 판정하면 멀쩡한 세션이 '촬영 장애'로 무효 종료된다.
+    @Published private(set) var lastSystemInterruptionAt: Date?
     /// 재생 프레임레이트
     private let playbackFPS: Int32 = 30
 
@@ -75,8 +95,13 @@ final class CameraRecorder: NSObject, ObservableObject {
     var capturedSeconds: Int { Int((Double(frameCount) * captureInterval).rounded()) }
 
     /// 촬영 정지 판정 기준 시간 — 이 시간 넘게 새 프레임이 없으면 정지로 본다.
-    /// 캡처 간격의 3배 또는 최소 15초. (긴 세션은 캡처 간격이 커 그만큼 여유를 준다)
-    var captureStallLimit: TimeInterval { max(captureInterval * 3, 15) }
+    /// 캡처 간격의 3배 또는 최소 30초. (긴 세션은 캡처 간격이 커 그만큼 여유를 준다)
+    ///
+    /// 30초로 넉넉히 잡아도 회피 구멍이 되지 않는다 — 실제 이탈(앱 백그라운드·화면 잠금)은
+    /// ScenePhase/protectedData가 즉시 잡으므로, 이 정지 감지는 그 둘이 못 보는 상황
+    /// (카메라만 멈춤)을 위한 보조 장치다. 반대로 짧게 잡으면 발열로 잠깐 끊긴 것까지
+    /// 이탈로 오판해 촬영 중인 사용자를 긴급용무로 밀어낸다.
+    var captureStallLimit: TimeInterval { max(captureInterval * 3, 30) }
 
     /// 세션 길이(초)에 맞는 최종 타임랩스 목표 길이(초)를 앵커 구간 선형 보간으로 산출.
     /// 앵커를 정확히 통과하고, 그 사이는 부드러운 직선으로 이어 각 옵션이 고유 길이를 갖는다.
@@ -110,16 +135,44 @@ final class CameraRecorder: NSObject, ObservableObject {
     override init() {
         super.init()
         let nc = NotificationCenter.default
+        nc.addObserver(self, selector: #selector(sessionWasInterrupted),
+                       name: .AVCaptureSessionWasInterrupted, object: captureSession)
         nc.addObserver(self, selector: #selector(sessionInterruptionEnded),
                        name: .AVCaptureSessionInterruptionEnded, object: captureSession)
         nc.addObserver(self, selector: #selector(sessionRuntimeError),
                        name: .AVCaptureSessionRuntimeError, object: captureSession)
     }
 
+    /// 캡처 세션이 중단됐다 — **사유를 봐야 한다**.
+    ///
+    /// 프레임이 끊겼다는 결과만 보면 '사용자가 앱을 나갔다'와 '기기가 카메라를 멈췄다'를
+    /// 구분할 수 없다. iOS는 그 사유를 여기서 알려주므로, 기기 사정(발열로 인한 시스템
+    /// 압력·다른 앱의 카메라 점유 등)이면 표시만 해두고 SessionEngine이 벌점 없이
+    /// 유예 처리하게 한다. 사용자 행위(백그라운드 전환)는 ScenePhase가 따로 잡는다.
+    @objc private func sessionWasInterrupted(_ note: Notification) {
+        let raw = note.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int
+        let reason = raw.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
+        // 백그라운드 전환만 '사용자 행위'다 — 그건 ScenePhase가 이미 이탈로 판정하므로
+        // 여기서 기기 사정으로 표시하면 벌점을 피하는 구멍이 된다. 나머지(발열·타앱
+        // 점유·사유 불명)는 사용자가 어쩔 수 없는 상황이라 관대하게 본다.
+        let systemCaused = (reason != .videoDeviceNotAvailableInBackground)
+        DispatchQueue.main.async {
+            self.isInterruptedBySystem = systemCaused
+            if systemCaused { self.lastSystemInterruptionAt = Date() }
+            // 인터럽션 동안 프레임이 안 오므로 정지 앵커를 밀어 둔다 — 복귀 직후
+            // 즉시 스톨로 잡히는 것을 막는다 (재개 시각부터 다시 센다).
+            self.lastFrameAt = Date()
+        }
+    }
+
     /// 보이스톡(VoIP)·다른 앱의 카메라 점유가 끝나면 iOS가 세션을 자동 재개하지 않을 수 있다.
     /// 이때 세션을 되살리지 않으면, 재촬영을 눌러도 카메라가 죽어 있어 프레임이 안 들어오고
-    /// 15초 스톨 → 긴급용무 무한 반복이 된다. 인터럽트 종료 시 세션을 다시 살린다.
+    /// 스톨 → 긴급용무 무한 반복이 된다. 인터럽트 종료 시 세션을 다시 살린다.
     @objc private func sessionInterruptionEnded(_ note: Notification) {
+        DispatchQueue.main.async {
+            self.isInterruptedBySystem = false
+            self.lastFrameAt = Date()   // 재개 직후 정지 오탐 방지
+        }
         resumeSessionIfNeeded()
     }
 
@@ -129,9 +182,19 @@ final class CameraRecorder: NSObject, ObservableObject {
     }
 
     /// 세션이 멈춰 있으면 백그라운드 큐에서 다시 startRunning (통화·에러 후 복구용, 재호출 안전).
-    private func resumeSessionIfNeeded() {
+    /// SessionEngine이 스톨을 감지했을 때 '판정 전 1회 복구 시도'로도 부른다.
+    func resumeSessionIfNeeded() {
         processingQueue.async { [captureSession] in
             if !captureSession.isRunning { captureSession.startRunning() }
+        }
+    }
+
+    /// 기기 열/전력 압력 관찰 — 단계가 오르면 Vision 검사 간격이 자동으로 늘어난다.
+    /// (압력이 .critical까지 가면 iOS가 캡처를 아예 중단시키므로, 그 전에 부하를 던다)
+    private func observeSystemPressure(on device: AVCaptureDevice) {
+        pressureObservation = device.observe(\.systemPressureState, options: [.new]) { [weak self] dev, _ in
+            let level = dev.systemPressureState.level
+            DispatchQueue.main.async { self?.systemPressureLevel = level }
         }
     }
 
@@ -167,6 +230,7 @@ final class CameraRecorder: NSObject, ObservableObject {
         }
         captureSession.addInput(input)
         currentInput = input
+        observeSystemPressure(on: input.device)
 
         videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
         videoOutput.alwaysDiscardsLateVideoFrames = true
@@ -237,6 +301,7 @@ final class CameraRecorder: NSObject, ObservableObject {
             captureSession.addInput(newInput)
             currentInput = newInput
             position = newPosition
+            observeSystemPressure(on: newInput.device)
         } else if let current = currentInput, captureSession.canAddInput(current) {
             captureSession.addInput(current)   // 실패 시 원복
         }
