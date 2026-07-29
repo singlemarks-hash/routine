@@ -13,10 +13,12 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if !app.onboarded {
+            // 첫 실행 순서: 로그인(또는 게스트) → 온보딩(촬영하기·기록관리·권한) → 홈.
+            // 계정이 먼저다 — 상점·벌점이 계정 단위라 입장 전에 계정부터 정한다.
+            if !account.isSignedIn {
+                AuthView()
+            } else if !app.onboarded {
                 OnboardingFlow()
-            } else if !account.isSignedIn {
-                AuthView()   // 상점·벌점은 계정 단위 — 로그인(또는 게스트) 후 입장
             } else {
                 MainTabView()
             }

@@ -27,6 +27,7 @@ struct AuthView: View {
     @State private var passwordConfirm = ""
     @State private var working = false
     @State private var errorMessage: String?
+    @State private var infoMessage: String?   // 재설정 메일 발송 등 성공 안내
     @FocusState private var focusedField: Field?
     private enum Field { case name, email, password, passwordConfirm }
 
@@ -58,20 +59,32 @@ struct AuthView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 12)
                     }
+                    if let infoMessage, !infoMessage.isEmpty {
+                        Label(infoMessage, systemImage: "envelope.badge.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TL.jade)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 12)
+                    }
 
                     if account.pendingVerificationEmail == nil {
                         primaryButton
                             .padding(.top, 16)
+                        if mode == .signIn {
+                            resetPasswordButton
+                                .padding(.top, 14)
+                        }
                         divider
                             .padding(.vertical, 22)
-                        socialButtons
                         guestButton
-                            .padding(.top, 26)
+                        socialButtons
+                            .padding(.top, 20)
                     }
 
-                    Text("계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주됩니다.")
+                    Text("모든 영상 기록은 이 기기에만 저장됩니다.\n계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주합니다.")
                         .font(.system(size: 11)).foregroundStyle(TL.faint)
                         .multilineTextAlignment(.center)
+                        .lineSpacing(3)
                         .padding(.top, 18)
                     LegalLinksRow()
                         .padding(.top, 8)
@@ -88,30 +101,22 @@ struct AuthView: View {
         }
     }
 
-    // MARK: 헤더 — 출석 도장(REC 링)
+    // MARK: 헤더
 
     private var header: some View {
-        VStack(spacing: 0) {
-            // 앵그리모티 캐릭터 (온보딩과 동일 에셋)
-            Image("OnboardingCharacter")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 96, height: 96)
-                .padding(.top, 48)
-
-            TLEyebrow(text: "앵그리모티 출석부", color: TL.rec)
-                .padding(.top, 20)
-            Text("기록은 계정에 남습니다")
+        VStack(alignment: .leading, spacing: 0) {
+            Text("타임랩스로 나의 몰입을 기록해요\n더 강력하게")
                 .font(.tlTitle(26))
                 .foregroundStyle(TL.paper)
-                .padding(.top, 8)
-            Text("상점과 벌점은 계정별로 관리됩니다.\n기기를 바꿔도 이력이 따라옵니다.")
+                .lineSpacing(5)
+                .padding(.top, 56)
+            Text("아래 버튼을 눌러\n로그인 또는 회원가입을 진행해 주세요.")
                 .font(.system(size: 14))
                 .foregroundStyle(TL.muted)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .padding(.top, 6)
+                .lineSpacing(4)
+                .padding(.top, 14)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: 로그인 / 회원가입 전환
@@ -122,6 +127,7 @@ struct AuthView: View {
                 Button {
                     mode = candidate
                     errorMessage = nil
+                    infoMessage = nil
                 } label: {
                     Text(candidate.rawValue)
                         .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -252,18 +258,28 @@ struct AuthView: View {
         }
     }
 
+    /// 비밀번호 찾기 — 입력한 이메일로 Firebase 재설정 메일(한국어 템플릿) 발송
+    private var resetPasswordButton: some View {
+        Button("비밀번호 찾기") {
+            run {
+                try await account.sendPasswordReset(email: email)
+                await MainActor.run {
+                    infoMessage = "재설정 메일을 보냈습니다. 메일함(스팸함 포함)에서 링크를 열어 새 비밀번호를 설정한 뒤 다시 로그인해주세요."
+                }
+            }
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .foregroundStyle(TL.paper)
+        .disabled(working)
+    }
+
     private var guestButton: some View {
         Button {
             account.continueAsGuest()
         } label: {
-            VStack(spacing: 3) {
-                Text("게스트로 시작")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(TL.paper)
-                Text("기록이 이 기기에만 저장됩니다 · 나중에 로그인하면 계정으로 옮겨집니다")
-                    .font(.system(size: 11))
-                    .foregroundStyle(TL.faint)
-            }
+            Text("게스트로 시작")
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(TL.paper)
         }
         .disabled(working)
     }
@@ -329,6 +345,7 @@ struct AuthView: View {
 
     private func run(_ operation: @escaping () async throws -> Void) {
         errorMessage = nil
+        infoMessage = nil
         working = true
         Task {
             defer { working = false }

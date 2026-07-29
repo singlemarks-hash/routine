@@ -242,6 +242,22 @@ final class AccountStore: ObservableObject {
         throw AuthError.providerUnavailable("이메일 인증은 Firebase 연동 후 사용할 수 있습니다.")
     }
 
+    /// 비밀번호 재설정 메일 발송 — 입력한 주소로 재설정 링크를 보낸다.
+    /// (Firebase 발송 메일은 languageCode = "ko"로 한국어 템플릿을 쓴다)
+    func sendPasswordReset(email: String) async throws {
+        let trimmed = email.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            throw AuthError.providerUnavailable("비밀번호를 찾을 이메일 주소를 먼저 입력해주세요.")
+        }
+        #if canImport(FirebaseAuth)
+        if backendActive {
+            try await Auth.auth().sendPasswordReset(withEmail: trimmed)
+            return
+        }
+        #endif
+        throw AuthError.providerUnavailable("비밀번호 재설정은 Firebase 연동 후 사용할 수 있습니다.")
+    }
+
     /// 서버에서 최신 인증 상태를 다시 읽는다 (사용자가 메일 인증을 마친 뒤 새로고침용)
     func refreshEmailVerification() async {
         #if canImport(FirebaseAuth)

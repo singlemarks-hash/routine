@@ -2,9 +2,8 @@
 //  OnboardingFlow.swift
 //  TimeLock
 //
-//  1. 컨셉 — 알람을 끄는 유일한 방법은 촬영 시작
-//  2. 권한 — 카메라 / 알림 (거부 시 제약 고지)
-//  3. 강도 — 매운맛 선택 (미친 매운맛은 완주 3회 후 잠금 해제)
+//  첫 실행 흐름(로그인 뒤에 온다): 1. 촬영하기 → 2. 기록관리 → 3. 권한 설정 → 홈.
+//  강도 선택 단계는 폐기 — 강도는 활동별 설정으로 옮겨졌다.
 //
 
 import SwiftUI
@@ -17,60 +16,175 @@ struct OnboardingFlow: View {
         ZStack {
             TL.ink.ignoresSafeArea()
             switch step {
-            case 0: ConceptStep { step = 1 }
-            case 1: PermissionStep { step = 2 }
-            default: IntensityStep { app.onboarded = true }
+            case 0: ShootStep { step = 1 }
+            case 1: RecordStep { step = 2 }
+            default: PermissionStep { app.onboarded = true }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: step)
     }
 }
 
-// MARK: - 1. 컨셉
+// MARK: - 1. 촬영하기
 
-private struct ConceptStep: View {
+private struct ShootStep: View {
     var next: () -> Void
     @State private var appeared = false
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            Spacer().frame(height: 110)
+            TLEyebrow(text: "촬영하기")
+            Text("예약한 시각에 알람이 울리면\n바로 타임랩스를 촬영하세요")
+                .font(.tlTitle(26))
+                .foregroundStyle(TL.paper)
+                .lineSpacing(5)
+                .padding(.top, 10)
+            Text("내가 지정한 시간만큼 몰입 타이머가 시작돼요\n끝까지 완주하면 상점, 그만두면 벌점이 쌓여요")
+                .font(.tlBody)
+                .foregroundStyle(TL.muted)
+                .lineSpacing(4)
+                .padding(.top, 14)
+
             Spacer()
-            // 캐릭터 이미지 — 기존 링(220) 대비 1/2 크기(110)
-            Image("OnboardingCharacter")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 110, height: 110)
-                .scaleEffect(appeared ? 1 : 0.8)
-                .opacity(appeared ? 1 : 0)
-                .animation(.spring(response: 0.6, dampingFraction: 0.7), value: appeared)
-                .onAppear { appeared = true }
 
-            Spacer().frame(height: 48)
-
-            VStack(spacing: 14) {
-                Text("알람을 끄는 유일한 방법,\n촬영 시작.")
-                    .font(.tlTitle(26))
-                    .foregroundStyle(TL.paper)
-                    .multilineTextAlignment(.center)
-                Text("예약한 시각에 알람이 울리면 10분 안에\n전면 카메라 타임랩스를 시작해야 합니다.\n촬영이 곧 잠금이 되어 끝까지 지켜봅니다.")
-                    .font(.tlBody)
-                    .foregroundStyle(TL.muted)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
+            // 책상에서 촬영 중인 모티 — 우측 하단 배치.
+            // TODO: 전용 에셋(onboarding_shoot)이 들어오면 이름만 교체.
+            HStack {
+                Spacer()
+                Image("OnboardingCharacter")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 300)
+                    .scaleEffect(appeared ? 1 : 0.9)
+                    .opacity(appeared ? 1 : 0)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7), value: appeared)
+                    .onAppear { appeared = true }
             }
-            .padding(.horizontal, 32)
+            .padding(.trailing, 8)
 
             Spacer()
 
-            Button("시작하기") { next() }
+            Button("다음") { next() }
                 .buttonStyle(TLPrimaryButtonStyle())
-                .padding(.horizontal, 24)
                 .padding(.bottom, 20)
         }
+        .padding(.horizontal, 24)
     }
 }
 
-// MARK: - 2. 권한
+// MARK: - 2. 기록관리
+
+private struct RecordStep: View {
+    var next: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Spacer().frame(height: 110)
+            TLEyebrow(text: "기록관리")
+            Text("의지가 아닌, 실행할 수 밖에 없는\n환경을 만들어요")
+                .font(.tlTitle(26))
+                .foregroundStyle(TL.paper)
+                .lineSpacing(5)
+                .padding(.top, 10)
+            Text("목표달성을 위한 나의 몰입을 기록해요\n모티가 강력한 실행환경을 만들어 줄 거에요")
+                .font(.tlBody)
+                .foregroundStyle(TL.muted)
+                .lineSpacing(4)
+                .padding(.top, 14)
+
+            Spacer()
+
+            streakCardMock
+
+            Spacer()
+
+            Button("다음") { next() }
+                .buttonStyle(TLPrimaryButtonStyle())
+                .padding(.bottom, 20)
+        }
+        .padding(.horizontal, 24)
+    }
+
+    /// 홈 연속달성 카드의 정적 목업 — 실데이터 화면과 같은 구성이라 에셋이 필요 없다.
+    private var streakCardMock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 5) {
+                        Text("연속달성").font(.system(size: 13, weight: .bold)).foregroundStyle(TL.muted)
+                        Image("fire").resizable().scaledToFit().frame(width: 15, height: 15)
+                    }
+                    HStack(alignment: .lastTextBaseline, spacing: 2) {
+                        Text("34").font(.tlTimer(38)).foregroundStyle(TL.jade)
+                        Text("일").font(.system(size: 17, weight: .bold)).foregroundStyle(TL.muted)
+                    }
+                    (Text("총 ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
+                     + Text("506").font(.system(size: 13, weight: .heavy)).foregroundColor(TL.jade)
+                     + Text("시간 ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
+                     + Text("16").font(.system(size: 13, weight: .heavy)).foregroundColor(TL.jade)
+                     + Text("분을 기록했어요!").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 8) {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("최고기록").font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
+                            Image("average").resizable().scaledToFit().frame(width: 13, height: 13)
+                        }
+                        HStack(alignment: .lastTextBaseline, spacing: 2) {
+                            Text("56").font(.tlTimer(17)).foregroundStyle(TL.paper)
+                            Text("일").font(.system(size: 12)).foregroundStyle(TL.muted)
+                        }
+                    }
+                    VStack(alignment: .trailing, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("평균 일정").font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
+                            Image("record").resizable().scaledToFit().frame(width: 13, height: 13)
+                        }
+                        HStack(alignment: .lastTextBaseline, spacing: 2) {
+                            Text("4.2").font(.tlTimer(17)).foregroundStyle(TL.paper)
+                            Text("개").font(.system(size: 12)).foregroundStyle(TL.muted)
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: 0) {
+                mockDay("목", "23", icon: "success")
+                mockDay("목", "23", icon: "fail")
+                mockDay("금", "24", icon: "half")
+                mockDay("토", "25", icon: "success")
+                mockDay("일", "26", icon: "success", highlighted: true)
+                mockDay("월", "27", icon: "not_started")
+            }
+            .padding(.top, 18)
+        }
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
+        .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+            .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
+    }
+
+    private func mockDay(_ weekday: String, _ day: String, icon: String,
+                         highlighted: Bool = false) -> some View {
+        VStack(spacing: 5) {
+            Text(weekday)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(highlighted ? TL.paper : TL.faint)
+            Image(icon).resizable().scaledToFit().frame(width: 22, height: 22)
+            Text(day)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(highlighted ? TL.paper : TL.muted)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+        .background(highlighted ? TL.raised : .clear,
+                    in: RoundedRectangle(cornerRadius: TL.cornerS, style: .continuous))
+    }
+}
+
+// MARK: - 3. 권한 설정
 
 private struct PermissionStep: View {
     var next: () -> Void
@@ -81,9 +195,9 @@ private struct PermissionStep: View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer().frame(height: 60)
             TLEyebrow(text: "권한 설정")
-            // 심사가 지적한 건 버튼이지만, 제목도 같은 성격이다(허용을 권하는 문구).
-            // 무엇에 쓰는지만 알리고 결정은 시스템 창에 맡긴다.
-            Text("카메라와 알림을 사용합니다")
+            // 심사(5.1.1(iv)) — 허용을 권하는 문구·버튼 금지. 무엇에 쓰는지만 알리고
+            // 결정은 시스템 창에 맡긴다. ('허용해 주세요'는 용도 안내 제목으로 유지)
+            Text("두 가지 권한을 허용해 주세요")
                 .font(.tlTitle(28))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 8)
@@ -107,7 +221,6 @@ private struct PermissionStep: View {
             .padding(.top, 28)
 
             // 저장공간 부족 경고 — 촬영 중단이 이탈로 간주될 수 있음을 미리 고지.
-            // 위 권한 카드와 동일한 '아이콘(32) + 제목/설명' 레이아웃으로 통일 (기본 이모지 대신 SF Symbol).
             TLCard {
                 HStack(alignment: .top, spacing: 14) {
                     Image(systemName: "internaldrive.fill")
@@ -117,7 +230,7 @@ private struct PermissionStep: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("저장공간 용량 확인")
                             .font(.tlTitle(15)).foregroundStyle(TL.paper)
-                        Text("저장공간이 부족하여 중간에 타임랩스가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 미리 충분한 저장공간을 꼭 확보해 주세요.")
+                        Text("영상 촬영 중간에 녹화가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 용량 부족으로 타임랩스가 끊기지 않도록 저장공간을 미리 확보해 주세요.")
                             .font(.system(size: 13)).foregroundStyle(TL.amber)
                             .lineSpacing(3)
                     }
@@ -126,7 +239,6 @@ private struct PermissionStep: View {
             .padding(.top, 12)
 
             // 권한은 선택 — 거부해도 온보딩을 진행할 수 있어야 한다(App Review 4.5.4/5.1.1).
-            // 설정 앱으로 강제 유도하지 않고, 실제로 촬영·알람을 사용할 때 다시 안내한다.
             if cameraGranted == false || notifGranted == false {
                 Text("나중에 허용해도 괜찮아요. 촬영·알람 기능을 사용할 때 다시 안내해 드립니다.")
                     .font(.system(size: 13))
@@ -162,9 +274,8 @@ private struct PermissionStep: View {
                 case .some(false):
                     Image(systemName: "xmark.circle.fill").foregroundStyle(TL.rec).font(.title3)
                 case .none:
-                    // 시스템 권한창 앞에 놓인 버튼에 '허용'을 쓰면 심사에서 반려된다
-                    // (5.1.1(iv) — 권한 결정을 앱이 유도하는 것으로 본다).
-                    // 허용 여부는 시스템 창에서만 고르고, 이 버튼은 그 창을 여는 역할만 한다.
+                    // 시스템 권한창 앞 버튼에 '허용'을 쓰면 반려된다 (5.1.1(iv)) —
+                    // 이 버튼은 시스템 창을 여는 역할만 한다.
                     Button("계속") { action() }
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.ink)
@@ -172,76 +283,6 @@ private struct PermissionStep: View {
                         .background(TL.paper, in: Capsule())
                 }
             }
-        }
-    }
-}
-
-// MARK: - 3. 강도 선택
-
-private struct IntensityStep: View {
-    @EnvironmentObject private var app: AppState
-    var done: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Spacer().frame(height: 60)
-            TLEyebrow(text: "강도 설정")
-            Text("얼마나 매울까요")
-                .font(.tlTitle(28))
-                .foregroundStyle(TL.paper)
-                .padding(.top, 8)
-            Text("강도는 앱 전체에 하나만 적용됩니다.\n올리는 건 즉시, 내리는 건 다음날 0시부터.")
-                .font(.tlBody)
-                .foregroundStyle(TL.muted)
-                .padding(.top, 6)
-
-            VStack(spacing: 12) {
-                IntensityCard(intensity: .spicy, selected: true, locked: false)
-                IntensityCard(intensity: .insane, selected: false, locked: true)
-            }
-            .padding(.top, 28)
-
-            Text("미친 매운맛은 멤버십 전용이에요.\n무료로는 매운맛으로 시작하고, 멤버십에서 열 수 있어요.")
-                .font(.system(size: 13))
-                .foregroundStyle(TL.faint)
-                .padding(.top, 14)
-
-            Spacer()
-
-            Button("매운맛으로 시작") { done() }
-                .buttonStyle(TLPrimaryButtonStyle())
-                .padding(.bottom, 20)
-        }
-        .padding(.horizontal, 24)
-    }
-}
-
-struct IntensityCard: View {
-    let intensity: Intensity
-    var selected: Bool
-    var locked: Bool
-
-    var body: some View {
-        TLCard(raised: selected) {
-            HStack(spacing: 14) {
-                Text(intensity.emoji).font(.system(size: 28))
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(intensity.title).font(.tlTitle(17)).foregroundStyle(TL.paper)
-                        if locked {
-                            Label("잠금 해제 전", systemImage: "lock.fill")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(TL.faint)
-                        }
-                    }
-                    Text(intensity.subtitle).font(.system(size: 13)).foregroundStyle(TL.muted)
-                }
-                Spacer()
-                if selected {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(TL.rec).font(.title3)
-                }
-            }
-            .opacity(locked ? 0.55 : 1)
         }
     }
 }

@@ -89,9 +89,6 @@ struct RECRing: View {
     var tint: Color = TL.rec
     var lineWidth: CGFloat = 10
 
-    @State private var pulse = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         ZStack {
             Circle()
@@ -101,23 +98,10 @@ struct RECRing: View {
                 .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 0.4), value: progress)
-            if live {
-                Circle()
-                    .fill(tint)
-                    .frame(width: lineWidth * 1.15, height: lineWidth * 1.15)
-                    .opacity(pulse ? 1 : 0.25)
-                    .offset(y: -ringRadiusOffset)
-                    .animation(
-                        reduceMotion ? nil :
-                            .easeInOut(duration: 0.9).repeatForever(autoreverses: true),
-                        value: pulse
-                    )
-                    .onAppear { pulse = true }
-            }
+            // live 맥동 점은 제거 — offset 0으로 링 정중앙에 찍혀 타이머 숫자와
+            // 간섭했다. live 파라미터는 호출부 호환을 위해 남긴다.
         }
     }
-
-    private var ringRadiusOffset: CGFloat { 0 } // 점은 중앙 상단이 아닌 링 위 progress 지점 대신 12시 고정
 }
 
 /// 세션·알람의 대형 링 + 중앙 콘텐츠
