@@ -76,15 +76,12 @@ struct AlarmView: View {
                             reservationID: reservation.id, fireDate: fireDate)
                         showFocusGuide = true
                     } label: {
-                        VStack(spacing: 3) {
-                            Label("촬영 준비", systemImage: "record.circle.fill")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                            Text("\(TimePolicy.startWindowMinutes)분 안에 촬영을 시작하세요")
-                                .font(.system(size: 11, weight: .semibold))
-                                .opacity(0.75)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        // 시작 창 안내는 위 헤더(§remainingSeconds)에서 이미 하고 있어
+                        // 여기서 또 적으면 중복 — 버튼은 라벨 하나로 간결하게.
+                        Label("촬영 준비", systemImage: "record.circle.fill")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
 
