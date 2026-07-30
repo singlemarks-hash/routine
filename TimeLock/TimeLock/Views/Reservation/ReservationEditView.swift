@@ -312,14 +312,17 @@ struct ReservationEditView: View {
 
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "활동명 (필수)")
+            HStack(spacing: 4) {
+                TLEyebrow(text: "활동명")
+                Text("*").font(.tlLabel).foregroundStyle(TL.rec)
+            }
             TextField("예: 기출문제 3회분", text: $name)
                 .font(.tlBody)
                 .padding(14)
                 .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
                 .overlay(
                     RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
-                        .strokeBorder(TL.paper.opacity(0.7), lineWidth: 1.5)
+                        .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1)
                 )
                 .disabled(editingDisabled)
                 .onChange(of: name) { _, new in
@@ -331,11 +334,10 @@ struct ReservationEditView: View {
     }
 
     /// 직접 입력 칸을 '쓰는 중'인가 — 커서가 들어와 있거나 이미 입력값이 있는 상태.
-    ///
-    /// 태그는 프리셋과 직접 입력 중 하나만 쓰인다(저장 시 직접 입력이 우선). 그런데 둘이
-    /// 항상 같은 밝기로 나란히 있으면, 프리셋을 고른 사람은 "밑에도 채워야 하나" 싶고
-    /// 직접 입력하는 사람은 "위 태그도 같이 붙나" 싶어진다. 그래서 쓰는 쪽만 살리고
-    /// 반대쪽은 눌러둔다 — 직접 입력을 건드리는 순간 프리셋은 흐려지고 눌리지 않는다.
+    /// 프리셋과 직접 입력은 저장 시 직접 입력이 우선이라, 어느 쪽을 쓰는지 눈에
+    /// 보이도록 쓰는 쪽만 강조한다. 다만 둘 다 언제든 다시 누를 수 있어야 한다 —
+    /// 프리셋을 누르면 직접 입력이 즉시 비워지고, 입력칸을 다시 누르면 그대로
+    /// 이어서 칠 수 있다. 번갈아 누르는 데 막힘이 없어야 한다.
     private var customTagActive: Bool {
         customTagFocused || !customTag.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -355,17 +357,11 @@ struct ReservationEditView: View {
                         } label: {
                             TagChip(name: preset, selected: !customTagActive && tag == preset)
                         }
-                        .disabled(editingDisabled || customTagActive)
+                        .disabled(editingDisabled)
                     }
                 }
             }
-            .opacity(customTagActive ? 0.3 : 1)
-
-            if customTagActive {
-                Text("직접 입력한 태그를 씁니다 — 위 태그는 적용되지 않아요.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(TL.faint)
-            }
+            .opacity(customTagActive ? 0.55 : 1)
 
             TextField("직접 입력 (선택)", text: $customTag)
                 .font(.system(size: 14))
@@ -376,7 +372,7 @@ struct ReservationEditView: View {
                 // '굳이 채우지 않아도 되는 칸'으로 읽힌다(활동명은 그 반대라 늘 선이 있다).
                 .overlay(
                     RoundedRectangle(cornerRadius: TL.cornerS, style: .continuous)
-                        .strokeBorder(customTagActive ? TL.paper.opacity(0.7) : .clear, lineWidth: 1.5)
+                        .strokeBorder(customTagActive ? TL.hairline.opacity(0.6) : .clear, lineWidth: 1)
                 )
                 .disabled(editingDisabled)
                 .onChange(of: customTag) { _, newValue in
@@ -388,7 +384,7 @@ struct ReservationEditView: View {
                     // 입력을 다 지워도 지워진 커스텀 문자열이 tag에 남아 그대로 저장됐다.
                 }
         }
-        // 프리셋 흐려짐·안내문·테두리가 한 동작으로 같이 움직이게 한다.
+        // 프리셋 흐려짐·테두리가 한 동작으로 같이 움직이게 한다.
         .animation(TLMotion.smooth, value: customTagActive)
     }
 
