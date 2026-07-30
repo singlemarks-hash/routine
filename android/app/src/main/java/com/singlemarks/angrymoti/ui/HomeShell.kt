@@ -291,6 +291,14 @@ private fun ActivityTab(
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
 
+    // 멤버십 무료 체험 안내 배너 — 무료 회원(게스트 제외) 전용. 구독은 계정에 귀속되므로
+    // 게스트에게는 결제 유도를 하지 않는다(로그인부터 해야 함).
+    val user by AccountStore.user.collectAsState()
+    val isPro by com.singlemarks.angrymoti.services.SubscriptionManager.isPro.collectAsState()
+    val showsTrialInvite = user != null && user?.provider != "guest" && !isPro
+    var showPaywall by remember { mutableStateOf(false) }
+    if (showPaywall) { PaywallScreen(onBack = { showPaywall = false }); return }
+
     // 오늘 발생 활동 — 일정 탭 오늘 칸과 완전히 같은 기준(occurrenceOn 단일 판정).
     // 이미 완료(성공·실패)한 활동도 목록에 남긴다 — 흐림 처리 + 결과 점으로 '오늘 한 일'이
     // 보여야 하루가 쌓이는 감각이 든다. 미완료가 먼저, 완료는 아래로.
@@ -359,6 +367,26 @@ private fun ActivityTab(
             }
         }
         item { TLPrimaryButton("활동 추가하기", onClick = onAdd) }
+        // 멤버십 무료 체험 배너 — 무료 회원 전용 (iOS 홈 1:1)
+        if (showsTrialInvite) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(TL.jade.copy(alpha = 0.12f), TL.cornerL)
+                        .border(1.dp, TL.jade.copy(alpha = 0.4f), TL.cornerL)
+                        .clickable { showPaywall = true }
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("✨ 마음껏 멤버십 기능 체험하기",
+                        color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    androidx.compose.material3.Icon(
+                        AppIcon.ChevronRight,
+                        null, tint = TL.jade, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
         item {
             Row(
                 Modifier.fillMaxWidth()

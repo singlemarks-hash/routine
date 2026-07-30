@@ -19,6 +19,11 @@ object Prefs {
         get() = sp.getBoolean("onboarded", false)
         set(v) = sp.edit().putBoolean("onboarded", v).apply()
 
+    /** 인트로 1·2(촬영하기·기록관리) 열람 여부 — 로그인보다 먼저, 기기 최초 1회만 노출. */
+    var introSeen: Boolean
+        get() = sp.getBoolean("introSeen", false)
+        set(v) = sp.edit().putBoolean("introSeen", v).apply()
+
     /** 강도는 계정별(#19) — 공유 기기에서 A의 미친맛 설정이 B에게 새지 않도록 owner로 분리 */
     fun intensityRaw(owner: String): String = sp.getString("intensity.$owner", "spicy") ?: "spicy"
     fun setIntensityRaw(owner: String, v: String) = sp.edit().putString("intensity.$owner", v).apply()

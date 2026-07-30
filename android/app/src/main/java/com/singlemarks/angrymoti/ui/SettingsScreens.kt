@@ -490,14 +490,16 @@ fun CheerDeveloperScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
         TLScreenHeader("개발자 응원하기", onBack = onBack)
 
         TLCard {
-            Text("앵그리모티는 1인 개발로 만들어가고 있어요", color = TL.paper,
+            Text("앵그리모티는 작은따옴표팀이 만들어 나가고 있어요", color = TL.paper,
                 fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("여러분의 별점 한 줄이 다음 기능을 만드는 가장 큰 힘이 됩니다. 잠깐이면 충분해요!",
+            Text("누구나 마음속에 하나쯤 품고 있는 버킷리스트를 끝내 ‘해냈다’고 말할 수 있는 세상을 꿈꿉니다. 그 소중한 목표가 현실이 되는 순간까지, 앵그리모티는 필요한 기능을 계속 만들어가겠습니다.",
                 color = TL.muted, fontSize = 13.sp)
         }
         Spacer(Modifier.height(12.dp))
-        TLPrimaryButton("⭐  Play 스토어에 별점·후기 남기기", tint = TL.amber) { openReview() }
+        // 별 이모지를 빼면 텍스트가 온전히 가운데로 보인다 — 이모지가 왼쪽에
+        // 붙으면 무게중심이 쏠려 가운데 정렬처럼 안 보인다.
+        TLPrimaryButton("Play 스토어에 별점·후기 남기기", tint = TL.amber) { openReview() }
 
         Spacer(Modifier.height(18.dp))
         TLCard {

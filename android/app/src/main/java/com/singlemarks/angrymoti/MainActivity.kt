@@ -22,6 +22,7 @@ import com.singlemarks.angrymoti.services.SessionEngine
 import com.singlemarks.angrymoti.ui.AlarmScreen
 import com.singlemarks.angrymoti.ui.AuthScreen
 import com.singlemarks.angrymoti.ui.HomeShell
+import com.singlemarks.angrymoti.ui.IntroFlow
 import com.singlemarks.angrymoti.ui.MountGuideScreen
 import com.singlemarks.angrymoti.ui.OnboardingFlow
 import com.singlemarks.angrymoti.ui.SessionResultScreen
@@ -201,6 +202,7 @@ class MainActivity : ComponentActivity() {
 private fun Root() {
     val route by AppState.route.collectAsStateWithLifecycle()
     val onboarded by AppState.onboarded.collectAsStateWithLifecycle()
+    val introSeen by AppState.introSeen.collectAsStateWithLifecycle()
     val user by AccountStore.user.collectAsState()
     val phase by SessionEngine.phase.collectAsStateWithLifecycle()
 
@@ -223,8 +225,12 @@ private fun Root() {
     }
 
     when {
-        !onboarded -> OnboardingFlow()
+        // 첫 실행 순서: 인트로(촬영하기·기록관리) → 로그인(또는 게스트) → 권한 설정 → 홈.
+        // 인트로를 로그인보다 앞에 두는 이유 — 무엇을 하는 앱인지 먼저 보여줘야
+        // 로그인 장벽이 낮아진다 (iOS RootView 1:1).
+        !introSeen -> IntroFlow(onFinish = { AppState.completeIntro() })
         user == null -> AuthScreen()
+        !onboarded -> OnboardingFlow()
         else -> when (val r = route) {
             is Route.Alarm -> AlarmScreen(r.reservationId, r.fireAt)
             is Route.MountGuide -> MountGuideScreen(r.pending)

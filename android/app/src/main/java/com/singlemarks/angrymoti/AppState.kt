@@ -37,11 +37,19 @@ sealed class Route {
 object AppState {
     val route = MutableStateFlow<Route>(Route.None)
     val onboarded = MutableStateFlow(false)   // init()에서 Prefs 반영
+    /** 인트로(촬영하기·기록관리) 열람 여부 — 로그인보다 먼저 노출, 기기 전역·최초 1회 */
+    val introSeen = MutableStateFlow(false)
     val intensity = MutableStateFlow(Intensity.SPICY)
 
     fun bootstrap() {
         onboarded.value = Prefs.onboarded
+        introSeen.value = Prefs.introSeen
         reloadForAccount()
+    }
+
+    fun completeIntro() {
+        Prefs.introSeen = true
+        introSeen.value = true
     }
 
     /** 계정 전환(로그인·로그아웃·게스트) 시 그 계정의 강도·하향예약을 다시 불러온다 (#19 — 강도 계정별) */

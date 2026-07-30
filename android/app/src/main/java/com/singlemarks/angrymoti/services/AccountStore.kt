@@ -118,6 +118,12 @@ object AccountStore {
         if (firebaseAvailable) FirebaseAuth.getInstance().signOut()
     }
 
+    /** 비밀번호 찾기 — 입력한 이메일로 Firebase 재설정 메일(한국어 템플릿) 발송 */
+    suspend fun sendPasswordReset(email: String) {
+        require(firebaseAvailable && email.isNotBlank()) { "비밀번호 재설정은 이메일 로그인 계정만 가능합니다." }
+        FirebaseAuth.getInstance().sendPasswordResetEmail(email).await()
+    }
+
     // MARK: Google (ID 토큰은 UI 계층에서 Google Sign-In으로 획득)
 
     suspend fun signInGoogle(idToken: String) {

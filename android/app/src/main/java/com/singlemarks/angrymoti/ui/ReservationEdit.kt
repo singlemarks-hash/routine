@@ -90,6 +90,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     var oneOffEndDay by remember { mutableStateOf<Long?>(null) }    // '종료일'
     var error by remember { mutableStateOf<String?>(null) }
     var showSlotSheet by remember { mutableStateOf(false) }
+    var showPaywall by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showDurationMenu by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -134,6 +135,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
         }
     }
     if (!loaded) return
+    if (showPaywall) { PaywallScreen(onBack = { showPaywall = false }); return }
 
     // 전체 세션 스트릭 루프·예약×180일 발생 스캔은 무겁다 — 입력 한 글자마다(리컴포지션)
     // 다시 돌지 않게 캐시한다. 화면이 열려 있는 동안 데이터가 바뀔 일은 저장뿐이다.
@@ -395,50 +397,68 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 Text("ⓘ", color = TL.muted, fontSize = 15.sp)
             }
 
-            // ── 활동명 (필수) — 큰 서피스 입력 필드 (iOS 1:1)
+            // ── 활동명 (필수, 빨간 별표) — 큰 서피스 입력 필드, 항상 테두리 (iOS 1:1)
             Column {
-                TLEyebrow("활동명 (필수)")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TLEyebrow("활동명")
+                    Spacer(Modifier.width(4.dp))
+                    Text("*", color = TL.rec, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp))
+                }
                 TLField(name, { name = it.take(ActivityTag.NAME_MAX_LENGTH) },
-                    "예: 기출문제 3회분", enabled = !fieldLocked)
+                    "예: 기출문제 3회분", enabled = !fieldLocked,
+                    unfocusedBorderColor = TL.hairline.copy(alpha = 0.6f))
             }
 
-            // ── 태그 — 프리셋 칩 + '직접 입력' 필드 (iOS 1:1)
+            // ── 태그 — 프리셋 칩(직접 입력 중에도 항상 선택 가능) + '직접 입력' 필드 (iOS 1:1)
             Column {
                 TLEyebrow("태그")
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val customTagActive = customTag.isNotBlank()
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.alpha(if (customTagActive) 0.55f else 1f),
+                ) {
                     items(ActivityTag.presets.size) { i ->
                         val p = ActivityTag.presets[i]
-                        TagChip(p, customTag.isBlank() && tag == p) {
+                        TagChip(p, !customTagActive && tag == p) {
                             if (!fieldLocked) { tag = p; customTag = "" }
                         }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
                 TLField(customTag, { customTag = ActivityTag.truncatedToTagWidth(it) },
-                    "직접 입력", enabled = !fieldLocked)
+                    "직접 입력 (선택)", enabled = !fieldLocked,
+                    unfocusedBorderColor = if (customTagActive) TL.hairline.copy(alpha = 0.6f) else Color.Transparent)
             }
 
             // ── 강도 — 활동별 설정 (그룹 방 만들기와 동일, 혼자 하는 활동이라 '참여자 전원' 문구 제거)
+            // 미친 매운맛은 멤버십 전용 — 잠금 아이콘만으로 충분히 전달되므로 별도 '멤버십
+            // 전용' 표기는 하지 않는다. 무료 회원(게스트 제외)이 누르면 가입 페이지로 보낸다.
             Column {
                 TLEyebrow("강도")
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Intensity.entries.forEach { level ->
                         val selected = intensity == level
-                        // 미친맛: 매운맛 완주 3회(성실 경로) 또는 멤버십
                         val locked = level == Intensity.INSANE && !insaneUnlocked
                         Column(
                             Modifier.weight(1f)
                                 .background(if (selected) TL.paper else TL.surface, TL.cornerM)
-                                .clickable(enabled = !fieldLocked && !locked) { intensity = level }
+                                .alpha(if (locked) 0.7f else 1f)
+                                .clickable(enabled = if (locked) true else !fieldLocked) {
+                                    if (locked) {
+                                        if (AccountStore.isSignedIn && AccountStore.currentUserID != "guest") {
+                                            showPaywall = true
+                                        }
+                                    } else intensity = level
+                                }
                                 .padding(vertical = 10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
-                                color = if (selected) TL.ink else if (locked) TL.faint else TL.muted,
+                                color = if (selected) TL.ink else TL.muted,
                                 fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(if (locked) "멤버십 전용"
-                                 else if (level == Intensity.SPICY) "긴급 용무 10분 허용" else "이탈 즉시 실패 · 점수 2배",
+                            Text(if (level == Intensity.SPICY) "최대 10분 긴급용무 허용" else "봐주기 없는 100% 몰입, 점수 2배",
                                 color = if (selected) TL.ink.copy(alpha = 0.7f) else TL.faint, fontSize = 10.sp)
                         }
                     }
@@ -593,13 +613,14 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 onCheckedChange = { on ->
                                     if (fieldLocked) return@Switch
                                     weeklyRepeat = on
-                                    // 켤 때 선택된 요일이 없으면 평일 기본값
-                                    if (on && repeatDays.isEmpty()) repeatDays = setOf(2, 3, 4, 5, 6)
+                                    // 토글을 켜는 건 '매일은 아니다'라는 선언이다 — 켤 때마다
+                                    // 선택을 비운다(기본값은 항상 전부 꺼짐). iOS와 동일 정책.
+                                    if (on) repeatDays = emptySet()
                                 },
                                 colors = SwitchDefaults.colors(checkedTrackColor = TL.jade),
                             )
                         }
-                        // 요일 반복 ON → 요일 원형 선택
+                        // 요일 반복 ON → 요일 원형 선택 (최대 6개 — 7개를 모두 고르면 '매일'로 전환)
                         if (weeklyRepeat) {
                             Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -615,7 +636,19 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                                     CircleShape)
                                                 .clickable {
                                                     if (fieldLocked) return@clickable
-                                                    repeatDays = if (on) repeatDays - d else repeatDays + d
+                                                    if (on) {
+                                                        repeatDays = repeatDays - d
+                                                    } else {
+                                                        val next = repeatDays + d
+                                                        // 7개 전부 = '매일'과 같은 뜻 — 마지막 요일을
+                                                        // 채우는 순간 토글을 끄고 매일로 넘긴다.
+                                                        if (next.size == 7) {
+                                                            weeklyRepeat = false
+                                                            repeatDays = emptySet()
+                                                        } else {
+                                                            repeatDays = next
+                                                        }
+                                                    }
                                                 },
                                             contentAlignment = Alignment.Center,
                                         ) {
@@ -801,9 +834,16 @@ private fun lockedStartDay(r: Reservation): Long? {
     return if (fire <= System.currentTimeMillis()) startDay else null
 }
 
-/** 큰 서피스 입력 필드 — iOS 텍스트필드 1:1 (배경 서피스, 테두리 없음) */
+/** 큰 서피스 입력 필드 — iOS 텍스트필드 1:1.
+ *  기본은 포커스일 때만 테두리(하이라인)가 보인다 — '굳이 채우지 않아도 되는 칸'으로
+ *  읽히게 한다. unfocusedBorderColor를 넘기면 평소에도 테두리를 보일 수 있다
+ *  (활동명처럼 늘 테두리가 있어야 하는 필수 필드, 또는 값이 있을 때만 보이게 하는
+ *  직접 입력 태그 필드 등 — 호출부가 조건을 계산해서 넘긴다). */
 @Composable
-private fun TLField(value: String, onChange: (String) -> Unit, placeholder: String, enabled: Boolean = true) {
+private fun TLField(
+    value: String, onChange: (String) -> Unit, placeholder: String, enabled: Boolean = true,
+    unfocusedBorderColor: Color = Color.Transparent,
+) {
     OutlinedTextField(
         value, onChange, modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = enabled,
         placeholder = { Text(placeholder, color = TL.faint, fontSize = 16.sp) },
@@ -812,7 +852,7 @@ private fun TLField(value: String, onChange: (String) -> Unit, placeholder: Stri
             focusedContainerColor = TL.surface, unfocusedContainerColor = TL.surface,
             disabledContainerColor = TL.surface,
             focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
-            focusedBorderColor = TL.hairline, unfocusedBorderColor = Color.Transparent,
+            focusedBorderColor = TL.hairline.copy(alpha = 0.6f), unfocusedBorderColor = unfocusedBorderColor,
             disabledBorderColor = Color.Transparent,
             cursorColor = TL.rec),
     )
@@ -862,7 +902,7 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
     Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 36.dp)) {
         Text("활동 슬롯 정책", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(6.dp))
-        Text("하나에 집중하는 습관을 위해, 활동 슬롯은 연속 달성일로 늘어납니다.",
+        Text("한 가지에 집중하는 습관을 위해 활동 슬롯은 제한됩니다.\n연속 달성일이 늘어날수록 활동 슬롯도 함께 늘어납니다.",
             color = TL.muted, fontSize = 14.sp)
         Spacer(Modifier.height(16.dp))
 

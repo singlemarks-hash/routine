@@ -80,17 +80,15 @@ fun AuthScreen() {
             .verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // 헤더 — 캐릭터 + 출석부 (iOS 1:1)
-        Spacer(Modifier.height(36.dp))
-        Image(painterResource(R.drawable.onboarding_character), null, Modifier.size(96.dp))
-        Spacer(Modifier.height(20.dp))
-        Text("앵그리모티 출석부", color = TL.rec, fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
-        Spacer(Modifier.height(8.dp))
-        Text("기록은 계정에 남습니다", color = TL.paper, fontSize = 26.sp, fontWeight = FontWeight.Black)
-        Spacer(Modifier.height(6.dp))
-        Text("상점과 벌점은 계정별로 관리됩니다.\n기기를 바꿔도 이력이 따라옵니다.",
-            color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 20.sp)
+        // 헤더 — 좌측 정렬 카피 (iOS 1:1, 캐릭터·출석부 문구는 제거)
+        Spacer(Modifier.height(56.dp))
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+            Text("타임랩스로 나의 몰입을 기록해요\n더 강력하게", color = TL.paper, fontSize = 26.sp,
+                fontWeight = FontWeight.Black, lineHeight = 33.sp)
+            Spacer(Modifier.height(14.dp))
+            Text("아래 버튼을 눌러\n로그인 또는 회원가입을 진행해 주세요.",
+                color = TL.muted, fontSize = 14.sp, lineHeight = 20.sp)
+        }
         Spacer(Modifier.height(28.dp))
 
         if (pendingEmail != null) {
@@ -225,6 +223,26 @@ fun AuthScreen() {
                 }
             }
 
+            // 비밀번호 찾기 — 로그인 모드에서만 (iOS 1:1)
+            if (mode == "signin") {
+                Spacer(Modifier.height(14.dp))
+                Text("비밀번호 찾기", color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable(enabled = !busy) {
+                        scope.launch {
+                            busy = true; error = null; info = null
+                            runCatching { AccountStore.sendPasswordReset(email) }
+                                .onSuccess {
+                                    info = "재설정 메일을 보냈습니다. 메일함(스팸함 포함)에서 링크를 열어 새 비밀번호를 설정한 뒤 다시 로그인해주세요."
+                                }
+                                .onFailure { error = friendlyAuthError(it) }
+                            busy = false
+                        }
+                    })
+            }
+            info?.let {
+                Text(it, color = TL.jade, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
+            }
+
             // ── 또는 ──
             Row(Modifier.fillMaxWidth().padding(vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f).height(1.dp).background(TL.hairline))
@@ -233,7 +251,15 @@ fun AuthScreen() {
                 Box(Modifier.weight(1f).height(1.dp).background(TL.hairline))
             }
 
+            // 게스트를 구글보다 먼저 — iOS 1:1 순서. 서브텍스트는 뺐다(과한 설명).
+            Text("게스트로 시작", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+                    .clickable(enabled = !busy) { AccountStore.continueAsGuest(null) }
+                    .padding(vertical = 4.dp))
+
             if (AccountStore.firebaseAvailable) {
+                Spacer(Modifier.height(20.dp))
                 GoogleButton(enabled = !busy) {
                     scope.launch {
                         busy = true; error = null
@@ -247,25 +273,16 @@ fun AuthScreen() {
                         busy = false
                     }
                 }
-                Spacer(Modifier.height(26.dp))
-            }
-
-            // 게스트 — 텍스트 버튼 (iOS 1:1)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clickable(enabled = !busy) { AccountStore.continueAsGuest(null) },
-            ) {
-                Text("게스트로 시작", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text("기록이 이 기기에만 저장됩니다 · 나중에 로그인하면 계정으로 옮겨집니다",
-                    color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 3.dp))
             }
         }
 
         // 약관 동의 고지 + 링크 (iOS 1:1)
-        Text("계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주됩니다.",
+        Text("모든 영상 기록은 이 기기에만 저장됩니다.",
             color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 18.dp))
+        Text("계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주됩니다.",
+            color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp))
         Row(Modifier.padding(top = 8.dp, bottom = 24.dp)) {
             Text("이용약관", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { open(Legal.TERMS_URL) })

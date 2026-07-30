@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Switch
@@ -508,28 +509,31 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 "내 닉네임 (최대 ${GroupPolicy.NICKNAME_MAX_LENGTH}자)")
             Spacer(Modifier.height(14.dp))
 
+            // 강도 — 활동 예약과 동일한 2카드 구성(iOS 1:1). 이 화면은 이미 멤버십 계정만
+            // 들어올 수 있어 잠금이 실제로 걸릴 일은 없지만, 구조는 통일해 둔다.
             TLCard {
                 TLEyebrow("강도")
                 Spacer(Modifier.height(8.dp))
-                Row {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Intensity.entries.forEach { level ->
                         val selected = intensity == level
-                        // 미친맛: 매운맛 완주 3회(성실 경로) 또는 멤버십
                         val locked = level == Intensity.INSANE && !insaneUnlocked
-                        Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
-                            color = if (selected) TL.ink else if (locked) TL.faint else TL.paper,
-                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .background(if (selected) TL.paper else TL.raised, CircleShape)
+                        Column(
+                            Modifier.weight(1f)
+                                .background(if (selected) TL.paper else TL.raised, TL.cornerM)
+                                .alpha(if (locked) 0.7f else 1f)
                                 .clickable(enabled = !locked) { intensity = level }
-                                .padding(horizontal = 16.dp, vertical = 10.dp))
-                        Spacer(Modifier.width(8.dp))
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
+                                color = if (selected) TL.ink else TL.muted,
+                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(if (level == Intensity.SPICY) "최대 10분 긴급용무 허용" else "봐주기 없는 100% 몰입, 점수 2배",
+                                color = if (selected) TL.ink.copy(alpha = 0.7f) else TL.faint, fontSize = 10.sp)
+                        }
                     }
                 }
-                Spacer(Modifier.height(6.dp))
-                Text(if (!insaneUnlocked && intensity == Intensity.SPICY)
-                        "미친 매운맛은 멤버십 전용이에요."
-                     else intensity.subtitle, color = TL.faint, fontSize = 12.sp)
             }
             Spacer(Modifier.height(10.dp))
 
@@ -1101,7 +1105,17 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                     if (room.isHostMine) {
                         TLGhostButton("방 해체하기", tint = TL.rec) { confirmAction = "disband" }
                     } else {
-                        TLGhostButton("방 나가기 (시작 전 자유 탈퇴)", tint = TL.muted) { confirmAction = "leave" }
+                        // 탈퇴 버튼 — 제목(빨강) + 보조문구(회색) 2줄 (iOS 1:1)
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .border(1.dp, TL.hairline, TL.cornerM)
+                                .clickable { confirmAction = "leave" }
+                                .padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text("탈퇴하기", color = TL.rec, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Text("시작 전에는 벌점 없음", color = TL.faint, fontSize = 11.sp)
+                        }
                     }
                 }
                 else -> {
