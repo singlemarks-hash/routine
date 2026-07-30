@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
@@ -51,6 +52,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Storage
@@ -73,6 +75,9 @@ object AppIcon {
     val ChevronDown = Icons.Filled.KeyboardArrowDown
     val ChevronsUpDown = Icons.Filled.UnfoldMore
     val Check = Icons.Filled.Check
+    // 알람 취소 사유 라디오 (iOS checkmark.circle.fill / circle 대응)
+    val CheckCircle = Icons.Filled.CheckCircle
+    val CircleEmpty = Icons.Filled.RadioButtonUnchecked
     val Users = Icons.Filled.Groups
     val UserRound = Icons.Filled.Person
     val UserCircle = Icons.Filled.AccountCircle   // 홈 헤더 마이페이지 (iOS person.crop.circle.fill)

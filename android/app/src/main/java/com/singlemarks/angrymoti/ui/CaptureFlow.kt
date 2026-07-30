@@ -93,7 +93,9 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
     val db = remember { AppDb.get(context) }
     var reservation by remember { mutableStateOf<com.singlemarks.angrymoti.data.Reservation?>(null) }
     var showCancel by remember { mutableStateOf(false) }
-    var reason by remember { mutableStateOf("") }
+    // 취소 사유 — 프리셋 선택 + '기타'일 때만 직접 입력 (iOS CancelReasonSheet 1:1)
+    var selectedReason by remember { mutableStateOf<String?>(null) }
+    var customReason by remember { mutableStateOf("") }
     var remaining by remember { mutableIntStateOf(TimePolicy.START_WINDOW_SECONDS.toInt()) }
 
     LaunchedEffect(reservationId) {
@@ -143,46 +145,101 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
             ))
         }
         Spacer(Modifier.height(12.dp))
-        // 안내 점수는 실제 부과 경로(cancelSchedule)와 같은 '활동별 강도'로 계산해야 한다 —
-        // 전역 강도로 계산하면 미친맛 활동에서 안내한 점수와 실제 깎이는 점수가 어긋난다.
-        // 폴백도 실부과 기본과 같은 -10 (iOS AlarmView 1:1).
-        Text("일정 취소 (긴급 벌점 ${ScoreRules.points(SessionOutcome.EMERGENCY, r.intensityOverride ?: AppState.intensity.value, r.durationMinutes)?.second ?: -10}점)",
-            color = TL.muted, fontSize = 14.sp,
+        // 벌점 액수는 시트 안에서 사유와 함께 안내한다 — 여기서도 적으면 같은 숫자가
+        // 두 번 나온다 (iOS는 진입 버튼에 숫자를 두지 않는다).
+        Text("일정 취소", color = TL.muted, fontSize = 14.sp,
             modifier = Modifier.clickable {
                 // 취소를 고민하는 동안에는 알람을 멈춘다 — 시트 위에서 계속 울리면
                 // 사유를 입력할 수 없다. '돌아가기'(시트 닫기)면 다시 울린다 (iOS 1:1).
                 AlarmScheduler.stopAlarmSound(context)
+                // 사유 선택은 매번 새로 — iOS는 시트를 열 때마다 @State가 초기화된다.
+                selectedReason = null
+                customReason = ""
                 showCancel = true
             }.padding(8.dp))
         Spacer(Modifier.height(24.dp))
     }
 
     if (showCancel) {
-        ModalBottomSheet(
-            onDismissRequest = {
-                showCancel = false
-                // 취소를 접고 돌아왔으니 알람 재개 (시작 창이 아직 남아 있는 동안만)
-                if (fireAt + TimePolicy.START_WINDOW_SECONDS * 1000 > System.currentTimeMillis()) {
-                    AlarmScheduler.startAlarmSound(context)
-                }
-            },
-            containerColor = TL.surface,
-        ) {
-            Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-                Text("일정을 취소할까요?", color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
-                Text("취소 사유가 기록되고 긴급 벌점이 부과됩니다.", color = TL.muted, fontSize = 13.sp)
-                Spacer(Modifier.height(14.dp))
-                OutlinedTextField(reason, { reason = it }, modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("사유 (예: 몸살)", color = TL.faint) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
-                        focusedBorderColor = TL.rec, unfocusedBorderColor = TL.hairline, cursorColor = TL.rec))
-                Spacer(Modifier.height(14.dp))
-                TLPrimaryButton("취소 확정", enabled = reason.isNotBlank()) {
-                    AppState.cancelSchedule(context, r, fireAt, reason.trim())
-                }
+        // 취소를 접고 돌아왔으니 알람 재개 (시작 창이 아직 남아 있는 동안만)
+        val resume = {
+            showCancel = false
+            if (fireAt + TimePolicy.START_WINDOW_SECONDS * 1000 > System.currentTimeMillis()) {
+                AlarmScheduler.startAlarmSound(context)
             }
         }
+        ModalBottomSheet(onDismissRequest = resume, containerColor = TL.ink) {
+            // 확정 가능한 최종 사유 — '기타'는 직접 입력이 있어야 확정된다 (iOS finalReason 1:1)
+            val finalReason: String? = selectedReason?.let { sel ->
+                if (sel == CANCEL_REASON_ETC) customReason.trim().ifBlank { null } else sel
+            }
+            Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 20.dp)) {
+                Text("취소 사유를 선택해주세요", color = TL.paper, fontSize = 20.sp,
+                    fontWeight = FontWeight.Black)
+
+                Spacer(Modifier.height(16.dp))
+                CANCEL_REASON_PRESETS.forEach { preset ->
+                    CancelReasonRow(preset, selectedReason == preset) { selectedReason = preset }
+                    Spacer(Modifier.height(8.dp))
+                }
+                if (selectedReason == CANCEL_REASON_ETC) {
+                    OutlinedTextField(customReason, { customReason = it },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        placeholder = { Text("사유를 입력하세요", color = TL.faint) },
+                        shape = TL.cornerM,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = TL.surface, unfocusedContainerColor = TL.surface,
+                            focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
+                            focusedBorderColor = TL.amber.copy(alpha = 0.6f),
+                            unfocusedBorderColor = TL.amber.copy(alpha = 0.6f),
+                            cursorColor = TL.rec))
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Icon(AppIcon.Siren, null, tint = TL.rec,
+                        modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    // 안내 점수는 실제 부과 경로(cancelSchedule)와 같은 '활동별 강도'로 계산한다 —
+                    // 전역 강도로 계산하면 미친맛 활동에서 안내와 실제가 어긋난다 (iOS 1:1).
+                    val penalty = ScoreRules.points(SessionOutcome.EMERGENCY,
+                        r.intensityOverride ?: AppState.intensity.value, r.durationMinutes)?.second ?: -10
+                    Text("취소하면 벌점 ${penalty}점이 사유와 함께 기록됩니다.",
+                        color = TL.rec, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                Spacer(Modifier.height(24.dp))
+                TLPrimaryButton("벌점 확인 · 일정 취소", enabled = finalReason != null) {
+                    finalReason?.let { AppState.cancelSchedule(context, r, fireAt, it) }
+                }
+                Spacer(Modifier.height(10.dp))
+                TLGhostButton("돌아가기 — 알람 다시 울리기", tint = TL.muted) { resume() }
+            }
+        }
+    }
+}
+
+// 취소 사유 프리셋 — iOS AlarmView.CancelReasonSheet와 문구·순서 동일
+private const val CANCEL_REASON_ETC = "기타"
+private val CANCEL_REASON_PRESETS = listOf(
+    "급한 일이 생겼어요", "몸이 좋지 않아요", "오늘은 쉬고싶어요", CANCEL_REASON_ETC,
+)
+
+/** 취소 사유 한 줄 — 선택 시 채워진 체크 원 + 밝은 서피스 (iOS reasonRow 1:1) */
+@Composable
+private fun CancelReasonRow(reason: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .background(if (selected) TL.raised else TL.surface, TL.cornerM)
+            .clickable(onClick = onClick)
+            .padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Icon(
+            if (selected) AppIcon.CheckCircle else AppIcon.CircleEmpty, null,
+            tint = if (selected) TL.rec else TL.faint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(reason, color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
