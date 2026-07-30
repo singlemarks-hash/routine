@@ -372,23 +372,22 @@ struct CheerDeveloperView: View {
             VStack(alignment: .leading, spacing: 16) {
                 TLCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("앵그리모티는 1인 개발로 만들어가고 있어요")
+                        Text("앵그리모티는 작은따옴표팀이 만들어 나가고 있어요")
                             .font(.tlTitle(16)).foregroundStyle(TL.paper)
-                        Text("여러분의 별점 한 줄이 다음 기능을 만드는 가장 큰 힘이 됩니다. 잠깐이면 충분해요!")
+                        Text("누구나 마음속에 하나쯤 품고 있는 버킷리스트를 끝내 \u{2018}해냈다\u{2019}고 말할 수 있는 세상을 꿈꿉니다. 그 소중한 목표가 현실이 되는 순간까지, 앵그리모티는 필요한 기능을 계속 만들어가겠습니다.")
                             .font(.system(size: 13)).foregroundStyle(TL.muted)
                     }
                 }
 
-                // 리뷰 남기기 — 딥링크가 있으면 App Store 작성 페이지, 없으면 시스템 평점 프롬프트
+                // 리뷰 남기기 — 딥링크가 있으면 App Store 작성 페이지, 없으면 시스템 평점 프롬프트.
+                // 아이콘을 텍스트 옆에 붙이면 아이콘 쪽으로 무게가 쏠려 가운데 정렬처럼
+                // 안 보인다 — 다른 기본 버튼들과 같이 텍스트만 놓아 정렬을 맞춘다.
                 Button {
                     if let url = Legal.writeReviewURL { openURL(url) }
                     else { requestReview() }
                 } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "star.fill").foregroundStyle(TL.amber)
-                        Text("App Store에 별점·후기 남기기")
-                            .font(.system(size: 15, weight: .bold))
-                    }
+                    Text("App Store에 별점·후기 남기기")
+                        .font(.system(size: 15, weight: .bold))
                 }
                 .buttonStyle(TLPrimaryButtonStyle(tint: TL.amber))
 
