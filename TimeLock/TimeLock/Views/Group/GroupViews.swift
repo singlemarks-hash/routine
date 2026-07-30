@@ -355,7 +355,7 @@ struct GroupCreateView: View {
                                             .font(.system(size: 14, weight: .bold, design: .rounded))
                                     }
                                     Text(locked ? "멤버십 전용"
-                                         : (candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배"))
+                                         : (candidate == .spicy ? "최대 10분 긴급용무 허용" : "봐주기 없는 100% 몰입, 점수 2배"))
                                         .font(.system(size: 10))
                                 }
                                 .foregroundStyle(intensity == candidate ? TL.ink : (locked ? TL.faint : TL.muted))
@@ -365,7 +365,14 @@ struct GroupCreateView: View {
                                     RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
                                         .fill(intensity == candidate ? TL.paper : TL.surface)
                                 )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                                        .strokeBorder(TL.hairline.opacity(locked ? 0.5 : 0), lineWidth: 1)
+                                )
+                                .opacity(locked ? 0.45 : 1)
+                                .saturation(locked ? 0 : 1)
                             }
+                            .disabled(locked)
                         }
                     }
                 }

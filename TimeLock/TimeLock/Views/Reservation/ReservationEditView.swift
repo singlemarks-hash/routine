@@ -393,7 +393,7 @@ struct ReservationEditView: View {
     }
 
     /// 강도 — 활동별로 설정 (그룹 방 만들기와 동일한 세그먼트, 혼자 하는 활동이라 '참여자 전원' 문구는 뺀다).
-    /// 미친 매운맛은 매운맛 완주 3회로 해제(성실 경로) 또는 멤버십 — 그 전엔 잠금 표시.
+    /// 미친 매운맛은 멤버십 전용 — 무료 사용자에겐 잠금 표시 + 비활성화된 UI로 보여준다.
     private var intensitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             TLEyebrow(text: "강도")
@@ -411,7 +411,7 @@ struct ReservationEditView: View {
                                     .font(.system(size: 14, weight: .bold, design: .rounded))
                             }
                             Text(locked ? "멤버십 전용"
-                                 : (candidate == .spicy ? "긴급 용무 10분 허용" : "이탈 즉시 실패 · 점수 2배"))
+                                 : (candidate == .spicy ? "최대 10분 긴급용무 허용" : "봐주기 없는 100% 몰입, 점수 2배"))
                                 .font(.system(size: 10))
                         }
                         .foregroundStyle(intensity == candidate ? TL.ink : (locked ? TL.faint : TL.muted))
@@ -419,8 +419,15 @@ struct ReservationEditView: View {
                         .padding(.vertical, 10)
                         .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
                             .fill(intensity == candidate ? TL.paper : TL.surface))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                                .strokeBorder(TL.hairline.opacity(locked ? 0.5 : 0), lineWidth: 1)
+                        )
+                        // 잠긴 카드는 선택 여부와 무관하게 흐리게 — 눈으로도 '지금은 못 쓴다'가 읽혀야 한다.
+                        .opacity(locked ? 0.45 : 1)
+                        .saturation(locked ? 0 : 1)
                     }
-                    .disabled(editingDisabled)
+                    .disabled(editingDisabled || locked)
                 }
             }
         }
