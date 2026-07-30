@@ -136,7 +136,7 @@ private struct RecordStep: View {
                         Image("fire").resizable().scaledToFit().frame(width: 15, height: 15)
                     }
                     HStack(alignment: .lastTextBaseline, spacing: 2) {
-                        Text("34").font(.tlTimer(38)).foregroundStyle(TL.jade)
+                        Text("3").font(.tlTimer(38)).foregroundStyle(TL.jade)
                         Text("일").font(.system(size: 17, weight: .bold)).foregroundStyle(TL.muted)
                     }
                     (Text("총 ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
