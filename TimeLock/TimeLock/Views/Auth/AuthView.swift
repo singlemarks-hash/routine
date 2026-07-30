@@ -229,14 +229,29 @@ struct AuthView: View {
 
     private var socialButtons: some View {
         VStack(spacing: 10) {
-            SignInWithAppleButton(.continue) { request in
-                account.prepareAppleRequest(request)
-            } onCompletion: { result in
-                run { try await account.completeAppleSignIn(result) }
+            // 네이티브 버튼은 탭 동작만 담당하고(거의 투명), 텍스트·로고는 구글 버튼과
+            // 같은 스타일로 직접 그린다 — 두 버튼의 폰트 크기가 서로 달라 보이는 문제 수정.
+            ZStack {
+                SignInWithAppleButton(.continue) { request in
+                    account.prepareAppleRequest(request)
+                } onCompletion: { result in
+                    run { try await account.completeAppleSignIn(result) }
+                }
+                .signInWithAppleButtonStyle(.white)
+                .opacity(0.02)
+
+                HStack(spacing: 10) {
+                    Image(systemName: "apple.logo")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(TL.ink)
+                    Text("Apple로 계속하기")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TL.ink)
+                }
+                .allowsHitTesting(false)
             }
-            .signInWithAppleButtonStyle(.white)
             .frame(height: 50)
-            .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
+            .background(Color.white, in: RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
 
             Button {
                 run { try await account.signInWithGoogle() }
