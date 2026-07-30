@@ -17,6 +17,15 @@ struct IntroFlow: View {
     var body: some View {
         ZStack {
             TL.ink.ignoresSafeArea()
+            // 로그인 화면과 같은 계열의 레드 글로우 — 여기선 하단에서 위로 번지는 방향.
+            LinearGradient(
+                stops: [
+                    .init(color: TL.rec.opacity(0.28), location: 0),
+                    .init(color: TL.rec.opacity(0.10), location: 0.35),
+                    .init(color: .clear, location: 0.7),
+                ],
+                startPoint: .bottom, endPoint: .top)
+                .ignoresSafeArea()
             switch step {
             case 0: ShootStep { step = 1 }
             default: RecordStep { onFinish() }
@@ -67,7 +76,7 @@ private struct ShootStep: View {
                 Image("OnboardingShoot")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 300)
+                    .frame(width: 240)
                     .scaleEffect(appeared ? 1 : 0.9)
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.6, dampingFraction: 0.7), value: appeared)
