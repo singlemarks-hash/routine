@@ -49,6 +49,32 @@ final class CameraRecorder: NSObject, ObservableObject {
     private var thumbnailImage: UIImage?
     private var pixelSize: CGSize = .zero
 
+    // MARK: 세그먼트 녹화 (긴급 용무·백그라운드를 건너 촬영을 잇는 구조)
+    //
+    // iOS는 앱이 백그라운드로 가는 순간 하드웨어 HEVC 인코더 세션을 무효화한다.
+    // 한 번 .failed가 된 AVAssetWriter는 되살릴 방법이 없어서, 세션당 writer 1개
+    // 구조에서는 통화/앱 전환 뒤 재촬영해도 인코딩이 조용히 전부 실패했다
+    // (프리뷰는 살아 있어 겉으론 촬영 중처럼 보임 → 스톨 오탐 → 긴급용무 무한 반복
+    // → 종료 시 writer.failed로 영상 전량 폐기 → 안전 종료. 실기기 신고 유형).
+    //
+    // 해법: 중단(pause)마다 현재 writer를 세그먼트 파일로 즉시 확정하고, 재개 후
+    // 첫 프레임에서 새 writer/새 세그먼트를 연다. 종료 시 세그먼트들을 무재인코딩
+    // (passthrough)으로 이어붙여 기존과 동일한 단일 .mov를 만든다 — 긴급용무를
+    // 몇 번 쓰든 결과는 하나의 이어진 타임랩스다. 부수 효과로, 통화 중 앱이 죽어도
+    // 이미 확정된 세그먼트(moov 기록 완료)는 살아남는다.
+    private struct Segment {
+        let url: URL
+        var frames: Int
+    }
+    /// 확정됐거나 확정 중(finishWriting 진행 중)인 세그먼트들. processingQueue에서만 접근.
+    private var segments: [Segment] = []
+    private var segmentIndex = 0
+    /// 현재 세그먼트 안에서의 프레임 번호 — writer마다 0부터 시작해야 병합 시 공백이 없다.
+    private var segmentFrameCount = 0
+    private var currentSegmentURL: URL?
+    /// 진행 중인 finishWriting들의 완료 대기용 (stopRecording이 병합 전에 기다린다)
+    private let finishGroup = DispatchGroup()
+
     /// 타임랩스 캡처 간격 — 세션 길이에 맞춰 startRecording에서 동적으로 정한다.
     /// (짧은 세션은 촘촘히, 긴 세션은 성기게 캡처해 결과 길이를 20~40초로 수렴)
     private var captureInterval: TimeInterval = 1.0
@@ -344,7 +370,11 @@ final class CameraRecorder: NSObject, ObservableObject {
             self.writer = nil            // 첫 프레임에서 생성
             self.writerInput = nil
             self.adaptor = nil
-            self.outputURL = url
+            self.outputURL = url         // 최종 병합 파일 — 세그먼트는 "-segN.mov"로 따로
+            self.segments = []
+            self.segmentIndex = 0
+            self.segmentFrameCount = 0
+            self.currentSegmentURL = nil
             self.thumbnailImage = nil
             self.lastCaptureAt = 0
             self.frameCountInternal = 0
@@ -361,9 +391,15 @@ final class CameraRecorder: NSObject, ObservableObject {
         startPreview()
     }
 
-    /// 첫 프레임의 확정된 크기로 writer를 생성 (processingQueue에서 호출)
+    /// 새 세그먼트의 writer를 생성한다 — 첫 프레임의 확정된 크기로 (processingQueue에서 호출).
+    /// 세그먼트 파일명: "<세션ID>-seg<N>.mov". 종료 시 하나로 병합돼 "<세션ID>.mov"가 된다.
     private func setupWriter(width: Int, height: Int) {
-        guard let url = outputURL else { return }
+        guard let base = outputURL else { return }
+        let segName = base.deletingPathExtension().lastPathComponent + "-seg\(segmentIndex).mov"
+        let url = base.deletingLastPathComponent().appendingPathComponent(segName)
+        segmentIndex += 1
+        segmentFrameCount = 0
+        try? FileManager.default.removeItem(at: url)
         do {
             let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
             let settings: [String: Any] = [
@@ -391,12 +427,52 @@ final class CameraRecorder: NSObject, ObservableObject {
             self.writer = writer
             self.writerInput = input
             self.adaptor = adaptor
+            self.currentSegmentURL = url
+            // 쓰는 중인 파일은 completeUnlessOpen — .complete로 두면 화면 잠금 순간
+            // 접근이 박탈돼 인코딩이 그 자리에서 죽는다(두 번째 사망 경로).
+            // 최종 병합 파일에는 .complete를 되건다.
             try? FileManager.default.setAttributes(
-                [.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+                [.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
         } catch { }
     }
 
-    func pause()  { processingQueue.async { self.isPaused = true } }
+    /// 현재 writer를 세그먼트로 확정한다 (processingQueue에서 호출).
+    /// 백그라운드 진입 전에 moov를 기록해 두는 것이 핵심 — 인코더가 무효화돼도
+    /// 여기까지의 촬영분은 디스크에 완결된 파일로 남는다.
+    private func finalizeCurrentSegmentLocked() {
+        guard let w = writer, let input = writerInput, let url = currentSegmentURL else { return }
+        segments.append(Segment(url: url, frames: segmentFrameCount))
+        let slot = segments.count - 1
+        writer = nil; writerInput = nil; adaptor = nil
+        currentSegmentURL = nil
+        input.markAsFinished()
+        let group = finishGroup   // weak self가 죽어도 반드시 leave되도록 직접 캡처
+        group.enter()
+        w.finishWriting { [weak self] in
+            if w.status != .completed {
+                // 마감 실패(인코더 이미 사망 등) — 이 세그먼트는 재생 불가이므로 버린다.
+                // 이전에 확정된 세그먼트들은 영향 없다.
+                try? FileManager.default.removeItem(at: url)
+                if let self {
+                    self.processingQueue.async {
+                        if self.segments.indices.contains(slot) { self.segments[slot].frames = 0 }
+                        group.leave()
+                    }
+                    return
+                }
+            }
+            group.leave()
+        }
+    }
+
+    /// 일시중단(긴급 용무·이탈) — 프레임 수신을 멈추고 현재 세그먼트를 즉시 확정한다.
+    /// 재개 후 첫 프레임이 새 세그먼트를 연다 (죽었을지 모르는 writer를 절대 재사용하지 않는다).
+    func pause() {
+        processingQueue.async {
+            self.isPaused = true
+            self.finalizeCurrentSegmentLocked()
+        }
+    }
     func resume() {
         // 통화(보이스톡)·타앱 카메라 점유로 세션이 죽어 있었다면 먼저 되살린다.
         // (같은 processingQueue라 startRunning이 끝난 뒤 isPaused가 풀린다 → 프레임 유실 없음)
@@ -424,48 +500,101 @@ final class CameraRecorder: NSObject, ObservableObject {
 
     enum RecorderError: Error { case writerSetupFailed, notRecording }
 
-    /// 녹화 종료. 인코딩을 마무리하고 파일명/썸네일을 반환한다.
+    /// 녹화 종료. 마지막 세그먼트를 확정하고, 세그먼트 전부를 단일 .mov로 병합해 반환한다.
+    /// 긴급 용무로 몇 번을 끊었든 결과는 이어진 타임랩스 하나다.
     func stopRecording() async -> RecordingResult? {
-        var localWriter: AVAssetWriter?
-        var localInput: AVAssetWriterInput?
         var localURL: URL?
         var localThumb: UIImage?
-        var frames = 0
+        var wasRecording = false
 
         processingQueue.sync {
             guard isRecording else { return }
+            wasRecording = true
             isRecording = false
-            localWriter = writer
-            localInput = writerInput
+            finalizeCurrentSegmentLocked()   // 촬영 중이던 마지막 세그먼트 마감
             localURL = outputURL
             localThumb = thumbnailImage
-            frames = frameCountInternal
-            writer = nil; writerInput = nil; adaptor = nil
         }
-        guard let w = localWriter, let input = localInput, let url = localURL else { return nil }
+        guard wasRecording, let finalURL = localURL else { return nil }
 
-        input.markAsFinished()
-        await w.finishWriting()
+        // 진행 중인 finishWriting(직전 pause 포함)이 모두 끝나기를 기다린 뒤에 병합한다.
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            finishGroup.notify(queue: .global()) { cont.resume() }
+        }
         stopPreview()
 
-        // 저장 실패(디스크 풀 등)로 writer가 .failed거나 프레임이 없으면 파일이 손상/무의미하다 —
-        // 손상 영상을 결과로 내보내지 않고, 파일을 지운 뒤 nil을 반환한다(엔진이 안전 종료로 강등).
-        if frames == 0 || w.status == .failed {
-            try? FileManager.default.removeItem(at: url)
+        // 확정 완료 후의 최종 세그먼트 상태 — 마감 실패한 세그먼트는 frames=0으로 지워져 있다.
+        let validSegments = processingQueue.sync { segments }
+            .filter { $0.frames > 0 && FileManager.default.fileExists(atPath: $0.url.path) }
+        let frames = validSegments.reduce(0) { $0 + $1.frames }
+
+        // 유효 촬영분이 하나도 없으면 무의미 — 전부 지우고 nil (엔진이 안전 종료로 강등).
+        guard frames > 0 else {
+            for seg in processingQueue.sync(execute: { segments }) {
+                try? FileManager.default.removeItem(at: seg.url)
+            }
+            try? FileManager.default.removeItem(at: finalURL)
             return nil
         }
 
+        let merged = await Self.mergeSegments(validSegments.map(\.url), into: finalURL)
+        if merged {
+            for seg in validSegments { try? FileManager.default.removeItem(at: seg.url) }
+        } else {
+            // 병합 실패 백스톱 — 가장 긴 유효 세그먼트라도 결과로 살린다. 전량 폐기는 없다.
+            guard let best = validSegments.max(by: { $0.frames < $1.frames }) else { return nil }
+            try? FileManager.default.removeItem(at: finalURL)
+            do { try FileManager.default.moveItem(at: best.url, to: finalURL) }
+            catch { return nil }
+            for seg in validSegments where seg.url != best.url {
+                try? FileManager.default.removeItem(at: seg.url)
+            }
+        }
+        // 완성된 파일에는 원래의 완전 보호를 되건다 (쓰는 중이 아니므로 안전).
+        try? FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.complete], ofItemAtPath: finalURL.path)
+
         var thumbName: String?
         if let thumb = localThumb, let data = thumb.jpegData(compressionQuality: 0.8) {
-            let name = url.deletingPathExtension().lastPathComponent + "-thumb.jpg"
+            let name = finalURL.deletingPathExtension().lastPathComponent + "-thumb.jpg"
             let thumbURL = SessionStorage.directory.appendingPathComponent(name)
             try? data.write(to: thumbURL, options: [.completeFileProtection])
             thumbName = name
         }
-        return RecordingResult(videoFileName: url.lastPathComponent,
+        return RecordingResult(videoFileName: finalURL.lastPathComponent,
                                thumbnailFileName: thumbName,
                                frames: frames,
                                recordedSeconds: Int((Double(frames) * captureInterval).rounded()))
+    }
+
+    /// 세그먼트들을 재인코딩 없이(passthrough) 시간순으로 이어붙여 최종 파일을 만든다.
+    /// 세그먼트가 1개면 export 없이 파일 이동으로 끝낸다 (대부분의 세션이 이 경로).
+    private static func mergeSegments(_ urls: [URL], into finalURL: URL) async -> Bool {
+        try? FileManager.default.removeItem(at: finalURL)
+        if urls.count == 1 {
+            do { try FileManager.default.moveItem(at: urls[0], to: finalURL); return true }
+            catch { return false }
+        }
+        let composition = AVMutableComposition()
+        guard let track = composition.addMutableTrack(
+            withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { return false }
+        var cursor = CMTime.zero
+        for url in urls {
+            let asset = AVURLAsset(url: url)
+            guard let assetTrack = try? await asset.loadTracks(withMediaType: .video).first,
+                  let range = try? await assetTrack.load(.timeRange),
+                  range.duration > .zero else { continue }
+            do { try track.insertTimeRange(range, of: assetTrack, at: cursor) } catch { continue }
+            cursor = CMTimeAdd(cursor, range.duration)
+        }
+        guard cursor > .zero, let export = AVAssetExportSession(
+            asset: composition, presetName: AVAssetExportPresetPassthrough) else { return false }
+        export.outputURL = finalURL
+        export.outputFileType = .mov
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            export.exportAsynchronously { cont.resume() }
+        }
+        return export.status == .completed
     }
 
     /// 세션을 폐기하지 않고 현재까지 촬영분을 보존한 채 중단 (이탈/긴급/안전 종료 공통)
@@ -507,8 +636,11 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
         guard let input = writerInput, let adaptor = adaptor,
               input.isReadyForMoreMediaData else { return }
 
-        let time = CMTime(value: CMTimeValue(frameCountInternal), timescale: playbackFPS)
+        // 타임스탬프는 '세그먼트 내' 프레임 번호 — writer마다 0부터. 전역 번호를 쓰면
+        // 두 번째 세그먼트가 앞부분이 빈 영상이 되어 병합 결과에 공백이 생긴다.
+        let time = CMTime(value: CMTimeValue(segmentFrameCount), timescale: playbackFPS)
         if adaptor.append(buffer, withPresentationTime: time) {
+            segmentFrameCount += 1
             frameCountInternal += 1
             let count = frameCountInternal
             if thumbnailImage == nil {
@@ -518,6 +650,17 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
                 self.frameCount = count
                 self.lastFrameAt = Date()   // 실제 인코딩된 시각 갱신 (append 실패 시엔 갱신 안 됨 → 정지로 잡힘)
             }
+        } else if writer?.status == .failed {
+            // 인코더가 죽었다(예상 밖 백그라운드·메모리 압박 등). 이 writer는 되살릴 수
+            // 없고 파일도 재생 불가다 — 그 세그먼트 몫만 버리고 다음 프레임에서 새
+            // 세그먼트를 연다. 사용자는 아무것도 누를 필요 없이 촬영이 조용히 이어진다.
+            frameCountInternal -= segmentFrameCount
+            let count = frameCountInternal
+            if let url = currentSegmentURL { try? FileManager.default.removeItem(at: url) }
+            self.writer = nil; self.writerInput = nil; self.adaptor = nil
+            currentSegmentURL = nil
+            segmentFrameCount = 0
+            DispatchQueue.main.async { self.frameCount = count }
         }
     }
 

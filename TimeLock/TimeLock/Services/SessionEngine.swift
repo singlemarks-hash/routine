@@ -856,9 +856,18 @@ final class SessionEngine: NSObject, ObservableObject {
         persist(context, "오펀 세션 복구 기록")
         AccountStore.shared.mirrorSession(orphan)   // 복구된 세션 요약도 클라우드 미러
         // 크래시로 남은 파셜 영상은 재생 불가(moov 미기록)하고 어떤 세션도 참조하지 않는다 —
-        // 디스크만 차지하므로 정리한다.
-        let partial = SessionStorage.directory.appendingPathComponent("\(orphan.id.uuidString).mov")
-        try? FileManager.default.removeItem(at: partial)
+        // 디스크만 차지하므로 정리한다. 세그먼트 파일("<ID>-segN.mov")도 함께 —
+        // 확정된 세그먼트는 재생 가능하지만, 이탈 실패로 확정된 세션의 조각을
+        // 결과에 살릴 경로가 없으므로 남겨 둘 이유가 없다.
+        let base = orphan.id.uuidString
+        try? FileManager.default.removeItem(
+            at: SessionStorage.directory.appendingPathComponent("\(base).mov"))
+        if let leftovers = try? FileManager.default.contentsOfDirectory(
+            at: SessionStorage.directory, includingPropertiesForKeys: nil) {
+            for file in leftovers where file.lastPathComponent.hasPrefix("\(base)-seg") {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
         clearUsedKey()
         defaults.removeObject(forKey: Key.breakDeadline)
         AlarmScheduler.shared.cancelBreakNotifications()
