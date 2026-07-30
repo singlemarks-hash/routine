@@ -67,6 +67,7 @@ struct ReservationEditView: View {
     @State private var errorMessage: String?
     @State private var showDeleteConfirm = false
     @State private var showSlotPolicy = false
+    @State private var showIntensityPaywall = false
     @FocusState private var customTagFocused: Bool
 
     private let weekdaySymbols = [(1, "일"), (2, "월"), (3, "화"), (4, "수"), (5, "목"), (6, "금"), (7, "토")]
@@ -260,6 +261,7 @@ struct ReservationEditView: View {
                                 isMember: subscription.isPro)
                     .presentationDetents([.medium, .large])
             }
+            .sheet(isPresented: $showIntensityPaywall) { PaywallView() }
             .onAppear(perform: load)
             }   // ScrollViewReader
         }
@@ -389,7 +391,9 @@ struct ReservationEditView: View {
     }
 
     /// 강도 — 활동별로 설정 (그룹 방 만들기와 동일한 세그먼트, 혼자 하는 활동이라 '참여자 전원' 문구는 뺀다).
-    /// 미친 매운맛은 멤버십 전용 — 무료 사용자에겐 잠금 표시 + 비활성화된 UI로 보여준다.
+    /// 미친 매운맛은 멤버십 전용 — 잠금 아이콘만으로 충분히 전달되므로 별도 '멤버십 전용' 표기는
+    /// 하지 않는다. 무료 회원(게스트 제외)이 누르면 가입 페이지로 보낸다 — 구독은 계정에
+    /// 귀속되므로 게스트에게는 결제 유도를 하지 않는다(로그인부터 해야 함).
     private var intensitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             TLEyebrow(text: "강도")
@@ -397,7 +401,10 @@ struct ReservationEditView: View {
                 ForEach(Intensity.allCases) { candidate in
                     let locked = candidate == .insane && !app.insaneUnlocked
                     Button {
-                        guard !locked else { return }
+                        if locked {
+                            if account.isSignedIn, !account.isGuest { showIntensityPaywall = true }
+                            return
+                        }
                         intensity = candidate
                     } label: {
                         VStack(spacing: 3) {
@@ -406,11 +413,10 @@ struct ReservationEditView: View {
                                 Text("\(candidate.emoji) \(candidate.title)")
                                     .font(.system(size: 14, weight: .bold, design: .rounded))
                             }
-                            Text(locked ? "멤버십 전용"
-                                 : (candidate == .spicy ? "최대 10분 긴급용무 허용" : "봐주기 없는 100% 몰입, 점수 2배"))
+                            Text(candidate == .spicy ? "최대 10분 긴급용무 허용" : "봐주기 없는 100% 몰입, 점수 2배")
                                 .font(.system(size: 10))
                         }
-                        .foregroundStyle(intensity == candidate ? TL.ink : (locked ? TL.faint : TL.muted))
+                        .foregroundStyle(intensity == candidate ? TL.ink : TL.muted)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
@@ -419,11 +425,11 @@ struct ReservationEditView: View {
                             RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
                                 .strokeBorder(TL.hairline.opacity(locked ? 0.5 : 0), lineWidth: 1)
                         )
-                        // 잠긴 카드는 선택 여부와 무관하게 흐리게 — 눈으로도 '지금은 못 쓴다'가 읽혀야 한다.
-                        .opacity(locked ? 0.45 : 1)
+                        // 잠긴 카드는 흐리되, 글씨는 읽혀야 한다 — 너무 어둡지 않게 절반 정도만.
+                        .opacity(locked ? 0.7 : 1)
                         .saturation(locked ? 0 : 1)
                     }
-                    .disabled(editingDisabled || locked)
+                    .disabled(editingDisabled && !locked)   // 잠긴 카드는 editingDisabled와 무관하게 페이월 진입은 허용
                 }
             }
         }

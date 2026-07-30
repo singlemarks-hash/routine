@@ -252,6 +252,7 @@ struct GroupCreateView: View {
     @Query(filter: #Predicate<Reservation> { $0.isActive }) private var allActiveReservations: [Reservation]
     @Query private var allSessions: [FocusSession]
     @State private var showSlotPolicy = false
+    @State private var showIntensityPaywall = false
 
     // 그룹 예약도 슬롯 1개를 차지 — 방 만들기 최상단에 현황 노출 (활동 예약과 동일)
     private var slotUsed: Int { allActiveReservations.filter { $0.ownerUserID == account.currentUserID }.count }
@@ -314,6 +315,7 @@ struct GroupCreateView: View {
                 SlotPolicySheet(currentStreak: slotStreak, usedSlots: slotUsed, isMember: subscription.isPro)
                     .presentationDetents([.medium, .large])
             }
+            .sheet(isPresented: $showIntensityPaywall) { PaywallView() }
         }
         .preferredColorScheme(.dark)
     }
@@ -345,7 +347,12 @@ struct GroupCreateView: View {
                         ForEach(Intensity.allCases) { candidate in
                             let locked = candidate == .insane && !insaneUnlocked
                             Button {
-                                guard !locked else { return }
+                                if locked {
+                                    // 이 화면은 이미 로그인·비게스트 계정만 들어올 수 있다
+                                    // (그룹 탭 자체가 게스트에게 숨겨진다) — 항상 가입 페이지로.
+                                    showIntensityPaywall = true
+                                    return
+                                }
                                 intensity = candidate
                             } label: {
                                 VStack(spacing: 3) {
@@ -354,11 +361,10 @@ struct GroupCreateView: View {
                                         Text("\(candidate.emoji) \(candidate.title)")
                                             .font(.system(size: 14, weight: .bold, design: .rounded))
                                     }
-                                    Text(locked ? "멤버십 전용"
-                                         : (candidate == .spicy ? "최대 10분 긴급용무 허용" : "봐주기 없는 100% 몰입, 점수 2배"))
+                                    Text(candidate == .spicy ? "최대 10분 긴급용무 허용" : "봐주기 없는 100% 몰입, 점수 2배")
                                         .font(.system(size: 10))
                                 }
-                                .foregroundStyle(intensity == candidate ? TL.ink : (locked ? TL.faint : TL.muted))
+                                .foregroundStyle(intensity == candidate ? TL.ink : TL.muted)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                                 .background(
@@ -369,10 +375,9 @@ struct GroupCreateView: View {
                                     RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
                                         .strokeBorder(TL.hairline.opacity(locked ? 0.5 : 0), lineWidth: 1)
                                 )
-                                .opacity(locked ? 0.45 : 1)
+                                .opacity(locked ? 0.7 : 1)
                                 .saturation(locked ? 0 : 1)
                             }
-                            .disabled(locked)
                         }
                     }
                 }
