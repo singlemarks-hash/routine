@@ -452,12 +452,9 @@ struct HomeView: View {
 
     // MARK: 멤버십 무료 체험 안내 (무료 회원 전용)
 
-    /// 홈에서 멤버십 체험을 권하는 배너. 실제 체험 기간·문구는 App Store의 소개 혜택
+    /// 홈에서 멤버십 체험을 권하는 버튼. 실제 체험 기간·문구는 App Store의 소개 혜택
     /// (신규 구독 특가)이 정본이므로, 스토어에서 읽어 온 값이 있으면 그것을 쓴다.
     /// (스토어에서 체험이 내려가면 문구가 조용히 어긋나지 않도록)
-    ///
-    /// 다른 카드들과 달리 둥근 모서리 안에 갇히지 않고 화면 가장자리까지 꽉 채운다 —
-    /// 부모 VStack의 좌우 padding(20)을 상쇄해 배너만 밖으로 튀어나가게 한다.
     private var trialInviteButton: some View {
         Button {
             showPaywall = true
@@ -466,26 +463,23 @@ struct HomeView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 16, weight: .bold))
                 Text("마음껏 멤버십 기능 체험하기")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                 if let trial = subscription.freeTrialDescription {
                     Text("(\(trial))")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .opacity(0.75)
+                        .foregroundStyle(TL.jade.opacity(0.9))
                 }
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold))
             }
-            .foregroundStyle(TL.ink)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(colors: [TL.jade, TL.jade.opacity(0.75)],
-                               startPoint: .leading, endPoint: .trailing)
-            )
+            .foregroundStyle(TL.jade)
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                .fill(TL.jade.opacity(0.12)))
+            .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                .strokeBorder(TL.jade.opacity(0.4), lineWidth: 1))
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, -20)
+        .pressableStyle()
     }
 
     // MARK: 예정된 활동
