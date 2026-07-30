@@ -1328,9 +1328,20 @@ struct GroupRoomDetailView: View {
                         Text("참여자 전원에게 방이 사라지고, 되돌릴 수 없습니다.")
                     }
             } else {
-                Button(working ? "탈퇴하는 중…" : "탈퇴하기 (시작 전에는 벌점 없음)") { confirmLeave = true }
-                    .buttonStyle(TLGhostButtonStyle())
-                    .disabled(working)
+                Button {
+                    confirmLeave = true
+                } label: {
+                    VStack(spacing: 2) {
+                        Text(working ? "탈퇴하는 중…" : "탈퇴하기")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TL.rec)
+                        Text("시작 전에는 벌점 없음")
+                            .font(.system(size: 11))
+                            .foregroundStyle(TL.faint)
+                    }
+                }
+                .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
+                .disabled(working)
                     .confirmationDialog("방에서 나갈까요?", isPresented: $confirmLeave, titleVisibility: .visible) {
                         Button("탈퇴하기", role: .destructive) {
                             Task { await runLeaveAction { try await store.leaveBeforeStart(room: room) } }
