@@ -10,6 +10,8 @@
 import SwiftUI
 
 /// 로그인 이전, 기기 최초 1회만 보여주는 인트로 2페이지(촬영하기·기록관리).
+/// TabView(.page)로 감싸 스와이프로 앞뒤 이동이 가능하다 — 버튼은 앞으로만 가지만,
+/// 뒤로는 스와이프나 2페이지의 이전 버튼으로 돌아갈 수 있다.
 struct IntroFlow: View {
     var onFinish: () -> Void
     @State private var step = 0
@@ -26,10 +28,13 @@ struct IntroFlow: View {
                 ],
                 startPoint: .bottom, endPoint: .top)
                 .ignoresSafeArea()
-            switch step {
-            case 0: ShootStep { step = 1 }
-            default: RecordStep { onFinish() }
+            TabView(selection: $step) {
+                ShootStep { step = 1 }
+                    .tag(0)
+                RecordStep(onBack: { step = 0 }) { onFinish() }
+                    .tag(1)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
         }
         .animation(.easeInOut(duration: 0.25), value: step)
     }
@@ -96,11 +101,21 @@ private struct ShootStep: View {
 // MARK: - 2. 기록관리
 
 private struct RecordStep: View {
+    var onBack: () -> Void
     var next: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Spacer().frame(height: 110)
+            Spacer().frame(height: 60)
+            Button {
+                onBack()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(TL.muted)
+                    .padding(8)
+            }
+            Spacer().frame(height: 22)
             TLEyebrow(text: "기록관리")
             Text("의지가 아닌, 실행할 수 밖에 없는\n환경을 만들어요")
                 .font(.tlTitle(26))
