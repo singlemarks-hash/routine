@@ -67,6 +67,7 @@ struct ReservationEditView: View {
     @State private var errorMessage: String?
     @State private var showDeleteConfirm = false
     @State private var showSlotPolicy = false
+    @FocusState private var customTagFocused: Bool
 
     private let weekdaySymbols = [(1, "일"), (2, "월"), (3, "화"), (4, "수"), (5, "목"), (6, "금"), (7, "토")]
     private let durations = TimePolicy.durationOptionsMinutes
@@ -329,32 +330,66 @@ struct ReservationEditView: View {
         }
     }
 
+    /// 직접 입력 칸을 '쓰는 중'인가 — 커서가 들어와 있거나 이미 입력값이 있는 상태.
+    ///
+    /// 태그는 프리셋과 직접 입력 중 하나만 쓰인다(저장 시 직접 입력이 우선). 그런데 둘이
+    /// 항상 같은 밝기로 나란히 있으면, 프리셋을 고른 사람은 "밑에도 채워야 하나" 싶고
+    /// 직접 입력하는 사람은 "위 태그도 같이 붙나" 싶어진다. 그래서 쓰는 쪽만 살리고
+    /// 반대쪽은 눌러둔다 — 직접 입력을 건드리는 순간 프리셋은 흐려지고 눌리지 않는다.
+    private var customTagActive: Bool {
+        customTagFocused || !customTag.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     private var tagSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             TLEyebrow(text: "태그")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(ActivityTag.presets, id: \.self) { preset in
-                        Button { tag = preset; customTag = "" } label: {
-                            TagChip(name: preset, selected: tag == preset && customTag.isEmpty)
+                        Button {
+                            // 프리셋을 고르면 직접 입력은 비우고 커서도 뺀다 — 두 값이
+                            // 동시에 남아 있으면 어느 쪽이 저장될지 화면만 봐선 알 수 없다.
+                            customTagFocused = false
+                            customTag = ""
+                            tag = preset
+                        } label: {
+                            TagChip(name: preset, selected: !customTagActive && tag == preset)
                         }
-                        .disabled(editingDisabled)
+                        .disabled(editingDisabled || customTagActive)
                     }
                 }
             }
-            TextField("직접 입력", text: $customTag)
+            .opacity(customTagActive ? 0.3 : 1)
+
+            if customTagActive {
+                Text("직접 입력한 태그를 씁니다 — 위 태그는 적용되지 않아요.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(TL.faint)
+            }
+
+            TextField("직접 입력 (선택)", text: $customTag)
                 .font(.system(size: 14))
+                .focused($customTagFocused)
                 .padding(10)
                 .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerS))
+                // 테두리는 이 칸을 실제로 쓸 때만 — 평소에 선이 없어야
+                // '굳이 채우지 않아도 되는 칸'으로 읽힌다(활동명은 그 반대라 늘 선이 있다).
+                .overlay(
+                    RoundedRectangle(cornerRadius: TL.cornerS, style: .continuous)
+                        .strokeBorder(customTagActive ? TL.paper.opacity(0.7) : .clear, lineWidth: 1.5)
+                )
                 .disabled(editingDisabled)
                 .onChange(of: customTag) { _, newValue in
                     // 폭 예산을 넘기면 잘라낸다 — 되감긴 값으로 onChange가 한 번 더 돌지만
                     // 그때는 capped == newValue라 그대로 멎는다.
                     let capped = ActivityTag.truncatedToTagWidth(newValue)
                     if capped != newValue { customTag = capped }
-                    if !capped.trimmingCharacters(in: .whitespaces).isEmpty { tag = capped }
+                    // tag(프리셋 선택)에는 쓰지 않는다. 예전엔 여기서 tag를 덮어써서,
+                    // 입력을 다 지워도 지워진 커스텀 문자열이 tag에 남아 그대로 저장됐다.
                 }
         }
+        // 프리셋 흐려짐·안내문·테두리가 한 동작으로 같이 움직이게 한다.
+        .animation(TLMotion.smooth, value: customTagActive)
     }
 
     /// 강도 — 활동별로 설정 (그룹 방 만들기와 동일한 세그먼트, 혼자 하는 활동이라 '참여자 전원' 문구는 뺀다).
@@ -511,7 +546,16 @@ struct ReservationEditView: View {
                             .font(.system(size: 12)).foregroundStyle(TL.faint)
                     } else {
                         Divider().overlay(TL.hairline)
-                        Toggle(isOn: $isRepeating) {
+                        // 토글을 켜는 건 '매일은 아니다'라는 선언이다 — 그래서 켤 때마다
+                        // 요일을 전부 비운 상태에서 다시 고르게 한다. (프로그래매틱 변경인
+                        // load()에는 반응하지 않도록 .onChange가 아니라 바인딩에서 처리)
+                        Toggle(isOn: Binding(
+                            get: { isRepeating },
+                            set: { on in
+                                isRepeating = on
+                                if on { weekdays = [] }
+                            }
+                        )) {
                             HStack(spacing: 6) {
                                 Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
                                 // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
@@ -528,8 +572,15 @@ struct ReservationEditView: View {
                             HStack(spacing: 8) {
                                 ForEach(weekdaySymbols, id: \.0) { (value, label) in
                                     Button {
-                                        if weekdays.contains(value) { weekdays.remove(value) }
-                                        else { weekdays.insert(value) }
+                                        if weekdays.contains(value) {
+                                            weekdays.remove(value)
+                                        } else {
+                                            weekdays.insert(value)
+                                            // 7개 전부 = '매일'과 같은 뜻이다. 같은 의미를 두 가지
+                                            // 상태로 표현하지 않도록, 마지막 요일을 채우는 순간
+                                            // 토글을 끄고 '매일'로 넘긴다 — 켜진 동안은 최대 6개.
+                                            if weekdays.count == weekdaySymbols.count { isRepeating = false }
+                                        }
                                     } label: {
                                         Text(label)
                                             .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -541,6 +592,8 @@ struct ReservationEditView: View {
                                     .disabled(editingDisabled)
                                 }
                             }
+                            Text("최대 6개까지 고를 수 있어요. 7개를 모두 고르면 '매일'로 바뀝니다.")
+                                .font(.system(size: 12)).foregroundStyle(TL.faint)
                         }
                     }
                 }
@@ -558,8 +611,12 @@ struct ReservationEditView: View {
             return
         }
         name = r.name
-        tag = r.tag
-        if !ActivityTag.presets.contains(r.tag) { customTag = r.tag }
+        // 저장된 태그가 프리셋이면 그 칩을 선택 상태로, 직접 입력 태그면 입력칸에 싣는다.
+        // 직접 입력이었을 때 tag를 그 문자열로 두면, 사용자가 입력칸을 비우는 순간
+        // 선택된 칩이 하나도 없는데 지워진 문자열이 그대로 저장된다 — 프리셋 기본값을 깔아둔다.
+        let isPreset = ActivityTag.presets.contains(r.tag)
+        tag = isPreset ? r.tag : ActivityTag.presets[0]
+        if !isPreset { customTag = r.tag }
         durationMinutes = r.durationMinutes
         // 저장된 값을 그대로 보여준다. 예전에는 미친맛 미해제 상태에서 열면 화면을 매운맛으로
         // 내려놓고, 이름만 고쳐 저장해도 그 매운맛이 기록돼 원래 설정이 지워졌다.
@@ -699,7 +756,8 @@ struct ReservationEditView: View {
             }
         }
 
-        let finalTag = customTag.trimmingCharacters(in: .whitespaces).isEmpty ? tag : customTag
+        let trimmedCustomTag = customTag.trimmingCharacters(in: .whitespaces)
+        let finalTag = trimmedCustomTag.isEmpty ? tag : trimmedCustomTag
         if let r = reservation {
             // 일정에 실질 변화가 있는 편집인가 — 이름·태그·강도만 고친 저장으로
             // accountableFrom이 갱신되면 그 자체가 노쇼 면책 수단이 된다.
