@@ -147,6 +147,15 @@ struct HomeView: View {
     @State private var showGoalEditor = false
     @State private var goalText = ""
     @State private var showGroupLockNotice = false
+    @State private var showPaywall = false
+
+    /// 무료 체험 안내 버튼을 홈에 띄우는가 — **무료 회원에게만** 보인다.
+    /// - 멤버십 구독자: 이미 쓰는 기능을 권할 이유가 없다.
+    /// - 게스트: 구독은 계정에 귀속되므로(기기 교체·복원 불가) 결제 유도 대상이 아니다.
+    ///   먼저 로그인해야 하고, 그 안내는 마이페이지가 담당한다.
+    private var showsTrialInvite: Bool {
+        account.isSignedIn && !account.isGuest && !subscription.isPro
+    }
 
     /// let으로 두면 상위(AccountStore publish 등)가 body를 재평가할 때마다 퍼블리셔가 새로
     /// 만들어져 구독이 리셋된다 — 일정 탭에서 이미 겪고 @State로 고친 것과 같은 결함 유형.
@@ -211,6 +220,8 @@ struct HomeView: View {
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
 
+                    if showsTrialInvite { trialInviteButton }
+
                     quickStartRow
 
                     upcomingSection
@@ -241,6 +252,7 @@ struct HomeView: View {
                 GoalEditorSheet(goal: $goalText) { account.saveHomeGoal(goalText) }
                     .presentationDetents([.height(260)])
             }
+            .sheet(isPresented: $showPaywall) { PaywallView() }
             .onReceive(clock) { now = $0 }
             .onAppear { account.reloadHomeGoal() }
             .onChange(of: account.currentUserID) { account.reloadHomeGoal() }
@@ -434,6 +446,38 @@ struct HomeView: View {
             .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
             .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
                 .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
+        }
+        .pressableStyle()
+    }
+
+    // MARK: 멤버십 무료 체험 안내 (무료 회원 전용)
+
+    /// 홈에서 멤버십 체험을 권하는 버튼. 실제 체험 기간·문구는 App Store의 소개 혜택
+    /// (신규 구독 특가)이 정본이므로, 스토어에서 읽어 온 값이 있으면 그것을 쓴다.
+    /// (스토어에서 체험이 내려가면 문구가 조용히 어긋나지 않도록)
+    private var trialInviteButton: some View {
+        Button {
+            showPaywall = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16, weight: .bold))
+                Text("마음껏 멤버십 기능 체험하기")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                if let trial = subscription.freeTrialDescription {
+                    Text("(\(trial))")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TL.jade.opacity(0.9))
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold))
+            }
+            .foregroundStyle(TL.jade)
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                .fill(TL.jade.opacity(0.12)))
+            .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                .strokeBorder(TL.jade.opacity(0.4), lineWidth: 1))
         }
         .pressableStyle()
     }
