@@ -938,7 +938,7 @@ struct SlotPolicySheet: View {
         NavigationStack {
             ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("하나에 집중하는 습관을 위해, 활동 슬롯은 연속 달성일로 늘어납니다.")
+                Text("한 가지에 집중하는 습관을 위해 활동 슬롯은 제한됩니다.\n연속 달성일이 늘어날수록 활동 슬롯도 함께 늘어납니다.")
                     .font(.system(size: 14)).foregroundStyle(TL.muted)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
