@@ -13,9 +13,13 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            // 첫 실행 순서: 로그인(또는 게스트) → 온보딩(촬영하기·기록관리·권한) → 홈.
-            // 계정이 먼저다 — 상점·벌점이 계정 단위라 입장 전에 계정부터 정한다.
-            if !account.isSignedIn {
+            // 첫 실행 순서: 인트로(촬영하기·기록관리) → 로그인(또는 게스트) → 권한 설정 → 홈.
+            // 인트로를 로그인보다 앞에 두는 이유 — 무엇을 하는 앱인지 먼저 보여줘야
+            // 로그인 장벽이 낮아진다. 계정·벌점은 여전히 계정 단위이므로 인트로 다음엔
+            // 반드시 계정부터 정한다.
+            if !app.introSeen {
+                IntroFlow { app.introSeen = true }
+            } else if !account.isSignedIn {
                 AuthView()
             } else if !app.onboarded {
                 OnboardingFlow()

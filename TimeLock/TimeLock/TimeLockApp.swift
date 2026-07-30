@@ -163,6 +163,10 @@ final class AppState: ObservableObject {
     @Published var onboarded: Bool {
         didSet { UserDefaults.standard.set(onboarded, forKey: "onboarded") }
     }
+    /// 온보딩 1·2(촬영하기·기록관리) 열람 여부 — 로그인보다 먼저, 기기 최초 1회만 노출.
+    @Published var introSeen: Bool {
+        didSet { UserDefaults.standard.set(introSeen, forKey: "introSeen") }
+    }
     @Published private var intensityRaw: String {
         didSet { UserDefaults.standard.set(intensityRaw, forKey: "intensity.\(AccountStore.shared.currentUserID)") }
     }
@@ -177,6 +181,7 @@ final class AppState: ObservableObject {
         let d = UserDefaults.standard
         let owner = AccountStore.shared.currentUserID
         onboarded = d.bool(forKey: "onboarded")
+        introSeen = d.bool(forKey: "introSeen")
         intensityRaw = d.string(forKey: "intensity.\(owner)") ?? Intensity.spicy.rawValue
         pendingDowngrade = d.bool(forKey: "pendingDowngrade.\(owner)")
         downgradeEffectiveDay = d.double(forKey: "downgradeEffectiveDay.\(owner)")

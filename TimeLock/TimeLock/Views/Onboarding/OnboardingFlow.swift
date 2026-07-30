@@ -2,14 +2,16 @@
 //  OnboardingFlow.swift
 //  TimeLock
 //
-//  첫 실행 흐름(로그인 뒤에 온다): 1. 촬영하기 → 2. 기록관리 → 3. 권한 설정 → 홈.
+//  첫 실행 흐름: 1. 촬영하기 → 2. 기록관리 (로그인보다 먼저, 설명을 먼저 보여줘 로그인 장벽을 낮춘다)
+//  → 로그인 → 3. 권한 설정 → 홈.
 //  강도 선택 단계는 폐기 — 강도는 활동별 설정으로 옮겨졌다.
 //
 
 import SwiftUI
 
-struct OnboardingFlow: View {
-    @EnvironmentObject private var app: AppState
+/// 로그인 이전, 기기 최초 1회만 보여주는 인트로 2페이지(촬영하기·기록관리).
+struct IntroFlow: View {
+    var onFinish: () -> Void
     @State private var step = 0
 
     var body: some View {
@@ -17,11 +19,22 @@ struct OnboardingFlow: View {
             TL.ink.ignoresSafeArea()
             switch step {
             case 0: ShootStep { step = 1 }
-            case 1: RecordStep { step = 2 }
-            default: PermissionStep { app.onboarded = true }
+            default: RecordStep { onFinish() }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: step)
+    }
+}
+
+/// 로그인 이후, 홈 진입 전 권한 설정 1페이지.
+struct OnboardingFlow: View {
+    @EnvironmentObject private var app: AppState
+
+    var body: some View {
+        ZStack {
+            TL.ink.ignoresSafeArea()
+            PermissionStep { app.onboarded = true }
+        }
     }
 }
 
