@@ -316,6 +316,10 @@ struct ReservationEditView: View {
                 .font(.tlBody)
                 .padding(14)
                 .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
+                .overlay(
+                    RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                        .strokeBorder(TL.paper.opacity(0.7), lineWidth: 1.5)
+                )
                 .disabled(editingDisabled)
                 .onChange(of: name) { _, new in
                     if new.count > ActivityTag.nameMaxLength {
