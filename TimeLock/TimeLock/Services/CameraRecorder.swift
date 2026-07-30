@@ -74,6 +74,13 @@ final class CameraRecorder: NSObject, ObservableObject {
     private var currentSegmentURL: URL?
     /// 진행 중인 finishWriting들의 완료 대기용 (stopRecording이 병합 전에 기다린다)
     private let finishGroup = DispatchGroup()
+    /// 세그먼트 선제 교체 주기 — 중단 없이 오래 달려도 세그먼트 하나가 이 길이를 넘지
+    /// 않게 잘라 둔다. writer가 급사(메모리 압박 등)하면 백스톱이 현재 세그먼트를
+    /// 통째로 버리는데, 로테이션이 없으면 8시간 무중단 세션에서 그 '하나'가 수 시간
+    /// 분량일 수 있다 — 최악 유실을 이 주기로 묶는다.
+    private let segmentRotationInterval: TimeInterval = 600
+    /// 현재 세그먼트가 열린 시각 (CACurrentMediaTime 기준, processingQueue에서 접근)
+    private var segmentStartedAt: TimeInterval = 0
 
     /// 타임랩스 캡처 간격 — 세션 길이에 맞춰 startRecording에서 동적으로 정한다.
     /// (짧은 세션은 촘촘히, 긴 세션은 성기게 캡처해 결과 길이를 20~40초로 수렴)
@@ -428,6 +435,7 @@ final class CameraRecorder: NSObject, ObservableObject {
             self.writerInput = input
             self.adaptor = adaptor
             self.currentSegmentURL = url
+            self.segmentStartedAt = CACurrentMediaTime()
             // 쓰는 중인 파일은 completeUnlessOpen — .complete로 두면 화면 잠금 순간
             // 접근이 박탈돼 인코딩이 그 자리에서 죽는다(두 번째 사망 경로).
             // 최종 병합 파일에는 .complete를 되건다.
@@ -649,6 +657,12 @@ extension CameraRecorder: AVCaptureVideoDataOutputSampleBufferDelegate {
             DispatchQueue.main.async {
                 self.frameCount = count
                 self.lastFrameAt = Date()   // 실제 인코딩된 시각 갱신 (append 실패 시엔 갱신 안 됨 → 정지로 잡힘)
+            }
+            // 세그먼트 선제 로테이션 — 방금 프레임까지 담아 확정하고, 다음 프레임이
+            // 새 세그먼트를 연다. 프레임을 버리는 구간이 없고, finishWriting은
+            // 다음 세그먼트가 녹화를 잇는 동안 백그라운드에서 마저 끝난다.
+            if now - segmentStartedAt >= segmentRotationInterval {
+                finalizeCurrentSegmentLocked()
             }
         } else if writer?.status == .failed {
             // 인코더가 죽었다(예상 밖 백그라운드·메모리 압박 등). 이 writer는 되살릴 수
