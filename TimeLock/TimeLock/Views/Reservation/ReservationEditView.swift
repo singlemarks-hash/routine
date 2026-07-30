@@ -592,8 +592,6 @@ struct ReservationEditView: View {
                                     .disabled(editingDisabled)
                                 }
                             }
-                            Text("최대 6개까지 고를 수 있어요. 7개를 모두 고르면 '매일'로 바뀝니다.")
-                                .font(.system(size: 12)).foregroundStyle(TL.faint)
                         }
                     }
                 }
