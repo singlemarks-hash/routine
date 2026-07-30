@@ -640,6 +640,10 @@ private struct QuickStartSheet: View {
                     .font(.tlBody)
                     .padding(14)
                     .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
+                            .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1)
+                    )
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
