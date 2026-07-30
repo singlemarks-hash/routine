@@ -30,7 +30,7 @@ enum Legal {
 
     /// 숫자 App Store ID — 앱 승인 후 App Store Connect에서 확인해 채운다.
     /// 비어 있으면 '리뷰 남기기'는 SKStoreReviewController 요청으로 폴백한다.
-    static let appStoreID = ""
+    static let appStoreID = "6792526569"
 
     /// App Store 리뷰 작성 페이지 딥링크 (ID가 있을 때만).
     static var writeReviewURL: URL? {
