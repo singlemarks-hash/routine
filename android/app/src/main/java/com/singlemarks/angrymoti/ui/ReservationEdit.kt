@@ -1,5 +1,6 @@
 package com.singlemarks.angrymoti.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -135,6 +137,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
         }
     }
     if (!loaded) return
+    // 페이월 위에서 뒤로가기는 페이월만 닫는다 — 가로채지 않으면 HomeShell이 받아
+    // 편집 화면째 닫힌다 (iOS sheet dismiss 대응)
+    BackHandler(enabled = showPaywall) { showPaywall = false }
     if (showPaywall) { PaywallScreen(onBack = { showPaywall = false }); return }
 
     // 전체 세션 스트릭 루프·예약×180일 발생 스캔은 무겁다 — 입력 한 글자마다(리컴포지션)
@@ -413,7 +418,11 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             // ── 태그 — 프리셋 칩(직접 입력 중에도 항상 선택 가능) + '직접 입력' 필드 (iOS 1:1)
             Column {
                 TLEyebrow("태그")
-                val customTagActive = customTag.isNotBlank()
+                // '쓰는 중' 판정은 값뿐 아니라 커서(포커스)도 포함한다 — 빈 칸이라도 커서가
+                // 들어와 있으면 직접 입력을 쓰겠다는 뜻이라 프리셋을 흐린다 (iOS 1:1)
+                var customTagFocused by remember { mutableStateOf(false) }
+                val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+                val customTagActive = customTagFocused || customTag.isNotBlank()
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.alpha(if (customTagActive) 0.55f else 1f),
@@ -421,14 +430,17 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     items(ActivityTag.presets.size) { i ->
                         val p = ActivityTag.presets[i]
                         TagChip(p, !customTagActive && tag == p) {
-                            if (!fieldLocked) { tag = p; customTag = "" }
+                            // 프리셋을 고르면 직접 입력은 비우고 커서도 뺀다 — 두 값이
+                            // 동시에 남으면 어느 쪽이 저장될지 화면만 봐선 알 수 없다.
+                            if (!fieldLocked) { tag = p; customTag = ""; focusManager.clearFocus() }
                         }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
                 TLField(customTag, { customTag = ActivityTag.truncatedToTagWidth(it) },
                     "직접 입력 (선택)", enabled = !fieldLocked,
-                    unfocusedBorderColor = if (customTagActive) TL.hairline.copy(alpha = 0.6f) else Color.Transparent)
+                    unfocusedBorderColor = if (customTagActive) TL.hairline.copy(alpha = 0.6f) else Color.Transparent,
+                    onFocusChanged = { customTagFocused = it })
             }
 
             // ── 강도 — 활동별 설정 (그룹 방 만들기와 동일, 혼자 하는 활동이라 '참여자 전원' 문구 제거)
@@ -444,6 +456,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         Column(
                             Modifier.weight(1f)
                                 .background(if (selected) TL.paper else TL.surface, TL.cornerM)
+                                // 잠긴 카드는 흐린 대신 헤어라인으로 윤곽을 남긴다 (iOS 1:1)
+                                .border(1.dp, if (locked) TL.hairline.copy(alpha = 0.5f) else Color.Transparent, TL.cornerM)
                                 .alpha(if (locked) 0.7f else 1f)
                                 .clickable(enabled = if (locked) true else !fieldLocked) {
                                     if (locked) {
@@ -843,9 +857,13 @@ private fun lockedStartDay(r: Reservation): Long? {
 private fun TLField(
     value: String, onChange: (String) -> Unit, placeholder: String, enabled: Boolean = true,
     unfocusedBorderColor: Color = Color.Transparent,
+    onFocusChanged: ((Boolean) -> Unit)? = null,
 ) {
     OutlinedTextField(
-        value, onChange, modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = enabled,
+        value, onChange,
+        modifier = Modifier.fillMaxWidth()
+            .onFocusChanged { onFocusChanged?.invoke(it.isFocused) },
+        singleLine = true, enabled = enabled,
         placeholder = { Text(placeholder, color = TL.faint, fontSize = 16.sp) },
         shape = TL.cornerM,
         colors = OutlinedTextFieldDefaults.colors(

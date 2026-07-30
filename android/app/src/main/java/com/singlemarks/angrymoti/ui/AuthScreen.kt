@@ -252,7 +252,7 @@ fun AuthScreen() {
             }
 
             // 게스트를 구글보다 먼저 — iOS 1:1 순서. 서브텍스트는 뺐다(과한 설명).
-            Text("게스트로 시작", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+            Text("게스트로 시작", color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
                     .clickable(enabled = !busy) { AccountStore.continueAsGuest(null) }
@@ -280,7 +280,7 @@ fun AuthScreen() {
         Text("모든 영상 기록은 이 기기에만 저장됩니다.",
             color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 18.dp))
-        Text("계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주됩니다.",
+        Text("계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주합니다.",
             color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 4.dp))
         Row(Modifier.padding(top = 8.dp, bottom = 24.dp)) {

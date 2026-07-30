@@ -521,6 +521,8 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                         Column(
                             Modifier.weight(1f)
                                 .background(if (selected) TL.paper else TL.raised, TL.cornerM)
+                                // 잠긴 카드는 흐린 대신 헤어라인으로 윤곽을 남긴다 (iOS 1:1)
+                                .border(1.dp, if (locked) TL.hairline.copy(alpha = 0.5f) else Color.Transparent, TL.cornerM)
                                 .alpha(if (locked) 0.7f else 1f)
                                 .clickable(enabled = !locked) { intensity = level }
                                 .padding(vertical = 10.dp),

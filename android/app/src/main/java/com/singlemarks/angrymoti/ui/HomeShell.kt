@@ -64,6 +64,7 @@ sealed class HomeNav {
     data object Home : HomeNav()
     data object Calendar : HomeNav()
     data object MyPage : HomeNav()
+    data object Paywall : HomeNav()
     data class ReservationEdit(val reservationId: String?) : HomeNav()
 }
 
@@ -74,6 +75,7 @@ private val HomeNavSaver = androidx.compose.runtime.saveable.Saver<HomeNav, Stri
             HomeNav.Home -> "home"
             HomeNav.Calendar -> "calendar"
             HomeNav.MyPage -> "mypage"
+            HomeNav.Paywall -> "paywall"
             is HomeNav.ReservationEdit -> "edit:${n.reservationId ?: ""}"
         }
     },
@@ -81,6 +83,7 @@ private val HomeNavSaver = androidx.compose.runtime.saveable.Saver<HomeNav, Stri
         when {
             s == "calendar" -> HomeNav.Calendar
             s == "mypage" -> HomeNav.MyPage
+            s == "paywall" -> HomeNav.Paywall
             s.startsWith("edit:") -> HomeNav.ReservationEdit(s.removePrefix("edit:").ifEmpty { null })
             else -> HomeNav.Home
         }
@@ -114,6 +117,9 @@ fun HomeShell() {
     when (val n = nav) {
         is HomeNav.Calendar -> { CalendarScreen(onBack = { nav = HomeNav.Home }); return }
         is HomeNav.MyPage -> { MyPageScreen(onBack = { nav = HomeNav.Home }); return }
+        // 페이월도 다른 상세 화면처럼 셸 전체를 교체한다 — 탭 콘텐츠 자리만 갈아끼우면
+        // 상단 헤더·하단 탭 캡슐이 페이월 위에 그대로 남는다.
+        is HomeNav.Paywall -> { PaywallScreen(onBack = { nav = HomeNav.Home }); return }
         is HomeNav.ReservationEdit -> {
             ReservationEditScreen(reservationId = n.reservationId, onDone = { nav = HomeNav.Home })
             return
@@ -182,6 +188,7 @@ fun HomeShell() {
                     onQuickStart = { showQuickStart = true },
                     onAdd = { nav = HomeNav.ReservationEdit(null) },
                     onOpenCalendar = { nav = HomeNav.Calendar },
+                    onOpenPaywall = { nav = HomeNav.Paywall },
                     // 그룹 예약은 개인 편집 불가 — 그 그룹방 상세로 바로 진입
                     onEdit = {
                         if (it.groupId == null) nav = HomeNav.ReservationEdit(it.id)
@@ -286,6 +293,7 @@ private fun ActivityTab(
     onQuickStart: () -> Unit,
     onAdd: () -> Unit,
     onOpenCalendar: () -> Unit,
+    onOpenPaywall: () -> Unit,
     onEdit: (Reservation) -> Unit,
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -296,8 +304,6 @@ private fun ActivityTab(
     val user by AccountStore.user.collectAsState()
     val isPro by com.singlemarks.angrymoti.services.SubscriptionManager.isPro.collectAsState()
     val showsTrialInvite = user != null && user?.provider != "guest" && !isPro
-    var showPaywall by remember { mutableStateOf(false) }
-    if (showPaywall) { PaywallScreen(onBack = { showPaywall = false }); return }
 
     // 오늘 발생 활동 — 일정 탭 오늘 칸과 완전히 같은 기준(occurrenceOn 단일 판정).
     // 이미 완료(성공·실패)한 활동도 목록에 남긴다 — 흐림 처리 + 결과 점으로 '오늘 한 일'이
@@ -370,16 +376,25 @@ private fun ActivityTab(
         // 멤버십 무료 체험 배너 — 무료 회원 전용 (iOS 홈 1:1)
         if (showsTrialInvite) {
             item {
+                // 체험 기간 문구는 Play 스토어 오퍼가 정본 — product flow를 구독해
+                // 상품 조회가 끝난 뒤에도 문구가 따라 붙는다 (iOS freeTrialDescription 대응)
+                val product by com.singlemarks.angrymoti.services.SubscriptionManager.product.collectAsState()
+                val trial = remember(product) { com.singlemarks.angrymoti.services.SubscriptionManager.freeTrialLabel }
                 Row(
                     Modifier.fillMaxWidth()
                         .background(TL.jade.copy(alpha = 0.12f), TL.cornerL)
                         .border(1.dp, TL.jade.copy(alpha = 0.4f), TL.cornerL)
-                        .clickable { showPaywall = true }
+                        .clickable(onClick = onOpenPaywall)
                         .padding(horizontal = 20.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("✨ 마음껏 멤버십 기능 체험하기",
                         color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    trial?.let {
+                        Spacer(Modifier.width(6.dp))
+                        Text("($it)", color = TL.jade.copy(alpha = 0.9f),
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                     Spacer(Modifier.weight(1f))
                     androidx.compose.material3.Icon(
                         AppIcon.ChevronRight,

@@ -106,7 +106,7 @@ private fun ShootStep(next: () -> Unit) {
         // 책상에서 타임랩스 촬영 중인 모티 — 우측 정렬
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Image(painterResource(R.drawable.onboarding_character), null,
-                modifier = Modifier.size(220.dp))
+                modifier = Modifier.size(240.dp))
         }
 
         Spacer(Modifier.weight(1f))
@@ -232,15 +232,13 @@ private fun PermissionStep(onFinish: () -> Unit) {
     var cameraGranted by remember { mutableStateOf<Boolean?>(null) }
     var notifGranted by remember { mutableStateOf<Boolean?>(null) }
 
+    // 카드마다 제 권한만 요청한다 — iOS도 카메라/알림을 각각 묻는다. 하나로 묶으면
+    // 알림 카드의 '계속'에서 카메라 권한 창까지 떠서 어느 카드에 답하는지 헷갈린다.
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         result[Manifest.permission.CAMERA]?.let { cameraGranted = it }
-        if (Build.VERSION.SDK_INT >= 33) {
-            result[Manifest.permission.POST_NOTIFICATIONS]?.let { notifGranted = it }
-        } else if (cameraGranted != null) {
-            notifGranted = true   // 33 미만은 알림 권한이 매니페스트만으로 자동 허용
-        }
+        result[Manifest.permission.POST_NOTIFICATIONS]?.let { notifGranted = it }
     }
 
     Column(
@@ -260,30 +258,36 @@ private fun PermissionStep(onFinish: () -> Unit) {
         Spacer(Modifier.height(28.dp))
         TLCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Icon(AppIcon.Camera, null, tint = TL.rec,
+                    modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text("카메라", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text("알람 해제와 세션 기록에 사용합니다. 영상은 기기에만 저장되고 본인만 봅니다.",
                         color = TL.muted, fontSize = 13.sp)
                 }
                 PermissionStatusButton(cameraGranted) {
-                    val perms = mutableListOf(Manifest.permission.CAMERA)
-                    if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
-                    permissionLauncher.launch(perms.toTypedArray())
+                    permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
                 }
             }
         }
         Spacer(Modifier.height(12.dp))
         TLCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Icon(AppIcon.Bell, null, tint = TL.rec,
+                    modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text("알림", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text("예약 시각의 알람과 10분 전 예고를 보냅니다.",
                         color = TL.muted, fontSize = 13.sp)
                 }
                 PermissionStatusButton(notifGranted) {
-                    val perms = mutableListOf(Manifest.permission.CAMERA)
-                    if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
-                    permissionLauncher.launch(perms.toTypedArray())
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                    } else {
+                        notifGranted = true   // 33 미만은 알림 권한이 매니페스트만으로 자동 허용
+                    }
                 }
             }
         }
@@ -291,7 +295,9 @@ private fun PermissionStep(onFinish: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         TLCard {
             Row(verticalAlignment = Alignment.Top) {
-                Text("💾", fontSize = 20.sp, modifier = Modifier.width(32.dp))
+                androidx.compose.material3.Icon(AppIcon.Drive, null, tint = TL.amber,
+                    modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(14.dp))
                 Column {
                     Text("저장공간 용량 확인", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text("영상 촬영 중간에 녹화가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 용량 부족으로 타임랩스가 끊기지 않도록 저장공간을 미리 확보해 주세요.",

@@ -47,10 +47,13 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TabletAndroid
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.Verified
@@ -84,6 +87,10 @@ object AppIcon {
     val Siren = Icons.Filled.Warning
     val Lock = Icons.Filled.Lock
     val Info = Icons.Filled.Info
+    // 온보딩 권한 카드 (iOS camera.fill / bell.badge.fill / internaldrive.fill 대응)
+    val Camera = Icons.Filled.PhotoCamera
+    val Bell = Icons.Filled.NotificationsActive
+    val Drive = Icons.Filled.Storage
     val Heart = Icons.Filled.Favorite
     val Headphones = Icons.Filled.Headphones
     val Crown = Icons.Filled.WorkspacePremium
