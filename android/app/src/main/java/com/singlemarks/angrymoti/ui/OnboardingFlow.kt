@@ -95,7 +95,10 @@ private fun ShootStep(next: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(110.dp))
         TLEyebrow("촬영하기")
-        Text("예약한 시각에 알람이 울리면\n바로 타임랩스를 촬영하세요",
+        // 강제 줄바꿈(\n) 대신 자연 줄바꿈 — 갤럭시 노트20처럼 디스플레이 크기 설정이
+        // 커서 유효 폭이 좁은 기기에서 \n 뒤 문구가 통째로 밀려 "없는"처럼 짧은 단어만
+        // 홀로 한 줄을 차지하는 문제가 있었다. 공백으로 두면 기기 폭에 맞게 통째로 흐른다.
+        Text("예약한 시각에 알람이 울리면 바로 타임랩스를 촬영하세요",
             color = TL.paper, fontSize = 26.sp, fontWeight = FontWeight.Black, lineHeight = 34.sp)
         Spacer(Modifier.height(10.dp))
         Text("내가 지정한 시간만큼 몰입 타이머가 시작돼요\n끝까지 완주하면 상점, 그만두면 벌점이 쌓여요",
@@ -130,7 +133,9 @@ private fun RecordStep(onBack: () -> Unit, next: () -> Unit) {
         }
         Spacer(Modifier.height(22.dp))
         TLEyebrow("기록관리")
-        Text("의지가 아닌, 실행할 수 밖에 없는\n환경을 만들어요",
+        // 강제 줄바꿈(\n) 대신 자연 줄바꿈 — 위 ShootStep과 같은 이유(갤럭시 노트20 실기기
+        // 리포트에서 "없는"이 단독 줄로 떨어지는 문제 확인됨).
+        Text("의지가 아닌, 실행할 수 밖에 없는 환경을 만들어요",
             color = TL.paper, fontSize = 26.sp, fontWeight = FontWeight.Black, lineHeight = 34.sp)
         Spacer(Modifier.height(10.dp))
         Text("목표달성을 위한 나의 몰입을 기록해요\n모티가 강력한 실행환경을 만들어 줄 거에요",

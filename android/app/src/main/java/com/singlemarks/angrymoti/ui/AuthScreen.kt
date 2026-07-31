@@ -83,7 +83,9 @@ fun AuthScreen() {
         // 헤더 — 좌측 정렬 카피 (iOS 1:1, 캐릭터·출석부 문구는 제거)
         Spacer(Modifier.height(56.dp))
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-            Text("타임랩스로 나의 몰입을 기록해요\n더 강력하게", color = TL.paper, fontSize = 26.sp,
+            // 강제 줄바꿈(\n) 대신 자연 줄바꿈 — 온보딩과 같은 이유(갤럭시 노트20 등
+            // 유효 폭이 좁은 기기에서 단어 하나가 홀로 다음 줄로 밀리는 문제 방지).
+            Text("타임랩스로 나의 몰입을 기록해요 더 강력하게", color = TL.paper, fontSize = 26.sp,
                 fontWeight = FontWeight.Black, lineHeight = 33.sp)
             Spacer(Modifier.height(14.dp))
             Text("아래 버튼을 눌러\n로그인 또는 회원가입을 진행해 주세요.",
