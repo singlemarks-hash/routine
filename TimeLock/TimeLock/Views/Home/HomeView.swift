@@ -466,25 +466,17 @@ struct HomeView: View {
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 20, weight: .bold))
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        // 제목은 반드시 한 줄 — 체험 기간 뱃지가 옆에 붙어도 줄바꿈되지 않게
-                        // lineLimit으로 고정한다(2줄로 쪼개지면 뱃지가 다음 줄로 밀려 어색해진다).
-                        Text("마음껏 멤버십 기능 체험하기")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .lineLimit(1)
-                            .layoutPriority(1)
-                        if let trial = subscription.freeTrialDescription {
-                            // 태그 칩과 같은 캡슐 — 문장에 섞인 괄호 텍스트보다 독립된 뱃지로.
-                            // fixedSize 없이 두면 title이 공간을 먼저 차지해 뱃지가 밀려
-                            // 캡슐 안에서 두 줄로 쪼개진다 — 절대 안 쪼개지게 고정한다.
-                            Text(trial)
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .lineLimit(1)
-                                .fixedSize()
-                                .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(Capsule().fill(TL.ink.opacity(0.14)))
-                        }
+                // 제목·뱃지·부제를 한 줄에 욱여넣으려니 좁은 화면에서 제목이 잘리거나
+                // 뱃지가 캡슐 안에서 또 줄바꿈되는 등 계속 어그러졌다. 억지로 압축하지
+                // 않고 세 줄로 자연스럽게 푼다 — 제목 전체 노출, 뱃지는 제 줄, 부제는 마지막 줄.
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("마음껏 멤버십 기능 체험하기")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    if let trial = subscription.freeTrialDescription {
+                        Text(trial)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(TL.ink.opacity(0.14)))
                     }
                     Text("모든 프리미엄 기능을 경험해 보세요!")
                         .font(.system(size: 13, weight: .medium))
