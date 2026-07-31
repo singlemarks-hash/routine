@@ -475,9 +475,13 @@ struct HomeView: View {
                             .lineLimit(1)
                             .layoutPriority(1)
                         if let trial = subscription.freeTrialDescription {
-                            // 태그 칩과 같은 캡슐 — 문장에 섞인 괄호 텍스트보다 독립된 뱃지로
+                            // 태그 칩과 같은 캡슐 — 문장에 섞인 괄호 텍스트보다 독립된 뱃지로.
+                            // fixedSize 없이 두면 title이 공간을 먼저 차지해 뱃지가 밀려
+                            // 캡슐 안에서 두 줄로 쪼개진다 — 절대 안 쪼개지게 고정한다.
                             Text(trial)
                                 .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .lineLimit(1)
+                                .fixedSize()
                                 .padding(.horizontal, 8).padding(.vertical, 3)
                                 .background(Capsule().fill(TL.ink.opacity(0.14)))
                         }
