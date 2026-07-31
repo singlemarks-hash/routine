@@ -274,6 +274,10 @@ private fun PermissionStep(onFinish: () -> Unit) {
                         color = TL.muted, fontSize = 13.sp)
                 }
                 PermissionStatusButton(cameraGranted) {
+                    // 요청 사실을 남긴다 — 나중에 '아직 안 물어봄'과 '거부해서 창이 안 뜸'을
+                    // 가르는 유일한 기준점이다 (Permissions.isBlocked).
+                    com.singlemarks.angrymoti.services.Permissions
+                        .markAsked(Manifest.permission.CAMERA)
                     permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
                 }
             }
@@ -291,6 +295,8 @@ private fun PermissionStep(onFinish: () -> Unit) {
                 }
                 PermissionStatusButton(notifGranted) {
                     if (Build.VERSION.SDK_INT >= 33) {
+                        com.singlemarks.angrymoti.services.Permissions
+                            .markAsked(com.singlemarks.angrymoti.services.Permissions.NOTIFICATIONS)
                         permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                     } else {
                         notifGranted = true   // 33 미만은 알림 권한이 매니페스트만으로 자동 허용

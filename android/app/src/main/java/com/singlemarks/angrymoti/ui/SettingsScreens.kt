@@ -46,6 +46,7 @@ import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.SlotPolicy
 import com.singlemarks.angrymoti.services.AccountStore
+import com.singlemarks.angrymoti.services.Permissions
 import com.singlemarks.angrymoti.services.CameraRecorder
 import com.singlemarks.angrymoti.services.SubscriptionManager
 import com.singlemarks.angrymoti.ui.theme.TL
@@ -65,7 +66,7 @@ object Legal {
 @Composable
 fun MyPageScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    var sub by remember { mutableStateOf("menu") }   // menu | profile | intensity | paywall | ledger
+    var sub by remember { mutableStateOf("menu") }   // menu | profile | paywall | cheer | ledger | privacy | alarmHealth
 
     // 뒤로가기: 마이페이지 내부 화면에서는 메뉴로 복귀.
     // 메뉴에서는 가로채지 않아 HomeShell의 BackHandler(홈으로 복귀)로 넘어간다.
@@ -77,6 +78,7 @@ fun MyPageScreen(onBack: () -> Unit) {
         "cheer" -> { CheerDeveloperScreen(onBack = { sub = "menu" }, openPaywall = { sub = "paywall" }); return }
         "ledger" -> { LedgerScreen(onBack = { sub = "menu" }); return }
         "privacy" -> { PrivacyScreen(onBack = { sub = "menu" }); return }
+        "alarmHealth" -> { AlarmHealthScreen(onBack = { sub = "menu" }); return }
     }
 
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -100,6 +102,9 @@ fun MyPageScreen(onBack: () -> Unit) {
             color = TL.hairline, modifier = Modifier.padding(vertical = 18.dp))
 
         // 텍스트 메뉴 (투명 행) — 강도는 활동/그룹별로 각각 설정하므로 전역 강도 탭 제거
+        // '알람 점검' — 안드로이드는 알람 실패 경로가 여럿(알림·전체화면·절전·정확알람)이라
+        // 사용자가 원인을 스스로 찾을 수 없다. 한 화면에 모아 상태와 해결 버튼을 준다.
+        PlainMenuRow("알람 점검") { sub = "alarmHealth" }
         PlainMenuRow("프라이버시") { sub = "privacy" }
         PlainMenuRow("점수 원장") { sub = "ledger" }
         // 영어화는 v1.1로 연기 — 무동작 행 대신 준비 중임을 알린다 (iOS '준비 중' 표기와 동일 취지)
@@ -645,4 +650,113 @@ fun PrivacyScreen(onBack: () -> Unit) {
             deletedToast = false
         }
     }
+}
+
+/**
+ * 알람 점검 — "알람이 안 울려요"의 원인을 한 화면에서 확인·해결한다.
+ *
+ * 안드로이드에서 정시 알람이 실패하는 경로는 권한 하나가 아니다. 알림이 꺼져 있거나,
+ * 전체 화면 알림이 막혔거나(API 34+), OEM 절전에 걸려 있으면 각각 다른 방식으로 조용히
+ * 실패한다 — 사용자 눈에는 전부 똑같이 "알람이 안 울림"으로 보인다. 그래서 원인별로
+ * 상태를 드러내고 해당 설정 화면으로 바로 보낸다.
+ */
+@Composable
+fun AlarmHealthScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    // 설정에 다녀오면 값이 바뀌므로 화면에 돌아올 때마다 다시 읽는다.
+    // (composition 1회 캐시하면 '허용했는데 여전히 빨간불'이 된다)
+    var refreshKey by remember { mutableStateOf(0) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refreshKey++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val notifOk = remember(refreshKey) { Permissions.notificationsEnabled(context) }
+    val fullScreenOk = remember(refreshKey) { Permissions.canUseFullScreenAlarm(context) }
+    val batteryOk = remember(refreshKey) { Permissions.isBatteryUnrestricted(context) }
+    val cameraOk = remember(refreshKey) { Permissions.cameraGranted(context) }
+    val exactOk = remember(refreshKey) {
+        com.singlemarks.angrymoti.services.AlarmScheduler.canScheduleExact(context)
+    }
+
+    Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
+        TLScreenHeader("알람 점검", onBack = onBack)
+
+        val allOk = notifOk && fullScreenOk && batteryOk && cameraOk && exactOk
+        TLNoticeCard(
+            if (allOk) AppIcon.CheckCircle else AppIcon.Bell,
+            if (allOk) "모든 항목이 정상이에요. 예약한 시각에 알람이 울립니다."
+            else "아래 항목 중 꺼져 있는 것이 있으면 알람이 울리지 않거나 잠금 화면에 뜨지 않을 수 있어요.",
+            tint = if (allOk) TL.jade else TL.amber,
+        )
+        Spacer(Modifier.height(16.dp))
+
+        AlarmCheckRow(
+            title = "알림 표시",
+            detail = "꺼져 있으면 알람·예고 배너가 아예 뜨지 않아요.",
+            ok = notifOk,
+        ) { Permissions.openNotificationSettings(context) }
+
+        AlarmCheckRow(
+            title = "잠금 화면 전체 알람",
+            detail = "막혀 있으면 알람 화면 대신 일반 배너로만 떠요.",
+            ok = fullScreenOk,
+        ) { Permissions.openFullScreenAlarmSettings(context) }
+
+        AlarmCheckRow(
+            title = "배터리 최적화 제외",
+            detail = "절전에 걸리면 알람 시각에 앱이 깨어나지 못할 수 있어요.",
+            ok = batteryOk,
+        ) { Permissions.requestBatteryUnrestricted(context) }
+
+        AlarmCheckRow(
+            title = "정확한 알람",
+            detail = "꺼져 있으면 알람이 예약 시각보다 늦게 울릴 수 있어요.",
+            ok = exactOk,
+        ) { com.singlemarks.angrymoti.services.AlarmScheduler.openExactAlarmSettings(context) }
+
+        AlarmCheckRow(
+            title = "카메라",
+            detail = "없으면 알람을 받아도 촬영을 시작할 수 없어요.",
+            ok = cameraOk,
+        ) {
+            // 여기서는 시스템 창을 띄우지 않는다 — 거부 이력이 있으면 창이 뜨지 않아
+            // '눌러도 아무 일 없는 버튼'이 된다. 점검 화면은 결과가 확실한 설정으로만 보낸다.
+            // (실제 요청은 촬영 시작 시점의 지연 요청이 담당한다)
+            Permissions.openAppSettings(context)
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Text("삼성 갤럭시는 설정 → 배터리 → 백그라운드 사용 제한에서 '미사용 앱 절전'을 끄면 " +
+            "알람이 더 안정적으로 울려요.",
+            color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
+        Spacer(Modifier.height(40.dp))
+    }
+}
+
+/** 알람 점검 행 — 상태 점 + 설명 + 해결 버튼 */
+@Composable
+private fun AlarmCheckRow(title: String, detail: String, ok: Boolean, onFix: () -> Unit) {
+    TLCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Icon(
+                if (ok) AppIcon.CheckCircle else AppIcon.CircleEmpty, null,
+                tint = if (ok) TL.jade else TL.rec, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(2.dp))
+                Text(detail, color = TL.muted, fontSize = 12.sp, lineHeight = 17.sp)
+            }
+            if (!ok) {
+                Spacer(Modifier.width(10.dp))
+                TLPillButton("켜기", tint = TL.rec, onClick = onFix)
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
 }

@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- 배터리 최적화 예외 요청 — OEM 절전(삼성 '미사용 앱 절전' 등)에 걸리면 정시 알람이
+         아예 오지 않는다. 정시 알람이 본질 기능인 알람 앱은 Play 정책상 허용 사유에 해당한다.
+         강제하지 않고 마이페이지 '알람 점검'에서 사용자가 직접 켜도록만 안내한다. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />

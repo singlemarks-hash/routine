@@ -76,6 +76,19 @@ object Prefs {
         sp.edit().putString("homeGoal.$owner", text)
             .putLong("homeGoalUpdatedAt.$owner", updatedAt).apply()
 
+    /** 런타임 권한을 실제로 요청한 적이 있는가 (기기 전역 — 권한도 기기 단위다).
+     *  '아직 안 물어봄'과 '두 번 거부해 영구 차단됨'은 shouldShowRequestPermissionRationale
+     *  만으로는 둘 다 false라 구분되지 않는다. 이 플래그가 그 기준점이다. */
+    fun permissionAsked(permission: String) = sp.getBoolean("permAsked.$permission", false)
+    fun markPermissionAsked(permission: String) =
+        sp.edit().putBoolean("permAsked.$permission", true).apply()
+
+    /** 전체 화면 알람 안내를 이미 보여줬는가 — 저장할 때마다 띄우면 잔소리가 된다.
+     *  한 번 안내한 뒤로는 마이페이지 '알람 점검'에서만 확인한다. */
+    var fullScreenAlarmNoticeShown: Boolean
+        get() = sp.getBoolean("fullScreenAlarmNoticeShown", false)
+        set(v) = sp.edit().putBoolean("fullScreenAlarmNoticeShown", v).apply()
+
     /** 게스트/오프라인 계정 표시 이름 */
     var guestName: String?
         get() = sp.getString("guestName", null)

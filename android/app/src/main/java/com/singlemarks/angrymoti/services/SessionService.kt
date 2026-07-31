@@ -31,10 +31,20 @@ class SessionService : Service() {
             .setOngoing(true)
             .setContentIntent(open)
             .build()
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(3001, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
-        } else {
-            startForeground(3001, n)
+        // camera 타입 FGS는 CAMERA 권한이 없으면 시작 자체가 SecurityException이다(API 34+).
+        // 여기서 던지면 촬영 중에 앱이 통째로 죽으므로, 잡아서 서비스만 접는다 —
+        // 세션(SessionEngine)은 그대로 돌고, 잃는 건 OEM 킬 방어와 웨이크락뿐이다.
+        val started = runCatching {
+            if (Build.VERSION.SDK_INT >= 29) {
+                startForeground(3001, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
+            } else {
+                startForeground(3001, n)
+            }
+        }.isSuccess
+        if (!started) {
+            android.util.Log.e("AngryMoti", "SessionService: 포그라운드 시작 실패 — 서비스 없이 진행")
+            stopSelf()
+            return START_NOT_STICKY
         }
         val pm = getSystemService(PowerManager::class.java)
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "angrymoti:session").apply {
@@ -57,7 +67,19 @@ class SessionService : Service() {
 
     companion object {
         fun start(context: Context) {
-            context.startForegroundService(Intent(context, SessionService::class.java))
+            // 1차 방어 — 카메라 권한 없이 camera 타입 FGS를 시작하면 API 34+에서 SecurityException.
+            // UI(거치 가이드)에서도 막고 있지만 그건 화면 한 곳의 방어라, 진입 경로가 하나만
+            // 늘어도 크래시가 된다. 서비스를 켜는 쪽에서 한 번 더 본다.
+            if (!Permissions.cameraGranted(context)) {
+                android.util.Log.e("AngryMoti", "SessionService.start: CAMERA 권한 없음 — 시작 보류")
+                return
+            }
+            runCatching {
+                context.startForegroundService(Intent(context, SessionService::class.java))
+            }.onFailure {
+                // ForegroundServiceStartNotAllowedException 등 — 서비스는 포기하되 세션은 잇는다
+                android.util.Log.e("AngryMoti", "SessionService.start 실패: ${it.message}")
+            }
         }
         fun stop(context: Context) {
             context.stopService(Intent(context, SessionService::class.java))

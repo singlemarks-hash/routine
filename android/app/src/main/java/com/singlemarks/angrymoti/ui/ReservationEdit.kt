@@ -1,5 +1,7 @@
 package com.singlemarks.angrymoti.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -60,6 +62,7 @@ import com.singlemarks.angrymoti.models.SlotPolicy
 import com.singlemarks.angrymoti.models.TimePolicy
 import com.singlemarks.angrymoti.services.AccountStore
 import com.singlemarks.angrymoti.services.AlarmScheduler
+import com.singlemarks.angrymoti.services.Permissions
 import com.singlemarks.angrymoti.services.SubscriptionManager
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlinx.coroutines.Dispatchers
@@ -99,6 +102,39 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     var showEndDatePicker by remember { mutableStateOf(false) }
     var allSessions by remember { mutableStateOf(listOf<com.singlemarks.angrymoti.data.FocusSession>()) }
     var allReservations by remember { mutableStateOf(listOf<Reservation>()) }
+
+    // 저장 직후의 알람 관문 — 예약을 걸어놓고도 알림이 꺼져 있으면 알람이 조용히 사라진다.
+    // 온보딩에서 권한을 건너뛴 사용자(그리고 업데이트로 넘어온 사용자)를 구제하는 지점이라
+    // '예약을 실제로 만든 순간'에 한 번 확인한다 (iOS ReservationEditView.save 1:1).
+    var showNotifBlocked by remember { mutableStateOf(false) }
+    var showFullScreenNotice by remember { mutableStateOf(false) }
+    // 전체 화면 알람(API 34+)까지 확인한 뒤 화면을 닫는다.
+    val finishAfterAlarmGate: () -> Unit = {
+        if (Permissions.notificationsEnabled(context) &&
+            !Permissions.canUseFullScreenAlarm(context) &&
+            !com.singlemarks.angrymoti.data.Prefs.fullScreenAlarmNoticeShown
+        ) {
+            showFullScreenNotice = true
+        } else onDone()
+    }
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        // 방금 거부한 경우엔 더 붙잡지 않는다 — 예약 자체는 이미 저장됐다.
+        finishAfterAlarmGate()
+    }
+    val runAlarmGate: () -> Unit = {
+        val act = context as? android.app.Activity
+        when {
+            Permissions.notificationsEnabled(context) -> finishAfterAlarmGate()
+            act != null && Permissions.notificationsBlocked(act) -> showNotifBlocked = true
+            android.os.Build.VERSION.SDK_INT >= 33 -> {
+                Permissions.markAsked(Permissions.NOTIFICATIONS)
+                notifPermissionLauncher.launch(Permissions.NOTIFICATIONS)
+            }
+            else -> finishAfterAlarmGate()
+        }
+    }
 
     LaunchedEffect(reservationId) {
         withContext(Dispatchers.IO) {
@@ -354,7 +390,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         db.reservations().upsert(r)
                         AccountStore.mirrorReservation(r)   // 크로스 기기 동기화
                         r.nextOccurrence()?.let { AlarmScheduler.scheduleExact(context, r.id, it) }
-                        withContext(Dispatchers.Main) { onDone() }
+                        withContext(Dispatchers.Main) { runAlarmGate() }
                     }
                 })
             else Box(Modifier.alpha(0f)) {   // 자리만 지키는 투명 필 — 타이틀 중앙 유지
@@ -764,6 +800,42 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
         ModalBottomSheet(onDismissRequest = { showSlotSheet = false }, containerColor = TL.surface) {
             SlotPolicySheet(streak = streak, isPro = isPro)
         }
+    }
+
+    // 알림이 꺼져 있고 시스템 창으로는 되돌릴 수 없는 상태 — 예약은 이미 저장됐으므로
+    // 어느 쪽을 고르든 화면은 닫는다. 저장을 인질로 잡지 않는다.
+    if (showNotifBlocked) {
+        TLSettingsDialog(
+            title = "알림이 꺼져 있어요",
+            message = "예약한 시각에 알람이 울리지 않습니다. 설정 → 알림에서 앵그리모티를 켜주세요.",
+            onConfirm = {
+                showNotifBlocked = false
+                Permissions.openNotificationSettings(context)
+                onDone()
+            },
+            onDismiss = { showNotifBlocked = false; onDone() },
+        )
+    }
+
+    // 전체 화면 알람이 막힌 상태(API 34+) — 알림은 오지만 잠금 화면에서 알람 화면이
+    // 뜨지 않는다. 한 번만 안내하고, 이후에는 마이페이지 '알람 점검'에서 확인한다.
+    if (showFullScreenNotice) {
+        TLSettingsDialog(
+            title = "잠금 화면 알람이 막혀 있어요",
+            message = "알림은 오지만 잠금 화면 위로 알람 화면이 뜨지 않습니다. " +
+                "설정에서 '전체 화면 알림'을 허용해 주세요.",
+            onConfirm = {
+                showFullScreenNotice = false
+                com.singlemarks.angrymoti.data.Prefs.fullScreenAlarmNoticeShown = true
+                Permissions.openFullScreenAlarmSettings(context)
+                onDone()
+            },
+            onDismiss = {
+                showFullScreenNotice = false
+                com.singlemarks.angrymoti.data.Prefs.fullScreenAlarmNoticeShown = true
+                onDone()
+            },
+        )
     }
 
     // 일회성 날짜 선택 다이얼로그

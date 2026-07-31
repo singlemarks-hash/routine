@@ -189,6 +189,37 @@ fun tlTimerStyle(size: TextUnit): TextStyle = TextStyle(
 )
 
 /**
+ * 권한이 막혔을 때의 안내 다이얼로그 — 시스템 창이 다시 뜨지 않는 상태에서
+ * 사용자를 설정으로 보내는 유일한 경로다 (iOS의 '설정 열기' 알럿과 1:1).
+ */
+@Composable
+fun TLSettingsDialog(
+    title: String,
+    message: String,
+    confirmLabel: String = "설정 열기",
+    dismissLabel: String = "나중에",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = TL.surface,
+        title = { Text(title, color = TL.paper, fontWeight = FontWeight.Black) },
+        text = { Text(message, color = TL.muted, lineHeight = 20.sp) },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onConfirm) {
+                Text(confirmLabel, color = TL.rec, fontWeight = FontWeight.Black)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(dismissLabel, color = TL.muted)
+            }
+        },
+    )
+}
+
+/**
  * 잠금·경고 안내 카드 — iOS는 이런 안내를 TLCard + SF Symbol 아이콘 + paper 텍스트로 낸다.
  * (안드로이드는 아이콘 없이 amber 텍스트만 쓰던 자리를 통일)
  */

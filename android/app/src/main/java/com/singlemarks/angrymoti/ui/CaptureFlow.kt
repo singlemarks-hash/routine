@@ -1,5 +1,7 @@
 package com.singlemarks.angrymoti.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -74,6 +76,7 @@ import com.singlemarks.angrymoti.models.SessionOutcome
 import com.singlemarks.angrymoti.models.TimePolicy
 import com.singlemarks.angrymoti.services.AlarmScheduler
 import com.singlemarks.angrymoti.services.CameraRecorder
+import com.singlemarks.angrymoti.services.Permissions
 import com.singlemarks.angrymoti.services.SessionEngine
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlinx.coroutines.Dispatchers
@@ -265,6 +268,31 @@ fun MountGuideScreen(pending: PendingSession) {
     // 사실을 잃지 않는다. 잃으면 녹화 중인데 마감 처리로 홈에 튕긴다 (iOS 사고 유형).
     var started by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
+    // 카메라 권한 지연 요청 — 온보딩에서 건너뛴 사용자는 여기가 유일한 구제 지점이다.
+    // 두 번 거부해 시스템 창이 더는 안 뜨는 상태(BLOCKED)면 설정으로 보내야 한다.
+    var showCameraBlocked by remember { mutableStateOf(false) }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            CameraRecorder.startPreview(context)
+        } else {
+            val act = context as? android.app.Activity
+            // 방금 거부(한 번째)는 조용히 둔다 — 다음 시도에서 창이 한 번 더 뜬다.
+            if (act != null && Permissions.isBlocked(act, Permissions.CAMERA)) {
+                showCameraBlocked = true
+            }
+        }
+    }
+    val requestCamera: () -> Unit = {
+        val act = context as? android.app.Activity
+        if (act != null && Permissions.isBlocked(act, Permissions.CAMERA)) {
+            showCameraBlocked = true
+        } else {
+            Permissions.markAsked(Permissions.CAMERA)
+            cameraPermissionLauncher.launch(Permissions.CAMERA)
+        }
+    }
     // 남은 초 — 예약이 아닌 '지금 바로 시작'은 마감이 없다(null)
     val remainingSeconds: Int? = pending.scheduledAt?.let { sched ->
         (((sched + TimePolicy.START_WINDOW_SECONDS * 1000 - nowTick) + 999) / 1000)
@@ -300,7 +328,10 @@ fun MountGuideScreen(pending: PendingSession) {
                 }
             })
         }
-        CameraRecorder.startPreview(context)
+        // 권한이 없으면 startPreview는 조용히 실패해 프리뷰가 검은 화면으로 남는다.
+        // 화면에 들어온 시점에 먼저 권한을 해결하고 그 결과로 프리뷰를 켠다 (iOS 1:1).
+        if (Permissions.cameraGranted(context)) CameraRecorder.startPreview(context)
+        else requestCamera()
     }
 
     // 가로 선택 시 화면도 가로로 잠가 iOS 분할 레이아웃과 동일하게 (세로면 세로 잠금)
@@ -440,12 +471,10 @@ fun MountGuideScreen(pending: PendingSession) {
     // 카메라 권한이 없으면 카운트다운을 시작하지 않는다 — 그대로 진행하면 15초 무반응
     // 뒤에야 무효 처리된다 (iOS는 시작 시점에 throw → 즉시 안전 종료와 같은 취지).
     val startCountdown: () -> Unit = start@{
-        if (androidx.core.content.ContextCompat.checkSelfPermission(context,
-                android.Manifest.permission.CAMERA) !=
-            android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            android.widget.Toast.makeText(context,
-                "카메라 권한이 필요해요 — 설정 > 앱 > 권한에서 허용 후 다시 시도해주세요.",
-                android.widget.Toast.LENGTH_LONG).show()
+        if (!Permissions.cameraGranted(context)) {
+            // 토스트만 띄우고 끝내면 사용자가 스스로 설정을 뒤져야 했다. 여기서 바로
+            // 시스템 창을 띄우거나(미결정), 설정으로 안내한다(영구 거부).
+            requestCamera()
             return@start
         }
         countdown = 3
@@ -578,6 +607,25 @@ fun MountGuideScreen(pending: PendingSession) {
                         fontSize = 84.sp, fontWeight = FontWeight.Black)
                 }
             }
+        }
+
+        // 카메라가 영구 거부된 상태 — 시스템 창이 뜨지 않으므로 설정으로 보내는 수밖에 없다.
+        // 촬영이 아예 불가능한 상황이라 '닫기'는 거치 가이드를 정리하고 나간다.
+        if (showCameraBlocked) {
+            TLSettingsDialog(
+                title = "카메라 권한이 필요해요",
+                message = "타임랩스를 촬영하려면 카메라 접근을 허용해야 합니다. " +
+                    "설정 → 권한에서 카메라를 켜주세요.",
+                dismissLabel = "닫기",
+                onConfirm = {
+                    showCameraBlocked = false
+                    Permissions.openAppSettings(context)
+                },
+                onDismiss = {
+                    showCameraBlocked = false
+                    AppState.cancelMountGuide(pending)
+                },
+            )
         }
     }
 }
