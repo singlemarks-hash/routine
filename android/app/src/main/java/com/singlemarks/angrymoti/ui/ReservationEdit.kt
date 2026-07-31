@@ -463,6 +463,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 // 잠긴 카드는 흐린 대신 헤어라인으로 윤곽을 남긴다 (iOS 1:1)
                                 .border(1.dp, if (locked) TL.hairline.copy(alpha = 0.5f) else Color.Transparent, TL.cornerM)
                                 .alpha(if (locked) 0.7f else 1f)
+                                // 잠긴 카드는 이모지까지 무채색으로 — 이모지는 컬러 글리프라
+                                // Text(color=)로는 안 먹혀 렌더 레이어에 채도 필터를 건다 (iOS
+                                // .saturation(locked ? 0 : 1) 대응).
+                                .grayscale(if (locked) 0f else 1f)
                                 .clickable(enabled = if (locked) true else !fieldLocked) {
                                     if (locked) {
                                         if (AccountStore.isSignedIn && AccountStore.currentUserID != "guest") {

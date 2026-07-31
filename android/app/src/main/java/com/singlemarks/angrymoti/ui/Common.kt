@@ -18,8 +18,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -63,6 +69,24 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WorkspacePremium
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlin.math.min
+
+/**
+ * 채도 제거 — 이모지(🔒🔥 등)는 시스템이 그리는 컬러 글리프라 Text의 color= 로는
+ * 색을 바꿀 수 없다. 잠긴 카드를 무채색으로 보이게 하려면(iOS `.saturation(0)` 대응)
+ * 렌더링 레이어 전체에 채도 매트릭스를 걸어야 한다.
+ */
+fun Modifier.grayscale(saturation: Float = 0f): Modifier = this.then(
+    Modifier.drawWithContent {
+        val paint = Paint().apply {
+            colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(saturation) })
+        }
+        drawIntoCanvas { canvas ->
+            canvas.saveLayer(Rect(Offset.Zero, size), paint)
+            drawContent()
+            canvas.restore()
+        }
+    }
+)
 
 /**
  * 앱 전역 아이콘 세트 — Filled(솔리드) 아이콘으로 통일 (아웃라인은 잘 안 보여서 교체).
