@@ -401,8 +401,11 @@ private fun ActivityTab(
                         .padding(horizontal = 18.dp, vertical = 15.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // 제목+부제 2줄 블록 중앙이 아니라 제목 줄에 맞춰야 한다 —
+                    // Row 전체를 CenterVertically로 두면 두 줄 사이 애매한 위치에 걸린다.
                     Image(painterResource(R.drawable.ic_sparkles), null,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.padding(top = 2.dp).size(26.dp)
+                            .align(Alignment.Top),
                         colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(TL.ink))
                     Spacer(Modifier.width(12.dp))
                     Column {
