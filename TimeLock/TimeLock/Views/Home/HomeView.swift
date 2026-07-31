@@ -466,17 +466,20 @@ struct HomeView: View {
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 20, weight: .bold))
-                // 제목·뱃지·부제를 한 줄에 욱여넣으려니 좁은 화면에서 제목이 잘리거나
-                // 뱃지가 캡슐 안에서 또 줄바꿈되는 등 계속 어그러졌다. 억지로 압축하지
-                // 않고 세 줄로 자연스럽게 푼다 — 제목 전체 노출, 뱃지는 제 줄, 부제는 마지막 줄.
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("마음껏 멤버십 기능 체험하기")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                    if let trial = subscription.freeTrialDescription {
-                        Text(trial)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(Capsule().fill(TL.ink.opacity(0.14)))
+                    // 제목+뱃지를 한 줄에 시도하되, iPhone mini처럼 폭이 좁아 실제로
+                    // 안 들어가면(픽셀 계산으로 추측하지 않고 SwiftUI가 실측 가용폭을 보고
+                    // 판정) 자동으로 뱃지를 제목 아래 줄로 내린다. 제목·뱃지 모두 lineLimit(1)
+                    // 이라 어느 경우든 내부에서 줄바꿈되거나 잘리는 일은 없다.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) {
+                            titleText
+                            trialBadge
+                        }
+                        VStack(alignment: .leading, spacing: 5) {
+                            titleText
+                            trialBadge
+                        }
                     }
                     Text("모든 프리미엄 기능을 경험해 보세요!")
                         .font(.system(size: 13, weight: .medium))
@@ -510,6 +513,26 @@ struct HomeView: View {
             .shadow(color: TL.jade.opacity(0.16), radius: 3)
         }
         .pressableStyle()
+    }
+
+    /// trialInviteButton 전용 — ViewThatFits의 두 후보(한 줄/두 줄)가 똑같은 제목 뷰를
+    /// 쓰도록 분리. lineLimit(1)이라 후보 자체는 절대 내부에서 줄바꿈되지 않는다.
+    private var titleText: some View {
+        Text("마음껏 멤버십 기능 체험하기")
+            .font(.system(size: 16, weight: .bold, design: .rounded))
+            .lineLimit(1)
+    }
+
+    /// trialInviteButton 전용 — 체험 기간 뱃지. 정보가 없으면 아무것도 렌더링하지 않는다.
+    @ViewBuilder
+    private var trialBadge: some View {
+        if let trial = subscription.freeTrialDescription {
+            Text(trial)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(TL.ink.opacity(0.14)))
+        }
     }
 
     // MARK: 예정된 활동
