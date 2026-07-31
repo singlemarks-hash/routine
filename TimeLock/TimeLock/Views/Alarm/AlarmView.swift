@@ -307,6 +307,9 @@ struct MountGuideView: View {
     @State private var checkedMount = false
     @State private var checkedFrame = false
     @State private var showFocusGuide = false
+    /// 카메라가 이미 거부된 상태 — 시스템 창이 다시 뜨지 않으므로 설정으로 안내한다.
+    /// 이 화면은 카메라 없이는 아무것도 못 하므로 진입하자마자 알린다.
+    @State private var showCameraBlockedAlert = false
 
     /// 시작 카운트다운 (nil = 대기, 3→2→1, 0 = '시작!')
     @State private var countdown: Int?
@@ -361,8 +364,25 @@ struct MountGuideView: View {
         // 실패하고, 그 뒤 사용자가 허용해도 다시 여는 주체가 없어 프리뷰가 검은 채로 남는다.
         // requestAuthorization은 미결정일 때만 시스템 창을 띄우고, 이미 답했으면 즉시 반환한다.
         .task {
+            // 이미 거부된 상태면 요청해도 시스템 창이 뜨지 않는다 — 바로 설정으로 안내.
+            // (미결정이면 아래에서 시스템 창을 띄우고, 거기서 거부하면 그 결과를 그대로
+            //  보여준다. 방금 고른 선택을 두고 곧바로 또 알럿을 띄우진 않는다)
+            if recorder.isAccessBlocked {
+                showCameraBlockedAlert = true
+                return
+            }
             _ = await recorder.requestAuthorization()
             recorder.startPreview()
+        }
+        .alert("카메라 권한이 필요해요", isPresented: $showCameraBlockedAlert) {
+            Button("설정 열기") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("닫기", role: .cancel) { app.route = .none }
+        } message: {
+            Text("타임랩스를 촬영하려면 카메라 접근을 허용해야 합니다. 설정 → 앵그리모티에서 카메라를 켜주세요.")
         }
         .onReceive(windowClock) { tick in
             now = tick

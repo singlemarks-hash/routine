@@ -44,6 +44,16 @@ final class AlarmScheduler: NSObject, ObservableObject {
         notificationsAuthorized = settings.authorizationStatus == .authorized
     }
 
+    /// 지연 요청 결과. 호출부가 '설정으로 보내야 하는 상태'를 구분할 수 있어야 한다.
+    enum PromptOutcome {
+        /// 알림을 받을 수 있는 상태 (원래 허용이었거나 방금 허용함)
+        case authorized
+        /// 방금 시스템 창에서 거부함 — 사용자가 막 선택한 직후라 또 안내하면 잔소리가 된다
+        case justDeclined
+        /// 이미 거부된 상태 — 시스템 창이 뜨지 않으므로 iOS 설정으로 유도해야 한다
+        case blocked
+    }
+
     /// 아직 한 번도 묻지 않았을 때만 시스템 창을 띄운다 (지연 요청).
     ///
     /// 온보딩의 권한 화면은 '계속'을 눌러야만 요청이 나가고, 그냥 '다음'으로 넘기면
@@ -52,20 +62,20 @@ final class AlarmScheduler: NSObject, ObservableObject {
     /// 조용히 안 울린다. 그래서 '알람을 실제로 쓰겠다'고 선언하는 시점(예약 저장)에
     /// 다시 묻는다 — 업데이트로 넘어온 기존 사용자도 이 경로로 구제된다.
     ///
-    /// 이미 거부한 사용자에게는 시스템 창이 다시 뜨지 않으므로(iOS는 평생 1회),
-    /// 여기서는 상태만 갱신하고 조용히 지나간다.
+    /// 이미 거부한 사용자에게는 시스템 창이 다시 뜨지 않으므로(iOS는 평생 1회)
+    /// `.blocked`를 돌려준다 — 호출부가 iOS 설정으로 안내해야 한다.
     @discardableResult
-    func requestAuthorizationIfNeeded() async -> Bool {
+    func requestAuthorizationIfNeeded() async -> PromptOutcome {
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
         case .notDetermined:
-            return await requestAuthorization()
+            return await requestAuthorization() ? .authorized : .justDeclined
         case .authorized, .provisional, .ephemeral:
             notificationsAuthorized = true
-            return true
+            return .authorized
         default:
             notificationsAuthorized = false
-            return false
+            return .blocked
         }
     }
 

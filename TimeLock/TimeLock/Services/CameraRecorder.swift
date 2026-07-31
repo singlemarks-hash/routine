@@ -233,6 +233,13 @@ final class CameraRecorder: NSObject, ObservableObject {
 
     // MARK: 권한 & 세션 구성
 
+    /// 이미 거부(또는 기기 정책으로 제한)된 상태 — 시스템 창이 다시 뜨지 않으므로
+    /// 자체 안내로 iOS 설정에 보내야 한다. (iOS는 권한 창을 설치당 1회만 띄운다)
+    var isAccessBlocked: Bool {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        return status == .denied || status == .restricted
+    }
+
     func requestAuthorization() async -> Bool {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {

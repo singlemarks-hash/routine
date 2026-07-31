@@ -67,6 +67,9 @@ struct ReservationEditView: View {
     @State private var errorMessage: String?
     @State private var showDeleteConfirm = false
     @State private var showSlotPolicy = false
+    /// 알림이 이미 거부된 상태로 예약을 저장했을 때의 안내 — 시스템 창은 다시 뜨지
+    /// 않으므로 iOS 설정으로 보내는 수밖에 없다. 알럿을 닫으면 편집 화면도 닫는다.
+    @State private var showNotificationBlockedAlert = false
     @State private var showIntensityPaywall = false
     @FocusState private var customTagFocused: Bool
 
@@ -262,6 +265,19 @@ struct ReservationEditView: View {
                     .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showIntensityPaywall) { PaywallView() }
+            // 알림이 이미 거부된 상태 — iOS는 시스템 창을 다시 띄워주지 않으므로
+            // 설정으로 직접 보내는 것 말고는 사용자가 켤 방법이 없다.
+            .alert("알림이 꺼져 있어요", isPresented: $showNotificationBlockedAlert) {
+                Button("설정 열기") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                    dismiss()
+                }
+                Button("나중에", role: .cancel) { dismiss() }
+            } message: {
+                Text("예약한 시각에 알람이 울리지 않습니다. 설정 → 알림에서 앵그리모티를 켜주세요.")
+            }
             .onAppear(perform: load)
             }   // ScrollViewReader
         }
@@ -815,11 +831,18 @@ struct ReservationEditView: View {
         }
         try? context.save()
         rescheduleAlarms()
-        // 알람을 실제로 쓰겠다고 선언한 시점 — 아직 한 번도 안 물었다면 지금 묻는다.
-        // (온보딩 권한 화면을 '다음'으로 건너뛴 사용자·업데이트로 넘어온 기존 사용자를
-        //  구제하는 유일한 경로. 이미 답한 사용자에겐 시스템 창이 뜨지 않는다)
-        Task { await AlarmScheduler.shared.requestAuthorizationIfNeeded() }
-        dismiss()
+        // 알람을 실제로 쓰겠다고 선언한 시점에 권한을 확인한다.
+        // - 아직 안 물었으면 여기서 시스템 창을 띄운다 (온보딩에서 건너뛴 사용자·
+        //   업데이트로 넘어온 기존 사용자를 구제하는 유일한 경로)
+        // - 이미 거부된 상태면 시스템 창이 뜨지 않으므로 설정으로 안내한다.
+        //   이때는 알럿을 먼저 보여줘야 하므로 화면을 닫지 않고 기다린다.
+        Task { @MainActor in
+            if await AlarmScheduler.shared.requestAuthorizationIfNeeded() == .blocked {
+                showNotificationBlockedAlert = true
+            } else {
+                dismiss()
+            }
+        }
     }
 
     private func delete() {
