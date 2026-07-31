@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -75,8 +76,21 @@ fun AuthScreen() {
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
 
+    // 배경은 스크롤 콘텐츠가 아니라 화면에 고정한다 — 스크롤되는 Column에 직접 걸면
+    // 그라디언트가 콘텐츠 전체 높이에 늘어나 화면에서 본 비율과 달라진다.
+    Box(Modifier.fillMaxSize().background(TL.ink)) {
+        // 상단에서 아래로 옅어지는 레드 글로우 — 온보딩(하단→상단)과 반대 방향.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to TL.rec.copy(alpha = 0.28f),
+                    0.35f to TL.rec.copy(alpha = 0.10f),
+                    0.7f to Color.Transparent,
+                )
+            )
+        )
     Column(
-        modifier = Modifier.fillMaxSize().background(TL.ink)
+        modifier = Modifier.fillMaxSize()
             .verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -292,6 +306,7 @@ fun AuthScreen() {
             Text("개인정보처리방침", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { open(Legal.PRIVACY_URL) })
         }
+    }
     }
 }
 
