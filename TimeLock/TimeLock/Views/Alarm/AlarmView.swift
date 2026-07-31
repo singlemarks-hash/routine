@@ -356,8 +356,14 @@ struct MountGuideView: View {
             }
         }
         .interactiveDismissDisabled()
-        .onAppear { recorder.startPreview() }
-        .task { _ = await recorder.requestAuthorization() }
+        // 권한을 먼저 확정한 뒤 프리뷰를 연다. 순서가 뒤집히면(예전처럼 onAppear에서
+        // 먼저 startPreview) 아직 권한이 없는 상태로 캡처 세션을 구성하려다 입력 추가에
+        // 실패하고, 그 뒤 사용자가 허용해도 다시 여는 주체가 없어 프리뷰가 검은 채로 남는다.
+        // requestAuthorization은 미결정일 때만 시스템 창을 띄우고, 이미 답했으면 즉시 반환한다.
+        .task {
+            _ = await recorder.requestAuthorization()
+            recorder.startPreview()
+        }
         .onReceive(windowClock) { tick in
             now = tick
             // 마감 도달 — 아직 촬영으로 넘어가지 않았다면 창을 닫는다.

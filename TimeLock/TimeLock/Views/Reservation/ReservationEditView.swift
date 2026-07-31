@@ -815,6 +815,10 @@ struct ReservationEditView: View {
         }
         try? context.save()
         rescheduleAlarms()
+        // 알람을 실제로 쓰겠다고 선언한 시점 — 아직 한 번도 안 물었다면 지금 묻는다.
+        // (온보딩 권한 화면을 '다음'으로 건너뛴 사용자·업데이트로 넘어온 기존 사용자를
+        //  구제하는 유일한 경로. 이미 답한 사용자에겐 시스템 창이 뜨지 않는다)
+        Task { await AlarmScheduler.shared.requestAuthorizationIfNeeded() }
         dismiss()
     }
 

@@ -44,6 +44,31 @@ final class AlarmScheduler: NSObject, ObservableObject {
         notificationsAuthorized = settings.authorizationStatus == .authorized
     }
 
+    /// 아직 한 번도 묻지 않았을 때만 시스템 창을 띄운다 (지연 요청).
+    ///
+    /// 온보딩의 권한 화면은 '계속'을 눌러야만 요청이 나가고, 그냥 '다음'으로 넘기면
+    /// 요청 자체가 없었던 게 된다. 그러면 iOS 설정 → 알림 목록에 앱이 아예 나타나지
+    /// 않아(요청 이력이 있어야 등록된다) 사용자가 수동으로 켤 수도 없고, 알람은
+    /// 조용히 안 울린다. 그래서 '알람을 실제로 쓰겠다'고 선언하는 시점(예약 저장)에
+    /// 다시 묻는다 — 업데이트로 넘어온 기존 사용자도 이 경로로 구제된다.
+    ///
+    /// 이미 거부한 사용자에게는 시스템 창이 다시 뜨지 않으므로(iOS는 평생 1회),
+    /// 여기서는 상태만 갱신하고 조용히 지나간다.
+    @discardableResult
+    func requestAuthorizationIfNeeded() async -> Bool {
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            return await requestAuthorization()
+        case .authorized, .provisional, .ephemeral:
+            notificationsAuthorized = true
+            return true
+        default:
+            notificationsAuthorized = false
+            return false
+        }
+    }
+
     // MARK: 스케줄링
 
     /// 모든 활성 예약의 알람/예고를 다시 스케줄한다. (예약 변경 시마다 호출)
