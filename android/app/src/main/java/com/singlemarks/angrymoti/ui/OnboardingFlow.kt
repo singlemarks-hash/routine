@@ -103,10 +103,12 @@ private fun ShootStep(next: () -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        // 책상에서 타임랩스 촬영 중인 모티 — 우측 정렬
+        // 환영 인사 — 웃는 모티, 우측 정렬. iOS 전용 데스크 씬 에셋("OnboardingShoot")이
+        // 없어 웃는 표정 목업(moti_smile)으로 대체한다 — 여백 없이 꽉 찬 클로즈업이라
+        // iOS 수치(240dp)를 그대로 쓰면 화면을 과하게 채워 보여 크기를 줄였다.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Image(painterResource(R.drawable.onboarding_character), null,
-                modifier = Modifier.size(240.dp))
+            Image(painterResource(R.drawable.moti_smile), null,
+                modifier = Modifier.size(170.dp))
         }
 
         Spacer(Modifier.weight(1f))
