@@ -723,7 +723,6 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 // 고스트 버튼(테두리) — 채워진 박스는 저장 버튼만큼 무거워 보인다.
                 // 잠기면 흐리게 (iOS TLGhostButtonStyle + opacity 0.4)
                 Text("예약 삭제", color = TL.rec, fontSize = 17.sp, fontWeight = FontWeight.Black,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                         .alpha(if (isLocked) 0.4f else 1f)
                         .border(1.dp, TL.hairline, TL.cornerM)
