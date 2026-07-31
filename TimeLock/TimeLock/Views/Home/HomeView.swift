@@ -467,13 +467,19 @@ struct HomeView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 20, weight: .bold))
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    HStack(spacing: 6) {
+                        // 제목은 반드시 한 줄 — 체험 기간 뱃지가 옆에 붙어도 줄바꿈되지 않게
+                        // lineLimit으로 고정한다(2줄로 쪼개지면 뱃지가 다음 줄로 밀려 어색해진다).
                         Text("마음껏 멤버십 기능 체험하기")
                             .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                            .layoutPriority(1)
                         if let trial = subscription.freeTrialDescription {
-                            Text("(\(trial))")
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .opacity(0.72)
+                            // 태그 칩과 같은 캡슐 — 문장에 섞인 괄호 텍스트보다 독립된 뱃지로
+                            Text(trial)
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(Capsule().fill(TL.ink.opacity(0.14)))
                         }
                     }
                     Text("모든 프리미엄 기능을 경험해 보세요!")
@@ -482,8 +488,9 @@ struct HomeView: View {
                 }
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .bold))
-                    .opacity(0.8)
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(TL.ink.opacity(0.12)))
             }
             .foregroundStyle(TL.ink)
             .padding(.horizontal, 18)
@@ -501,9 +508,10 @@ struct HomeView: View {
                                                  startPoint: .topLeading, endPoint: .bottomTrailing),
                                   lineWidth: 1.2)
             )
-            // 주변 발광 — 어두운 배경에서 카드가 떠 보이게 (두 겹: 퍼짐 + 밀착)
-            .shadow(color: TL.jade.opacity(0.38), radius: 18, y: 4)
-            .shadow(color: TL.jade.opacity(0.18), radius: 5, y: 1)
+            // 주변 발광 — 중심에서 고르게 퍼지도록 y 오프셋 없이, 아래로 쏠리지 않게.
+            // 퍼짐 폭도 줄여 바로 아래 카드와 겹치지 않도록.
+            .shadow(color: TL.jade.opacity(0.32), radius: 10)
+            .shadow(color: TL.jade.opacity(0.16), radius: 3)
         }
         .pressableStyle()
     }
