@@ -107,10 +107,11 @@ private fun ShootStep(next: () -> Unit) {
         Spacer(Modifier.weight(1f))
 
         // 책상에서 공부하는 모티 — 우측 정렬 (studying_moti, 사용자가 제공한 벡터 에셋).
-        // 421x421 정사각 뷰포트를 그대로 쓰되, moti_smile과 같은 크기로 맞춘다.
+        // 421x421 정사각 뷰포트라 그림이 캔버스를 꽉 채우지 않는다 — 실기기에서 작아 보여
+        // 키운 값. 벡터라 확대해도 선명하다.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Image(painterResource(R.drawable.studying_moti), null,
-                modifier = Modifier.size(170.dp))
+                modifier = Modifier.size(255.dp))
         }
 
         Spacer(Modifier.weight(1f))
