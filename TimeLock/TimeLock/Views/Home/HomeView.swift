@@ -466,21 +466,11 @@ struct HomeView: View {
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 20, weight: .bold))
+                // 뱃지 → 제목 → 부제, 각각 한 줄씩. 한 줄에 둘을 붙이려 하면 화면 폭에
+                // 따라 잘리거나 캡슐이 쪼개져 계속 어그러졌다 — 세로로 쌓아 폭과 무관하게 만든다.
                 VStack(alignment: .leading, spacing: 5) {
-                    // 제목+뱃지를 한 줄에 시도하되, iPhone mini처럼 폭이 좁아 실제로
-                    // 안 들어가면(픽셀 계산으로 추측하지 않고 SwiftUI가 실측 가용폭을 보고
-                    // 판정) 자동으로 뱃지를 제목 아래 줄로 내린다. 제목·뱃지 모두 lineLimit(1)
-                    // 이라 어느 경우든 내부에서 줄바꿈되거나 잘리는 일은 없다.
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 6) {
-                            titleText
-                            trialBadge
-                        }
-                        VStack(alignment: .leading, spacing: 5) {
-                            titleText
-                            trialBadge
-                        }
-                    }
+                    trialBadge
+                    titleText
                     Text("모든 프리미엄 기능을 경험해 보세요!")
                         .font(.system(size: 13, weight: .medium))
                         .opacity(0.68)
@@ -515,8 +505,7 @@ struct HomeView: View {
         .pressableStyle()
     }
 
-    /// trialInviteButton 전용 — ViewThatFits의 두 후보(한 줄/두 줄)가 똑같은 제목 뷰를
-    /// 쓰도록 분리. lineLimit(1)이라 후보 자체는 절대 내부에서 줄바꿈되지 않는다.
+    /// trialInviteButton 전용 제목. lineLimit(1) — 제 줄을 통째로 쓰므로 잘릴 일이 없다.
     private var titleText: some View {
         Text("마음껏 멤버십 기능 체험하기")
             .font(.system(size: 16, weight: .bold, design: .rounded))
