@@ -455,29 +455,55 @@ struct HomeView: View {
     /// 홈에서 멤버십 체험을 권하는 버튼. 실제 체험 기간·문구는 App Store의 소개 혜택
     /// (신규 구독 특가)이 정본이므로, 스토어에서 읽어 온 값이 있으면 그것을 쓴다.
     /// (스토어에서 체험이 내려가면 문구가 조용히 어긋나지 않도록)
+    ///
+    /// 디자인: 이 화면에서 유일하게 '칠해진' 카드다. 다른 카드는 어두운 표면 위 옅은 틴트라,
+    /// 밝은 그라디언트 + 주변 발광으로 두면 스크롤 중에 눈이 먼저 걸린다.
+    /// 배경이 밝으므로 글자·아이콘은 잉크색을 쓴다(제이드 글씨는 밝은 바탕에서 묻힌다).
     private var trialInviteButton: some View {
         Button {
             showPaywall = true
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 16, weight: .bold))
-                Text("마음껏 멤버십 기능 체험하기")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                if let trial = subscription.freeTrialDescription {
-                    Text("(\(trial))")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TL.jade.opacity(0.9))
+                    .font(.system(size: 20, weight: .bold))
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("마음껏 멤버십 기능 체험하기")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                        if let trial = subscription.freeTrialDescription {
+                            Text("(\(trial))")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .opacity(0.72)
+                        }
+                    }
+                    Text("모든 프리미엄 기능을 경험해 보세요!")
+                        .font(.system(size: 13, weight: .medium))
+                        .opacity(0.68)
                 }
                 Spacer(minLength: 4)
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .bold))
+                    .opacity(0.8)
             }
-            .foregroundStyle(TL.jade)
-            .padding(16)
-            .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
-                .fill(TL.jade.opacity(0.12)))
-            .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
-                .strokeBorder(TL.jade.opacity(0.4), lineWidth: 1))
+            .foregroundStyle(TL.ink)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 15)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(hex: 0x7FE7C4), Color(hex: 0xBDF25C)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+            )
+            // 글래스 테두리 — 위쪽은 밝게, 아래로 갈수록 사라져 유리 모서리처럼 보이게
+            .overlay(
+                RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+                    .strokeBorder(LinearGradient(colors: [.white.opacity(0.75), .white.opacity(0.12)],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing),
+                                  lineWidth: 1.2)
+            )
+            // 주변 발광 — 어두운 배경에서 카드가 떠 보이게 (두 겹: 퍼짐 + 밀착)
+            .shadow(color: TL.jade.opacity(0.38), radius: 18, y: 4)
+            .shadow(color: TL.jade.opacity(0.18), radius: 5, y: 1)
         }
         .pressableStyle()
     }
