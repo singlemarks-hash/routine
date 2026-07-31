@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -380,25 +381,49 @@ private fun ActivityTab(
                 // 상품 조회가 끝난 뒤에도 문구가 따라 붙는다 (iOS freeTrialDescription 대응)
                 val product by com.singlemarks.angrymoti.services.SubscriptionManager.product.collectAsState()
                 val trial = remember(product) { com.singlemarks.angrymoti.services.SubscriptionManager.freeTrialLabel }
+                // 이 화면에서 유일하게 '칠해진' 카드 — 나머지는 어두운 표면 위 옅은 틴트라,
+                // 밝은 그라디언트 + 주변 발광으로 두면 스크롤 중에 눈이 먼저 걸린다.
+                // 배경이 밝으므로 글자·아이콘은 잉크색을 쓴다 (iOS trialInviteButton 1:1).
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(TL.jade.copy(alpha = 0.12f), TL.cornerL)
-                        .border(1.dp, TL.jade.copy(alpha = 0.4f), TL.cornerL)
+                        // 발광은 배경보다 먼저 — shadow는 그리는 순서상 아래에 깔려야 한다
+                        .shadow(18.dp, TL.cornerL, ambientColor = TL.jade, spotColor = TL.jade)
+                        .background(
+                            Brush.linearGradient(listOf(Color(0xFF7FE7C4), Color(0xFFBDF25C))),
+                            TL.cornerL)
+                        // 글래스 테두리 — 좌상단은 밝게, 우하단으로 갈수록 사라지게
+                        .border(
+                            1.2.dp,
+                            Brush.linearGradient(listOf(
+                                Color.White.copy(alpha = 0.75f), Color.White.copy(alpha = 0.12f))),
+                            TL.cornerL)
                         .clickable(onClick = onOpenPaywall)
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                        .padding(horizontal = 18.dp, vertical = 15.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("✨ 마음껏 멤버십 기능 체험하기",
-                        color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    trial?.let {
-                        Spacer(Modifier.width(6.dp))
-                        Text("($it)", color = TL.jade.copy(alpha = 0.9f),
-                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Image(painterResource(R.drawable.ic_sparkles), null,
+                        modifier = Modifier.size(20.dp),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(TL.ink))
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text("마음껏 멤버십 기능 체험하기",
+                                color = TL.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            trial?.let {
+                                Spacer(Modifier.width(6.dp))
+                                Text("($it)", color = TL.ink.copy(alpha = 0.72f),
+                                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        Text("모든 프리미엄 기능을 경험해 보세요!",
+                            color = TL.ink.copy(alpha = 0.68f), fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium)
                     }
                     Spacer(Modifier.weight(1f))
                     androidx.compose.material3.Icon(
-                        AppIcon.ChevronRight,
-                        null, tint = TL.jade, modifier = Modifier.size(18.dp))
+                        AppIcon.ChevronRight, null,
+                        tint = TL.ink.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
                 }
             }
         }
