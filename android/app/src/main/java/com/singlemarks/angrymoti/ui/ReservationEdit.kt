@@ -216,8 +216,19 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             "슬롯 한도를 초과해 편집이 잠겼어요. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."
                         return@save
                     }
+                    // 슬롯 검사가 활동명보다 먼저 — 슬롯이 막혀 있으면 이름을 채워도 저장이
+                    // 안 되므로, 이름부터 지적하면 헛수고를 시킨다 (iOS save() 순서 1:1).
+                    if (slotFull) {
+                        error = buildString {
+                            append("활동 슬롯이 가득 찼습니다 (현재 연속 ${streak}일 → 최대 ${allowed}개).")
+                            SlotPolicy.nextTier(streak)?.let { (days, slots) ->
+                                append(" 연속 ${days}일을 달성하면 ${slots?.let { "${it}개" } ?: "무제한"}까지 열려요.")
+                            }
+                            append(" 이미 만든 활동은 그대로 유지됩니다.")
+                        }
+                        return@save
+                    }
                     if (finalName.isEmpty()) { error = "활동명을 입력해주세요."; return@save }
-                    if (slotFull) { error = "활동 슬롯이 가득 찼어요. 연속 달성일을 쌓으면 슬롯이 늘어나요."; return@save }
 
                     // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
                     // 잠긴 예약(이미 시작함)은 UI가 시작일을 못 바꾸게 하지만, 저장 경로에서도
@@ -351,55 +362,73 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             }
         }
 
+        // 오류가 생기면 배너 위치까지 자동으로 올려준다 — 아래쪽에서 저장을 누르면
+        // 최상단 배너가 화면 밖이라 "저장이 안 된다"고만 느껴진다 (iOS scrollTo 1:1).
+        val scrollState = rememberScrollState()
+        LaunchedEffect(error) { if (error != null) scrollState.animateScrollTo(0) }
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState())
+            Modifier.weight(1f).verticalScroll(scrollState)
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             error?.let {
-                Text(it, color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                Row(
+                    verticalAlignment = Alignment.Top,
                     modifier = Modifier.fillMaxWidth()
-                        .background(TL.rec.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
+                        .background(TL.rec.copy(alpha = 0.12f), TL.cornerM).padding(12.dp),
+                ) {
+                    androidx.compose.material3.Icon(AppIcon.Siren, null, tint = TL.rec,
+                        modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(it, color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        lineHeight = 20.sp)
+                }
             }
             if (isRetired) {
                 // 은퇴 안내 하나만 — 다른 잠금 사유는 의미 없음 (iOS retiredNotice 1:1)
-                Text("이 활동은 삭제(종료)되어 더 이상 수정할 수 없습니다. 오늘 기록 확인용으로 자정까지만 일정에 표시되고, 이후에는 목록에서 사라집니다. 지난 기록은 기록 탭에서 계속 볼 수 있어요.",
-                    color = TL.amber, fontSize = 13.sp,
-                    modifier = Modifier.fillMaxWidth()
-                        .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
+                TLNoticeCard(AppIcon.Clock,
+                    "이 활동은 삭제(종료)되어 더 이상 수정할 수 없습니다. 오늘 기록 확인용으로 자정까지만 일정에 표시되고, 이후에는 목록에서 사라집니다. 지난 기록은 기록 탭에서 계속 볼 수 있어요.")
             }
             if (isLocked && !isRetired) {
-                Text("시작 30분 전에는 편집할 수 없어요", color = TL.amber, fontSize = 13.sp,
-                    modifier = Modifier.fillMaxWidth()
-                        .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
+                TLNoticeCard(AppIcon.Lock,
+                    "시작 30분 전입니다. 다짐을 지키기 위해 이 예약은 더 이상 수정하거나 삭제할 수 없습니다.")
             }
             if (editReadOnly && !isRetired) {
-                Text(
+                // 두 사유가 겹칠 수 있다. 하나만 보여주면 "멤버십을 복구하면 편집된다"고
+                // 안내해놓고 복구해도 슬롯 초과로 여전히 잠기는 상황이 된다 (iOS 1:1).
+                val reasons = listOfNotNull(
                     if (lockedInsane)
                         "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다."
-                    else
-                        "활동 슬롯이 ${allowed}개로 줄어 보유한 예약이 한도를 넘었어요. 초과한 동안에는 편집이 잠기고 삭제만 할 수 있어요. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요.",
-                    color = TL.amber, fontSize = 13.sp,
-                    modifier = Modifier.fillMaxWidth()
-                        .background(TL.amber.copy(alpha = 0.12f), TL.cornerM).padding(12.dp))
+                    else null,
+                    if (overSlotLimit)
+                        "활동 슬롯이 ${allowed?.let { "${it}개" } ?: "무제한"}로 줄어 보유한 예약이 한도를 넘었습니다. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요."
+                    else null,
+                )
+                TLNoticeCard(AppIcon.LockOpen, reasons.joinToString("\n\n"))
             }
 
-            // 활동 슬롯 현황 — 터치하면 정책 표 팝업
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-                    .background((if (slotFull) TL.amber else TL.jade).copy(alpha = 0.10f), TL.cornerM)
-                    .clickable { showSlotSheet = true }.padding(12.dp),
-            ) {
-                Text(if (slotFull) "🔒" else "🔥", fontSize = 14.sp)
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text("활동 슬롯 $used/${allowed?.toString() ?: "무제한"} · 연속 달성 ${streak}일",
-                        color = TL.paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text("터치하면 슬롯 정책을 볼 수 있어요", color = TL.faint, fontSize = 11.sp)
+            // 활동 슬롯 현황 — 신규 생성에서만 (편집 화면에선 슬롯을 더 쓰지 않으므로
+            // 안내할 이유가 없다). 터치하면 정책 표 팝업. (iOS `if reservation == nil` 1:1)
+            if (existing == null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                        .background((if (slotFull) TL.amber else TL.jade).copy(alpha = 0.10f), TL.cornerM)
+                        .clickable { showSlotSheet = true }.padding(12.dp),
+                ) {
+                    androidx.compose.material3.Icon(
+                        if (slotFull) AppIcon.Lock else AppIcon.CircleDot, null,
+                        tint = if (slotFull) TL.amber else TL.jade, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("활동 슬롯 $used/${allowed?.toString() ?: "무제한"} · 연속 달성 ${streak}일",
+                            color = TL.paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("터치하면 슬롯 정책을 볼 수 있어요", color = TL.faint, fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    androidx.compose.material3.Icon(AppIcon.Info, null, tint = TL.muted,
+                        modifier = Modifier.size(15.dp))
                 }
-                Spacer(Modifier.weight(1f))
-                Text("ⓘ", color = TL.muted, fontSize = 15.sp)
             }
 
             // ── 활동명 (필수, 빨간 별표) — 큰 서피스 입력 필드, 항상 테두리 (iOS 1:1)
@@ -472,12 +501,21 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 }
                                 .padding(vertical = 10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
-                            Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
-                                color = if (selected) TL.ink else TL.muted,
-                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            // 자물쇠는 이모지가 아니라 아이콘 — 이모지는 줄 높이를 키워
+                            // 카드가 iOS보다 두꺼워지고, 색도 제어할 수 없다 (iOS 1:1).
+                            val fg = if (selected) TL.ink else TL.muted
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (locked) androidx.compose.material3.Icon(AppIcon.Lock, null,
+                                    tint = fg, modifier = Modifier.size(11.dp))
+                                Text("${level.emoji} ${level.title}", color = fg,
+                                    fontSize = 14.sp, fontWeight = FontWeight.Bold, lineHeight = 17.sp)
+                            }
+                            // 부제도 제목과 같은 색 — iOS는 두 줄이 같은 foregroundStyle을 쓴다
                             Text(if (level == Intensity.SPICY) "최대 10분 긴급용무 허용" else "봐주기 없는 100% 몰입, 점수 2배",
-                                color = if (selected) TL.ink.copy(alpha = 0.7f) else TL.faint, fontSize = 10.sp)
+                                color = fg, fontSize = 10.sp, lineHeight = 13.sp)
                         }
                     }
                 }
@@ -682,9 +720,13 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
 
             // 은퇴한 예약은 삭제 버튼도 없다 — 이미 삭제(종료)된 것을 또 삭제할 수 없다
             existing?.takeIf { !isRetired }?.let { r ->
+                // 고스트 버튼(테두리) — 채워진 박스는 저장 버튼만큼 무거워 보인다.
+                // 잠기면 흐리게 (iOS TLGhostButtonStyle + opacity 0.4)
                 Text("예약 삭제", color = TL.rec, fontSize = 17.sp, fontWeight = FontWeight.Black,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
-                        .background(TL.surface, TL.cornerL)
+                        .alpha(if (isLocked) 0.4f else 1f)
+                        .border(1.dp, TL.hairline, TL.cornerM)
                         .clickable(enabled = !isLocked) {
                             scope.launch(Dispatchers.IO) {
                                 AlarmScheduler.cancel(context, r.id)
@@ -921,11 +963,13 @@ fun SlotStatusBadge(used: Int, allowed: Int?, streak: Int, onClick: () -> Unit) 
 
 @Composable
 fun SlotPolicySheet(streak: Int, isPro: Boolean) {
-    Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 36.dp)) {
-        Text("활동 슬롯 정책", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
-        Spacer(Modifier.height(6.dp))
+    Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 36.dp)) {
+        // 제목에 현재 연속일까지 — iOS는 네비게이션 타이틀이 "활동 슬롯 정책 · 연속 N일"이다.
+        Text("활동 슬롯 정책 · 연속 ${streak}일",
+            color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(10.dp))
         Text("한 가지에 집중하는 습관을 위해 활동 슬롯은 제한됩니다.\n연속 달성일이 늘어날수록 활동 슬롯도 함께 늘어납니다.",
-            color = TL.muted, fontSize = 14.sp)
+            color = TL.muted, fontSize = 14.sp, lineHeight = 20.sp)
         Spacer(Modifier.height(16.dp))
 
         // 멤버십 계정은 연속과 무관하게 기본 10개가 보장되므로 사다리를 접고 '기본 10개 / 연속 30일 무제한' 2줄만.
@@ -940,32 +984,64 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
             isPro -> "기본"   // 멤버는 30일 미만이면 항상 기본(10개) 행이 현재
             else -> SlotPolicy.tiers.lastOrNull { it.first <= streak }?.let { "연속 ${it.first}일" } ?: "기본"
         }
-        rows.forEach { (label, slots) ->
-            val isCurrent = label == currentLabel
-            Row(
-                Modifier.fillMaxWidth()
-                    .background(if (isCurrent) TL.jade.copy(alpha = 0.12f) else TL.ink, TL.cornerS)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(label, color = TL.paper, fontSize = 14.sp,
-                    fontWeight = if (isCurrent) FontWeight.Black else FontWeight.Normal)
-                if (isCurrent) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("현재", color = TL.jade, fontSize = 11.sp, fontWeight = FontWeight.Black)
-                }
+        // 단계표 — 행을 따로 떼지 않고 하나의 카드 안에 구분선으로 나눈다 (iOS 1:1).
+        Column(
+            Modifier.fillMaxWidth()
+                .background(TL.surface, TL.cornerM)
+                .clip(TL.cornerM),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text("연속 달성일", color = TL.faint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Text(slots, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("최대 활동", color = TL.faint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(Modifier.height(4.dp))
+            rows.forEachIndexed { index, (label, slots) ->
+                val isCurrent = label == currentLabel
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(if (isCurrent) TL.jade.copy(alpha = 0.10f) else Color.Transparent)
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(label, color = if (isCurrent) TL.jade else TL.paper, fontSize = 15.sp,
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium)
+                    if (isCurrent) {
+                        Spacer(Modifier.width(6.dp))
+                        // '현재' 배지 — 제이드 캡슐 + 잉크 글씨 (iOS 1:1)
+                        Text("현재", color = TL.ink, fontSize = 10.sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier
+                                .background(TL.jade, CircleShape)
+                                .padding(horizontal = 7.dp, vertical = 2.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(slots, color = if (isCurrent) TL.jade else TL.paper,
+                        style = tlTimerStyle(15.sp))
+                }
+                if (index < rows.size - 1) {
+                    androidx.compose.material3.HorizontalDivider(color = TL.hairline.copy(alpha = 0.5f))
+                }
+            }
         }
-        Spacer(Modifier.height(10.dp))
-        Text("👑 멤버십은 연속일과 무관하게 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 시작해요." +
-            if (isPro) " (적용 중)" else "",
-            color = TL.jade, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(6.dp))
-        Text("🛡 연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 사라지지 않아요. 새로 추가하는 것만 제한됩니다.",
-            color = TL.muted, fontSize = 12.sp)
+
+        Spacer(Modifier.height(16.dp))
+        // 가입 여부에 따라 문장 자체가 갈린다 — "가입하면"과 "적용 중"은 다른 안내다 (iOS 1:1)
+        Row(verticalAlignment = Alignment.Top) {
+            androidx.compose.material3.Icon(AppIcon.Crown, null, tint = TL.jade,
+                modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                if (isPro) "멤버십 적용 중 — 연속일과 무관하게 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개가 보장됩니다."
+                else "멤버십에 가입하면 연속일과 무관하게 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 시작합니다.",
+                color = TL.jade, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, lineHeight = 17.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.Top) {
+            androidx.compose.material3.Icon(AppIcon.Shield, null, tint = TL.muted,
+                modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 사라지지 않아요. 새로 추가하는 것만 제한됩니다.",
+                color = TL.muted, fontSize = 12.sp, lineHeight = 17.sp)
+        }
     }
 }
 

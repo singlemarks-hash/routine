@@ -529,12 +529,19 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                                 .clickable(enabled = !locked) { intensity = level }
                                 .padding(vertical = 10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
-                            Text((if (locked) "🔒 " else "") + "${level.emoji} ${level.title}",
-                                color = if (selected) TL.ink else TL.muted,
-                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            // 자물쇠는 아이콘, 부제도 제목과 같은 색 (예약 편집 화면과 동일 · iOS 1:1)
+                            val fg = if (selected) TL.ink else TL.muted
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (locked) androidx.compose.material3.Icon(AppIcon.Lock, null,
+                                    tint = fg, modifier = Modifier.size(11.dp))
+                                Text("${level.emoji} ${level.title}", color = fg,
+                                    fontSize = 14.sp, fontWeight = FontWeight.Bold, lineHeight = 17.sp)
+                            }
                             Text(if (level == Intensity.SPICY) "최대 10분 긴급용무 허용" else "봐주기 없는 100% 몰입, 점수 2배",
-                                color = if (selected) TL.ink.copy(alpha = 0.7f) else TL.faint, fontSize = 10.sp)
+                                color = fg, fontSize = 10.sp, lineHeight = 13.sp)
                         }
                     }
                 }

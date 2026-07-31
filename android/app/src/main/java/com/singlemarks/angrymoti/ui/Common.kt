@@ -7,10 +7,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,8 +33,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
@@ -54,12 +59,14 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TabletAndroid
@@ -123,6 +130,9 @@ object AppIcon {
     val Heart = Icons.Filled.Favorite
     val Headphones = Icons.Filled.Headphones
     val Crown = Icons.Filled.WorkspacePremium
+    val Shield = Icons.Filled.Shield
+    // 잠금 안내 카드 (iOS lock.slash.fill — 슬롯 초과 읽기 전용)
+    val LockOpen = Icons.Filled.LockOpen
     val Copy = Icons.Filled.ContentCopy
     val CalendarDays = Icons.Filled.CalendarMonth
     val BellOff = Icons.Filled.NotificationsOff
@@ -162,6 +172,33 @@ object TLFormat {
         val ampm = if (h < 12) "오전" else "오후"
         val h12 = if (h % 12 == 0) 12 else h % 12
         return "$ampm $h12:${"%02d".format(m)}"
+    }
+}
+
+/**
+ * 숫자 표기 스타일 — iOS `.tlTimer(size)` 대응.
+ * 고정폭 숫자(tnum)라 값이 바뀌어도 자릿수가 흔들리지 않고, Black 웨이트로 무게를 맞춘다.
+ * (안드로이드 기본 폰트는 비례폭 숫자라 iOS monospacedDigit와 눈에 띄게 달라 보였다)
+ */
+fun tlTimerStyle(size: TextUnit): TextStyle = TextStyle(
+    fontSize = size,
+    fontWeight = FontWeight.Black,
+    fontFeatureSettings = "tnum",
+)
+
+/**
+ * 잠금·경고 안내 카드 — iOS는 이런 안내를 TLCard + SF Symbol 아이콘 + paper 텍스트로 낸다.
+ * (안드로이드는 아이콘 없이 amber 텍스트만 쓰던 자리를 통일)
+ */
+@Composable
+fun TLNoticeCard(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String,
+                 tint: Color = TL.amber) {
+    TLCard {
+        Row(verticalAlignment = Alignment.Top) {
+            androidx.compose.material3.Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(text, color = TL.paper, fontSize = 13.sp, lineHeight = 19.sp)
+        }
     }
 }
 
