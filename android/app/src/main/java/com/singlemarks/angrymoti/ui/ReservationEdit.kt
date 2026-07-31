@@ -437,14 +437,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                // 프리셋 칩과 나란히 있는 보조 입력칸이라, 필수 입력인 활동명 필드보다
-                // 세로폭을 눌러 칩 행과 시각적 위계를 맞춘다 (갤럭시 실기기에서 세로로 과하게
-                // 크다는 리포트 반영).
                 TLField(customTag, { customTag = ActivityTag.truncatedToTagWidth(it) },
                     "직접 입력 (선택)", enabled = !fieldLocked,
                     unfocusedBorderColor = if (customTagActive) TL.hairline.copy(alpha = 0.6f) else Color.Transparent,
-                    onFocusChanged = { customTagFocused = it },
-                    height = 44.dp)
+                    onFocusChanged = { customTagFocused = it })
             }
 
             // ── 강도 — 활동별 설정 (그룹 방 만들기와 동일, 혼자 하는 활동이라 '참여자 전원' 문구 제거)
@@ -866,14 +862,10 @@ private fun TLField(
     value: String, onChange: (String) -> Unit, placeholder: String, enabled: Boolean = true,
     unfocusedBorderColor: Color = Color.Transparent,
     onFocusChanged: ((Boolean) -> Unit)? = null,
-    // OutlinedTextField는 내부적으로 56dp 최소 높이를 강제한다 — iOS의 커스텀 텍스트필드처럼
-    // padding()만으로 얇게 만들 수 없다. 필요한 곳(태그 직접입력 등)만 명시적으로 낮춘다.
-    height: androidx.compose.ui.unit.Dp? = null,
 ) {
     OutlinedTextField(
         value, onChange,
         modifier = Modifier.fillMaxWidth()
-            .let { if (height != null) it.height(height) else it }
             .onFocusChanged { onFocusChanged?.invoke(it.isFocused) },
         singleLine = true, enabled = enabled,
         placeholder = { Text(placeholder, color = TL.faint, fontSize = 16.sp) },
