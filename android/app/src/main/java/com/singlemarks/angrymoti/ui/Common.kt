@@ -260,7 +260,7 @@ fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
             .background(bg, CircleShape)
             .border(1.dp, border, CircleShape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(name, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
