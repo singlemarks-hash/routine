@@ -676,13 +676,16 @@ private fun QuickStartSheet(onStart: (PendingSession) -> Unit) {
                 modifier = Modifier.background(TL.jade.copy(alpha = 0.14f), CircleShape)
                     .padding(horizontal = 10.dp, vertical = 5.dp))
         }
+        // 뱃지에 세로 padding이 붙어 라벨 텍스트보다 키가 커서, 바로 이어지면 시간
+        // 필 목록과 붙어 보였다 — 간격을 둔다.
+        Spacer(Modifier.height(10.dp))
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(TimePolicy.durationOptionsMinutes.size) { i ->
                 val m = TimePolicy.durationOptionsMinutes[i]
                 TagChip(TLFormat.durationLabel(m), minutes == m) { minutes = m }
             }
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(24.dp))
         TLPrimaryButton("촬영 준비하기", enabled = name.isNotBlank()) {
             onStart(PendingSession(name.trim(), tag, minutes * 60))
         }

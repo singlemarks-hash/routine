@@ -33,9 +33,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -296,6 +298,21 @@ fun tagTint(name: String): Color? = when (name) {
     else         -> null
 }
 
+/**
+ * 캡슐 칩 텍스트용 타이트 스타일 — Compose 기본 Text는 폰트 자체 글리프보다 위아래로
+ * 여백(includeFontPadding)이 더 붙어서, iOS와 같은 padding(12/7)을 줘도 캡슐이 더
+ * 두꺼워 보인다. lineHeight를 fontSize에 맞춰 좁히고 플랫폼 여백을 꺼서 캡슐이
+ * 글자 크기만큼만 커지게 한다.
+ */
+private val tightChipTextStyle = TextStyle(
+    lineHeight = 13.sp,
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.Both,
+    ),
+)
+
 /** 태그 칩 — 프리셋 6개+그룹은 고유색, 그 외(커스텀)는 회색. 선택 시 원색 캡슐 (iOS TagChip) */
 @Composable
 fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
@@ -323,7 +340,8 @@ fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
-        Text(name, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(name, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            style = tightChipTextStyle)
     }
 }
 
