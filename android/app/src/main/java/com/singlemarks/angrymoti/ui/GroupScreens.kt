@@ -1073,8 +1073,13 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                 finished -> {
                     GroupRankingCard(members, room, myUid, finished = true)
                     Spacer(Modifier.height(16.dp))
-                    // 삭제 예고 — 남은 보존 일수 (iOS deletionNotice 1:1)
-                    val daysLeft = ((room.deleteAt - now) / 86_400_000L).toInt()
+                    // 삭제 예고 — 남은 보존 일수. 밀리초 차이를 그대로 나누면(내림) 하루 중
+                    // 시간대에 따라 iOS(달력 날짜 경계로 셈)와 하루씩 어긋난다 — 예를 들어
+                    // 삭제 시각이 자정 무렵이고 지금이 정오를 넘겼으면 실제 흐른 시간은
+                    // 27일 몇 시간이라 내림하면 27, 그런데 달력 날짜差는 28. 자정 기준으로
+                    // 통일한다 (iOS deletionNotice 1:1).
+                    val daysLeft = ((com.singlemarks.angrymoti.models.DayOutcome.startOfDay(room.deleteAt) -
+                        com.singlemarks.angrymoti.models.DayOutcome.startOfDay(now)) / 86_400_000L).toInt()
                     Text(if (daysLeft > 0) "${daysLeft}일 뒤 이 방과 결과가 자동으로 삭제됩니다."
                          else "오늘 중 이 방과 결과가 자동으로 삭제됩니다.",
                         color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
