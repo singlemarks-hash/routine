@@ -1071,7 +1071,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                         color = TL.faint, fontSize = 12.sp)
                 }
                 finished -> {
-                    GroupRankingCard(members, myUid, finished = true)
+                    GroupRankingCard(members, room, myUid, finished = true)
                     Spacer(Modifier.height(16.dp))
                     // 삭제 예고 — 남은 보존 일수 (iOS deletionNotice 1:1)
                     val daysLeft = ((room.deleteAt - now) / 86_400_000L).toInt()
@@ -1087,7 +1087,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                     // 이 카드가 없으면 알람 한 번 놓친 것으로 그대로 노쇼가 된다 (iOS 1:1).
                     GroupStartActivityCard(room)
                     Spacer(Modifier.height(16.dp))
-                    GroupRankingCard(members, myUid, finished = false)
+                    GroupRankingCard(members, room, myUid, finished = false)
                 }
             }
 
@@ -1236,7 +1236,7 @@ private fun GroupMemberListCard(
 /** 랭킹 카드 — 진행 중(실시간)·종료(최종 결과) 공용 (iOS rankingSection/resultSection 1:1) */
 @Composable
 private fun GroupRankingCard(
-    members: List<GroupStore.GroupMember>, myUid: String, finished: Boolean,
+    members: List<GroupStore.GroupMember>, room: GroupRoom, myUid: String, finished: Boolean,
 ) {
     TLCard(raised = true) {
         TLEyebrow(if (finished) "최종 결과" else "실시간 랭킹")
@@ -1274,11 +1274,20 @@ private fun GroupRankingCard(
                             fontSize = 15.sp, fontWeight = FontWeight.Black)
                     }
                 }
-                Text(
-                    m.nickname + if (m.id == myUid) " (나)" else "",
-                    color = if (m.quit) TL.faint else TL.paper, fontSize = 15.sp,
-                    fontWeight = if (m.id == myUid) FontWeight.Black else FontWeight.Normal,
-                    modifier = Modifier.weight(1f))
+                // 닉네임 + 방장 별을 안쪽 Row로 묶는다 — 바깥에 그냥 이어 붙이면 닉네임의
+                // weight(1f)가 남은 폭을 다 먹어 별이 점수 옆까지 밀려난다. 별은 닉네임
+                // 바로 옆에 붙어야 한다 (iOS rankRow 1:1).
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        m.nickname + if (m.id == myUid) " (나)" else "",
+                        color = if (m.quit) TL.faint else TL.paper, fontSize = 15.sp,
+                        fontWeight = if (m.id == myUid) FontWeight.Black else FontWeight.Normal,
+                        modifier = Modifier.weight(1f, fill = false))
+                    if (m.id == room.hostUID) {
+                        Spacer(Modifier.width(6.dp))
+                        Text("★", color = TL.amber, fontSize = 12.sp)
+                    }
+                }
                 if (m.quit) {
                     Text("포기", color = TL.faint, fontSize = 11.sp,
                         modifier = Modifier.padding(end = 8.dp))
