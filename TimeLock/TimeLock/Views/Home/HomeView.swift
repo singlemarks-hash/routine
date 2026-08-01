@@ -443,8 +443,10 @@ struct HomeView: View {
             }
             .foregroundStyle(TL.paper)
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous).fill(TL.surface))
-            .overlay(RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous)
+            // '활동 추가하기'(TLPrimaryButtonStyle)와 라운드값을 맞춘다 — 둘 다 홈 화면의
+            // 1열 액션이라 다른 반경을 쓸 이유가 없었다.
+            .background(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous).fill(TL.surface))
+            .overlay(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous)
                 .strokeBorder(TL.hairline.opacity(0.6), lineWidth: 1))
         }
         .pressableStyle()
