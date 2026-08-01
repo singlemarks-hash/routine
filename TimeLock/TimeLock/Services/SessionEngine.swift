@@ -656,7 +656,13 @@ final class SessionEngine: NSObject, ObservableObject {
             // "10분 안에 시작" 정책 자체가 무너진다.
             guard slot.sessions.contains(where: {
                 $0.outcome != .noShow && Self.startedWithinWindow($0, scheduled: slot.scheduled)
-            }) else { continue }
+            }) else {
+                // 승자가 없는데 기록이 둘 이상 — 결정적 세션 ID 이전에 두 기기가 같은 노쇼를
+                // 각자 무작위 ID로 찍어 놓은 흔적이다. 한 건으로 접는다.
+                collapseDuplicateNoShows(slot.sessions, scheduled: slot.scheduled,
+                                         context: context, changed: &changed)
+                continue
+            }
             for session in slot.sessions where session.outcome == .noShow {
                 let sid = session.id
                 if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
@@ -681,6 +687,42 @@ final class SessionEngine: NSObject, ObservableObject {
             }
         }
         if changed { persist(context, "중복 결과 정리") }
+    }
+
+    /// 같은 발생에 노쇼가 여러 건이면 한 건만 남긴다.
+    ///
+    /// **벌점은 지우지 않고 생존자에게 옮긴다.** 여기서 이벤트까지 지우면 노쇼가 통째로
+    /// 면책돼 오히려 벌점 회피 경로가 된다 — 지워야 하는 건 '중복된 세션'이지 '벌점'이 아니다.
+    /// 생존자 선택은 두 기기가 같은 답을 내야 하므로 결정적 규칙만 쓴다.
+    ///
+    /// 수렴에 대해: 한쪽만 먼저 접으면, 아직 접지 않은 기기의 백필이 패자를 다시 올려
+    /// 한두 번 되살아날 수 있다. 두 기기 모두 포그라운드에서 이 루틴을 돌리므로 각자
+    /// 로컬 패자를 지우는 순간 멈춘다 — 되살림이 무한 반복되지는 않는다.
+    private func collapseDuplicateNoShows(_ sessions: [FocusSession], scheduled: Date,
+                                          context: ModelContext, changed: inout Bool) {
+        let noShows = sessions.filter { $0.outcome == .noShow }
+        guard noShows.count > 1, let rid = noShows.first?.reservationID else { return }
+        // 새 스위퍼가 만드는 정본 ID. 이 값이 있으면 그것을 남겨야 이후 스윕과도 어긋나지 않는다.
+        let canonical = Self.deterministicUUID(
+            "noshowSession|\(rid.uuidString.lowercased())|\(Int(scheduled.timeIntervalSince1970))")
+        guard let survivor = noShows.first(where: { $0.id == canonical })
+                ?? noShows.min(by: { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() })
+        else { return }
+
+        for loser in noShows where loser.id != survivor.id {
+            let lid = loser.id
+            if let events = try? context.fetch(FetchDescriptor<ScoreEvent>(
+                predicate: #Predicate { $0.sessionID == lid })) {
+                for event in events {
+                    event.sessionID = survivor.id
+                    AccountStore.shared.mirror(event: event)   // 클라우드 사본도 새 주인으로
+                }
+            }
+            AccountStore.shared.deleteMirroredSession(id: lid)
+            SessionStorage.deleteFiles(of: loser)
+            context.delete(loser)
+            changed = true
+        }
     }
 
     /// 이 기록이 시작 창(10분) 안에 시작됐는가. 촬영 없이 끝난 기록(일정 취소 등)은
@@ -769,6 +811,13 @@ final class SessionEngine: NSObject, ObservableObject {
                                           targetSeconds: reservation.durationMinutes * 60,
                                           reservationID: reservation.id,
                                           ownerUserID: reservation.ownerUserID)
+                // 세션 ID도 결정적으로 — 벌점 이벤트만 결정적이면 이중 벌점은 막아도
+                // '같은 노쇼 세션 2건'은 막지 못한다. 기기마다 무작위 ID로 각자 찍고,
+                // 세션 요약 동기화가 그걸 서로에게 실어 날라 완주율·노쇼율의 분모가
+                // 기기마다 달라졌다. 같은 발생이면 어느 기기에서 스윕해도 같은 ID여야 한다.
+                // (안드로이드와 동일 키·동일 해시)
+                noShow.id = Self.deterministicUUID(
+                    "noshowSession|\(reservation.id.uuidString.lowercased())|\(Int(fire.timeIntervalSince1970))")
                 noShow.outcome = .noShow
                 noShow.endedAt = fire.addingTimeInterval(graceWindow)
                 context.insert(noShow)

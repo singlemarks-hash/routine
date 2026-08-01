@@ -515,7 +515,12 @@ object SessionEngine {
             val hasWinner = group.any {
                 it.outcome != SessionOutcome.NO_SHOW && startedWithinWindow(it, scheduled)
             }
-            if (!hasWinner) continue
+            if (!hasWinner) {
+                // 승자가 없는데 기록이 둘 이상 — 결정적 세션 ID 이전에 두 기기가 같은 노쇼를
+                // 각자 무작위 ID로 찍어 놓은 흔적이다. 한 건으로 접는다.
+                collapseDuplicateNoShows(group, scheduled)
+                continue
+            }
             for (s in group.filter { it.outcome == SessionOutcome.NO_SHOW }) {
                 for (e in db.scores().bySession(s.id)) {
                     AccountStore.deleteMirroredEvent(e.ownerUserID, e.id)
@@ -528,6 +533,40 @@ object SessionEngine {
                 CameraRecorder.deleteFiles(appContext, s.videoFileName, s.thumbnailFileName)
                 db.sessions().delete(s)
             }
+        }
+    }
+
+    /**
+     * 같은 발생에 노쇼가 여러 건이면 한 건만 남긴다.
+     *
+     * **벌점은 지우지 않고 생존자에게 옮긴다.** 여기서 이벤트까지 지우면 노쇼가 통째로
+     * 면책돼 오히려 벌점 회피 경로가 된다 — 지워야 하는 건 '중복된 세션'이지 '벌점'이 아니다.
+     * 생존자 선택은 두 기기가 같은 답을 내야 하므로 결정적 규칙만 쓴다 (iOS 1:1).
+     *
+     * 수렴에 대해: 한쪽만 먼저 접으면, 아직 접지 않은 기기의 백필이 패자를 다시 올려
+     * 한두 번 되살아날 수 있다. 두 기기 모두 포그라운드에서 이 루틴을 돌리므로 각자
+     * 로컬 패자를 지우는 순간 멈춘다 — 되살림이 무한 반복되지는 않는다.
+     */
+    private suspend fun collapseDuplicateNoShows(group: List<FocusSession>, scheduled: Long) {
+        val db = AppDb.get(appContext)
+        val noShows = group.filter { it.outcome == SessionOutcome.NO_SHOW }
+        if (noShows.size < 2) return
+        val rid = noShows.first().reservationID ?: return
+        // 새 스위퍼가 만드는 정본 ID. 이 값이 있으면 그것을 남겨야 이후 스윕과도 어긋나지 않는다.
+        val canonical = deterministicId("noshowSession|${rid.lowercase()}|${scheduled / 1000}")
+        val survivor = noShows.firstOrNull { it.id.lowercase() == canonical }
+            ?: noShows.minByOrNull { it.id.lowercase() } ?: return
+
+        for (loser in noShows) {
+            if (loser.id == survivor.id) continue
+            for (e in db.scores().bySession(loser.id)) {
+                val moved = e.copy(sessionID = survivor.id)
+                db.scores().insert(moved)          // 같은 PK — REPLACE로 주인만 바뀐다
+                AccountStore.mirror(moved)         // 클라우드 사본도 새 주인으로
+            }
+            AccountStore.deleteMirroredSession(loser.ownerUserID, loser.id)
+            CameraRecorder.deleteFiles(appContext, loser.videoFileName, loser.thumbnailFileName)
+            db.sessions().delete(loser)
         }
     }
 
@@ -632,6 +671,11 @@ object SessionEngine {
                 if (key in existing) continue
 
                 val noShow = FocusSession(
+                    // 세션 ID도 결정적으로 — 벌점 이벤트만 결정적이면 이중 벌점은 막아도
+                    // '같은 노쇼 세션 2건'은 막지 못한다. 기기마다 무작위 ID로 각자 찍고,
+                    // 세션 요약 동기화가 그걸 서로에게 실어 날라 완주율·노쇼율의 분모가
+                    // 기기마다 달라졌다. (iOS와 동일 키·동일 해시)
+                    id = deterministicId("noshowSession|${r.id.lowercase()}|${fire / 1000}"),
                     ownerUserID = r.ownerUserID, activityName = r.name, tag = r.tag,
                     intensityRaw = effIntensity.raw, scheduledAt = fire,
                     endedAt = fire + grace, targetSeconds = r.durationMinutes * 60,
