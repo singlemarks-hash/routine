@@ -108,6 +108,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     // '예약을 실제로 만든 순간'에 한 번 확인한다 (iOS ReservationEditView.save 1:1).
     var showNotifBlocked by remember { mutableStateOf(false) }
     var showFullScreenNotice by remember { mutableStateOf(false) }
+    // 삭제는 되돌릴 수 없는 액션이라 확인 없이 바로 실행하면 안 된다 — 바로 위 '저장' 버튼과
+    // 인접해 있어 오터치 시 활동이 통째로 사라진다 (iOS confirmationDialog와 1:1).
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     // 전체 화면 알람(API 34+)까지 확인한 뒤 화면을 닫는다.
     val finishAfterAlarmGate: () -> Unit = {
         if (Permissions.notificationsEnabled(context) &&
@@ -762,37 +765,59 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                         .alpha(if (isLocked) 0.4f else 1f)
                         .border(1.dp, TL.hairline, TL.cornerM)
-                        .clickable(enabled = !isLocked) {
-                            scope.launch(Dispatchers.IO) {
-                                AlarmScheduler.cancel(context, r.id)
-                                // 오늘 발생이 이미 '진행된' 예약은 통째로 지우지 않고 오늘로
-                                // 은퇴시킨다(endAt = 오늘). 진행됨 = 오늘 기록 확정 또는 시작 창
-                                // 마감(노쇼 확정 예정). 통째로 지우면 기록탭엔 벌점이 있는데
-                                // 일정 탭 오늘 칸이 텅 비어 모순돼 보인다. 은퇴하면 시작 안 한
-                                // 미래분만 소멸하고 오늘 행은 자정까지 남으며, isActive가 유지돼
-                                // 노쇼 스위퍼도 계속 집계한다 (iOS 1:1).
-                                val today = todayStart()
-                                val fire = r.occurrenceOn(today)
-                                val progressedToday = fire != null && (
-                                    fire + TimePolicy.START_WINDOW_SECONDS * 1000 < System.currentTimeMillis() ||
-                                    db.sessions().all(r.ownerUserID).any { s ->
-                                        s.reservationID == r.id && s.outcome != null &&
-                                            (s.scheduledAt ?: 0L) in today until (today + 86_400_000L)
-                                    })
-                                // 소프트 처리 — 하드 삭제하면 클라우드 사본이 다음 동기화에서
-                                // 예약을 되살린다. iOS와 동일하게 비활성/은퇴로 처리하고 전파.
-                                val deleted = if (progressedToday)
-                                    r.copy(endAt = today, updatedAt = System.currentTimeMillis())
-                                else
-                                    r.copy(isActive = false, updatedAt = System.currentTimeMillis())
-                                db.reservations().upsert(deleted)
-                                AccountStore.mirrorReservation(deleted)
-                                withContext(Dispatchers.Main) { onDone() }
-                            }
-                        }.padding(16.dp),
+                        .clickable(enabled = !isLocked) { showDeleteConfirm = true }
+                        .padding(16.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
             Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    // 되돌릴 수 없는 삭제라 한 번 더 확인한다 — 바로 위 '저장' 버튼과 인접해 있어
+    // 오터치 시 확인 없이 활동이 통째로 사라지면 안 된다 (iOS confirmationDialog 1:1).
+    if (showDeleteConfirm) {
+        existing?.let { r ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                containerColor = TL.surface,
+                title = { Text("이 예약을 삭제할까요?", color = TL.paper, fontWeight = FontWeight.Black) },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        showDeleteConfirm = false
+                        scope.launch(Dispatchers.IO) {
+                            AlarmScheduler.cancel(context, r.id)
+                            // 오늘 발생이 이미 '진행된' 예약은 통째로 지우지 않고 오늘로
+                            // 은퇴시킨다(endAt = 오늘). 진행됨 = 오늘 기록 확정 또는 시작 창
+                            // 마감(노쇼 확정 예정). 통째로 지우면 기록탭엔 벌점이 있는데
+                            // 일정 탭 오늘 칸이 텅 비어 모순돼 보인다. 은퇴하면 시작 안 한
+                            // 미래분만 소멸하고 오늘 행은 자정까지 남으며, isActive가 유지돼
+                            // 노쇼 스위퍼도 계속 집계한다 (iOS 1:1).
+                            val today = todayStart()
+                            val fire = r.occurrenceOn(today)
+                            val progressedToday = fire != null && (
+                                fire + TimePolicy.START_WINDOW_SECONDS * 1000 < System.currentTimeMillis() ||
+                                db.sessions().all(r.ownerUserID).any { s ->
+                                    s.reservationID == r.id && s.outcome != null &&
+                                        (s.scheduledAt ?: 0L) in today until (today + 86_400_000L)
+                                })
+                            // 소프트 처리 — 하드 삭제하면 클라우드 사본이 다음 동기화에서
+                            // 예약을 되살린다. iOS와 동일하게 비활성/은퇴로 처리하고 전파.
+                            val deleted = if (progressedToday)
+                                r.copy(endAt = today, updatedAt = System.currentTimeMillis())
+                            else
+                                r.copy(isActive = false, updatedAt = System.currentTimeMillis())
+                            db.reservations().upsert(deleted)
+                            AccountStore.mirrorReservation(deleted)
+                            withContext(Dispatchers.Main) { onDone() }
+                        }
+                    }) { Text("삭제", color = TL.rec, fontWeight = FontWeight.Black) }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showDeleteConfirm = false }) {
+                        Text("취소", color = TL.muted)
+                    }
+                },
+            )
         }
     }
 
