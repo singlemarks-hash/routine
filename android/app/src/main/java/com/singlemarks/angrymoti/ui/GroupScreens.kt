@@ -1222,7 +1222,7 @@ private fun GroupMemberListCard(
                     Box(Modifier.size(17.dp).background(TL.jade, CircleShape),
                         contentAlignment = Alignment.Center) {
                         Text("나", color = TL.ink, fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold)
+                            fontWeight = FontWeight.Bold, style = circleBadgeTextStyle)
                     }
                 }
             }
@@ -1298,7 +1298,7 @@ private fun GroupRankingCard(
                         Box(Modifier.size(17.dp).background(TL.jade, CircleShape),
                             contentAlignment = Alignment.Center) {
                             Text("나", color = TL.ink, fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold)
+                                fontWeight = FontWeight.Bold, style = circleBadgeTextStyle)
                         }
                     }
                 }

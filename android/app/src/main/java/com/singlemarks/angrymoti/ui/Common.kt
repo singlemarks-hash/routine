@@ -338,6 +338,20 @@ fun tagTint(name: String): Color? = when (name) {
  * 두꺼워 보인다. lineHeight를 fontSize에 맞춰 좁히고 플랫폼 여백을 꺼서 캡슐이
  * 글자 크기만큼만 커지게 한다.
  */
+/**
+ * 원형 배지('나') 안 글자 — Box(contentAlignment = Center)로 감싸도 글자가 아래로
+ * 치우쳐 보인다. includeFontPadding이 한글 글자 위아래에 폰트 여백을 얹는데, 그 여백까지
+ * 포함해 가운데를 잡기 때문이다. 여백을 끄고 실제 글자 높이 기준으로 정렬한다.
+ */
+val circleBadgeTextStyle = TextStyle(
+    fontFamily = com.singlemarks.angrymoti.ui.theme.AppFont,
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.Both,
+    ),
+)
+
 private val tightChipTextStyle = TextStyle(
     // 위 tlTimerStyle과 같은 이유로 폰트 명시 (style 인자는 LocalTextStyle을 대체한다)
     fontFamily = com.singlemarks.angrymoti.ui.theme.AppFont,
