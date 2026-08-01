@@ -1274,18 +1274,26 @@ private fun GroupRankingCard(
                             fontSize = 15.sp, fontWeight = FontWeight.Black)
                     }
                 }
-                // 닉네임 + 방장 별을 안쪽 Row로 묶는다 — 바깥에 그냥 이어 붙이면 닉네임의
-                // weight(1f)가 남은 폭을 다 먹어 별이 점수 옆까지 밀려난다. 별은 닉네임
-                // 바로 옆에 붙어야 한다 (iOS rankRow 1:1).
+                // 닉네임 + 방장 별 + '나' 칩을 안쪽 Row로 묶는다 — 바깥에 그냥 이어 붙이면
+                // 닉네임의 weight(1f)가 남은 폭을 다 먹어 뒤 요소가 점수 옆까지 밀려난다.
+                // 순서·표기 모두 iOS rankRow 1:1 (닉네임 → 별 → '나' 칩).
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        m.nickname + if (m.id == myUid) " (나)" else "",
+                        m.nickname,
                         color = if (m.quit) TL.faint else TL.paper, fontSize = 15.sp,
                         fontWeight = if (m.id == myUid) FontWeight.Black else FontWeight.Normal,
                         modifier = Modifier.weight(1f, fill = false))
                     if (m.id == room.hostUID) {
                         Spacer(Modifier.width(6.dp))
                         Text("★", color = TL.amber, fontSize = 12.sp)
+                    }
+                    // '(나)' 텍스트 대신 옥색 캡슐 — 같은 화면의 참여자 목록 카드가 이미
+                    // 캡슐을 쓰고 있어 한 화면에서 두 표기가 섞여 있었다.
+                    if (m.id == myUid) {
+                        Spacer(Modifier.width(6.dp))
+                        Text("나", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.background(TL.jade, CircleShape)
+                                .padding(horizontal = 7.dp, vertical = 2.dp))
                     }
                 }
                 if (m.quit) {
