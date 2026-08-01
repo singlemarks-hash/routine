@@ -1166,9 +1166,9 @@ struct GroupRoomDetailView: View {
                                     // 좌우 패딩으로 크기를 잡으면 글자 폭만큼 늘어나 타원이 된다 —
                                     // 정사각 크기를 고정해 정원으로 만든다.
                                     Text("나")
-                                        .font(.system(size: 11, weight: .bold))
+                                        .font(.system(size: 10, weight: .bold))
                                         .foregroundStyle(TL.ink)
-                                        .frame(width: 20, height: 20)
+                                        .frame(width: 17, height: 17)
                                         .background(Circle().fill(TL.jade))
                                 }
                                 Spacer()
@@ -1300,9 +1300,9 @@ struct GroupRoomDetailView: View {
             }
             if isMe {
                 Text("나")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(TL.ink)
-                    .frame(width: 20, height: 20)
+                    .frame(width: 17, height: 17)
                     .background(Circle().fill(TL.jade))
             }
             if item.member.quit {
