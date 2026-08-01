@@ -67,6 +67,9 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.material3:material3")
+    // 앱 전역 한글 폰트(Noto Sans KR) — Downloadable Fonts로 받는다.
+    // 인증서 배열(com_google_android_gms_fonts_certs)도 이 아티팩트가 함께 제공한다.
+    implementation("androidx.compose.ui:ui-text-google-fonts")
     // 앱 전역 아이콘 — Material Icons Extended의 Filled(솔리드) 세트 사용 (AppIcon 매핑)
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.2")

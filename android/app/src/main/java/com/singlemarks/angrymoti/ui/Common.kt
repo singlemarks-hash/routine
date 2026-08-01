@@ -183,6 +183,9 @@ object TLFormat {
  * (안드로이드 기본 폰트는 비례폭 숫자라 iOS monospacedDigit와 눈에 띄게 달라 보였다)
  */
 fun tlTimerStyle(size: TextUnit): TextStyle = TextStyle(
+    // style을 통째로 넘기면 LocalTextStyle이 대체되므로 폰트를 여기서 다시 지정한다.
+    // (빠뜨리면 이 숫자만 시스템 폰트로 튀어 나온다)
+    fontFamily = com.singlemarks.angrymoti.ui.theme.AppFont,
     fontSize = size,
     fontWeight = FontWeight.Black,
     fontFeatureSettings = "tnum",
@@ -336,6 +339,8 @@ fun tagTint(name: String): Color? = when (name) {
  * 글자 크기만큼만 커지게 한다.
  */
 private val tightChipTextStyle = TextStyle(
+    // 위 tlTimerStyle과 같은 이유로 폰트 명시 (style 인자는 LocalTextStyle을 대체한다)
+    fontFamily = com.singlemarks.angrymoti.ui.theme.AppFont,
     lineHeight = 13.sp,
     platformStyle = PlatformTextStyle(includeFontPadding = false),
     lineHeightStyle = LineHeightStyle(

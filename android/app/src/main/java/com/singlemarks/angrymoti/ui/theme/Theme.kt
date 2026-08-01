@@ -39,5 +39,7 @@ private val scheme = darkColorScheme(
 
 @Composable
 fun AngryMotiTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme, content = content)
+    // typography — 폰트를 Noto Sans KR로 고정한다. MaterialTheme이 이 값으로
+    // LocalTextStyle까지 깔아주므로, 폰트를 따로 지정하지 않은 Text는 전부 여기를 따른다.
+    MaterialTheme(colorScheme = scheme, typography = AppTypography, content = content)
 }
