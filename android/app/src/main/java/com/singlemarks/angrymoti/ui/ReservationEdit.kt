@@ -1075,7 +1075,7 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(label, color = if (isCurrent) TL.jade else TL.paper, fontSize = 15.sp,
-                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium)
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold)
                     if (isCurrent) {
                         Spacer(Modifier.width(6.dp))
                         // '현재' 배지 — 제이드 캡슐 + 잉크 글씨 (iOS 1:1)

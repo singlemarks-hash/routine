@@ -421,7 +421,7 @@ private fun ActivityTab(
                         Spacer(Modifier.height(3.dp))
                         Text("모든 프리미엄 기능을 경험해 보세요!",
                             color = TL.ink.copy(alpha = 0.68f), fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium)
+                            fontWeight = FontWeight.Normal)
                     }
                     Spacer(Modifier.weight(1f))
                     androidx.compose.material3.Icon(

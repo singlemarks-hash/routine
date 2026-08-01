@@ -28,10 +28,14 @@ private val provider = GoogleFont.Provider(
 
 private val notoSansKR = GoogleFont("Noto Sans KR")
 
-/** 앱이 쓰는 웨이트만 — 없는 웨이트는 Compose가 가장 가까운 것으로 대체한다. */
+/**
+ * 앱이 실제로 쓰는 웨이트만 선언한다 — Normal 3회, SemiBold 77회, Bold 74회, Black 115회.
+ * Medium은 단 2곳에서만 쓰였는데, 그 2곳을 SemiBold/Normal로 옮기고 여기서 뺐다.
+ * 웨이트 하나당 별도로 받아오는 한글 폰트 한 벌(수 MB)이라 안 쓰는 벌을 늘려둘 이유가 없다.
+ * 없는 웨이트를 요청하면 Compose가 가장 가까운 선언 웨이트로 대체한다.
+ */
 val AppFont = FontFamily(
     Font(googleFont = notoSansKR, fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = notoSansKR, fontProvider = provider, weight = FontWeight.Medium),
     Font(googleFont = notoSansKR, fontProvider = provider, weight = FontWeight.SemiBold),
     Font(googleFont = notoSansKR, fontProvider = provider, weight = FontWeight.Bold),
     Font(googleFont = notoSansKR, fontProvider = provider, weight = FontWeight.Black),
