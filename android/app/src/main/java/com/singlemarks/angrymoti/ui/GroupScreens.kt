@@ -1,6 +1,7 @@
 package com.singlemarks.angrymoti.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -1253,12 +1255,25 @@ private fun GroupRankingCard(
             }
             Row(Modifier.padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    when (rank) {
-                        1 -> "🥇"; 2 -> "🥈"; 3 -> "🥉"; else -> "$rank"
-                    },
-                    color = TL.muted, fontSize = 15.sp, fontWeight = FontWeight.Black,
-                    modifier = Modifier.width(34.dp))
+                // 1~3위는 메달 이미지, 4위부터는 숫자. 메달 안에 순위 숫자가 그려져 있어
+                // 따로 숫자를 덧붙이지 않는다. 이모지(🥇)를 쓰면 기기 제조사 이모지 폰트에
+                // 따라 모양이 달라져 갤럭시에서 iOS와 다르게 보인다 — 벡터로 못 박는다.
+                val medal = when (rank) {
+                    1 -> com.singlemarks.angrymoti.R.drawable.medal_gold
+                    2 -> com.singlemarks.angrymoti.R.drawable.medal_silver
+                    3 -> com.singlemarks.angrymoti.R.drawable.medal_bronze
+                    else -> null
+                }
+                // 자리 너비(34)는 숫자일 때와 동일하게 유지 — 아래 순위들과 닉네임 시작점이
+                // 어긋나지 않게 한다 (iOS 1:1).
+                Box(Modifier.width(34.dp), contentAlignment = Alignment.Center) {
+                    if (medal != null) {
+                        Image(painterResource(medal), null, Modifier.size(26.dp))
+                    } else {
+                        Text("$rank", color = TL.muted,
+                            fontSize = 15.sp, fontWeight = FontWeight.Black)
+                    }
+                }
                 Text(
                     m.nickname + if (m.id == myUid) " (나)" else "",
                     color = if (m.quit) TL.faint else TL.paper, fontSize = 15.sp,
