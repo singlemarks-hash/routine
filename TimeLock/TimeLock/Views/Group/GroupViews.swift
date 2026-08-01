@@ -1262,13 +1262,32 @@ struct GroupRoomDetailView: View {
         return "\(remaining)일 뒤 이 방과 결과가 자동으로 삭제됩니다."
     }
 
+    /// 1~3위 메달 에셋 이름. 그 밖의 순위는 nil(숫자로 표시).
+    private static func medalAsset(for rank: Int) -> String? {
+        switch rank {
+        case 1: return "medal_gold"
+        case 2: return "medal_silver"
+        case 3: return "medal_bronze"
+        default: return nil
+        }
+    }
+
     private func rankRow(_ item: (rank: Int, member: GroupMember)) -> some View {
         let isMe = item.member.id == myUID
         return HStack(spacing: 10) {
-            Text("\(item.rank)")
-                .font(.tlTimer(17))
-                .foregroundStyle(item.rank == 1 ? TL.amber : TL.paper)
-                .frame(width: 30, alignment: .center)
+            // 1~3위는 메달 이미지, 4위부터는 숫자. 메달 안에 순위 숫자가 그려져 있어
+            // 따로 숫자를 덧붙이지 않는다. 자리 너비(30)는 숫자일 때와 동일하게 유지해
+            // 아래 순위들과 닉네임 시작점이 어긋나지 않게 한다.
+            Group {
+                if let medal = Self.medalAsset(for: item.rank) {
+                    Image(medal).resizable().scaledToFit().frame(width: 26, height: 26)
+                } else {
+                    Text("\(item.rank)")
+                        .font(.tlTimer(17))
+                        .foregroundStyle(TL.paper)
+                }
+            }
+            .frame(width: 30, alignment: .center)
             Text(item.member.nickname)
                 .font(.system(size: 15, weight: isMe ? .bold : .semibold))
                 .foregroundStyle(TL.paper)
