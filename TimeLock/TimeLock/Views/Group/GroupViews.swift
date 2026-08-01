@@ -1163,11 +1163,13 @@ struct GroupRoomDetailView: View {
                                         .font(.system(size: 11)).foregroundStyle(TL.amber)
                                 }
                                 if member.id == myUID {
+                                    // 좌우 패딩으로 크기를 잡으면 글자 폭만큼 늘어나 타원이 된다 —
+                                    // 정사각 크기를 고정해 정원으로 만든다.
                                     Text("나")
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundStyle(TL.ink)
-                                        .padding(.horizontal, 7).padding(.vertical, 2)
-                                        .background(Capsule().fill(TL.jade))
+                                        .frame(width: 20, height: 20)
+                                        .background(Circle().fill(TL.jade))
                                 }
                                 Spacer()
                             }
@@ -1300,8 +1302,8 @@ struct GroupRoomDetailView: View {
                 Text("나")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(TL.ink)
-                    .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Capsule().fill(TL.jade))
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(TL.jade))
             }
             if item.member.quit {
                 Text("중도 포기")

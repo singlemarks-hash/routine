@@ -1217,9 +1217,13 @@ private fun GroupMemberListCard(
                 }
                 if (m.id == myUid) {
                     Spacer(Modifier.width(6.dp))
-                    Text("나", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.background(TL.jade, CircleShape)
-                            .padding(horizontal = 7.dp, vertical = 2.dp))
+                    // 좌우 패딩으로 크기를 잡으면 글자 폭만큼 늘어나 타원이 된다 —
+                    // 정사각 크기를 고정해 정원으로 만든다.
+                    Box(Modifier.size(20.dp).background(TL.jade, CircleShape),
+                        contentAlignment = Alignment.Center) {
+                        Text("나", color = TL.ink, fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             if (index != sorted.lastIndex) {
@@ -1291,9 +1295,11 @@ private fun GroupRankingCard(
                     // 캡슐을 쓰고 있어 한 화면에서 두 표기가 섞여 있었다.
                     if (m.id == myUid) {
                         Spacer(Modifier.width(6.dp))
-                        Text("나", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.background(TL.jade, CircleShape)
-                                .padding(horizontal = 7.dp, vertical = 2.dp))
+                        Box(Modifier.size(20.dp).background(TL.jade, CircleShape),
+                            contentAlignment = Alignment.Center) {
+                            Text("나", color = TL.ink, fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
                 if (m.quit) {
