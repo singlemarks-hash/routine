@@ -74,6 +74,16 @@ class SessionService : Service() {
                 android.util.Log.e("AngryMoti", "SessionService.start: CAMERA 권한 없음 — 시작 보류")
                 return
             }
+            // 2차 방어 — 실제로 녹화 중일 때만 켠다.
+            // Android 15+는 BOOT_COMPLETED 브로드캐스트에서 시작된 camera 타입 FGS를 금지한다
+            // (위반 시 ForegroundServiceStartNotAllowedException). 지금 부팅 리시버는 알람
+            // 재등록만 하고 이 서비스로 오는 경로가 없지만, 그건 '현재 코드가 그렇다'는 것뿐이라
+            // 나중에 부팅·브로드캐스트 경로에서 세션을 되살리는 코드가 붙으면 그대로 크래시가 된다.
+            // 사용자가 촬영을 시작해 phase가 Recording일 때만 통과시켜 그 경로를 원천 차단한다.
+            if (SessionEngine.phase.value !is SessionEngine.Phase.Recording) {
+                android.util.Log.e("AngryMoti", "SessionService.start: 녹화 중이 아님 — 시작 보류")
+                return
+            }
             runCatching {
                 context.startForegroundService(Intent(context, SessionService::class.java))
             }.onFailure {
