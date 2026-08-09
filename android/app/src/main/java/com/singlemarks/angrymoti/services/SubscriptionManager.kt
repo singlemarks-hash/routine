@@ -92,9 +92,17 @@ object SubscriptionManager : PurchasesUpdatedListener {
             ).build()
         val c = client
         if (c == null || !c.isReady) { loadingProduct.value = false; return }
-        c.queryProductDetailsAsync(params) { result, list ->
+        // PBL 8부터 콜백 두 번째 인자가 List<ProductDetails>가 아니라
+        // QueryProductDetailsResult다 — 못 가져온 상품이 사유 코드와 함께 분리돼 온다.
+        c.queryProductDetailsAsync(params) { result, detailsResult ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                product.value = list.firstOrNull()
+                product.value = detailsResult.productDetailsList.firstOrNull()
+                // 상품이 unfetched로 빠지면 페이월이 '조회 실패' 상태로 남는다 — 원인
+                // (상품 미등록·비활성 등)을 로그에 남겨야 콘솔 설정 문제를 추적할 수 있다.
+                detailsResult.unfetchedProductList.forEach {
+                    android.util.Log.w("AngryMoti",
+                        "Billing: 상품 조회 실패 ${it.productId} (statusCode=${it.statusCode})")
+                }
             }
             loadingProduct.value = false
         }

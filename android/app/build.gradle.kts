@@ -100,7 +100,9 @@ dependencies {
     implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
 
     // Google Play Billing (StoreKit 2 대응)
-    implementation("com.android.billingclient:billing-ktx:7.0.0")
+    // 7.x는 2026-08-31부터 업데이트 거부 대상 — Play 정책상 v8 이상 필수라 9.x로 상향.
+    // (9.x 요구사항: minSdk 23·targetSdk 35 이상 — 우리는 26/36이라 충족)
+    implementation("com.android.billingclient:billing-ktx:9.1.0")
 
     // Firebase (iOS와 같은 프로젝트 timelock-eba85 재사용 — 계정·점수 공유)
     implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
