@@ -27,7 +27,7 @@ android {
         applicationId = "com.selfer.angrymoti"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
+        versionCode = 19
         versionName = "1.2.0"
     }
 
