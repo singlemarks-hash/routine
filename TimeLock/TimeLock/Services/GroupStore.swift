@@ -757,7 +757,7 @@ final class GroupStore: ObservableObject {
         if let context = modelContext {
             let event = ScoreEvent(type: .groupQuit, points: ScoreRules.groupQuitPenalty,
                                    sessionID: nil, intensity: room.intensity,
-                                   note: "그룹 '\(room.name)' 중도 포기",
+                                   note: ScoreNote.groupGiveup(roomName: room.name),
                                    ownerUserID: uid)
             event.id = SessionEngine.deterministicUUID("groupquit|\(Self.quitOccurrenceKey(roomID: room.id))")
             context.insert(event)
@@ -828,7 +828,7 @@ final class GroupStore: ObservableObject {
             return
         }
 
-        let reservation = Reservation(name: room.name, tag: "그룹",
+        let reservation = Reservation(name: room.name, tag: CanonicalTag.group,
                                       startMinute: room.startMinute,
                                       durationMinutes: room.durationMinutes,
                                       repeatWeekdays: room.repeatWeekdays,

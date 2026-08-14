@@ -2,6 +2,7 @@ TimeLock/TimeLock/Legal.swift
 TimeLock/TimeLock/Models/Models.swift
 TimeLock/TimeLock/Services/AccountStore.swift
 TimeLock/TimeLock/Services/AlarmScheduler.swift
+TimeLock/TimeLock/Services/CanonicalKeys.swift
 TimeLock/TimeLock/Services/ExportAndSubscription.swift
 TimeLock/TimeLock/Services/GroupStore.swift
 TimeLock/TimeLock/Services/SessionEngine.swift

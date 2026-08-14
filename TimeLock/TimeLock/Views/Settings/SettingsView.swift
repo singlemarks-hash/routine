@@ -496,7 +496,7 @@ struct LedgerView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(event.type.title)
                                             .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.paper)
-                                        Text("\(event.timestamp.formatted(date: .abbreviated, time: .shortened)) · \(event.intensity.title)\(event.note.map { " · \($0)" } ?? "")")
+                                        Text("\(event.timestamp.formatted(date: .abbreviated, time: .shortened)) · \(event.intensity.title)\(event.note.map { " · \(ScoreNote.label($0))" } ?? "")")
                                             .font(.system(size: 11)).foregroundStyle(TL.faint)
                                             .lineLimit(1)
                                     }

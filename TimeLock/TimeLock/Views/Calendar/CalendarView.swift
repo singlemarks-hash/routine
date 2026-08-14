@@ -373,9 +373,9 @@ struct DayDetailView: View {
     private func reason(for session: FocusSession) -> String? {
         if let note = scoreEvents.first(where: { $0.sessionID == session.id && $0.points < 0 })?.note,
            !note.isEmpty {
-            return note
+            return ScoreNote.label(note)   // 정본 토큰·레거시 한글 모두 표시 문구로
         }
-        return session.emergencyReason
+        return session.emergencyReason.map(ScoreNote.label)
     }
 }
 
@@ -404,7 +404,8 @@ struct StreakHeaderCard: View {
     }
 
     private var byTag: [(String, Int)] {
-        Dictionary(grouping: sessions.filter { $0.outcome?.isSuccess == true }, by: \.tag)
+        Dictionary(grouping: sessions.filter { $0.outcome?.isSuccess == true },
+                   by: { CanonicalTag.canonical($0.tag) })   // 레거시 한글·키가 한 조각으로 합쳐지게
             .mapValues { $0.reduce(0) { $0 + $1.recordedSeconds } }
             // 동률 시 태그명 2차 정렬 — Dictionary 순서가 비결정이라 상위 4개/'그 외' 구성이
             // 실행·플랫폼마다 달라지는 것을 막는다 (안드로이드 동일).

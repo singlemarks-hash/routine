@@ -312,19 +312,20 @@ struct TLCard<Content: View>: View {
 // MARK: - 태그 칩
 
 /// 핵심 대주제 6개 태그 + 그룹의 엄선 색상 (다크 배경에서 서로 뚜렷이 구분).
-/// 직접 입력 태그만 nil → 회색. '악기'는 '연주'로 이름이 바뀌었지만 기존 데이터도 같은 색으로 보이도록 별칭 유지.
+/// 직접 입력 태그만 nil → 회색.
 /// '그룹'이 회색이던 시절엔 커스텀 태그와 같은 색이라 도넛에서 조각이 구분되지 않았다 —
 /// 그룹은 옛 '작업' 골드를 물려받고, '작업'은 브랜드 라임으로 옮겼다.
+/// 비교는 정본 키로만 한다 — 레거시 한글('악기' 포함)은 canonical()이 흡수한다.
 func tagTint(_ name: String) -> Color? {
-    switch name {
-    case "공부":            return Color(hex: 0x5B8DEF)   // 블루
-    case "독서":            return Color(hex: 0xB07CF0)   // 바이올렛
-    case "운동":            return Color(hex: 0xFF7A66)   // 코랄
-    case "작업":            return Color(hex: 0xAFE746)   // 라임 (메인 브랜드 컬러)
-    case "그룹":            return Color(hex: 0xF2A93C)   // 골드 (옛 '작업' 색 승계)
-    case "연주", "악기":     return Color(hex: 0xF473B3)   // 핑크
-    case "글쓰기":          return Color(hex: 0x35C8AE)   // 틸
-    default:               return nil
+    switch CanonicalTag.canonical(name) {
+    case "study":   return Color(hex: 0x5B8DEF)   // 블루
+    case "reading": return Color(hex: 0xB07CF0)   // 바이올렛
+    case "workout": return Color(hex: 0xFF7A66)   // 코랄
+    case "work":    return Color(hex: 0xAFE746)   // 라임 (메인 브랜드 컬러)
+    case "group":   return Color(hex: 0xF2A93C)   // 골드 (옛 '작업' 색 승계)
+    case "music":   return Color(hex: 0xF473B3)   // 핑크
+    case "writing": return Color(hex: 0x35C8AE)   // 틸
+    default:        return nil
     }
 }
 
@@ -341,8 +342,9 @@ struct TagChip: View {
     var selected = false
     var body: some View {
         // 프리셋 6개+그룹은 고유 색, 그 외(직접 입력 태그)는 기존 회색 유지.
+        // name은 저장값(정본 키 또는 커스텀 원문) — 표시할 때 로케일 문구로 푼다.
         let tint = tagTint(name)
-        Text(name)
+        Text(CanonicalTag.label(name))
             .font(.system(size: 13, weight: .semibold, design: .rounded))
             .foregroundStyle(textColor(tint))
             .padding(.horizontal, 12)

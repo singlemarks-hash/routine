@@ -302,7 +302,7 @@ private struct BreakOverlay: View {
         // 실수로 종료되는 것 방지 — 재확인 후에만 세션 포기
         .confirmationDialog("세션을 포기할까요?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
             Button("세션 포기 — 벌점 받기", role: .destructive) {
-                engine.emergencyEnd(reason: "긴급 용무 지속")
+                engine.emergencyEnd(reason: CancelReason.emergencyOngoing)
             }
             Button("계속 진행", role: .cancel) {}
         } message: {

@@ -41,7 +41,7 @@ struct AlarmView: View {
                     .multilineTextAlignment(.center)
                     .padding(.top, 10)
                     .padding(.horizontal, 32)
-                Text("\(TLFormat.durationLabel(reservation.durationMinutes)) · \(reservation.tag)")
+                Text("\(TLFormat.durationLabel(reservation.durationMinutes)) · \(CanonicalTag.label(reservation.tag))")
                     .font(.tlBody)
                     .foregroundStyle(TL.muted)
                     .padding(.top, 4)
@@ -208,7 +208,7 @@ private struct CancelReasonSheet: View {
     @State private var customReason = ""
     @FocusState private var customFocused: Bool
 
-    private let presets = ["급한 일이 생겼어요", "몸이 좋지 않아요", "오늘은 쉬고싶어요"]
+    private let presets = CancelReason.presets   // 정본 코드 — 표시 문구는 CancelReason.label()
     private static let etc = "기타"
 
     /// 확정 가능한 최종 사유 (기타는 직접 입력 필수)
@@ -283,7 +283,7 @@ private struct CancelReasonSheet: View {
                 Image(systemName: selected == reason ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
                     .foregroundStyle(selected == reason ? TL.rec : TL.faint)
-                Text(reason)
+                Text(CancelReason.label(reason))   // 정본 코드 → 표시 문구 ('기타'는 그대로)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(TL.paper)
                 Spacer()

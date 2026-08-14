@@ -110,7 +110,7 @@ final class SessionEngine: NSObject, ObservableObject {
                                                      plannedSeconds: Double(session.targetSeconds))
         } catch {
             // 카메라 개시 실패 → 안전 종료로 기록
-            finalize(session: session, outcome: .safetyEnded, note: "카메라 시작 실패")
+            finalize(session: session, outcome: .safetyEnded, note: ScoreNote.cameraStartFailed)
             return
         }
 
@@ -164,7 +164,7 @@ final class SessionEngine: NSObject, ObservableObject {
         // 순서: 무효(프레임 0) → 저장공간 유예 → **1회 자동 복구 시도** → 사유별 판정.
         if Date().timeIntervalSince(CameraRecorder.shared.lastFrameAt) > CameraRecorder.shared.captureStallLimit {
             // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
-            if CameraRecorder.shared.frameCount == 0 { safetyEnd(note: "카메라 시작 실패"); return }
+            if CameraRecorder.shared.frameCount == 0 { safetyEnd(note: ScoreNote.cameraStartFailed); return }
             // 저장공간이 꽉 차 프레임이 끊긴 경우 = 기기 사정 → 유예(일시중단)로 재개 기회를 준다.
             // (공간은 저절로 생기지 않으므로 복구 시도 없이 바로 안내한다)
             if isStorageCritical { enterDeviceBreak(session: s, note: Self.storageBreakNote); return }
@@ -206,7 +206,7 @@ final class SessionEngine: NSObject, ObservableObject {
                     // 4번째부터는 경고 없이 바로 중단/실패
                     absencePenaltyApplied = true
                     handleAbsenceEvent(session: s,
-                                       insaneNote: "자리비움 \(absenceMaxEpisodes)회 초과 — 즉시 실패")
+                                       insaneNote: ScoreNote.absenceOver(count: absenceMaxEpisodes))
                     return
                 }
                 absenceWarning = true
@@ -216,7 +216,7 @@ final class SessionEngine: NSObject, ObservableObject {
             if absent >= absencePenaltySeconds, !absencePenaltyApplied {
                 absencePenaltyApplied = true
                 handleAbsenceEvent(session: s,
-                                   insaneNote: "자리비움 \(absencePenaltySeconds / 60)분 — 즉시 실패")
+                                   insaneNote: ScoreNote.absenceMinutes(absencePenaltySeconds / 60))
                 return
             }
         } else if absenceWarning || absencePenaltyApplied {
@@ -261,7 +261,7 @@ final class SessionEngine: NSObject, ObservableObject {
             #if DEBUG
             print("[SessionEngine] 헛완주 방어 — captured=\(capturedSeconds)s/target=\(s.targetSeconds)s thumb=\(result?.thumbnailFileName != nil)")
             #endif
-            finalize(session: s, outcome: .safetyEnded, note: "촬영 불완전 — 영상 손상/부족")
+            finalize(session: s, outcome: .safetyEnded, note: ScoreNote.recordingIncomplete)
         }
     }
 
@@ -347,7 +347,7 @@ final class SessionEngine: NSObject, ObservableObject {
             let result = await CameraRecorder.shared.stopPreservingFootage()
             self.applyRecording(result, to: s)
             self.finalize(session: s, outcome: .exitFailed,
-                          note: "\(TimePolicy.resumeWindowMinutes)분 내 재촬영 없음")
+                          note: ScoreNote.noResume(minutes: TimePolicy.resumeWindowMinutes))
         }
     }
 
@@ -370,7 +370,7 @@ final class SessionEngine: NSObject, ObservableObject {
             Task {
                 let result = await CameraRecorder.shared.stopPreservingFootage()
                 self.applyRecording(result, to: s)
-                self.finalize(session: s, outcome: .exitFailed, note: "이탈 즉시 실패")
+                self.finalize(session: s, outcome: .exitFailed, note: ScoreNote.exitImmediate)
             }
         }
     }
@@ -427,7 +427,7 @@ final class SessionEngine: NSObject, ObservableObject {
             } else {
                 AlarmScheduler.shared.playChime()
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
-                safetyEnd(note: "촬영이 정상 진행되지 않음")   // 그 외 촬영 장애 = 무효
+                safetyEnd(note: ScoreNote.recordingStalled)   // 그 외 촬영 장애 = 무효
             }
         }
     }
@@ -488,7 +488,7 @@ final class SessionEngine: NSObject, ObservableObject {
         for tier in SlotPolicy.tiers where tier.days <= streak && tier.days > awardedTier {
             let event = ScoreEvent(type: .slotBonus, points: 5,
                                    sessionID: s.id, intensity: s.intensity,
-                                   note: "연속 \(tier.days)일 달성 — 활동 슬롯 확장 보너스",
+                                   note: ScoreNote.slotBonus(days: tier.days),
                                    ownerUserID: owner)
             event.id = Self.deterministicUUID(
                 "slotBonus|\(owner.lowercased())|\(streakStartDay)|\(tier.days)")
@@ -825,7 +825,7 @@ final class SessionEngine: NSObject, ObservableObject {
                                                           durationMinutes: reservation.durationMinutes) {
                     let event = ScoreEvent(type: type, points: points,
                                            sessionID: noShow.id, intensity: effectiveIntensity,
-                                           note: "\(TimePolicy.startWindowMinutes)분 내 미시작",
+                                           note: ScoreNote.noShowWindow(minutes: TimePolicy.startWindowMinutes),
                                            ownerUserID: reservation.ownerUserID)
                     // 결정적 ID — 예약 동기화로 두 기기가 같은 노쇼를 각자 스윕해도
                     // 클라우드 문서가 하나로 합쳐져 이중 벌점이 되지 않는다 (안드로이드와 동일 해시)
@@ -896,7 +896,7 @@ final class SessionEngine: NSObject, ObservableObject {
                                                   durationMinutes: orphan.targetSeconds / 60) {
             let event = ScoreEvent(type: type, points: points, sessionID: orphan.id,
                                    intensity: orphan.intensity,
-                                   note: "촬영 중 앱 종료 (배터리·강제 종료 등)",
+                                   note: ScoreNote.appKilled,
                                    ownerUserID: orphan.ownerUserID)
             context.insert(event)
             AccountStore.shared.mirror(event: event)

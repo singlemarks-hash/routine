@@ -637,8 +637,9 @@ struct ReservationEditView: View {
         // 저장된 태그가 프리셋이면 그 칩을 선택 상태로, 직접 입력 태그면 입력칸에 싣는다.
         // 직접 입력이었을 때 tag를 그 문자열로 두면, 사용자가 입력칸을 비우는 순간
         // 선택된 칩이 하나도 없는데 지워진 문자열이 그대로 저장된다 — 프리셋 기본값을 깔아둔다.
-        let isPreset = ActivityTag.presets.contains(r.tag)
-        tag = isPreset ? r.tag : ActivityTag.presets[0]
+        let storedTag = CanonicalTag.canonical(r.tag)   // 레거시 한글 태그도 키로 읽는다
+        let isPreset = ActivityTag.presets.contains(storedTag)
+        tag = isPreset ? storedTag : ActivityTag.presets[0]
         if !isPreset { customTag = r.tag }
         durationMinutes = r.durationMinutes
         // 저장된 값을 그대로 보여준다. 예전에는 미친맛 미해제 상태에서 열면 화면을 매운맛으로
@@ -780,7 +781,8 @@ struct ReservationEditView: View {
         }
 
         let trimmedCustomTag = customTag.trimmingCharacters(in: .whitespaces)
-        let finalTag = trimmedCustomTag.isEmpty ? tag : trimmedCustomTag
+        // 커스텀 태그가 프리셋의 옛 한글 이름("공부" 등)과 같으면 키로 흡수 — 색·번역이 그대로 적용된다
+        let finalTag = trimmedCustomTag.isEmpty ? tag : CanonicalTag.canonical(trimmedCustomTag)
         if let r = reservation {
             // 일정에 실질 변화가 있는 편집인가 — 이름·태그·강도만 고친 저장으로
             // accountableFrom이 갱신되면 그 자체가 노쇼 면책 수단이 된다.

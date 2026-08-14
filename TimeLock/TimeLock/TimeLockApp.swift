@@ -242,6 +242,9 @@ final class AppState: ObservableObject {
     func bind(context: ModelContext) {
         guard modelContext == nil else { return }
         modelContext = context
+        // 레거시 한글 저장값 → 정본 키 1회 재작성 (docs/영어화-설계도.md D3).
+        // 클라우드 동기화·미러보다 먼저 — 이후의 모든 쓰기/미러가 키로 나가게 한다.
+        L10nKeySweep.runIfNeeded(context: context)
         AccountStore.shared.bind(context: context)
         AccountStore.shared.onUserChanged = { [weak self] in
             self?.handleUserChanged()
