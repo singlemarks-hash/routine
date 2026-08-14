@@ -45,8 +45,10 @@ jobs:
           # 주의: 이 액션은 script의 각 줄을 '별개 명령'으로 실행한다 — 백슬래시 줄바꿈 금지.
           # 테스트가 일부 실패해도 성공한 캡처는 회수해야 하므로(디버깅 재료),
           # pull을 먼저 하고 gradle 종료 코드로 마무리한다.
+          # adb root: API 30+ 스코프드 스토리지로 shell 권한은 /sdcard/Android/data를 못 읽는다 —
+          # default(AOSP) 이미지라 루트 전환이 가능하고, 전환 후에만 pull이 성공한다.
           script: |
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }} ; RC=$? ; adb pull /sdcard/Android/data/com.selfer.angrymoti/files/screenshots ../captured-shots ; exit $RC
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }} ; RC=$? ; adb root ; adb wait-for-device ; sleep 2 ; adb pull /sdcard/Android/data/com.selfer.angrymoti/files/screenshots ../captured-shots ; exit $RC
 
       - name: 스크린샷 아티팩트 업로드
         if: always()
