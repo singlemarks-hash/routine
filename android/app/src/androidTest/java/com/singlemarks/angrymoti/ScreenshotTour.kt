@@ -4,6 +4,11 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.LocaleList
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.core.app.ActivityOptionsCompat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -112,9 +117,24 @@ class ScreenshotTour {
                 setLocales(LocaleList(Locale.forLanguageTag(tag)))
             })
         }
+        // 권한 요청 런처(rememberLauncherForActivityResult)를 쓰는 화면(온보딩·예약 편집)이
+        // 테스트 컴포지션에서 죽지 않게 무동작 레지스트리를 공급한다 — 캡처만 하므로 실제 발사는 불필요.
+        val registryOwner = remember {
+            object : ActivityResultRegistryOwner {
+                override val activityResultRegistry = object : ActivityResultRegistry() {
+                    override fun <I, O> onLaunch(
+                        requestCode: Int,
+                        contract: ActivityResultContract<I, O>,
+                        input: I,
+                        options: ActivityOptionsCompat?,
+                    ) { /* no-op */ }
+                }
+            }
+        }
         CompositionLocalProvider(
             LocalContext provides ctx,
             LocalConfiguration provides ctx.resources.configuration,
+            LocalActivityResultRegistryOwner provides registryOwner,
         ) { content() }
     }
 
