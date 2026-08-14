@@ -43,21 +43,18 @@ jobs:
           disable-animations: true
           working-directory: android
           # 주의: 이 액션은 script의 각 줄을 '별개 명령'으로 실행한다 — 백슬래시 줄바꿈 금지.
-          # 테스트가 일부 실패해도 성공한 캡처는 회수해야 하므로(디버깅 재료),
-          # pull을 먼저 하고 gradle 종료 코드로 마무리한다.
-          # leaveApksInstalledAfterTest: AGP는 테스트가 끝나면 앱을 언인스톨해 앱 데이터
-          # (외부 files 디렉터리의 캡처 포함)가 통째로 사라진다 — 유지시켜야 pull이 가능하다.
-          # adb root: API 30+ 스코프드 스토리지로 shell 권한은 /sdcard/Android/data를 못 읽는다 —
-          # default(AOSP) 이미지라 루트 전환이 가능하다. 재시작 직후 오프라인이라 ready 루프로 대기.
+          # 캡처 회수는 TestStorage 경유: 테스트가 PNG를 TestStorage에 쓰면 AGP가 테스트 종료
+          # (=앱 언인스톨) 전에 build/outputs/connected_android_test_additional_output/으로
+          # 자동으로 끌어온다. (앱 저장소 직접 쓰기 + adb pull은 언인스톨에 지워져 실패했었다)
           script: |
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterTest=true -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }} ; RC=$? ; adb root ; for i in $(seq 1 20) ; do adb shell echo ready 2>/dev/null | grep -q ready && break ; sleep 2 ; done ; adb devices ; D=$(adb shell find /data/media /data/user /storage/emulated -type d -name screenshots 2>/dev/null | head -1 | tr -d '\r') ; echo "shots dir=[$D]" ; if [ -n "$D" ] ; then adb pull "$D" ../captured-shots ; else echo "-- 진단: 캡처 디렉터리 미발견" ; adb shell ls /data/media/0/Android/data ; adb shell ls -la /data/user/0/com.selfer.angrymoti ; adb shell find /data -name "*-home.png" ; fi ; exit $RC
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }}
 
       - name: 스크린샷 아티팩트 업로드
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: screenshots-${{ inputs.locale }}
-          path: captured-shots/
+          path: android/app/build/outputs/connected_android_test_additional_output/
           if-no-files-found: warn
 
       # 실패 시 원인 추적용 — 인스트루먼트 테스트 리포트도 함께 남긴다

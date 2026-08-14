@@ -20,6 +20,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.services.storage.TestStorage
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.ui.AlarmHealthScreen
@@ -38,8 +39,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
-import java.io.FileOutputStream
 import java.util.Calendar
 import java.util.Locale
 
@@ -103,8 +102,10 @@ class ScreenshotTour {
         Thread.sleep(700)   // Room flow 첫 방출·이미지 로드 대기
         rule.waitForIdle()
         val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
-        val dir = File(appContext.getExternalFilesDir(null), "screenshots").apply { mkdirs() }
-        FileOutputStream(File(dir, "$localeTag-$name.png")).use {
+        // TestStorage: AGP가 테스트 종료(=앱 언인스톨로 앱 저장소가 통째로 삭제되기) 전에
+        // 호스트의 build/outputs/connected_android_test_additional_output/으로 자동 회수한다.
+        // 앱 외부 files 디렉터리에 직접 쓰는 방식은 언인스톨과 함께 지워져 회수가 불가능했다.
+        TestStorage().openOutputFile("$localeTag-$name.png").use {
             bmp.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }

@@ -29,8 +29,12 @@ android {
         targetSdk = 36
         versionCode = 19
         versionName = "1.2.0"
-        // G2 스크린샷 하네스 (docs/영어화-설계도.md §2) — androidTest 캡처 실행용
+        // G2 스크린샷 하네스 (docs/영어화-설계도.md §2) — androidTest 캡처 실행용.
+        // useTestStorageService: 캡처 PNG를 TestStorage로 저장하면 AGP가 테스트 종료(=앱
+        // 언인스톨) 전에 build/outputs/connected_android_test_additional_output/으로 자동
+        // 회수한다 — 앱 외부 저장소에 직접 쓰면 언인스톨과 함께 지워져 회수가 불가능했다.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["useTestStorageService"] = "true"
     }
 
     signingConfigs {
@@ -123,5 +127,8 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
+    // TestStorage API(캡처 저장) + 기기에 설치되는 서비스 APK(androidTestUtil)
+    androidTestImplementation("androidx.test.services:storage:1.5.0")
+    androidTestUtil("androidx.test.services:test-services:1.5.0")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
