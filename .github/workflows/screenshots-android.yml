@@ -45,11 +45,12 @@ jobs:
           # 주의: 이 액션은 script의 각 줄을 '별개 명령'으로 실행한다 — 백슬래시 줄바꿈 금지.
           # 테스트가 일부 실패해도 성공한 캡처는 회수해야 하므로(디버깅 재료),
           # pull을 먼저 하고 gradle 종료 코드로 마무리한다.
+          # leaveApksInstalledAfterTest: AGP는 테스트가 끝나면 앱을 언인스톨해 앱 데이터
+          # (외부 files 디렉터리의 캡처 포함)가 통째로 사라진다 — 유지시켜야 pull이 가능하다.
           # adb root: API 30+ 스코프드 스토리지로 shell 권한은 /sdcard/Android/data를 못 읽는다 —
-          # default(AOSP) 이미지라 루트 전환이 가능하다. 루트 셸에선 /sdcard 매핑이 달라
-          # 에뮬레이트 저장소의 백킹 경로(/data/media/0/…)로 pull한다 (구 경로는 폴백).
+          # default(AOSP) 이미지라 루트 전환이 가능하다. 재시작 직후 오프라인이라 ready 루프로 대기.
           script: |
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }} ; RC=$? ; adb root ; for i in $(seq 1 20) ; do adb shell echo ready 2>/dev/null | grep -q ready && break ; sleep 2 ; done ; adb devices ; D=$(adb shell find /data/media /data/user /storage/emulated -type d -name screenshots 2>/dev/null | head -1 | tr -d '\r') ; echo "shots dir=[$D]" ; if [ -n "$D" ] ; then adb pull "$D" ../captured-shots ; else echo "-- 진단: 캡처 디렉터리 미발견" ; adb shell ls /data/media/0/Android/data ; adb shell ls -la /data/user/0/com.selfer.angrymoti ; adb shell find /data -name "*-home.png" ; fi ; exit $RC
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterTest=true -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }} ; RC=$? ; adb root ; for i in $(seq 1 20) ; do adb shell echo ready 2>/dev/null | grep -q ready && break ; sleep 2 ; done ; adb devices ; D=$(adb shell find /data/media /data/user /storage/emulated -type d -name screenshots 2>/dev/null | head -1 | tr -d '\r') ; echo "shots dir=[$D]" ; if [ -n "$D" ] ; then adb pull "$D" ../captured-shots ; else echo "-- 진단: 캡처 디렉터리 미발견" ; adb shell ls /data/media/0/Android/data ; adb shell ls -la /data/user/0/com.selfer.angrymoti ; adb shell find /data -name "*-home.png" ; fi ; exit $RC
 
       - name: 스크린샷 아티팩트 업로드
         if: always()
