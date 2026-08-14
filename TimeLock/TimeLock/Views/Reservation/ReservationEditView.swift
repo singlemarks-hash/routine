@@ -73,7 +73,7 @@ struct ReservationEditView: View {
     @State private var showIntensityPaywall = false
     @FocusState private var customTagFocused: Bool
 
-    private let weekdaySymbols = [(1, "일"), (2, "월"), (3, "화"), (4, "수"), (5, "목"), (6, "금"), (7, "토")]
+    private let weekdaySymbols = (1...7).map { ($0, TLFormat.weekdaySymbol($0)) }
     private let durations = TimePolicy.durationOptionsMinutes
 
     /// 편집 잠금 창: 발생 30분 전 ~ 발생 +10분(노쇼 확정 시점).

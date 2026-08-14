@@ -54,8 +54,9 @@ struct WeeklyScheduleView: View {
         allActiveReservations.filter { $0.ownerUserID == account.currentUserID }
     }
 
-    private let weekdayNames = [1: "일요일", 2: "월요일", 3: "화요일", 4: "수요일",
-                                5: "목요일", 6: "금요일", 7: "토요일"]
+    /// 1(일)~7(토) → 요일 전체 이름 — 로케일 심볼 (ko: 일요일 / en: Sunday)
+    private let weekdayNames = Dictionary(uniqueKeysWithValues:
+        (1...7).map { ($0, TLFormat.weekdayFullSymbol($0)) })
 
     private var todayWeekday: Int { Calendar.current.component(.weekday, from: .now) }
 
@@ -217,7 +218,7 @@ struct WeeklyScheduleView: View {
                     .font(.tlTitle(16))
                     .foregroundStyle(isToday ? TL.rec : TL.paper)
                 // 실제 날짜 병기 — 미래 단발성 예약도 어느 날인지 바로 확인. 예) "토요일 (7월 25일)"
-                Text("(\(Calendar.current.component(.month, from: date))월 \(Calendar.current.component(.day, from: date))일)")
+                Text("(\(TLFormat.monthDay(date)))")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(TL.muted)
                 if isToday {
@@ -341,9 +342,7 @@ struct WeeklyScheduleView: View {
 
     private func laterRow(_ item: DayItem) -> some View {
         let cal = Calendar.current
-        let month = cal.component(.month, from: item.fire)
-        let day = cal.component(.day, from: item.fire)
-        let weekday = weekdayNames[cal.component(.weekday, from: item.fire)] ?? ""
+        let weekdayShort = TLFormat.weekdaySymbol(cal.component(.weekday, from: item.fire))
         let dday = cal.dateComponents([.day], from: cal.startOfDay(for: Date()),
                                       to: cal.startOfDay(for: item.fire)).day ?? 0
         return Button {
@@ -354,9 +353,9 @@ struct WeeklyScheduleView: View {
             // 이 값이 줄어도 시각↔제목 간격은 체감 변화가 없다.
             HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(month)월 \(day)일")
+                    Text(TLFormat.monthDay(item.fire))
                         .font(.system(size: 13, weight: .bold)).foregroundStyle(TL.paper)
-                    Text(String(weekday.prefix(1)))
+                    Text(weekdayShort)
                         .font(.system(size: 11)).foregroundStyle(TL.muted)
                 }
                 .frame(width: 74, alignment: .leading)

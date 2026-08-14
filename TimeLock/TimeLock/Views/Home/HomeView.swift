@@ -310,7 +310,7 @@ struct HomeView: View {
         let streak = SlotPolicy.currentStreak(sessions: mySessions)
         let cal = Calendar.current
         let today = cal.startOfDay(for: now)
-        let weekdayNames = ["", "일", "월", "화", "수", "목", "금", "토"]
+
 
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
@@ -353,7 +353,7 @@ struct HomeView: View {
                     let isToday = offset == 0
 
                     VStack(spacing: 5) {
-                        Text(weekdayNames[cal.component(.weekday, from: day)])
+                        Text(TLFormat.weekdaySymbol(cal.component(.weekday, from: day)))
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(isToday ? TL.paper : TL.faint)
                         Group {
@@ -553,10 +553,7 @@ struct HomeView: View {
         }
     }
 
-    private var todayDateLabel: String {
-        let comps = Calendar.current.dateComponents([.month, .day], from: now)
-        return "\(comps.month ?? 1)월 \(comps.day ?? 1)일"
-    }
+    private var todayDateLabel: String { TLFormat.monthDay(now) }
 
     private func reservationCard(_ reservation: Reservation, fire: Date?,
                                  done: SessionOutcome?) -> some View {

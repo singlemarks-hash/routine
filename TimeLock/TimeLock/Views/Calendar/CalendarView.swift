@@ -92,7 +92,7 @@ struct CalendarView: View {
 
             let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
             LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(["일", "월", "화", "수", "목", "금", "토"], id: \.self) { symbol in
+                ForEach(TLFormat.weekdaySymbols, id: \.self) { symbol in
                     Text(symbol)
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.faint)
@@ -147,8 +147,13 @@ struct CalendarView: View {
 
     private var monthTitle: String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "ko_KR")
-        f.dateFormat = "yyyy년 M월"
+        if TLFormat.isKorean {
+            f.locale = Locale(identifier: "ko_KR")
+            f.dateFormat = "yyyy년 M월"
+        } else {
+            f.locale = .autoupdatingCurrent
+            f.setLocalizedDateFormatFromTemplate("yMMMM")   // "August 2026"
+        }
         return f.string(from: monthAnchor)
     }
 

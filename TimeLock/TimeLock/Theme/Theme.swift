@@ -369,10 +369,53 @@ struct TagChip: View {
 // MARK: - 시간 포맷 유틸
 
 enum TLFormat {
+    /// 현재 UI 언어가 한국어인가 — ko는 기존 문구·패턴을 바이트 그대로 유지해야 해서(설계도 D4)
+    /// 포맷터마다 이 분기를 탄다. 그 외 언어는 OS 로케일 포맷터(템플릿)에 맡긴다.
+    static var isKorean: Bool { Locale.current.language.languageCode?.identifier == "ko" }
+
+    /// 일요일부터 7개의 요일 약칭 — 캘린더 헤더 등 (ko: 일 월 … / en: Sun Mon …)
+    static var weekdaySymbols: [String] {
+        let f = DateFormatter()
+        f.locale = .autoupdatingCurrent
+        return f.shortStandaloneWeekdaySymbols
+    }
+
+    /// 1(일)~7(토) → 요일 약칭. 범위 밖은 빈 문자열 (클라우드 유입값 방어 — 배열 인덱싱 크래시 금지)
+    static func weekdaySymbol(_ weekday: Int) -> String {
+        guard (1...7).contains(weekday) else { return "" }
+        return weekdaySymbols[weekday - 1]
+    }
+
+    /// 1(일)~7(토) → 요일 전체 이름 (ko: 일요일 / en: Sunday)
+    static func weekdayFullSymbol(_ weekday: Int) -> String {
+        guard (1...7).contains(weekday) else { return "" }
+        let f = DateFormatter()
+        f.locale = .autoupdatingCurrent
+        return f.standaloneWeekdaySymbols[weekday - 1]
+    }
+
+    /// "8월 14일" / "Aug 14"
+    static func monthDay(_ date: Date) -> String {
+        let f = DateFormatter()
+        if isKorean {
+            f.locale = Locale(identifier: "ko_KR")
+            f.dateFormat = "M월 d일"
+        } else {
+            f.locale = .autoupdatingCurrent
+            f.setLocalizedDateFormatFromTemplate("MMMd")
+        }
+        return f.string(from: date)
+    }
+
     static func clock(_ date: Date) -> String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "ko_KR")
-        f.dateFormat = "a h:mm"
+        if isKorean {
+            f.locale = Locale(identifier: "ko_KR")
+            f.dateFormat = "a h:mm"
+        } else {
+            f.locale = .autoupdatingCurrent
+            f.setLocalizedDateFormatFromTemplate("jmm")   // 로케일이 12/24시간·AM/PM 위치 결정
+        }
         return f.string(from: date)
     }
     static func hms(_ seconds: Int) -> String {
@@ -384,14 +427,24 @@ enum TLFormat {
     }
     static func durationLabel(_ minutes: Int) -> String {
         let h = minutes / 60, m = minutes % 60
-        if h > 0 && m > 0 { return "\(h)시간 \(m)분" }
-        if h > 0 { return "\(h)시간" }
-        return "\(m)분"
+        if isKorean {
+            if h > 0 && m > 0 { return "\(h)시간 \(m)분" }
+            if h > 0 { return "\(h)시간" }
+            return "\(m)분"
+        }
+        if h > 0 && m > 0 { return "\(h)h \(m)m" }
+        if h > 0 { return "\(h)h" }
+        return "\(m)m"
     }
     static func dayTitle(_ date: Date) -> String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "ko_KR")
-        f.dateFormat = "M월 d일 EEEE"
+        if isKorean {
+            f.locale = Locale(identifier: "ko_KR")
+            f.dateFormat = "M월 d일 EEEE"
+        } else {
+            f.locale = .autoupdatingCurrent
+            f.setLocalizedDateFormatFromTemplate("MMMMdEEEE")   // "Thursday, August 14"
+        }
         return f.string(from: date)
     }
 }
@@ -412,7 +465,9 @@ func styledHourMinute(seconds: Int, numberFont: Font, unitFont: Font,
         Text(value).font(numberFont).foregroundStyle(numberColor)
         + Text(unit).font(unitFont).foregroundStyle(unitColor)
     }
-    if h > 0 && m > 0 { return part(hLabel, "시간") + Text(" ") + part("\(m)", "분") }
-    if h > 0 { return part(hLabel, "시간") }
-    return part("\(m)", "분")
+    let hUnit = TLFormat.isKorean ? "시간" : "h"
+    let mUnit = TLFormat.isKorean ? "분" : "m"
+    if h > 0 && m > 0 { return part(hLabel, hUnit) + Text(" ") + part("\(m)", mUnit) }
+    if h > 0 { return part(hLabel, hUnit) }
+    return part("\(m)", mUnit)
 }

@@ -1431,21 +1431,37 @@ struct InviteCodeCard: View {
 
 /// 날짜·요일·시간 표기 공용
 enum GroupFormat {
-    static let weekdayNames: [Int: String] = [1: "일", 2: "월", 3: "화", 4: "수", 5: "목", 6: "금", 7: "토"]
+    /// 1(일)~7(토) → 요일 약칭 — 로케일 심볼 (TLFormat과 동일 소스)
+    static var weekdayNames: [Int: String] {
+        Dictionary(uniqueKeysWithValues: (1...7).map { ($0, TLFormat.weekdaySymbol($0)) })
+    }
 
     static func day(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "M월 d일 (E)"
+        if TLFormat.isKorean {
+            formatter.locale = Locale(identifier: "ko_KR")
+            formatter.dateFormat = "M월 d일 (E)"
+        } else {
+            formatter.locale = .autoupdatingCurrent
+            formatter.setLocalizedDateFormatFromTemplate("MMMdE")   // "Thu, Aug 14"
+        }
         return formatter.string(from: date)
     }
 
     static func time(_ minute: Int) -> String {
         let h = minute / 60, m = minute % 60
-        let isPM = h >= 12
-        let h12 = h % 12 == 0 ? 12 : h % 12
-        return m == 0 ? "\(isPM ? "오후" : "오전") \(h12)시"
-                      : "\(isPM ? "오후" : "오전") \(h12):\(String(format: "%02d", m))"
+        if TLFormat.isKorean {
+            let isPM = h >= 12
+            let h12 = h % 12 == 0 ? 12 : h % 12
+            return m == 0 ? "\(isPM ? "오후" : "오전") \(h12)시"
+                          : "\(isPM ? "오후" : "오전") \(h12):\(String(format: "%02d", m))"
+        }
+        var comps = DateComponents(); comps.hour = h; comps.minute = m
+        let date = Calendar.current.date(from: comps) ?? .now
+        let f = DateFormatter()
+        f.locale = .autoupdatingCurrent
+        f.setLocalizedDateFormatFromTemplate(m == 0 ? "j" : "jmm")   // "7 PM" / "7:30 PM"
+        return f.string(from: date)
     }
 
     static func dDay(_ date: Date) -> String {
