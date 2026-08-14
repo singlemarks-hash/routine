@@ -1,0 +1,21 @@
+name: L10n Guard
+
+# G0 한글 잔존 래칫 (docs/영어화-설계도.md §2)
+# 문자열 리터럴 속 한글을 스캔해 허용 목록과 대조한다.
+#  - 목록 밖 파일에서 한글 발견 → 실패 (영어화 이후 새 한글 유입 차단)
+#  - 영어화가 끝난 파일이 목록에 남음 → 실패 (래칫 전진 강제)
+# 파이썬 단일 스크립트라 수 초면 끝난다 — push/PR 모두 돌린다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  korean-residue:
+    name: 한글 잔존 래칫 (G0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: 문자열 리터럴 한글 검사
+        run: python3 scripts/check_korean_residue.py
