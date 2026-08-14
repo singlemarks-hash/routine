@@ -64,7 +64,7 @@ import java.util.Calendar
 // MARK: 그룹 챌린지 탭 — iOS GroupTabView 1:1 (멤버십 전용, 게스트는 탭 자체가 숨겨짐)
 
 private object GroupFormat {
-    private val weekdayNames = listOf("", "일", "월", "화", "수", "목", "금", "토")
+    private val weekdayNames: List<String> get() = listOf("") + TLFormat.weekdaySymbols
 
     // iOS 1:1 — 요일 전체면 "매일", 아니면 "반복요일 월 화 수" (공백 구분)
     fun weekdays(days: List<Int>): String =
@@ -87,7 +87,7 @@ private object GroupFormat {
 
     // iOS: "M월 d일 (E)" 1:1
     fun day(millis: Long): String =
-        java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREA).format(java.util.Date(millis))
+        TLFormat.monthDayWeek(millis)
 
     fun period(start: Long, end: Long): String = "${day(start)} ~ ${day(end)}"
 
@@ -655,7 +655,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                                     TL.cornerM)
                                 .padding(8.dp),
                         ) {
-                            listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
+                            (1..7).map { it to TLFormat.weekdaySymbol(it) }
                                 .forEach { (day, label) ->
                                     val selected = day in repeatDays
                                     Box(

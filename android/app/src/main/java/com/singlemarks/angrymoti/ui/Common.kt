@@ -143,12 +143,67 @@ object AppIcon {
 }
 
 object TLFormat {
+    /** 현재 UI 언어가 한국어인가 — ko는 기존 문구·패턴을 바이트 그대로 유지해야 해서(설계도 D4)
+     *  포맷터마다 이 분기를 탄다. 그 외 언어는 OS 로케일 포맷터(스켈레톤)에 맡긴다. */
+    val isKorean: Boolean get() = java.util.Locale.getDefault().language == "ko"
+
+    /** 1(일)~7(토) → 요일 약칭 ("일" / "Sun"). 범위 밖은 빈 문자열 (배열 인덱싱 크래시 금지) */
+    fun weekdaySymbol(weekday: Int): String =
+        if (weekday in 1..7) java.text.DateFormatSymbols.getInstance().shortWeekdays[weekday] else ""
+
+    /** 1(일)~7(토) → 요일 전체 이름 ("일요일" / "Sunday") */
+    fun weekdayFullSymbol(weekday: Int): String =
+        if (weekday in 1..7) java.text.DateFormatSymbols.getInstance().weekdays[weekday] else ""
+
+    /** 일요일부터 7개의 요일 약칭 — 캘린더 헤더용 */
+    val weekdaySymbols: List<String> get() = (1..7).map(::weekdaySymbol)
+
+    /** 로케일 최적 패턴으로 포맷 — en "MMMd"→"Aug 14", "jmm"→"7:30 PM" 등 */
+    private fun bestFormat(skeleton: String, millis: Long): String {
+        val pattern = android.text.format.DateFormat
+            .getBestDateTimePattern(java.util.Locale.getDefault(), skeleton)
+        return java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
+            .format(java.util.Date(millis))
+    }
+
+    /** "8월 14일" / "Aug 14" */
+    fun monthDay(millis: Long): String {
+        if (!isKorean) return bestFormat("MMMd", millis)
+        val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+        return "${c.get(java.util.Calendar.MONTH) + 1}월 ${c.get(java.util.Calendar.DAY_OF_MONTH)}일"
+    }
+
+    /** "2026년 8월" / "August 2026" — 기록 캘린더 헤더 */
+    fun yearMonth(millis: Long): String {
+        if (!isKorean) return bestFormat("yMMMM", millis)
+        val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+        return "${c.get(java.util.Calendar.YEAR)}년 ${c.get(java.util.Calendar.MONTH) + 1}월"
+    }
+
+    /** "8월 14일 (목)" / "Thu, Aug 14" — 그룹 일정 표기 (iOS GroupFormat.day 1:1) */
+    fun monthDayWeek(millis: Long): String =
+        if (isKorean) java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREA)
+            .format(java.util.Date(millis))
+        else bestFormat("MMMdE", millis)
+
+    /** "8월 14일 목요일" / "Thursday, August 14" — 기록 일자 제목 (iOS TLFormat.dayTitle 1:1) */
+    fun dayTitle(millis: Long): String {
+        if (!isKorean) return bestFormat("MMMMdEEEE", millis)
+        val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+        return "${monthDay(millis)} ${weekdayFullSymbol(c.get(java.util.Calendar.DAY_OF_WEEK))}"
+    }
+
     fun durationLabel(minutes: Int): String {
         val h = minutes / 60; val m = minutes % 60
-        return when {
+        if (isKorean) return when {
             h > 0 && m > 0 -> "${h}시간 ${m}분"
             h > 0 -> "${h}시간"
             else -> "${m}분"
+        }
+        return when {
+            h > 0 && m > 0 -> "${h}h ${m}m"
+            h > 0 -> "${h}h"
+            else -> "${m}m"
         }
     }
 
@@ -160,15 +215,22 @@ object TLFormat {
 
     fun timeLabel(startMinute: Int): String {
         val h = startMinute / 60; val m = startMinute % 60
-        val ampm = if (h < 12) "오전" else "오후"
-        val h12 = if (h % 12 == 0) 12 else h % 12
-        return if (m == 0) "$ampm ${h12}시" else "$ampm ${h12}:%02d".format(m)
+        if (isKorean) {
+            val ampm = if (h < 12) "오전" else "오후"
+            val h12 = if (h % 12 == 0) 12 else h % 12
+            return if (m == 0) "$ampm ${h12}시" else "$ampm ${h12}:%02d".format(m)
+        }
+        val millis = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, h); set(java.util.Calendar.MINUTE, m)
+        }.timeInMillis
+        return bestFormat(if (m == 0) "j" else "jmm", millis)   // "7 PM" / "7:30 PM"
     }
 
     fun scoreLabel(points: Int): String = if (points >= 0) "+$points" else "$points"
 
     /** 오전/오후 12시간제 "a h:mm" (예: "오후 7:00") — iOS TLFormat.clock 1:1 */
     fun clock(epochMillis: Long): String {
+        if (!isKorean) return bestFormat("jmm", epochMillis)
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
         val h = cal.get(java.util.Calendar.HOUR_OF_DAY); val m = cal.get(java.util.Calendar.MINUTE)
         val ampm = if (h < 12) "오전" else "오후"
@@ -305,8 +367,10 @@ fun hourMinuteParts(totalSeconds: Int): List<Pair<String, String>> {
     val h = s / 3600
     val m = (s % 3600) / 60
     val parts = mutableListOf<Pair<String, String>>()
-    if (h > 0) parts.add("%,d".format(h) to "시간")
-    if (m > 0 || h == 0) parts.add("$m" to "분")
+    val hUnit = if (TLFormat.isKorean) "시간" else "h"
+    val mUnit = if (TLFormat.isKorean) "분" else "m"
+    if (h > 0) parts.add("%,d".format(h) to hUnit)
+    if (m > 0 || h == 0) parts.add("$m" to mUnit)
     return parts
 }
 

@@ -722,7 +722,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         if (weeklyRepeat) {
                             Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
+                                (1..7).map { it to TLFormat.weekdaySymbol(it) }
                                     .forEach { (d, label) ->
                                         val on = d in repeatDays
                                         Box(
@@ -1162,9 +1162,7 @@ fun WeeklyScheduleTab(
     }
     val todayDow = Calendar.getInstance().apply { timeInMillis = nowMillis }.get(Calendar.DAY_OF_WEEK)
     // 오늘 요일을 맨 위에 두고 순환 정렬 (1=일 … 7=토). 예) 오늘 토→토·일·월·화·수·목·금.
-    val dayNames = mapOf(1 to "일요일", 2 to "월요일", 3 to "화요일", 4 to "수요일",
-        5 to "목요일", 6 to "금요일", 7 to "토요일")
-    val weekdays = (0..6).map { val dow = ((todayDow - 1 + it) % 7) + 1; dow to dayNames.getValue(dow) }
+    val weekdays = (0..6).map { val dow = ((todayDow - 1 + it) % 7) + 1; dow to TLFormat.weekdayFullSymbol(dow) }
 
     // 오늘 확정 결과 — 예약별로 '한 번만' 표를 만든다 (행마다 전체 스캔 금지, iOS 동일 규칙).
     // 하루에 기록이 여럿(긴급 중단 후 재촬영)이면 가장 나중 것을 남긴다.
@@ -1226,7 +1224,7 @@ fun WeeklyScheduleTab(
                 set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
             }
             val dayStart = dayCal.timeInMillis
-            val md = "${dayCal.get(Calendar.MONTH) + 1}월 ${dayCal.get(Calendar.DAY_OF_MONTH)}일"
+            val md = TLFormat.monthDay(dayCal.timeInMillis)
             val dayItems = itemsOn(dayStart)
             val isToday = dow == todayDow
             item(key = "day-$dow") {
@@ -1314,7 +1312,7 @@ fun WeeklyScheduleTab(
                                         if (r.groupId != null) onOpenGroup(r.groupId!!) else onEdit(r)
                                     }
                                     .padding(vertical = 11.dp)) {
-                                Text("${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일",
+                                Text(TLFormat.monthDay(c.timeInMillis),
                                     color = TL.paper, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.width(78.dp))
                                 Column(Modifier.weight(1f).padding(end = 6.dp)) {
@@ -1374,14 +1372,14 @@ private fun ScheduleRow(
     val meta = when {
         sameDay -> {
             val c = Calendar.getInstance().apply { timeInMillis = r.createdAt }
-            "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 하루"
+            "${TLFormat.monthDay(c.timeInMillis)} 하루"
         }
         // 표기는 '매일' / '반복요일' 두 가지로만 — 기간이 짧으면 '매주'가 사실과 달라진다.
         r.repeatWeekdays.size == 7 -> "매일"          // 요일 전체 = 매일(기간)
         r.isRepeating -> "반복요일"
         r.oneOffDayStart != null -> {
             val c = Calendar.getInstance().apply { timeInMillis = r.oneOffDayStart!! }
-            "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 하루"
+            "${TLFormat.monthDay(c.timeInMillis)} 하루"
         }
         else -> "매일"
     }

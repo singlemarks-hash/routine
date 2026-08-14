@@ -102,7 +102,7 @@ fun CalendarScreen(onBack: () -> Unit) {
                             tint = TL.muted, modifier = Modifier.size(22.dp))
                     }
                     Spacer(Modifier.weight(1f))
-                    Text("${month.get(Calendar.YEAR)}년 ${month.get(Calendar.MONTH) + 1}월",
+                    Text(TLFormat.yearMonth(month.timeInMillis),
                         color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
                     Spacer(Modifier.weight(1f))
                     Box(Modifier.size(32.dp).clip(TL.cornerS).clickable {
@@ -114,7 +114,7 @@ fun CalendarScreen(onBack: () -> Unit) {
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth()) {
-                    listOf("일", "월", "화", "수", "목", "금", "토").forEach {
+                    TLFormat.weekdaySymbols.forEach {
                         Text(it, color = TL.faint, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier.weight(1f))
@@ -500,12 +500,7 @@ private fun DayDetailSheet(
         s.outcome?.let { ScoreRules.points(it, s.intensity, s.targetSeconds / 60)?.second }
     val dayReward = ordered.mapNotNull { pts(it) }.filter { it > 0 }.sum()
     val dayPenalty = ordered.mapNotNull { pts(it) }.filter { it < 0 }.sum()
-    val dayTitle = remember(dayStart) {
-        val c = Calendar.getInstance().apply { timeInMillis = dayStart }
-        val weekday = listOf("", "일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
-        "${c.get(Calendar.MONTH) + 1}월 ${c.get(Calendar.DAY_OF_MONTH)}일 " +
-            weekday[c.get(Calendar.DAY_OF_WEEK)]
-    }
+    val dayTitle = remember(dayStart) { TLFormat.dayTitle(dayStart) }
 
     LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
         item {

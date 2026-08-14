@@ -453,7 +453,7 @@ private fun ActivityTab(
                 Text("오늘 예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.width(8.dp))
                 val t = java.util.Calendar.getInstance().apply { timeInMillis = todayStart }
-                Text("${t.get(java.util.Calendar.MONTH) + 1}월 ${t.get(java.util.Calendar.DAY_OF_MONTH)}일",
+                Text(TLFormat.monthDay(t.timeInMillis),
                     color = TL.faint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 2.dp))
             }
@@ -484,9 +484,7 @@ private fun ActivityTab(
                         val secs = (next - now) / 1000
                         val label = if (secs < 60) "곧 시작" else {
                             val m = kotlin.math.ceil(secs / 60.0).toLong()
-                            val time = if (m >= 60)
-                                (if (m % 60 == 0L) "${m / 60}시간" else "${m / 60}시간 ${m % 60}분")
-                            else "${m}분"
+                            val time = TLFormat.durationLabel(m.toInt())
                             "$time 뒤 시작"
                         }
                         Text(label, color = TL.amber, fontSize = 13.sp,
@@ -528,7 +526,6 @@ private fun StreakCard(
     onClick: () -> Unit,
 ) {
     val streak = remember(sessions, todayStart) { SlotPolicy.currentStreak(sessions) }
-    val weekdayNames = listOf("", "일", "월", "화", "수", "목", "금", "토")
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -579,7 +576,7 @@ private fun StreakCard(
                         .background(if (isToday) TL.raised else Color.Transparent, TL.cornerS)
                         .padding(vertical = 7.dp),
                 ) {
-                    Text(weekdayNames[d.get(java.util.Calendar.DAY_OF_WEEK)],
+                    Text(TLFormat.weekdaySymbol(d.get(java.util.Calendar.DAY_OF_WEEK)),
                         color = if (isToday) TL.paper else TL.faint,
                         fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(5.dp))
@@ -618,14 +615,12 @@ fun nextLabel(next: Long?): String {
     val dayDiff = ((next - today) / 86_400_000L).toInt()
     val t = java.util.Calendar.getInstance().apply { timeInMillis = next }
     val minute = t.get(java.util.Calendar.HOUR_OF_DAY) * 60 + t.get(java.util.Calendar.MINUTE)
-    val prefix = when (dayDiff) { 0 -> "오늘"; 1 -> "내일"; else -> "${t.get(java.util.Calendar.MONTH) + 1}월 ${t.get(java.util.Calendar.DAY_OF_MONTH)}일" }
+    val prefix = when (dayDiff) { 0 -> "오늘"; 1 -> "내일"; else -> TLFormat.monthDay(t.timeInMillis) }
     return "$prefix ${TLFormat.timeLabel(minute)}"
 }
 
-fun weekdayLabel(days: List<Int>): String {
-    val names = mapOf(1 to "일", 2 to "월", 3 to "화", 4 to "수", 5 to "목", 6 to "금", 7 to "토")
-    return days.sorted().joinToString("·") { names[it] ?: "" }
-}
+fun weekdayLabel(days: List<Int>): String =
+    days.sorted().joinToString("·") { TLFormat.weekdaySymbol(it) }
 
 /** 시작일=종료일(하루)이면 오늘이 곧 그 하루이므로 접미사가 필요 없다. 요일 전체면 "매일". */
 fun repeatSuffix(r: Reservation): String {
