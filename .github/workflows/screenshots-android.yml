@@ -42,9 +42,9 @@ jobs:
           profile: pixel_6
           disable-animations: true
           working-directory: android
+          # 주의: 이 액션은 script의 각 줄을 '별개 명령'으로 실행한다 — 백슬래시 줄바꿈 금지
           script: |
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon \
-              -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }}
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }}
             adb pull /sdcard/Android/data/com.selfer.angrymoti/files/screenshots ../captured-shots
 
       - name: 스크린샷 아티팩트 업로드
