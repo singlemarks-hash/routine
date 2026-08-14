@@ -305,7 +305,8 @@ object SlotPolicy {
 // MARK: 태그 프리셋
 
 object ActivityTag {
-    val presets = listOf("공부", "독서", "운동", "작업", "연주", "글쓰기")
+    /** 정본 키로 저장·비교한다 — 표시 문구는 CanonicalTag.label() (docs/영어화-설계도.md D3) */
+    val presets = CanonicalTag.presets
 
     /** 태그 입력 한도 — 일정 목록의 태그 칩이 반드시 한 줄로 끝나게 하는 '폭' 예산.
      * 글자 수로 재면 한글 6자와 영문 6자의 폭이 두 배 차이라 영문만 지나치게 손해를 본다.

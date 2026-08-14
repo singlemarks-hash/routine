@@ -8,6 +8,7 @@ import com.singlemarks.angrymoti.data.Prefs
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.data.ScoreEvent
 import com.singlemarks.angrymoti.models.AbsencePolicy
+import com.singlemarks.angrymoti.models.ScoreNote
 import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScoreEventType
 import com.singlemarks.angrymoti.models.ScoreRules
@@ -134,7 +135,7 @@ object SessionEngine {
         // 촬영 신호 점검 — 프레임이 끊기면 원인에 따라 갈린다.
         if (CameraRecorder.isCaptureStalled()) {
             // 프레임을 한 장도 못 찍었으면 카메라 장애 = 무효(무벌점, 썸네일도 없음).
-            if (CameraRecorder.frameCount.value == 0) safetyEnd("카메라 시작 실패")
+            if (CameraRecorder.frameCount.value == 0) safetyEnd(ScoreNote.CAMERA_START_FAILED)
             // 저장공간이 꽉 차 프레임이 끊긴 경우 = 기기 사정 → 유예(일시중단)로 재개 기회를 준다.
             else if (isStorageCritical()) enterStorageBreak(s)
             // 그 외(제어센터·타앱 등 캡처 인터럽션) = 이탈(매운맛 긴급용무·미친맛 즉시 실패).
@@ -151,7 +152,7 @@ object SessionEngine {
                 absenceEpisodeCount.value += 1
                 if (absenceEpisodeCount.value > AbsencePolicy.MAX_EPISODES) {
                     absencePenaltyApplied = true
-                    handleAbsenceEvent(s, "자리비움 ${AbsencePolicy.MAX_EPISODES}회 초과 — 즉시 실패")
+                    handleAbsenceEvent(s, ScoreNote.absenceOver(AbsencePolicy.MAX_EPISODES))
                     return
                 }
                 absenceWarning.value = true
@@ -159,7 +160,7 @@ object SessionEngine {
             }
             if (absent >= AbsencePolicy.PENALTY_SECONDS && !absencePenaltyApplied) {
                 absencePenaltyApplied = true
-                handleAbsenceEvent(s, "자리비움 ${AbsencePolicy.PENALTY_SECONDS / 60}분 — 즉시 실패")
+                handleAbsenceEvent(s, ScoreNote.absenceMinutes(AbsencePolicy.PENALTY_SECONDS / 60))
                 return
             }
         } else if (absenceWarning.value || absencePenaltyApplied) {
@@ -202,7 +203,7 @@ object SessionEngine {
             } else {
                 android.util.Log.e("AngryMoti",
                     "헛완주 방어 — captured=${capturedSeconds}s/target=${s.targetSeconds}s thumb=${result?.thumbnailFileName != null}")
-                finalize(applyRecording(s, result), SessionOutcome.SAFETY_ENDED, "촬영 불완전 — 영상 손상/부족")
+                finalize(applyRecording(s, result), SessionOutcome.SAFETY_ENDED, ScoreNote.RECORDING_INCOMPLETE)
             }
         }
     }
@@ -268,7 +269,7 @@ object SessionEngine {
             AlarmScheduler.postStatus(appContext, 2002, "세션 실패",
                 "${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하지 않아 실패로 기록되었습니다.")
             finalize(applyRecording(s, result), SessionOutcome.EXIT_FAILED,
-                "${TimePolicy.RESUME_WINDOW_MINUTES}분 내 재촬영 없음")
+                ScoreNote.noResume(TimePolicy.RESUME_WINDOW_MINUTES))
         }
     }
 
@@ -303,7 +304,7 @@ object SessionEngine {
                 isFinalizing = true
                 scope.launch(Dispatchers.IO) {
                     val result = CameraRecorder.stopPreservingFootage(appContext)
-                    finalize(applyRecording(s, result), SessionOutcome.EXIT_FAILED, "이탈 즉시 실패")
+                    finalize(applyRecording(s, result), SessionOutcome.EXIT_FAILED, ScoreNote.EXIT_IMMEDIATE)
                 }
             }
         }
@@ -344,7 +345,7 @@ object SessionEngine {
                 enterStorageBreak(s)   // 저장공간 부족 = 유예(일시중단)로 재개 기회를 준다
             } else {
                 AlarmScheduler.playChime(appContext)
-                safetyEnd("촬영이 정상 진행되지 않음")   // 그 외 촬영 장애 = 무효
+                safetyEnd(ScoreNote.RECORDING_STALLED)   // 그 외 촬영 장애 = 무효
             }
         }
     }
@@ -432,7 +433,7 @@ object SessionEngine {
                     id = deterministicId("slotBonus|${owner.lowercase()}|$streakStartDay|$days"),
                     ownerUserID = owner, typeRaw = ScoreEventType.SLOT_BONUS.raw,
                     points = 5, sessionID = s.id, intensityRaw = s.intensityRaw,
-                    note = "연속 ${days}일 달성 — 활동 슬롯 확장 보너스")
+                    note = ScoreNote.slotBonus(days))
                 db.scores().insert(e); AccountStore.mirror(e)
                 total += 5; crossedDays = days; awarded = days
             }
@@ -690,7 +691,7 @@ object SessionEngine {
                     val e = ScoreEvent(id = eventId,
                         ownerUserID = r.ownerUserID, typeRaw = type.raw, points = pts,
                         sessionID = noShow.id, intensityRaw = effIntensity.raw,
-                        note = "${TimePolicy.START_WINDOW_MINUTES}분 내 미시작")
+                        note = ScoreNote.noShowWindow(TimePolicy.START_WINDOW_MINUTES))
                     db.scores().insert(e); AccountStore.mirror(e)
                     // 그룹 예약이면 그룹 점수에도 반영 — 노쇼 등급 도장 (실제 결과가 오면 덮인다)
                     GroupStore.reportScore(r, pts,
@@ -784,7 +785,7 @@ object SessionEngine {
             val e = ScoreEvent(id = deterministicId("orphanExit|${s.id.lowercase()}"),
                 ownerUserID = s.ownerUserID, typeRaw = type.raw, points = pts,
                 sessionID = s.id, intensityRaw = s.intensityRaw,
-                note = "촬영 중 앱 종료 (배터리·강제 종료 등)")
+                note = ScoreNote.APP_KILLED)
             db.scores().insert(e); AccountStore.mirror(e)
             s.reservationID?.let { rid ->
                 GroupStore.reportScore(db.reservations().byId(rid), pts,

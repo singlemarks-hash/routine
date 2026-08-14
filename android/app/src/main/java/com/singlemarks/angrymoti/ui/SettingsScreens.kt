@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.singlemarks.angrymoti.AppState
 import com.singlemarks.angrymoti.R
 import com.singlemarks.angrymoti.data.AppDb
+import com.singlemarks.angrymoti.models.ScoreNote
 import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.SlotPolicy
 import com.singlemarks.angrymoti.services.AccountStore
@@ -559,7 +560,7 @@ fun LedgerScreen(onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(e.type.title, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            e.note?.let { Text(it, color = TL.faint, fontSize = 12.sp) }
+                            e.note?.let { Text(ScoreNote.label(it), color = TL.faint, fontSize = 12.sp) }
                             // 12시간제 + 강도 병기 (iOS 점수 원장 표기 기준)
                             Text("${java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA)
                                 .format(java.util.Date(e.timestamp))} ${TLFormat.clock(e.timestamp)} · ${e.intensity.title}",

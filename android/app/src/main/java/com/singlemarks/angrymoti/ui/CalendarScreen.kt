@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.FocusSession
+import com.singlemarks.angrymoti.models.CanonicalTag
+import com.singlemarks.angrymoti.models.ScoreNote
 import com.singlemarks.angrymoti.models.DayOutcome
 import com.singlemarks.angrymoti.models.ScoreRules
 import com.singlemarks.angrymoti.models.SlotPolicy
@@ -274,7 +276,7 @@ private fun StreakHeaderCard(sessions: List<FocusSession>) {
     val averageLabel = if (detail.first > 0)
         "%.1f".format(detail.second.toDouble() / detail.first) else "0.0"
     val byTag: List<Pair<String, Int>> = remember(successSessions) {
-        successSessions.groupBy { it.tag }
+        successSessions.groupBy { CanonicalTag.canonical(it.tag) }   // 레거시 한글·키가 한 조각으로 합쳐지게
             .mapValues { (_, list) -> list.sumOf { it.recordedSeconds } }
             // 동률 시 태그명 2차 정렬 — 상위 4개/'그 외' 구성이 실행·플랫폼마다
             // 달라지지 않게 한다 (iOS 동일)
@@ -639,8 +641,8 @@ private fun ReportRow(
                 }
                 // 실패/긴급 사유 — 점수 원장의 note 우선, 없으면 세션의 긴급 사유 (iOS 1:1).
                 // 세션 사유만 보면 알람 화면의 '일정 취소' 사유(원장에만 기록)가 안 보인다.
-                val reason = events.firstOrNull { it.sessionID == s.id && !it.note.isNullOrEmpty() }?.note
-                    ?: s.emergencyReason
+                val reason = (events.firstOrNull { it.sessionID == s.id && !it.note.isNullOrEmpty() }?.note
+                    ?: s.emergencyReason)?.let(ScoreNote::label)   // 정본 토큰·레거시 한글 모두 표시 문구로
                 reason?.let {
                     Text(it, color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))

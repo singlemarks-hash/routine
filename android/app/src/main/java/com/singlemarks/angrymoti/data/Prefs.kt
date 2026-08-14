@@ -25,6 +25,10 @@ object Prefs {
         set(v) = sp.edit().putBoolean("introSeen", v).apply()
 
     /** 강도는 계정별(#19) — 공유 기기에서 A의 미친맛 설정이 B에게 새지 않도록 owner로 분리 */
+    // L10n 키 스윕(1회) 완료 표식 — 저장 성공 시에만 세운다 (docs/영어화-설계도.md D3)
+    fun l10nKeySweepDone(): Boolean = sp.getBoolean("l10n.keySweep.v1", false)
+    fun setL10nKeySweepDone() = sp.edit().putBoolean("l10n.keySweep.v1", true).apply()
+
     fun intensityRaw(owner: String): String = sp.getString("intensity.$owner", "spicy") ?: "spicy"
     fun setIntensityRaw(owner: String, v: String) = sp.edit().putString("intensity.$owner", v).apply()
 

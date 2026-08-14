@@ -70,6 +70,8 @@ import com.singlemarks.angrymoti.R
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.services.AccountStore
 import com.singlemarks.angrymoti.models.AbsencePolicy
+import com.singlemarks.angrymoti.models.CancelReason
+import com.singlemarks.angrymoti.models.CanonicalTag
 import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScoreRules
 import com.singlemarks.angrymoti.models.SessionOutcome
@@ -135,7 +137,7 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
         Text("활동 시간!", color = TL.rec, fontSize = 34.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(10.dp))
         Text(r.name, color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text("${TLFormat.durationLabel(r.durationMinutes)} · ${r.tag}", color = TL.muted, fontSize = 15.sp)
+        Text("${TLFormat.durationLabel(r.durationMinutes)} · ${CanonicalTag.label(r.tag)}", color = TL.muted, fontSize = 15.sp)
         Spacer(Modifier.height(30.dp))
         Text(TLFormat.hms(remaining.toLong()), color = TL.amber, fontSize = 44.sp, fontWeight = FontWeight.Black)
         Text("이 안에 촬영을 시작하지 않으면 노쇼로 기록됩니다", color = TL.muted, fontSize = 13.sp)
@@ -224,9 +226,8 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
 
 // 취소 사유 프리셋 — iOS AlarmView.CancelReasonSheet와 문구·순서 동일
 private const val CANCEL_REASON_ETC = "기타"
-private val CANCEL_REASON_PRESETS = listOf(
-    "급한 일이 생겼어요", "몸이 좋지 않아요", "오늘은 쉬고싶어요", CANCEL_REASON_ETC,
-)
+// 정본 코드로 저장 — 표시 문구는 CancelReason.label() ('기타'는 UI 전용 항목)
+private val CANCEL_REASON_PRESETS = CancelReason.presets + CANCEL_REASON_ETC
 
 /** 취소 사유 한 줄 — 선택 시 채워진 체크 원 + 밝은 서피스 (iOS reasonRow 1:1) */
 @Composable
@@ -242,7 +243,7 @@ private fun CancelReasonRow(reason: String, selected: Boolean, onClick: () -> Un
             if (selected) AppIcon.CheckCircle else AppIcon.CircleEmpty, null,
             tint = if (selected) TL.rec else TL.faint, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(reason, color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(CancelReason.label(reason), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)   // 정본 코드 → 표시 문구 ('기타'는 그대로)
     }
 }
 
@@ -1038,7 +1039,7 @@ fun SessionScreen() {
                 Spacer(Modifier.height(18.dp))
                 TLPrimaryButton("세션 포기 — 벌점 받기") {
                     showQuitConfirm = false
-                    SessionEngine.emergencyEnd("긴급 용무 지속")
+                    SessionEngine.emergencyEnd(CancelReason.EMERGENCY_ONGOING)
                 }
                 Spacer(Modifier.height(10.dp))
                 TLGhostButton("계속 진행", tint = TL.muted) { showQuitConfirm = false }

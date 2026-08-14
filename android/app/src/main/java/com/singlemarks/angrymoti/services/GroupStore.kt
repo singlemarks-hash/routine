@@ -9,6 +9,8 @@ import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Prefs
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.data.ScoreEvent
+import com.singlemarks.angrymoti.models.CanonicalTag
+import com.singlemarks.angrymoti.models.ScoreNote
 import com.singlemarks.angrymoti.models.GroupPolicy
 import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScoreEventType
@@ -666,7 +668,7 @@ object GroupStore {
         val event = ScoreEvent(
             ownerUserID = uid, typeRaw = ScoreEventType.GROUP_QUIT.raw,
             points = ScoreRules.GROUP_QUIT_PENALTY, sessionID = null,
-            intensityRaw = room.intensityRaw, note = "그룹 '${room.name}' 중도 포기")
+            intensityRaw = room.intensityRaw, note = ScoreNote.groupGiveup(room.name))
         AppDb.get(context).scores().insert(event)
         AccountStore.mirror(event)
         removeLocalReservation(context, room.id)
@@ -736,7 +738,7 @@ object GroupStore {
         } else null
         dao.upsert(Reservation(
             id = stableId,
-            ownerUserID = owner, name = room.name, tag = "그룹",
+            ownerUserID = owner, name = room.name, tag = CanonicalTag.GROUP,
             startMinute = room.startMinute, durationMinutes = room.durationMinutes,
             repeatWeekdaysCsv = room.repeatWeekdays.joinToString(","),
             oneOffDayStart = oneOff,

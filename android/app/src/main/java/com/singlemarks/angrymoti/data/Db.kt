@@ -36,6 +36,10 @@ interface ReservationDao {
 
     @Query("DELETE FROM reservations WHERE ownerUserID = :owner")
     suspend fun deleteAll(owner: String)
+
+    // L10n 키 스윕 전용 — 소유자 무관 전체 (docs/영어화-설계도.md D3)
+    @Query("SELECT * FROM reservations")
+    suspend fun dumpAll(): List<Reservation>
 }
 
 @Dao
@@ -57,6 +61,10 @@ interface SessionDao {
 
     @Query("DELETE FROM sessions WHERE ownerUserID = :owner")
     suspend fun deleteAll(owner: String)
+
+    // L10n 키 스윕 전용 — 소유자 무관 전체
+    @Query("SELECT * FROM sessions")
+    suspend fun dumpAll(): List<FocusSession>
 }
 
 @Dao
@@ -72,6 +80,10 @@ interface ScoreDao {
 
     @Query("SELECT id FROM score_events WHERE ownerUserID = :owner")
     suspend fun ids(owner: String): List<String>
+
+    // L10n 키 스윕 전용 — 소유자 무관 전체
+    @Query("SELECT * FROM score_events")
+    suspend fun dumpAll(): List<ScoreEvent>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(e: ScoreEvent)

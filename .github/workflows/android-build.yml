@@ -29,3 +29,8 @@ jobs:
       - name: 릴리스 Kotlin 컴파일 (+ Room KSP 검증)
         working-directory: android
         run: ./gradlew compileReleaseKotlin --no-daemon --stacktrace
+
+      # G3 매핑 왕복 테스트 (docs/영어화-설계도.md §2) — JVM 단위 테스트라 수 초면 끝난다
+      - name: 단위 테스트 (G3 키 매핑 왕복)
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --no-daemon

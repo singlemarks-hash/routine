@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.models.ActivityTag
+import com.singlemarks.angrymoti.models.CanonicalTag
 import com.singlemarks.angrymoti.models.DayOutcome
 import com.singlemarks.angrymoti.models.Intensity
 import com.singlemarks.angrymoti.models.ScheduleConflict
@@ -164,7 +165,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         oneOffEndDay = r.endAt?.let { startOfDayLocal(it) } ?: oneOffDay
                     }
                     intensity = r.intensityOverride ?: com.singlemarks.angrymoti.AppState.intensity.value
-                    if (r.tag in ActivityTag.presets) tag = r.tag else customTag = r.tag
+                    val storedTag = CanonicalTag.canonical(r.tag)   // 레거시 한글 태그도 키로 읽는다
+                    if (storedTag in ActivityTag.presets) tag = storedTag else customTag = r.tag
                 }
             }
             // 신규 생성만 미친맛 미해제 시 매운맛으로 (전역 기본이 미친맛이어도).
@@ -245,7 +247,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             if (!isRetired) TLPillButton("저장", tint = TL.rec, enabled = !fieldLocked, onClick = save@{
                     // 검증 — 오류는 최상단에 즉시 표시
                     val finalName = name.trim()
-                    val finalTag = customTag.trim().ifEmpty { tag }
+                    // 커스텀 태그가 프리셋의 옛 한글 이름("공부" 등)과 같으면 키로 흡수 — 색·번역이 그대로 적용된다
+                    val finalTag = customTag.trim().ifEmpty { tag }.let(CanonicalTag::canonical)
                     val sm = timeState.hour * 60 + timeState.minute
                     // 읽기 전용 — 편집 저장 차단(삭제만 허용). 버튼도 비활성이지만 백스톱.
                     if (editReadOnly) {

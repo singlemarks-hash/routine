@@ -321,14 +321,15 @@ fun dayOutcomeDrawable(outcome: com.singlemarks.angrymoti.models.DayOutcome): In
 /** 핵심 대주제 6개 + 그룹의 고유 색. 직접 입력 태그만 null(회색 유지). iOS tagTint()와 1:1.
  *  '그룹'이 회색이던 시절엔 커스텀 태그와 같은 색이라 도넛에서 조각이 구분되지 않았다 —
  *  그룹은 옛 '작업' 골드를 물려받고, '작업'은 브랜드 라임으로 옮겼다. */
-fun tagTint(name: String): Color? = when (name) {
-    "공부"        -> Color(0xFF5B8DEF)   // 블루
-    "독서"        -> Color(0xFFB07CF0)   // 바이올렛
-    "운동"        -> Color(0xFFFF7A66)   // 코랄
-    "작업"        -> Color(0xFFAFE746)   // 라임 (메인 브랜드 컬러)
-    "그룹"        -> Color(0xFFF2A93C)   // 골드 (옛 '작업' 색 승계)
-    "연주", "악기" -> Color(0xFFF473B3)   // 핑크
-    "글쓰기"      -> Color(0xFF35C8AE)   // 틸
+// 비교는 정본 키로만 한다 — 레거시 한글('악기' 포함)은 canonical()이 흡수한다.
+fun tagTint(name: String): Color? = when (com.singlemarks.angrymoti.models.CanonicalTag.canonical(name)) {
+    "study"   -> Color(0xFF5B8DEF)   // 블루
+    "reading" -> Color(0xFFB07CF0)   // 바이올렛
+    "workout" -> Color(0xFFFF7A66)   // 코랄
+    "work"    -> Color(0xFFAFE746)   // 라임 (메인 브랜드 컬러)
+    "group"   -> Color(0xFFF2A93C)   // 골드 (옛 '작업' 색 승계)
+    "music"   -> Color(0xFFF473B3)   // 핑크
+    "writing" -> Color(0xFF35C8AE)   // 틸
     else         -> null
 }
 
@@ -390,7 +391,9 @@ fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
-        Text(name, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+        // name은 저장값(정본 키 또는 커스텀 원문) — 표시할 때 로케일 문구로 푼다
+        Text(com.singlemarks.angrymoti.models.CanonicalTag.label(name), color = fg,
+            fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
             style = tightChipTextStyle)
     }
 }
@@ -408,7 +411,7 @@ fun TagBadge(name: String, alpha: Float = 1f) {
             .border(1.dp, tint?.copy(alpha = 0.38f) ?: TL.hairline, CircleShape)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
-        Text(name, color = tint ?: TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(com.singlemarks.angrymoti.models.CanonicalTag.label(name), color = tint ?: TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

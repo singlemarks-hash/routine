@@ -121,6 +121,9 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
+    // G3 매핑 왕복 테스트 (JVM 단위 테스트 — CanonicalKeys 키↔한글 왕복)
+    testImplementation("junit:junit:4.13.2")
+
     // G2 스크린샷 하네스 — 실제 화면 컴포저블을 에뮬레이터에서 렌더해 PNG로 캡처한다.
     // (영어화 ko 베이스라인/en 검수용. 단말 로케일 대신 테스트 프로세스에서 로케일을 주입)
     androidTestImplementation(composeBom)

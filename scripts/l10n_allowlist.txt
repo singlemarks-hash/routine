@@ -18,12 +18,14 @@ TimeLock/TimeLock/Views/Onboarding/OnboardingFlow.swift
 TimeLock/TimeLock/Views/Reservation/ReservationEditView.swift
 TimeLock/TimeLock/Views/Session/SessionView.swift
 TimeLock/TimeLock/Views/Settings/SettingsView.swift
+android/app/src/main/java/com/singlemarks/angrymoti/models/CanonicalKeys.kt
 android/app/src/main/java/com/singlemarks/angrymoti/models/Models.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/AccountStore.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/AlarmScheduler.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/CameraRecorder.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/GoogleSignIn.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/GroupStore.kt
+android/app/src/main/java/com/singlemarks/angrymoti/services/L10nKeySweep.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/SessionEngine.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/SessionService.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/SubscriptionManager.kt
