@@ -46,9 +46,10 @@ jobs:
           # 테스트가 일부 실패해도 성공한 캡처는 회수해야 하므로(디버깅 재료),
           # pull을 먼저 하고 gradle 종료 코드로 마무리한다.
           # adb root: API 30+ 스코프드 스토리지로 shell 권한은 /sdcard/Android/data를 못 읽는다 —
-          # default(AOSP) 이미지라 루트 전환이 가능하고, 전환 후에만 pull이 성공한다.
+          # default(AOSP) 이미지라 루트 전환이 가능하다. 루트 셸에선 /sdcard 매핑이 달라
+          # 에뮬레이트 저장소의 백킹 경로(/data/media/0/…)로 pull한다 (구 경로는 폴백).
           script: |
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }} ; RC=$? ; adb root ; adb wait-for-device ; sleep 2 ; adb pull /sdcard/Android/data/com.selfer.angrymoti/files/screenshots ../captured-shots ; exit $RC
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }} ; RC=$? ; adb root ; adb wait-for-device ; sleep 2 ; adb shell ls /data/media/0/Android/data/com.selfer.angrymoti/files ; adb pull /data/media/0/Android/data/com.selfer.angrymoti/files/screenshots ../captured-shots || adb pull /storage/emulated/0/Android/data/com.selfer.angrymoti/files/screenshots ../captured-shots ; exit $RC
 
       - name: 스크린샷 아티팩트 업로드
         if: always()
