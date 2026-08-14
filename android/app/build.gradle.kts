@@ -29,6 +29,8 @@ android {
         targetSdk = 36
         versionCode = 19
         versionName = "1.2.0"
+        // G2 스크린샷 하네스 (docs/영어화-설계도.md §2) — androidTest 캡처 실행용
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -114,4 +116,12 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
+    // G2 스크린샷 하네스 — 실제 화면 컴포저블을 에뮬레이터에서 렌더해 PNG로 캡처한다.
+    // (영어화 ko 베이스라인/en 검수용. 단말 로케일 대신 테스트 프로세스에서 로케일을 주입)
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

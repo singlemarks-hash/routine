@@ -1,0 +1,65 @@
+name: Screenshots (Android)
+
+# G2 스크린샷 캡처 (docs/영어화-설계도.md §2)
+# 에뮬레이터에서 ScreenshotTour를 돌려 화면 PNG를 아티팩트로 남긴다.
+# 자주 돌 필요가 없고 에뮬레이터 부팅이 느려서 수동 트리거(workflow_dispatch)만 둔다.
+on:
+  workflow_dispatch:
+    inputs:
+      locale:
+        description: "캡처 로케일 (ko | en)"
+        default: "ko"
+        required: true
+
+jobs:
+  capture:
+    name: 에뮬레이터 캡처 (${{ inputs.locale }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: KVM 활성화
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: JDK 17 설정
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 설정 (래퍼 + 캐시)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: 에뮬레이터 실행 + 캡처
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          working-directory: android
+          script: |
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon \
+              -Pandroid.testInstrumentationRunnerArguments.locale=${{ inputs.locale }}
+            adb pull /sdcard/Android/data/com.selfer.angrymoti/files/screenshots ../captured-shots
+
+      - name: 스크린샷 아티팩트 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ inputs.locale }}
+          path: captured-shots/
+          if-no-files-found: warn
+
+      # 실패 시 원인 추적용 — 인스트루먼트 테스트 리포트도 함께 남긴다
+      - name: 테스트 리포트 업로드
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ inputs.locale }}
+          path: android/app/build/reports/androidTests/
+          if-no-files-found: ignore
