@@ -22,13 +22,13 @@ struct MyPageView: View {
             VStack(alignment: .leading, spacing: 24) {
                 // 아이콘 메뉴 그룹
                 VStack(spacing: 4) {
-                    iconRow(icon: "person.crop.circle.badge.checkmark", title: "프로필 및 구독 관리") {
+                    iconRow(icon: "person.crop.circle.badge.checkmark", title: String(localized: "Profile & Subscription")) {
                         ProfileEditView()
                     }
-                    iconRow(icon: "headphones", title: "고객센터") {
+                    iconRow(icon: "headphones", title: String(localized: "Support")) {
                         SupportView()
                     }
-                    iconRow(icon: "heart.text.square", title: "개발자 응원하기") {
+                    iconRow(icon: "heart.text.square", title: String(localized: "Support the Developer")) {
                         CheerDeveloperView()
                     }
                 }
@@ -38,11 +38,11 @@ struct MyPageView: View {
                 // 일반 메뉴 그룹
                 VStack(spacing: 4) {
                     // 강도는 활동/그룹별로 각각 설정 — 전역 강도 탭 제거
-                    plainRow(title: "프라이버시") { PrivacySettingsView() }
-                    plainRow(title: "점수 원장") { LedgerView() }
-                    plainRow(title: "앱 언어") { AppLanguageView() }
-                    linkRow(title: "이용약관", url: Legal.termsOfUseURL)
-                    linkRow(title: "개인정보처리방침", url: Legal.privacyPolicyURL)
+                    plainRow(title: String(localized: "Privacy")) { PrivacySettingsView() }
+                    plainRow(title: String(localized: "Score Ledger")) { LedgerView() }
+                    plainRow(title: String(localized: "App Language")) { AppLanguageView() }
+                    linkRow(title: String(localized: "Terms of Use"), url: Legal.termsOfUseURL)
+                    linkRow(title: String(localized: "Privacy Policy"), url: Legal.privacyPolicyURL)
                 }
 
                 // 팀 시그니처 — 흐리고 작게
@@ -56,7 +56,7 @@ struct MyPageView: View {
             .padding(.bottom, 32)
         }
         .background(TL.ink)
-        .navigationTitle("마이페이지")
+        .navigationTitle("My Page")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -147,11 +147,11 @@ struct ProfileEditView: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "envelope.badge")
                                     .font(.system(size: 13)).foregroundStyle(TL.amber)
-                                Text("이메일 인증 대기 중 — 받은 편지함을 확인하세요")
+                                Text("Email verification pending — check your inbox")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(TL.amber)
                                 Spacer()
-                                Button("재발송") {
+                                Button("Resend") {
                                     Task { try? await account.resendVerificationEmail() }
                                 }
                                 .font(.system(size: 12, weight: .bold))
@@ -173,7 +173,7 @@ struct ProfileEditView: View {
                                             .foregroundStyle(TL.rec)
                                     )
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(user.displayName ?? user.email ?? "회원")
+                                    Text(user.displayName ?? user.email ?? String(localized: "Member"))
                                         .font(.tlTitle(17)).foregroundStyle(TL.paper)
                                     if let email = user.email {
                                         Text(email).font(.system(size: 12)).foregroundStyle(TL.muted)
@@ -186,14 +186,14 @@ struct ProfileEditView: View {
                             Divider().overlay(TL.hairline)
 
                             HStack(spacing: 0) {
-                                stat(value: "+\(myReward)", label: "내 상점", tint: TL.jade)
-                                stat(value: "\(myPenalty)", label: "내 벌점", tint: TL.rec)
-                                stat(value: "\(myReward + myPenalty)", label: "총점",
+                                stat(value: "+\(myReward)", label: String(localized: "My Points"), tint: TL.jade)
+                                stat(value: "\(myPenalty)", label: String(localized: "My Penalty"), tint: TL.rec)
+                                stat(value: "\(myReward + myPenalty)", label: String(localized: "Total"),
                                      tint: myReward + myPenalty >= 0 ? TL.paper : TL.rec)
                             }
 
                             // 로그아웃 — 프로필 카드 안, 점수 아래 가운데 정렬
-                            Button("로그아웃") { showSignOutConfirm = true }
+                            Button("Log Out") { showSignOutConfirm = true }
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(TL.muted)
                                 .frame(maxWidth: .infinity)
@@ -202,16 +202,16 @@ struct ProfileEditView: View {
                     }
 
                     // 구독 카드
-                    TLEyebrow(text: "구독")
+                    TLEyebrow(text: "Subscription")
                     TLCard(raised: subscription.isPro) {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(subscription.isPro ? "앵그리모티 멤버십 사용 중" : "앵그리모티 멤버십")
+                                    Text(subscription.isPro ? String(localized: "AngryMoti Membership Active") : String(localized: "AngryMoti Membership"))
                                         .font(.tlTitle(17)).foregroundStyle(TL.paper)
                                     Text(subscription.isPro
-                                         ? "멤버십 혜택 적용 중 — 슬롯 \(SlotPolicy.memberFloorSlots)개부터·워터마크 제거·미친 매운맛."
-                                         : "슬롯 \(SlotPolicy.memberFloorSlots)개부터 · 워터마크 제거 · 미친 매운맛 즉시 해제.")
+                                         ? String(format: String(localized: "Membership perks active — %ld+ slots, no watermark, Insane mode."), SlotPolicy.memberFloorSlots)
+                                         : String(format: String(localized: "%ld+ slots · No watermark · Insane mode unlocked instantly."), SlotPolicy.memberFloorSlots))
                                         .font(.system(size: 13)).foregroundStyle(TL.muted)
                                 }
                                 Spacer()
@@ -220,10 +220,10 @@ struct ProfileEditView: View {
                                 }
                             }
                             if !subscription.isPro {
-                                Button("구독하기") { showPaywall = true }
+                                Button("Subscribe") { showPaywall = true }
                                     .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
                             }
-                            Button("구매 복원") {
+                            Button("Restore Purchases") {
                                 Task {
                                     if await subscription.restore() == false {
                                         restoreMessage = Legal.restoreNotFoundMessage
@@ -246,7 +246,7 @@ struct ProfileEditView: View {
                             if deletingAccount {
                                 ProgressView().tint(TL.rec)
                             } else {
-                                Text("계정 삭제")
+                                Text("Delete Account")
                                     .font(.system(size: 16, weight: .bold, design: .rounded))
                                     .foregroundStyle(TL.rec)
                             }
@@ -265,29 +265,29 @@ struct ProfileEditView: View {
             .padding(20)
         }
         .background(TL.ink)
-        .navigationTitle("프로필 및 구독 관리")
+        .navigationTitle("Profile & Subscription")
         .navigationBarTitleDisplayMode(.inline)
         .task { await account.refreshEmailVerification() }
         .sheet(isPresented: $showAuth) { AuthView() }
         .sheet(isPresented: $showPaywall) { PaywallView() }
-        .confirmationDialog("로그아웃할까요?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
-            Button("로그아웃", role: .destructive) { account.signOut() }
+        .confirmationDialog("Log out?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
+            Button("Log Out", role: .destructive) { account.signOut() }
         } message: {
-            Text("기록은 계정에 남아 있고, 다시 로그인하면 그대로 보입니다.")
+            Text("Your records stay on your account and will be there when you log back in.")
         }
-        .confirmationDialog("계정을 삭제할까요?", isPresented: $showDeleteAccountConfirm, titleVisibility: .visible) {
-            Button("계정 영구 삭제", role: .destructive) { deleteAccount() }
+        .confirmationDialog("Delete your account?", isPresented: $showDeleteAccountConfirm, titleVisibility: .visible) {
+            Button("Permanently Delete Account", role: .destructive) { deleteAccount() }
         } message: {
-            Text("이 기기의 예약·세션·촬영본과 계정·서버 데이터가 즉시 완전 삭제되고 되돌릴 수 없습니다.")
+            Text("Activities, sessions, and recordings on this device, plus your account and server data, will be permanently deleted immediately. This can't be undone.")
         }
-        .alert("계정 삭제", isPresented: .constant(deleteAccountError != nil)) {
-            Button("확인") { deleteAccountError = nil }
+        .alert("Delete Account", isPresented: .constant(deleteAccountError != nil)) {
+            Button("OK") { deleteAccountError = nil }
         } message: {
             Text(deleteAccountError ?? "")
         }
-        .alert("구매 복원", isPresented: Binding(
+        .alert("Restore Purchases", isPresented: Binding(
             get: { restoreMessage != nil }, set: { if !$0 { restoreMessage = nil } })) {
-            Button("확인", role: .cancel) { restoreMessage = nil }
+            Button("OK", role: .cancel) { restoreMessage = nil }
         } message: {
             Text(restoreMessage ?? "")
         }
@@ -320,11 +320,11 @@ struct ProfileEditView: View {
 private func guestCard(onLogin: @escaping () -> Void) -> some View {
     TLCard {
         VStack(alignment: .leading, spacing: 10) {
-            Text("게스트 모드")
+            Text("Guest Mode")
                 .font(.tlTitle(16)).foregroundStyle(TL.paper)
-            Text("게스트 기록은 이 기기에만 저장되고 계정과는 분리됩니다. 계정을 만들면 이후의 기록이 계정에 저장돼 기기를 바꿔도 유지됩니다.")
+            Text("Guest records are stored only on this device, separate from any account. Create an account and future records will be saved there, surviving a device change.")
                 .font(.system(size: 13)).foregroundStyle(TL.muted)
-            Button("계정 만들기 · 로그인", action: onLogin)
+            Button("Create Account · Log In", action: onLogin)
                 .buttonStyle(TLPrimaryButtonStyle())
         }
     }
@@ -338,25 +338,25 @@ struct SupportView: View {
             VStack(alignment: .leading, spacing: 16) {
                 TLCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("문의하기")
+                        Text("Contact Us")
                             .font(.tlTitle(16)).foregroundStyle(TL.paper)
-                        Text("이용 중 불편한 점이나 궁금한 점을 보내주세요.")
+                        Text("Send us any issues or questions you have while using the app.")
                             .font(.system(size: 13)).foregroundStyle(TL.muted)
-                        Link("singlemarks@gmail.com 으로 메일 보내기",
+                        Link("Email singlemarks@gmail.com",
                              destination: URL(string: "mailto:singlemarks@gmail.com")!)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(TL.jade)
                     }
                 }
                 TLCard {
-                    Text("자주 묻는 질문(FAQ)은 준비 중입니다.")
+                    Text("An FAQ is coming soon.")
                         .font(.system(size: 13)).foregroundStyle(TL.faint)
                 }
             }
             .padding(20)
         }
         .background(TL.ink)
-        .navigationTitle("고객센터")
+        .navigationTitle("Support")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -372,9 +372,9 @@ struct CheerDeveloperView: View {
             VStack(alignment: .leading, spacing: 16) {
                 TLCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("앵그리모티는 작은따옴표팀이 만들어 나가고 있어요")
+                        Text("AngryMoti is being built by Team Singlemark")
                             .font(.tlTitle(16)).foregroundStyle(TL.paper)
-                        Text("누구나 마음속에 하나쯤 품고 있는 버킷리스트를 끝내 \u{2018}해냈다\u{2019}고 말할 수 있는 세상을 꿈꿉니다. 그 소중한 목표가 현실이 되는 순간까지, 앵그리모티는 필요한 기능을 계속 만들어가겠습니다.")
+                        Text("We dream of a world where everyone can finally say \u{2018}I did it\u{2019} to that one bucket-list goal they carry in their heart. Until that meaningful goal becomes real, AngryMoti will keep building what it takes to get you there.")
                             .font(.system(size: 13)).foregroundStyle(TL.muted)
                     }
                 }
@@ -386,18 +386,18 @@ struct CheerDeveloperView: View {
                     if let url = Legal.writeReviewURL { openURL(url) }
                     else { requestReview() }
                 } label: {
-                    Text("App Store에 별점·후기 남기기")
+                    Text("Rate & Review on the App Store")
                         .font(.system(size: 15, weight: .bold))
                 }
                 .buttonStyle(TLPrimaryButtonStyle(tint: TL.amber))
 
                 TLCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("더 든든하게 응원하고 싶다면")
+                        Text("Want to support us even more?")
                             .font(.tlTitle(15)).foregroundStyle(TL.paper)
-                        Text("앵그리모티 멤버십을 이용하면 개발을 직접 후원하면서 슬롯·워터마크 제거·미친 매운맛 같은 혜택도 함께 받을 수 있어요. 마이페이지 › 프로필 및 구독 관리에서 시작할 수 있습니다.")
+                        Text("An AngryMoti Membership directly supports development while giving you perks like more slots, no watermark, and Insane mode. Get started under My Page › Profile & Subscription.")
                             .font(.system(size: 13)).foregroundStyle(TL.muted)
-                        Link("문의·제안 보내기 — singlemarks@gmail.com",
+                        Link("Send feedback — singlemarks@gmail.com",
                              destination: URL(string: "mailto:singlemarks@gmail.com")!)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(TL.jade)
@@ -407,7 +407,7 @@ struct CheerDeveloperView: View {
             .padding(20)
         }
         .background(TL.ink)
-        .navigationTitle("개발자 응원하기")
+        .navigationTitle("Support the Developer")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -429,12 +429,12 @@ struct PrivacySettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 TLCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        privacyRow(icon: "arrow.down.circle.fill", text: "촬영본은 세션 종료 화면에서 사진 앱으로 저장하지 않으면 즉시 삭제됩니다. 서버로 전송되지 않습니다.")
-                        privacyRow(icon: "eye.fill", text: "촬영 중에는 화면에 REC 표시와 프리뷰가 항상 보입니다.")
-                        privacyRow(icon: "key.fill", text: "촬영 중 파일은 iOS 파일 보호(완전 암호화)로 저장됩니다.")
-                        privacyRow(icon: "trash.fill", text: "기록 썸네일은 아래에서 언제든 완전히 삭제할 수 있습니다.")
+                        privacyRow(icon: "arrow.down.circle.fill", text: "Recordings are deleted immediately unless you save them to Photos from the results screen. They're never sent to a server.")
+                        privacyRow(icon: "eye.fill", text: "The REC indicator and live preview are always visible on screen while recording.")
+                        privacyRow(icon: "key.fill", text: "Files are stored with iOS Data Protection (full encryption) while recording.")
+                        privacyRow(icon: "trash.fill", text: "You can permanently delete record thumbnails below at any time.")
                         Divider().overlay(TL.hairline)
-                        Button("기록 썸네일 전체 삭제") { showDeleteAllConfirm = true }
+                        Button("Delete All Record Thumbnails") { showDeleteAllConfirm = true }
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(TL.rec)
                     }
@@ -443,12 +443,12 @@ struct PrivacySettingsView: View {
             .padding(20)
         }
         .background(TL.ink)
-        .navigationTitle("프라이버시")
+        .navigationTitle("Privacy")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("모든 기록 썸네일을 삭제할까요?", isPresented: $showDeleteAllConfirm, titleVisibility: .visible) {
-            Button("전체 삭제 (기록·점수는 유지)", role: .destructive) { deleteAllVideos() }
+        .confirmationDialog("Delete all record thumbnails?", isPresented: $showDeleteAllConfirm, titleVisibility: .visible) {
+            Button("Delete All (records & points stay)", role: .destructive) { deleteAllVideos() }
         } message: {
-            Text("삭제한 썸네일은 복구할 수 없습니다. 세션 기록과 점수 원장은 유지됩니다.")
+            Text("Deleted thumbnails can't be recovered. Session records and the score ledger are unaffected.")
         }
     }
 
@@ -482,10 +482,10 @@ struct LedgerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                TLEyebrow(text: "최근 20건")
+                TLEyebrow(text: "Last 20 Entries")
                 if events.isEmpty {
                     TLCard {
-                        Text("아직 기록이 없습니다. 첫 세션을 완주하면 상점이 적립됩니다.")
+                        Text("No entries yet. Complete your first session to start earning points.")
                             .font(.system(size: 13)).foregroundStyle(TL.muted)
                     }
                 } else {
@@ -517,7 +517,7 @@ struct LedgerView: View {
             .padding(20)
         }
         .background(TL.ink)
-        .navigationTitle("점수 원장")
+        .navigationTitle("Score Ledger")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -531,7 +531,7 @@ struct AppLanguageView: View {
                 TLCard {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("한국어")
+                            Text("한국어")   // l10n:ko-literal — 언어 자체의 이름(고유명사), 번역 대상 아님
                                 .font(.tlTitle(16)).foregroundStyle(TL.paper)
                             Spacer()
                             Image(systemName: "checkmark").foregroundStyle(TL.jade)
@@ -540,7 +540,7 @@ struct AppLanguageView: View {
                             Text("English")
                                 .font(.tlTitle(16)).foregroundStyle(TL.faint)
                             Spacer()
-                            TagChip(name: "준비 중")
+                            TagChip(name: String(localized: "Coming Soon"))
                         }
                     }
                 }
@@ -548,7 +548,7 @@ struct AppLanguageView: View {
             .padding(20)
         }
         .background(TL.ink)
-        .navigationTitle("앱 언어")
+        .navigationTitle("App Language")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -572,10 +572,10 @@ struct PaywallView: View {
                     .frame(width: 140, height: 140)
                     .padding(.top, 8)
 
-                Text("앵그리모티 멤버십")
+                Text("AngryMoti Membership")
                     .font(.tlTitle(26)).foregroundStyle(TL.paper)
                     .padding(.top, 18)
-                Text("기본을 넘어, 자율까지.")
+                Text("Beyond the basics, into your own hands.")
                     .font(.tlBody).foregroundStyle(TL.muted)
                     .padding(.top, 6)
 
@@ -589,11 +589,11 @@ struct PaywallView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    benefit("활동 슬롯 최소 \(SlotPolicy.memberFloorSlots)개부터 시작 (무료는 2개)")
-                    benefit("타임랩스 워터마크 제거")
-                    benefit("미친 매운맛 모드 (멤버십 전용)")
-                    benefit("그룹 챌린지 — 초대코드로 모여 같은 일정으로 랭킹 대결")
-                    benefit("그 외 추가되는 멤버십 기능 모두 포함")
+                    benefit(String(format: String(localized: "Start with at least %ld activity slots (free is 2)"), SlotPolicy.memberFloorSlots))
+                    benefit(String(localized: "No timelapse watermark"))
+                    benefit(String(localized: "Insane mode (members only)"))
+                    benefit(String(localized: "Group Challenge — gather with an invite code and compete on the same schedule"))
+                    benefit(String(localized: "Includes all future membership features too"))
                 }
                 .padding(.top, 24)
 
@@ -609,29 +609,29 @@ struct PaywallView: View {
                             }
                         }
                     } label: {
-                        Text(purchasing ? "처리 중…"
+                        Text(purchasing ? String(localized: "Processing…")
                              : subscription.freeTrialDescription != nil
-                               ? "무료로 시작하기 · 이후 \(product.displayPrice)/월"
-                               : "\(product.displayPrice) / 월 구독하기")
+                               ? String(format: String(localized: "Start Free · Then %@/mo"), product.displayPrice)
+                               : String(format: String(localized: "Subscribe for %@/mo"), product.displayPrice))
                     }
                     .buttonStyle(TLPrimaryButtonStyle(tint: TL.jade))
                     .disabled(purchasing)
                 } else if subscription.loadingProduct {
-                    Text("구독 상품을 불러오는 중입니다…")
+                    Text("Loading subscription options…")
                         .font(.system(size: 13)).foregroundStyle(TL.faint)
                 } else {
                     // 조회가 끝났는데 상품이 없다 — 계속 '불러오는 중'이라고 두면
                     // 사용자는 기다리면 될 줄 알고 앱을 껐다 켜는 수밖에 없다.
                     VStack(spacing: 10) {
-                        Text("구독 상품을 불러오지 못했습니다.\n네트워크 연결을 확인해 주세요.")
+                        Text("Couldn't load subscription options.\nPlease check your network connection.")
                             .font(.system(size: 13)).foregroundStyle(TL.faint)
                             .multilineTextAlignment(.center)
-                        Button("다시 시도") { Task { await subscription.loadProduct() } }
+                        Button("Try Again") { Task { await subscription.loadProduct() } }
                             .buttonStyle(TLGhostButtonStyle())
                     }
                 }
 
-                Button("구매 복원") {
+                Button("Restore Purchases") {
                     Task {
                         if await subscription.restore() { dismiss() }
                         else { restoreMessage = Legal.restoreNotFoundMessage }
@@ -656,7 +656,7 @@ struct PaywallView: View {
             .background(TL.ink)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
+                    Button("Close") { dismiss() }.foregroundStyle(TL.muted)
                 }
             }
         }
@@ -664,9 +664,9 @@ struct PaywallView: View {
         // 앱 실행 때 한 번 실패하면 그걸로 끝이었다 — 페이월을 열 때마다 다시 시도한다.
         // 이미 받아둔 상품이 있으면 건드리지 않는다(불필요한 스토어 조회 방지).
         .task { if subscription.product == nil { await subscription.loadProduct() } }
-        .alert("구매 복원", isPresented: Binding(
+        .alert("Restore Purchases", isPresented: Binding(
             get: { restoreMessage != nil }, set: { if !$0 { restoreMessage = nil } })) {
-            Button("확인", role: .cancel) { restoreMessage = nil }
+            Button("OK", role: .cancel) { restoreMessage = nil }
         } message: {
             Text(restoreMessage ?? "")
         }

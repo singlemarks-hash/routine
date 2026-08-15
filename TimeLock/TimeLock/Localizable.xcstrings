@@ -3491,6 +3491,688 @@
           }
         }
       }
+    },
+    "Profile & Subscription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로필 및 구독 관리"
+          }
+        }
+      }
+    },
+    "Support": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "고객센터"
+          }
+        }
+      }
+    },
+    "Support the Developer": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개발자 응원하기"
+          }
+        }
+      }
+    },
+    "Privacy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프라이버시"
+          }
+        }
+      }
+    },
+    "Score Ledger": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "점수 원장"
+          }
+        }
+      }
+    },
+    "App Language": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱 언어"
+          }
+        }
+      }
+    },
+    "My Page": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마이페이지"
+          }
+        }
+      }
+    },
+    "Email verification pending — check your inbox": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이메일 인증 대기 중 — 받은편지함을 확인해 주세요"
+          }
+        }
+      }
+    },
+    "Resend": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재전송"
+          }
+        }
+      }
+    },
+    "Member": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "회원"
+          }
+        }
+      }
+    },
+    "My Points": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 점수"
+          }
+        }
+      }
+    },
+    "My Penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 벌점"
+          }
+        }
+      }
+    },
+    "Log Out": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그아웃"
+          }
+        }
+      }
+    },
+    "Subscription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구독"
+          }
+        }
+      }
+    },
+    "AngryMoti Membership Active": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앵그리모티 멤버십 활성"
+          }
+        }
+      }
+    },
+    "AngryMoti Membership": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앵그리모티 멤버십"
+          }
+        }
+      }
+    },
+    "Membership perks active — %ld+ slots, no watermark, Insane mode.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "멤버십 혜택 적용 중 — 슬롯 %ld개 이상, 워터마크 없음, 미친모드."
+          }
+        }
+      }
+    },
+    "%ld+ slots · No watermark · Insane mode unlocked instantly.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "슬롯 %ld개 이상 · 워터마크 없음 · 미친모드 즉시 해제."
+          }
+        }
+      }
+    },
+    "Subscribe": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구독하기"
+          }
+        }
+      }
+    },
+    "Restore Purchases": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구매 복원"
+          }
+        }
+      }
+    },
+    "Delete Account": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계정 삭제"
+          }
+        }
+      }
+    },
+    "Log out?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그아웃할까요?"
+          }
+        }
+      }
+    },
+    "Your records stay on your account and will be there when you log back in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기록은 계정에 남아 있으며, 다시 로그인하면 그대로 확인할 수 있습니다."
+          }
+        }
+      }
+    },
+    "Delete your account?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계정을 삭제할까요?"
+          }
+        }
+      }
+    },
+    "Permanently Delete Account": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계정 영구 삭제"
+          }
+        }
+      }
+    },
+    "Activities, sessions, and recordings on this device, plus your account and server data, will be permanently deleted immediately. This can't be undone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 기기의 활동, 세션, 녹화 파일과 계정·서버 데이터가 즉시 영구 삭제됩니다. 되돌릴 수 없습니다."
+          }
+        }
+      }
+    },
+    "Guest Mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "게스트 모드"
+          }
+        }
+      }
+    },
+    "Guest records are stored only on this device, separate from any account. Create an account and future records will be saved there, surviving a device change.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "게스트 기록은 계정과 별개로 이 기기에만 저장됩니다. 계정을 만들면 이후 기록이 계정에 저장되어 기기를 바꿔도 유지됩니다."
+          }
+        }
+      }
+    },
+    "Create Account · Log In": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계정 만들기 · 로그인"
+          }
+        }
+      }
+    },
+    "Contact Us": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문의하기"
+          }
+        }
+      }
+    },
+    "Send us any issues or questions you have while using the app.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱을 사용하며 겪은 문제나 궁금한 점을 보내주세요."
+          }
+        }
+      }
+    },
+    "Email singlemarks@gmail.com": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "singlemarks@gmail.com로 메일 보내기"
+          }
+        }
+      }
+    },
+    "An FAQ is coming soon.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자주 묻는 질문은 곧 추가될 예정입니다."
+          }
+        }
+      }
+    },
+    "AngryMoti is being built by Team Singlemark": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앵그리모티는 작은따옴표팀이 만들고 있습니다"
+          }
+        }
+      }
+    },
+    "We dream of a world where everyone can finally say ‘I did it’ to that one bucket-list goal they carry in their heart. Until that meaningful goal becomes real, AngryMoti will keep building what it takes to get you there.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "누구나 마음속에 품고 있던 그 버킷리스트 목표에 ‘해냈다’고 말할 수 있는 세상을 꿈꿉니다. 그 소중한 목표가 현실이 될 때까지, 앵그리모티는 필요한 것을 계속 만들어가겠습니다."
+          }
+        }
+      }
+    },
+    "Rate & Review on the App Store": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱스토어에서 평점 남기기"
+          }
+        }
+      }
+    },
+    "Want to support us even more?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "조금 더 응원하고 싶으신가요?"
+          }
+        }
+      }
+    },
+    "An AngryMoti Membership directly supports development while giving you perks like more slots, no watermark, and Insane mode. Get started under My Page › Profile & Subscription.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앵그리모티 멤버십은 개발을 직접 지원하면서 슬롯 확대, 워터마크 제거, 미친모드 같은 혜택도 드립니다. 마이페이지 › 프로필 및 구독 관리에서 시작할 수 있습니다."
+          }
+        }
+      }
+    },
+    "Send feedback — singlemarks@gmail.com": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "의견 보내기 — singlemarks@gmail.com"
+          }
+        }
+      }
+    },
+    "Recordings are deleted immediately unless you save them to Photos from the results screen. They're never sent to a server.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "녹화 영상은 결과 화면에서 사진앱에 저장하지 않는 한 즉시 삭제됩니다. 서버로 전송되지 않습니다."
+          }
+        }
+      }
+    },
+    "The REC indicator and live preview are always visible on screen while recording.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "녹화 중에는 REC 표시와 실시간 미리보기가 항상 화면에 표시됩니다."
+          }
+        }
+      }
+    },
+    "Files are stored with iOS Data Protection (full encryption) while recording.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "녹화 파일은 iOS 데이터 보호(전체 암호화) 상태로 저장됩니다."
+          }
+        }
+      }
+    },
+    "You can permanently delete record thumbnails below at any time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아래에서 기록 썸네일을 언제든 영구 삭제할 수 있습니다."
+          }
+        }
+      }
+    },
+    "Delete All Record Thumbnails": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 기록 썸네일 삭제"
+          }
+        }
+      }
+    },
+    "Delete all record thumbnails?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 기록 썸네일을 삭제할까요?"
+          }
+        }
+      }
+    },
+    "Delete All (records & points stay)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전체 삭제 (기록과 점수는 유지)"
+          }
+        }
+      }
+    },
+    "Deleted thumbnails can't be recovered. Session records and the score ledger are unaffected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "삭제한 썸네일은 복구할 수 없습니다. 세션 기록과 점수 원장에는 영향이 없습니다."
+          }
+        }
+      }
+    },
+    "Last 20 Entries": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최근 20건"
+          }
+        }
+      }
+    },
+    "No entries yet. Complete your first session to start earning points.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 내역이 없습니다. 첫 세션을 완료하면 점수가 쌓이기 시작합니다."
+          }
+        }
+      }
+    },
+    "Coming Soon": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "준비 중"
+          }
+        }
+      }
+    },
+    "Beyond the basics, into your own hands.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기본을 넘어, 자율까지."
+          }
+        }
+      }
+    },
+    "Start with at least %ld activity slots (free is 2)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "슬롯 최소 %ld개로 시작 (무료는 2개)"
+          }
+        }
+      }
+    },
+    "No timelapse watermark": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "타임랩스 워터마크 없음"
+          }
+        }
+      }
+    },
+    "Insane mode (members only)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미친모드 (멤버 전용)"
+          }
+        }
+      }
+    },
+    "Group Challenge — gather with an invite code and compete on the same schedule": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹 챌린지 — 초대 코드로 모여 같은 일정으로 경쟁"
+          }
+        }
+      }
+    },
+    "Includes all future membership features too": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앞으로 추가되는 멤버십 기능도 모두 포함"
+          }
+        }
+      }
+    },
+    "Processing…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "처리 중…"
+          }
+        }
+      }
+    },
+    "Start Free · Then %@/mo": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "무료로 시작 · 이후 월 %@"
+          }
+        }
+      }
+    },
+    "Subscribe for %@/mo": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "월 %@에 구독하기"
+          }
+        }
+      }
+    },
+    "Loading subscription options…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구독 옵션을 불러오는 중…"
+          }
+        }
+      }
+    },
+    "Couldn't load subscription options.\nPlease check your network connection.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구독 옵션을 불러오지 못했습니다.\n네트워크 연결을 확인해 주세요."
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 시도"
+          }
+        }
+      }
     }
   },
   "version": "1.2"
