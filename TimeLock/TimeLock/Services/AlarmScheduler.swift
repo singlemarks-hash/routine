@@ -186,8 +186,8 @@ final class AlarmScheduler: NSObject, ObservableObject {
     /// 실제 발생 시각은 앱이 checkDueAlarm에서 예약으로부터 재계산하므로 fireDate를 담지 않는다.
     private func makeAlarmContent(for reservation: Reservation) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
-        content.title = "\(reservation.name) 시작"
-        content.body = "알람을 끄는 방법은 하나뿐입니다 — \(TimePolicy.startWindowMinutes)분 안에 촬영을 시작하세요."
+        content.title = String(format: String(localized: "%@ Starting"), reservation.name)
+        content.body = String(format: String(localized: "The only way to stop this alarm is to start recording within %ld minutes."), TimePolicy.startWindowMinutes)
         // iOS는 커스텀 알림음을 30초까지 재생한다. 5초짜리를 쓰면 그 여섯 배를 버리는 셈이라
         // 배너 하나가 순식간에 조용해진다. 25초짜리를 써서 한 발이 오래 울리게 한다.
         content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm-long.wav"))
@@ -212,7 +212,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
             guard let at = Calendar.current.date(byAdding: .minute, value: minute, to: fire),
                   at > .now else { continue }
             let content = makeAlarmContent(for: reservation).mutableCopy() as! UNMutableNotificationContent
-            content.body = "아직 시작하지 않았습니다. \(total - minute)분 뒤 탈락 처리됩니다."
+            content.body = String(format: String(localized: "You haven't started yet. You'll be marked as a no-show in %ld minutes."), total - minute)
             let comps = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute, .second], from: at)
             let request = UNNotificationRequest(
@@ -278,7 +278,7 @@ final class AlarmScheduler: NSObject, ObservableObject {
             [.year, .month, .day, .hour, .minute, .second], from: repeatFire)
         let rTrigger = UNCalendarNotificationTrigger(dateMatching: rComps, repeats: false)
         let rContent = makeAlarmContent(for: reservation).mutableCopy() as! UNMutableNotificationContent
-        rContent.body = "아직 시작하지 않았습니다. 5분이 지나면 탈락 처리됩니다."
+        rContent.body = String(localized: "You haven't started yet. You'll be marked as a no-show in 5 minutes.")
         let rRequest = UNNotificationRequest(
             identifier: "alarm-r1-\(reservation.id.uuidString)-\(Int(fire.timeIntervalSince1970))",
             content: rContent, trigger: rTrigger)
@@ -308,8 +308,8 @@ final class AlarmScheduler: NSObject, ObservableObject {
     private func schedulePreAlert(for reservation: Reservation, at fire: Date) {
         guard let pre = Calendar.current.date(byAdding: .minute, value: -10, to: fire), pre > .now else { return }
         let content = UNMutableNotificationContent()
-        content.title = "'\(reservation.name)' 시작 10분 전입니다"
-        content.body = "촬영을 준비해주세요. \(TLFormat.clock(fire)) 정각에 알람이 울립니다."
+        content.title = String(format: String(localized: "'%@' starts in 10 minutes"), reservation.name)
+        content.body = String(format: String(localized: "Get your camera ready. The alarm goes off at %@."), TLFormat.clock(fire))
         content.sound = .default
         // 준비하라고 보내는 알림인데 집중 모드를 못 뚫으면, 방해금지를 켜둔 사람은
         // 예고 없이 정각 알람부터 맞는다. 정작 준비 시간이 필요한 쪽이 못 받는 셈이다.
@@ -386,8 +386,8 @@ final class AlarmScheduler: NSObject, ObservableObject {
         // kind=break — 앱이 화면에 떠 있을 때는 중단 오버레이가 이미 안내하므로 배너를 숨긴다
         if includeOpen {
             let open = UNMutableNotificationContent()
-            open.title = "촬영 일시중단"
-            open.body = "\(TimePolicy.resumeWindowMinutes)분 안에 돌아와 재촬영을 시작하면 벌점이 없습니다."
+            open.title = String(localized: "Recording Paused")
+            open.body = String(format: String(localized: "Come back and resume within %ld minutes — no penalty."), TimePolicy.resumeWindowMinutes)
             open.sound = .default
             open.interruptionLevel = .timeSensitive
             open.userInfo = ["kind": "break"]
@@ -399,8 +399,8 @@ final class AlarmScheduler: NSObject, ObservableObject {
         let warnAt = deadline.addingTimeInterval(-120)
         if warnAt > .now {
             let warn = UNMutableNotificationContent()
-            warn.title = "재촬영까지 2분"
-            warn.body = "지금 돌아와 재촬영을 시작하세요. 시간이 지나면 벌점이 부과됩니다."
+            warn.title = String(localized: "2 Minutes to Resume")
+            warn.body = String(localized: "Come back now and resume recording. A penalty applies if time runs out.")
             warn.sound = UNNotificationSound(named: UNNotificationSoundName("alarm-long.wav"))
             warn.interruptionLevel = .timeSensitive
             warn.userInfo = ["kind": "break"]
@@ -411,8 +411,8 @@ final class AlarmScheduler: NSObject, ObservableObject {
         }
 
         let fail = UNMutableNotificationContent()
-        fail.title = "벌점 부과"
-        fail.body = "\(TimePolicy.resumeWindowMinutes)분 안에 재촬영을 시작하지 않아 세션이 실패로 기록되었습니다."
+        fail.title = String(localized: "Penalty Applied")
+        fail.body = String(format: String(localized: "You didn't resume within %ld minutes, so the session was recorded as failed."), TimePolicy.resumeWindowMinutes)
         fail.sound = UNNotificationSound(named: UNNotificationSoundName("alarm-long.wav"))
         fail.interruptionLevel = .timeSensitive
         fail.userInfo = ["kind": "break"]

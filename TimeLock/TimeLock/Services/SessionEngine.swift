@@ -63,8 +63,8 @@ final class SessionEngine: NSObject, ObservableObject {
     private var stallRecoveryStartedAt: Date?
     /// 복구 유예 — 이 시간 안에 프레임이 재개되면 아무 판정도 하지 않고 촬영을 잇는다.
     private static let stallRecoveryGrace: TimeInterval = 10
-    private static let storageBreakNote = "저장공간이 부족합니다. 저장공간을 확보 후 촬영을 재개하세요."
-    private static let systemBreakNote = "기기 상태(발열 등)로 카메라가 잠시 멈췄습니다. 잠깐 식힌 뒤 촬영을 재개하세요. 벌점은 없습니다."
+    private static let storageBreakNote = String(localized: "Storage is low. Free up space, then resume recording.")
+    private static let systemBreakNote = String(localized: "The camera paused briefly due to device conditions (like overheating). Let it cool down, then resume — no penalty.")
 
     private(set) var session: FocusSession?
     private var modelContext: ModelContext?
@@ -103,7 +103,7 @@ final class SessionEngine: NSObject, ObservableObject {
 
         session.startedAt = .now
         context.insert(session)
-        persist(context, "세션 시작 기록")
+        persist(context, "session start")
 
         do {
             try CameraRecorder.shared.startRecording(sessionID: session.id, orientation: orientation,
@@ -259,7 +259,7 @@ final class SessionEngine: NSObject, ObservableObject {
             finalize(session: s, outcome: .completed, note: nil)
         } else {
             #if DEBUG
-            print("[SessionEngine] 헛완주 방어 — captured=\(capturedSeconds)s/target=\(s.targetSeconds)s thumb=\(result?.thumbnailFileName != nil)")
+            print("[SessionEngine] phantom-completion guard — captured=\(capturedSeconds)s/target=\(s.targetSeconds)s thumb=\(result?.thumbnailFileName != nil)")
             #endif
             finalize(session: s, outcome: .safetyEnded, note: ScoreNote.recordingIncomplete)
         }
@@ -549,7 +549,7 @@ final class SessionEngine: NSObject, ObservableObject {
     private func persist(_ context: ModelContext, _ note: String) -> Bool {
         do { try context.save(); return true }
         catch {
-            print("⚠️ [TimeLock] 저장 실패 — \(note): \(error.localizedDescription)")
+            print("⚠️ [TimeLock] save failed — \(note): \(error.localizedDescription)")
             return false
         }
     }
@@ -577,7 +577,7 @@ final class SessionEngine: NSObject, ObservableObject {
             awardSlotBonusIfTierCrossed(session: s, context: context)
             awardUnlockBonusIfJustUnlocked(session: s, context: context)
         }
-        persist(context, "세션 결과·점수 확정")
+        persist(context, "session outcome/score finalized")
         AccountStore.shared.mirrorSession(s)   // 세션 요약 클라우드 미러 (기기 변경 시 진척 보존)
 
         // 결과 데이터를 모두 준비한 뒤에 딱 한 번 phase를 바꾸고, 라우팅 콜백을 쏜다.
@@ -686,7 +686,7 @@ final class SessionEngine: NSObject, ObservableObject {
                 changed = true
             }
         }
-        if changed { persist(context, "중복 결과 정리") }
+        if changed { persist(context, "duplicate outcome cleanup") }
     }
 
     /// 같은 발생에 노쇼가 여러 건이면 한 건만 남긴다.
@@ -841,7 +841,7 @@ final class SessionEngine: NSObject, ObservableObject {
                 existing.insert(key)
             }
         }
-        persist(context, "노쇼 스위프 기록")
+        persist(context, "no-show sweep")
     }
 
     /// 앱 재실행 시, 종료되지 못한 세션(킬/크래시)을 판별해 기록한다.
@@ -902,7 +902,7 @@ final class SessionEngine: NSObject, ObservableObject {
             AccountStore.shared.mirror(event: event)
             reportGroupScoreIfNeeded(session: orphan, points: points, context: context)
         }
-        persist(context, "오펀 세션 복구 기록")
+        persist(context, "orphan session recovery")
         AccountStore.shared.mirrorSession(orphan)   // 복구된 세션 요약도 클라우드 미러
         // 크래시로 남은 파셜 영상은 재생 불가(moov 미기록)하고 어떤 세션도 참조하지 않는다 —
         // 디스크만 차지하므로 정리한다. 세그먼트 파일("<ID>-segN.mov")도 함께 —

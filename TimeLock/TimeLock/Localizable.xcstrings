@@ -345,6 +345,164 @@
           }
         }
       }
+    },
+    "Storage is low. Free up space, then resume recording.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장공간이 부족합니다. 저장공간을 확보 후 촬영을 재개하세요."
+          }
+        }
+      }
+    },
+    "The camera paused briefly due to device conditions (like overheating). Let it cool down, then resume — no penalty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 상태(발열 등)로 카메라가 잠시 멈췄습니다. 잠깐 식힌 뒤 촬영을 재개하세요. 벌점은 없습니다."
+          }
+        }
+      }
+    },
+    "%@ Starting": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 시작"
+          }
+        }
+      },
+      "comment": "알람 메인 배너 제목 — %@ = 활동명"
+    },
+    "The only way to stop this alarm is to start recording within %ld minutes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알람을 끄는 방법은 하나뿐입니다 — %ld분 안에 촬영을 시작하세요."
+          }
+        }
+      }
+    },
+    "You haven't started yet. You'll be marked as a no-show in %ld minutes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 시작하지 않았습니다. %ld분 뒤 탈락 처리됩니다."
+          }
+        }
+      }
+    },
+    "You haven't started yet. You'll be marked as a no-show in 5 minutes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 시작하지 않았습니다. 5분이 지나면 탈락 처리됩니다."
+          }
+        }
+      },
+      "comment": "시작 5분 후 마지막 재알림(고정 5분, 인자 없음) — 위 %ld 버전과 별개 키"
+    },
+    "'%@' starts in 10 minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'%@' 시작 10분 전입니다"
+          }
+        }
+      },
+      "comment": "%@ = 활동명"
+    },
+    "Get your camera ready. The alarm goes off at %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "촬영을 준비해주세요. %@ 정각에 알람이 울립니다."
+          }
+        }
+      },
+      "comment": "%@ = TLFormat.clock() 시각 문자열"
+    },
+    "Recording Paused": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "촬영 일시중단"
+          }
+        }
+      }
+    },
+    "Come back and resume within %ld minutes — no penalty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld분 안에 돌아와 재촬영을 시작하면 벌점이 없습니다."
+          }
+        }
+      }
+    },
+    "2 Minutes to Resume": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재촬영까지 2분"
+          }
+        }
+      }
+    },
+    "Come back now and resume recording. A penalty applies if time runs out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 돌아와 재촬영을 시작하세요. 시간이 지나면 벌점이 부과됩니다."
+          }
+        }
+      }
+    },
+    "Penalty Applied": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "벌점 부과"
+          }
+        }
+      }
+    },
+    "You didn't resume within %ld minutes, so the session was recorded as failed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld분 안에 재촬영을 시작하지 않아 세션이 실패로 기록되었습니다."
+          }
+        }
+      }
     }
   },
   "version": "1.2"

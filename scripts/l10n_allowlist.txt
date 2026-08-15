@@ -1,8 +1,6 @@
 TimeLock/TimeLock/Services/AccountStore.swift
-TimeLock/TimeLock/Services/AlarmScheduler.swift
 TimeLock/TimeLock/Services/CanonicalKeys.swift
 TimeLock/TimeLock/Services/GroupStore.swift
-TimeLock/TimeLock/Services/SessionEngine.swift
 TimeLock/TimeLock/Views/Alarm/AlarmView.swift
 TimeLock/TimeLock/Views/Auth/AuthView.swift
 TimeLock/TimeLock/Views/Calendar/CalendarView.swift
