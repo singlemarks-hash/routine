@@ -171,6 +171,56 @@ final class L10nScreenshotTests: XCTestCase {
             }
         }
 
+        // 7) 마이페이지 → 홈 복귀
+        let backButton = app.navigationBars.buttons.firstMatch
+        if backButton.exists { backButton.tap() }
+        sleep(1)
+
+        // 8) 기록 탭 (연속달성 카드 = NavigationLink → CalendarView)
+        if tapAny(app, ["Streak", "연속달성"], timeout: 4) {
+            sleep(1)
+            shoot(app, "history")
+            let back = app.navigationBars.buttons.firstMatch
+            if back.exists { back.tap() }
+            sleep(1)
+        }
+
+        // 9) 활동 예약 편집 (신규) + 페이월(게스트가 미친 매운맛 탭 → 가입 유도)
+        if tapAny(app, ["Add Activity", "활동 추가하기"], timeout: 4) {
+            sleep(1)
+            shoot(app, "reservation-new")
+            // 강도 선택지의 미친 매운맛 — 라벨에 🔥 이모지가 붙어 CONTAINS로 찾는다
+            let insane = app.buttons.matching(
+                NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "Insane", "미친 매운맛")
+            ).firstMatch
+            if insane.waitForExistence(timeout: 3) {
+                insane.tap()
+                sleep(2)
+                if !app.buttons["Subscribe"].exists && !app.staticTexts["AngryMoti Membership"].exists
+                    && !app.staticTexts["앵그리모티 멤버십"].exists {
+                    // 페이월이 아니라 다른 시트가 떴을 수도 있다 — 그래도 찍어둔다
+                }
+                shoot(app, "paywall")
+                tapAny(app, ["Close", "닫기"], timeout: 3)
+                sleep(1)
+            }
+            tapAny(app, ["Close", "닫기"], timeout: 3)   // 편집 시트 닫기
+            sleep(1)
+        }
+
+        // 10) 빠른 시작 시트
+        if tapAny(app, ["Quick Start", "지금 바로 시작"], timeout: 4) {
+            sleep(1)
+            shoot(app, "quick-start")
+            // 시트 닫기 — Close 버튼이 없으면 아래로 스와이프
+            if !tapAny(app, ["Close", "닫기"], timeout: 2) {
+                let start = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+                let end = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
+                start.press(forDuration: 0.1, thenDragTo: end)
+            }
+            sleep(1)
+        }
+
         // 항상 통과 — 수확량은 xcresult manifest로 판단한다
         XCTAssertTrue(shotIndex > 0, "스크린샷이 한 장도 찍히지 않았다")
     }
