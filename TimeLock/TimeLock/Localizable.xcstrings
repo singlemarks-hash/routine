@@ -1285,30 +1285,6 @@
         }
       }
     },
-    "12h ": {
-      "extractionState": "manual",
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "시간 "
-          }
-        }
-      },
-      "comment": "온보딩 목업 카드의 고정 예시값(506분→12시간 30분) 앞부분"
-    },
-    "30m total!": {
-      "extractionState": "manual",
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "분을 기록했어요!"
-          }
-        }
-      },
-      "comment": "온보딩 목업 카드의 고정 예시값 뒷부분"
-    },
     "Thu": {
       "extractionState": "manual",
       "localizations": {
@@ -5251,6 +5227,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "%ld"
+          }
+        }
+      }
+    },
+    "Cumulative Dashboard": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "누적 대시보드"
+          }
+        }
+      }
+    },
+    "h ": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시간 "
+          }
+        }
+      }
+    },
+    "m total!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "분을 기록했어요!"
           }
         }
       }

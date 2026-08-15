@@ -682,7 +682,7 @@ struct DashboardSection: View {
     // 연속달성·태그 분포는 상단 헤더 카드로 이사했다.
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "Cumulative Dashboard")
+            TLEyebrow(text: String(localized: "Cumulative Dashboard"))
 
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {

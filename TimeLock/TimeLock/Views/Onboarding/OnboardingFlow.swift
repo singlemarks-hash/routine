@@ -61,7 +61,7 @@ private struct ShootStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer().frame(height: 110)
-            TLEyebrow(text: "Recording")
+            TLEyebrow(text: String(localized: "Recording"))
             Text("When your alarm goes off at the scheduled time,\nstart your timelapse right away")
                 .font(.tlTitle(26))
                 .foregroundStyle(TL.paper)
@@ -116,7 +116,7 @@ private struct RecordStep: View {
                     .padding(8)
             }
             Spacer().frame(height: 22)
-            TLEyebrow(text: "Track Your Progress")
+            TLEyebrow(text: String(localized: "Track Your Progress"))
             Text("Not willpower — an environment\nthat makes you follow through")
                 .font(.tlTitle(26))
                 .foregroundStyle(TL.paper)
@@ -156,9 +156,9 @@ private struct RecordStep: View {
                     }
                     (Text("You've logged ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
                      + Text("506").font(.system(size: 13, weight: .heavy)).foregroundColor(TL.jade)
-                     + Text("12h ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
+                     + Text("h ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
                      + Text("16").font(.system(size: 13, weight: .heavy)).foregroundColor(TL.jade)
-                     + Text("30m total!").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted))
+                     + Text("m total!").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted))
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 8) {
@@ -229,7 +229,7 @@ private struct PermissionStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer().frame(height: 60)
-            TLEyebrow(text: "Permissions")
+            TLEyebrow(text: String(localized: "Permissions"))
             // 심사(5.1.1(iv)) — 허용을 권하는 문구·버튼 금지. 무엇에 쓰는지만 알리고
             // 결정은 시스템 창에 맡긴다. ('허용해 주세요'는 용도 안내 제목으로 유지)
             Text("Please allow two permissions")

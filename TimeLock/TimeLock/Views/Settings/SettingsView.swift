@@ -202,7 +202,7 @@ struct ProfileEditView: View {
                     }
 
                     // 구독 카드
-                    TLEyebrow(text: "Subscription")
+                    TLEyebrow(text: String(localized: "Subscription"))
                     TLCard(raised: subscription.isPro) {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -482,7 +482,7 @@ struct LedgerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                TLEyebrow(text: "Last 20 Entries")
+                TLEyebrow(text: String(localized: "Last 20 Entries"))
                 if events.isEmpty {
                     TLCard {
                         Text("No entries yet. Complete your first session to start earning points.")

@@ -315,7 +315,7 @@ private struct BreakOverlay: View {
         VStack(spacing: 0) {
             Spacer()
 
-            TLEyebrow(text: "Recording Paused", color: TL.amber)
+            TLEyebrow(text: String(localized: "Recording Paused"), color: TL.amber)
             Text(engine.breakNote == nil ? String(localized: "Emergency Break") : String(localized: "Recording Paused"))
                 .font(.tlTitle(24))
                 .foregroundStyle(TL.paper)
@@ -349,7 +349,7 @@ private struct BreakOverlay: View {
     private var landscapeBody: some View {
         HStack(spacing: 28) {
             VStack(spacing: 8) {
-                TLEyebrow(text: "Recording Paused", color: TL.amber)
+                TLEyebrow(text: String(localized: "Recording Paused"), color: TL.amber)
                 Text(engine.breakNote == nil ? String(localized: "Emergency Break") : String(localized: "Recording Paused"))
                     .font(.tlTitle(20))
                     .foregroundStyle(TL.paper)
@@ -585,7 +585,7 @@ struct SessionResultView: View {
 
     private func previewCard(session: FocusSession, url: URL) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "Timelapse Preview")
+            TLEyebrow(text: String(localized: "Timelapse Preview"))
 
             // 미리보기 = 촬영 결과물과 동일 비율(세로 9:16 / 가로 16:9), 잘림 없음.
             // 카드 프레임을 영상 비율에 맞추고 resizeAspect로 그려 "잘린 데 없이" 확인 가능.

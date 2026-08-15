@@ -449,7 +449,7 @@ struct MountGuideView: View {
                 .contentShape(Rectangle())
 
             VStack(spacing: 18) {
-                TLEyebrow(text: "Starting Recording", color: TL.rec)
+                TLEyebrow(text: String(localized: "Starting Recording"), color: TL.rec)
                 Text("Recording starts now")
                     .font(.tlTitle(23)).foregroundStyle(.white)
 
@@ -570,7 +570,7 @@ struct MountGuideView: View {
 
     private var header: some View {
         VStack(alignment: isLandscape ? .leading : .center, spacing: 6) {
-            TLEyebrow(text: "Setup Guide", color: TL.amber)
+            TLEyebrow(text: String(localized: "Setup Guide"), color: TL.amber)
             Text(pending.activityName)
                 .font(.tlTitle(isLandscape ? 18 : 22))
                 .foregroundStyle(TL.paper)

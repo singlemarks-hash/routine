@@ -332,7 +332,7 @@ struct ReservationEditView: View {
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
-                TLEyebrow(text: "Activity Name")
+                TLEyebrow(text: String(localized: "Activity Name"))
                 Text("*").font(.tlLabel).foregroundStyle(TL.rec)
             }
             TextField("e.g. Practice exam set 3", text: $name)
@@ -363,7 +363,7 @@ struct ReservationEditView: View {
 
     private var tagSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "Tag")
+            TLEyebrow(text: String(localized: "Tag"))
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(ActivityTag.presets, id: \.self) { preset in
@@ -413,7 +413,7 @@ struct ReservationEditView: View {
     /// 귀속되므로 게스트에게는 결제 유도를 하지 않는다(로그인부터 해야 함).
     private var intensitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "Intensity")
+            TLEyebrow(text: String(localized: "Intensity"))
             HStack(spacing: 8) {
                 ForEach(Intensity.allCases) { candidate in
                     let locked = candidate == .insane && !app.insaneUnlocked
@@ -456,7 +456,7 @@ struct ReservationEditView: View {
     /// 가장 직관적이라 그룹 방 만들기와 동일한 형태로 통일.
     private var timeAndDurationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "When and how long?")
+            TLEyebrow(text: String(localized: "When and how long?"))
             TLCard {
                 VStack(spacing: 4) {
                     DatePicker("Start Time", selection: $startTime, displayedComponents: .hourAndMinute)
@@ -490,7 +490,7 @@ struct ReservationEditView: View {
 
     private var repeatSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "Repeat")
+            TLEyebrow(text: String(localized: "Repeat"))
             TLCard {
                 VStack(alignment: .leading, spacing: 14) {
                     // 기간 — 시작일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.

@@ -696,7 +696,7 @@ private struct QuickStartSheet: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        TLEyebrow(text: "Duration")
+                        TLEyebrow(text: String(localized: "Duration"))
                         Spacer()
                         // 선택한 길이의 완주 상점 미리 보기
                         Text(String(format: String(localized: "+%ld pts on completion"), ScoreRules.completionBase(forMinutes: minutes)))

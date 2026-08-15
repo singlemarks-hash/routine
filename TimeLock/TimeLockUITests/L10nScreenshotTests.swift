@@ -65,7 +65,25 @@ final class L10nScreenshotTests: XCTestCase {
         }
     }
 
+    /// 좌표 기반 폴백 탭 — 일반 tap()이 무시되는 커스텀 버튼용
+    private func coordinateTap(_ app: XCUIApplication, _ labels: [String]) {
+        for label in labels {
+            for query in [app.buttons[label], app.staticTexts[label]] {
+                if query.exists {
+                    query.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                    return
+                }
+            }
+        }
+    }
+
+    private func onAuthScreen(_ app: XCUIApplication) -> Bool {
+        app.buttons["Continue as Guest"].exists || app.buttons["게스트로 시작"].exists
+            || app.staticTexts["Continue as Guest"].exists || app.staticTexts["게스트로 시작"].exists
+    }
+
     // MARK: - 캡처 투어
+    // 실제 플로우: 인트로 2장 → 인증(게스트) → 권한 페이지 → 홈
 
     @MainActor
     func testCaptureMainSurfaces() throws {
@@ -77,31 +95,43 @@ final class L10nScreenshotTests: XCTestCase {
         app.launch()
         sleep(2)
 
-        // 1) 온보딩 — 페이지마다 찍고 다음으로. 이미 끝난 상태면 루프가 바로 빠진다.
-        for page in 1...4 {
-            let advanced: Bool
-            if page == 1 {
-                shoot(app, "onboarding-\(page)")
-                advanced = tapAny(app, ["Next", "다음"], timeout: 4)
-            } else {
-                shoot(app, "onboarding-\(page)")
-                advanced = tapAny(app, ["Next", "다음", "Continue", "계속"], timeout: 4)
-            }
-            if !advanced { break }
-            sleep(1)
-            if page >= 3 { allowSystemAlerts() }   // 권한 페이지 뒤 시스템 알럿 처리
-        }
+        // 1) 인트로 2장
+        shoot(app, "onboarding-intro-1")
+        tapAny(app, ["Next", "다음"], timeout: 4)
+        sleep(1)
+        shoot(app, "onboarding-intro-2")
+        tapAny(app, ["Next", "다음"], timeout: 4)
         sleep(1)
 
-        // 2) 인증 화면 (온보딩 종료 후 도달)
-        if app.buttons["Continue as Guest"].waitForExistence(timeout: 6)
-            || app.buttons["게스트로 시작"].waitForExistence(timeout: 2) {
+        // 2) 인증 — 게스트 진입. 탭 후 화면이 안 바뀌면 좌표 탭으로 1회 재시도.
+        //    (2차 실행에서 ko만 게스트 탭이 무시되어 이후 장면이 전부 인증 화면으로 찍혔다)
+        let guestLabels = ["Continue as Guest", "게스트로 시작"]
+        if app.buttons[guestLabels[0]].waitForExistence(timeout: 8)
+            || app.buttons[guestLabels[1]].waitForExistence(timeout: 2)
+            || app.staticTexts[guestLabels[1]].waitForExistence(timeout: 2) {
             shoot(app, "auth")
-            tapAny(app, ["Continue as Guest", "게스트로 시작"])
+            tapAny(app, guestLabels)
+            sleep(2)
+            if onAuthScreen(app) {
+                coordinateTap(app, guestLabels)
+                sleep(2)
+            }
+        }
+
+        // 3) 권한 페이지 — Continue 두 번(각각 시스템 알럿 허용) 후 Next로 홈 진입
+        if app.buttons["Next"].waitForExistence(timeout: 6)
+            || app.buttons["다음"].waitForExistence(timeout: 2) {
+            shoot(app, "permissions")
+            for _ in 0..<2 {
+                guard tapAny(app, ["Continue", "계속"], timeout: 3) else { break }
+                allowSystemAlerts()
+                sleep(1)
+            }
+            tapAny(app, ["Next", "다음"], timeout: 4)
             sleep(2)
         }
 
-        // 3) 홈 — 활동(Focus) 탭
+        // 4) 홈 — 활동(Focus) 탭
         shoot(app, "home-focus")
 
         // 4) 일정(Plan) 탭
