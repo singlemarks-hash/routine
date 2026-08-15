@@ -399,7 +399,7 @@ enum TLFormat {
         let f = DateFormatter()
         if isKorean {
             f.locale = Locale(identifier: "ko_KR")
-            f.dateFormat = "M월 d일"
+            f.dateFormat = "M월 d일"   // l10n:ko-literal — ko 전용 날짜 패턴, 영원히 한글
         } else {
             f.locale = .autoupdatingCurrent
             f.setLocalizedDateFormatFromTemplate("MMMd")
@@ -428,9 +428,9 @@ enum TLFormat {
     static func durationLabel(_ minutes: Int) -> String {
         let h = minutes / 60, m = minutes % 60
         if isKorean {
-            if h > 0 && m > 0 { return "\(h)시간 \(m)분" }
-            if h > 0 { return "\(h)시간" }
-            return "\(m)분"
+            if h > 0 && m > 0 { return "\(h)시간 \(m)분" }   // l10n:ko-literal
+            if h > 0 { return "\(h)시간" }   // l10n:ko-literal
+            return "\(m)분"   // l10n:ko-literal
         }
         if h > 0 && m > 0 { return "\(h)h \(m)m" }
         if h > 0 { return "\(h)h" }
@@ -440,7 +440,7 @@ enum TLFormat {
         let f = DateFormatter()
         if isKorean {
             f.locale = Locale(identifier: "ko_KR")
-            f.dateFormat = "M월 d일 EEEE"
+            f.dateFormat = "M월 d일 EEEE"   // l10n:ko-literal — ko 전용 날짜 패턴, 영원히 한글
         } else {
             f.locale = .autoupdatingCurrent
             f.setLocalizedDateFormatFromTemplate("MMMMdEEEE")   // "Thursday, August 14"
@@ -465,8 +465,8 @@ func styledHourMinute(seconds: Int, numberFont: Font, unitFont: Font,
         Text(value).font(numberFont).foregroundStyle(numberColor)
         + Text(unit).font(unitFont).foregroundStyle(unitColor)
     }
-    let hUnit = TLFormat.isKorean ? "시간" : "h"
-    let mUnit = TLFormat.isKorean ? "분" : "m"
+    let hUnit = TLFormat.isKorean ? "시간" : "h"   // l10n:ko-literal
+    let mUnit = TLFormat.isKorean ? "분" : "m"   // l10n:ko-literal
     if h > 0 && m > 0 { return part(hLabel, hUnit) + Text(" ") + part("\(m)", mUnit) }
     if h > 0 { return part(hLabel, hUnit) }
     return part("\(m)", mUnit)

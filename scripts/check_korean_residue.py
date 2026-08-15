@@ -12,6 +12,12 @@ scripts/l10n_allowlist.txt 에 '아직 영어화 전'인 파일 목록을 두고
 
 한계(의도된 휴리스틱): 보간식 내부에 중첩된 따옴표("\\(flag ? "가" : "나")")는
 상태 추적이 단순화되어 놓칠 수 있다. 파일 단위 불리언 게이트라 실질 영향 없음.
+
+줄 단위 예외: 날짜 포맷 패턴("M월 d일" 등)처럼 ko 전용 분기 안에서 **영원히**
+한글이어야 하는 리터럴은 `l10n:ko-literal` 마커 주석을 같은 줄에 달면 스캔에서
+제외된다 (파일이 "번역 완료"로 잡히지 못하게 막는 것을 방지 — 이런 줄은 번역
+대상이 아니라 설계상 항상 한글이다). 오남용 방지를 위해 한 줄짜리 문("dateFormat =
+..." 등)에만 쓴다 — 그 줄 전체가 스캔에서 빠지므로 같은 줄에 다른 코드가 있으면 안 된다.
 """
 import re
 import sys
@@ -80,6 +86,17 @@ def string_literal_content(src: str) -> str:
     return "".join(out)
 
 
+LINE_EXCEPTION_MARKER = "l10n:ko-literal"
+
+
+def strip_exception_lines(src: str) -> str:
+    """마커가 붙은 줄을 통째로 비운다 (줄 번호 유지 — 이후 처리에 영향 없음)."""
+    return "\n".join(
+        "" if LINE_EXCEPTION_MARKER in line else line
+        for line in src.split("\n")
+    )
+
+
 def files_with_korean_literals() -> set[str]:
     found = set()
     for base, pattern in SCAN_GLOBS:
@@ -89,6 +106,7 @@ def files_with_korean_literals() -> set[str]:
                 src = f.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 continue
+            src = strip_exception_lines(src)
             if KOREAN.search(string_literal_content(src)):
                 found.add(rel)
     return found

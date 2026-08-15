@@ -6,7 +6,6 @@ TimeLock/TimeLock/Services/CanonicalKeys.swift
 TimeLock/TimeLock/Services/ExportAndSubscription.swift
 TimeLock/TimeLock/Services/GroupStore.swift
 TimeLock/TimeLock/Services/SessionEngine.swift
-TimeLock/TimeLock/Theme/Theme.swift
 TimeLock/TimeLock/TimeLockApp.swift
 TimeLock/TimeLock/Views/Alarm/AlarmView.swift
 TimeLock/TimeLock/Views/Auth/AuthView.swift
