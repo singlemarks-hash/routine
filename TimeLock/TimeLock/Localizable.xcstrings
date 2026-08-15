@@ -3105,6 +3105,392 @@
           }
         }
       }
+    },
+    "Ending automatically in 1 minute": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1분 뒤 자동 종료됩니다"
+          }
+        }
+      }
+    },
+    "Muted": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "차단 중"
+          }
+        }
+      }
+    },
+    "Mute Notifications": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알림차단"
+          }
+        }
+      }
+    },
+    "Emergency Used Up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "긴급 소진"
+          }
+        }
+      }
+    },
+    "Emergency Break": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "긴급중단"
+          }
+        }
+      },
+      "comment": "세션 화면 버튼 라벨 — 알람화면의 Emergency Break(긴급용무)와 다른 표기지만 개념은 같아 재사용 검토는 Phase 2에서"
+    },
+    "Absence Detected · %ld/%ld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자리비움 감지 · %ld/%ld"
+          }
+        }
+      }
+    },
+    "Final warning — the next absence fails you instantly with no notice": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마지막 경고 — 다음 자리비움은 알림 없이 즉시 실패합니다"
+          }
+        }
+      }
+    },
+    "Come back within 2 minutes — instant failure if you don't (warnings up to %ld)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2분 안에 돌아오세요 — 초과 시 즉시 실패 (경고는 %ld번까지)"
+          }
+        }
+      }
+    },
+    "Final warning — the next absence triggers an automatic emergency break with no notice": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마지막 경고 — 다음 자리비움은 알림 없이 자동 긴급 중단됩니다"
+          }
+        }
+      }
+    },
+    "Come back within 2 minutes — automatic emergency break if you don't (warnings up to %ld)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2분 안에 돌아오세요 — 초과 시 자동 긴급 중단 (경고는 %ld번까지)"
+          }
+        }
+      }
+    },
+    "Insane ends immediately with no reason needed, is marked 'Emergency', and takes a penalty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미친 매운맛은 사유 없이 즉시 종료되며 '긴급'으로 구분 표시되고 벌점이 부과됩니다."
+          }
+        }
+      }
+    },
+    "Keep Going": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계속 진행"
+          }
+        }
+      }
+    },
+    "Give up on this session?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "세션을 포기할까요?"
+          }
+        }
+      }
+    },
+    "Give Up — Take the Penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "세션 포기 — 벌점 받기"
+          }
+        }
+      }
+    },
+    "Giving up now applies a penalty and can't be undone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 포기하면 벌점이 부과되고 되돌릴 수 없습니다."
+          }
+        }
+      }
+    },
+    "to resume recording": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "안에 재촬영을 시작하세요"
+          }
+        }
+      }
+    },
+    "Resume within %ld minutes total — no penalty.\nIf time runs out, the session ends with a penalty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "총 %ld분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다."
+          }
+        }
+      }
+    },
+    "Your emergency time doesn't reset — it keeps counting down": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "긴급 용무 시간은 리셋되지 않고, 계속 이어집니다"
+          }
+        }
+      }
+    },
+    "Resume Recording Now": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 재촬영 시작"
+          }
+        }
+      }
+    },
+    "Done": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료"
+          }
+        }
+      }
+    },
+    "+%ld pts earned": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+%ld점 적립"
+          }
+        }
+      }
+    },
+    "%ld pts penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld점 벌점"
+          }
+        }
+      }
+    },
+    "%ld total penalties": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "누적 벌점 %ld회"
+          }
+        }
+      }
+    },
+    "%ld-day streak! Bonus +%ld pts": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속 %ld일 달성! 보너스 상점 +%ld"
+          }
+        }
+      }
+    },
+    "Insane unlocked! Bonus +%ld pts": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미친 매운맛 잠금 해제! 보너스 상점 +%ld"
+          }
+        }
+      }
+    },
+    "No Penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "벌점 없음"
+          }
+        }
+      }
+    },
+    "Timelapse Preview": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "타임랩스 미리보기"
+          }
+        }
+      }
+    },
+    "Saved · The original was deleted from your device.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장 완료 · 원본은 기기에서 삭제되었습니다."
+          }
+        }
+      }
+    },
+    "It will be deleted when you close this if you don't save. Your record and points stay.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장하지 않으면 닫을 때 삭제됩니다. 기록·점수는 유지됩니다."
+          }
+        }
+      }
+    },
+    "Timelapse saved to Photos": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "타임랩스가 사진 앱에 저장되었습니다"
+          }
+        }
+      }
+    },
+    "Your record and points stay.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기록·점수는 유지됩니다."
+          }
+        }
+      }
+    },
+    "Couldn't record the save. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장 상태를 기록하지 못했어요. 다시 시도해주세요."
+          }
+        }
+      }
+    },
+    "Completed!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "완주했습니다"
+          }
+        }
+      }
+    },
+    "Walked Away — Failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이탈 — 실패"
+          }
+        }
+      }
+    },
+    "Ended by Emergency": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "긴급 종료됨"
+          }
+        }
+      }
     }
   },
   "version": "1.2"

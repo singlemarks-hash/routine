@@ -134,7 +134,7 @@ struct SessionView: View {
                 .foregroundStyle(TL.paper)
                 .lineLimit(1)
             if engine.oneMinuteWarningFired {
-                Text("1분 뒤 자동 종료됩니다")
+                Text("Ending automatically in 1 minute")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.jade)
             }
@@ -168,7 +168,7 @@ struct SessionView: View {
     /// 촬영 시작과 함께 자동으로 켜지며, 켜진 동안 '차단 중'으로 표시된다.
     private var muteButton: some View {
         squareButton(
-            title: alarm.muteAllNotifications ? "차단 중" : "알림차단",
+            title: alarm.muteAllNotifications ? String(localized: "Muted") : String(localized: "Mute Notifications"),
             symbol: alarm.muteAllNotifications ? "bell.slash.fill" : "bell.slash",
             active: alarm.muteAllNotifications
         ) {
@@ -182,7 +182,7 @@ struct SessionView: View {
         // 긴급 예산(세션당 10분)을 다 쓰면 버튼 자체를 비활성화 — 누를 일도 없게.
         // (중단 중 00:00 도달은 엔진 틱이 자동으로 실패 처리한다)
         let exhausted = engine.session?.intensity == .spicy && engine.breakBudgetRemaining < 1
-        return squareButton(title: exhausted ? "긴급 소진" : "긴급중단",
+        return squareButton(title: exhausted ? String(localized: "Emergency Used Up") : String(localized: "Emergency Break"),
                             symbol: "light.beacon.max.fill", active: false) {
             if engine.session?.intensity == .insane {
                 showEmergency = true
@@ -226,16 +226,16 @@ struct SessionView: View {
                 .foregroundStyle(TL.ink)
             VStack(alignment: .leading, spacing: 1) {
                 // 카운트는 경고가 뜨는 순간 이미 +1 된 상태 — 복귀해도 유지된다
-                Text("자리비움 감지 · \(min(engine.absenceEpisodeCount, engine.absenceMaxEpisodes))/\(engine.absenceMaxEpisodes)")
+                Text(String(format: String(localized: "Absence Detected · %ld/%ld"), min(engine.absenceEpisodeCount, engine.absenceMaxEpisodes), engine.absenceMaxEpisodes))
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .foregroundStyle(TL.ink)
                 Text(engine.session?.intensity == .insane
                      ? engine.absenceEpisodeCount >= engine.absenceMaxEpisodes
-                       ? "마지막 경고 — 다음 자리비움은 알림 없이 즉시 실패합니다"
-                       : "2분 안에 돌아오세요 — 초과 시 즉시 실패 (경고는 \(engine.absenceMaxEpisodes)번까지)"
+                       ? String(localized: "Final warning — the next absence fails you instantly with no notice")
+                       : String(format: String(localized: "Come back within 2 minutes — instant failure if you don't (warnings up to %ld)"), engine.absenceMaxEpisodes)
                      : engine.absenceEpisodeCount >= engine.absenceMaxEpisodes
-                       ? "마지막 경고 — 다음 자리비움은 알림 없이 자동 긴급 중단됩니다"
-                       : "2분 안에 돌아오세요 — 초과 시 자동 긴급 중단 (경고는 \(engine.absenceMaxEpisodes)번까지)")
+                       ? String(localized: "Final warning — the next absence triggers an automatic emergency break with no notice")
+                       : String(format: String(localized: "Come back within 2 minutes — automatic emergency break if you don't (warnings up to %ld)"), engine.absenceMaxEpisodes))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.ink.opacity(0.8))
             }
@@ -252,24 +252,24 @@ struct SessionView: View {
     private var insaneEmergencySheet: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
-                Text("미친 매운맛은 사유 없이 즉시 종료되며 '긴급'으로 구분 표시되고 벌점이 부과됩니다.")
+                Text("Insane ends immediately with no reason needed, is marked 'Emergency', and takes a penalty.")
                     .font(.tlBody)
                     .foregroundStyle(TL.muted)
 
-                Button("긴급 종료") {
+                Button("Emergency End") {
                     showEmergency = false
                     engine.emergencyEnd(reason: nil)
                 }
                 .buttonStyle(TLPrimaryButtonStyle())
 
-                Button("계속 진행") { showEmergency = false }
+                Button("Keep Going") { showEmergency = false }
                     .buttonStyle(TLGhostButtonStyle())
 
                 Spacer()
             }
             .padding(20)
             .background(TL.ink)
-            .navigationTitle("긴급 종료")
+            .navigationTitle("Emergency End")
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.height(280)])
@@ -300,13 +300,13 @@ private struct BreakOverlay: View {
         .background(TL.ink.opacity(0.97).ignoresSafeArea())
         .onReceive(clock) { now = $0 }
         // 실수로 종료되는 것 방지 — 재확인 후에만 세션 포기
-        .confirmationDialog("세션을 포기할까요?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
-            Button("세션 포기 — 벌점 받기", role: .destructive) {
+        .confirmationDialog("Give up on this session?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
+            Button("Give Up — Take the Penalty", role: .destructive) {
                 engine.emergencyEnd(reason: CancelReason.emergencyOngoing)
             }
-            Button("계속 진행", role: .cancel) {}
+            Button("Keep Going", role: .cancel) {}
         } message: {
-            Text("지금 포기하면 벌점이 부과되고 되돌릴 수 없습니다.")
+            Text("Giving up now applies a penalty and can't be undone.")
         }
     }
 
@@ -315,8 +315,8 @@ private struct BreakOverlay: View {
         VStack(spacing: 0) {
             Spacer()
 
-            TLEyebrow(text: "촬영 일시중단", color: TL.amber)
-            Text(engine.breakNote == nil ? "긴급 용무 중" : "촬영이 중단됐어요")
+            TLEyebrow(text: "Recording Paused", color: TL.amber)
+            Text(engine.breakNote == nil ? String(localized: "Emergency Break") : String(localized: "Recording Paused"))
                 .font(.tlTitle(24))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 6)
@@ -349,8 +349,8 @@ private struct BreakOverlay: View {
     private var landscapeBody: some View {
         HStack(spacing: 28) {
             VStack(spacing: 8) {
-                TLEyebrow(text: "촬영 일시중단", color: TL.amber)
-                Text(engine.breakNote == nil ? "긴급 용무 중" : "촬영이 중단됐어요")
+                TLEyebrow(text: "Recording Paused", color: TL.amber)
+                Text(engine.breakNote == nil ? String(localized: "Emergency Break") : String(localized: "Recording Paused"))
                     .font(.tlTitle(20))
                     .foregroundStyle(TL.paper)
                 if let note = engine.breakNote {
@@ -386,7 +386,7 @@ private struct BreakOverlay: View {
                 Text(TLFormat.hms(remaining))
                     .font(.tlTimer(timerSize))
                     .foregroundStyle(TL.paper)
-                Text("안에 재촬영을 시작하세요")
+                Text("to resume recording")
                     .font(.system(size: captionSize, weight: .semibold))
                     .foregroundStyle(TL.muted)
             }
@@ -397,12 +397,12 @@ private struct BreakOverlay: View {
     private func infoTexts(bodySize: CGFloat, hintSize: CGFloat,
                            align: TextAlignment) -> some View {
         VStack(alignment: align == .leading ? .leading : .center, spacing: 8) {
-            Text("총 \(TimePolicy.resumeWindowMinutes)분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.")
+            Text(String(format: String(localized: "Resume within %ld minutes total — no penalty.\nIf time runs out, the session ends with a penalty."), TimePolicy.resumeWindowMinutes))
                 .font(.system(size: bodySize))
                 .foregroundStyle(TL.muted)
                 .multilineTextAlignment(align)
                 .lineSpacing(3)
-            Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다")
+            Text("Your emergency time doesn't reset — it keeps counting down")
                 .font(.system(size: hintSize, weight: .semibold))
                 .foregroundStyle(TL.amber)
                 .multilineTextAlignment(align)
@@ -414,11 +414,11 @@ private struct BreakOverlay: View {
         Button {
             engine.resumeFromBreak()
         } label: {
-            Label("지금 재촬영 시작", systemImage: "record.circle.fill")
+            Label("Resume Recording Now", systemImage: "record.circle.fill")
         }
         .buttonStyle(TLPrimaryButtonStyle())
 
-        Button("세션 포기 — 벌점 받기") {
+        Button("Give Up — Take the Penalty") {
             showQuitConfirm = true   // 즉시 종료 ✕ — 재확인 다이얼로그를 띄운다
         }
         .buttonStyle(TLGhostButtonStyle(tint: TL.muted))
@@ -470,7 +470,7 @@ struct SessionResultView: View {
 
                 Spacer(minLength: 12)
 
-                Button("종료") { app.dismissResult() }
+                Button("Done") { app.dismissResult() }
                     .buttonStyle(TLPrimaryButtonStyle(tint: tint))
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
@@ -529,19 +529,19 @@ struct SessionResultView: View {
             if let s = session {
                 Text(s.activityName)
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
-                Text("순수 촬영 \(TLFormat.hms(s.recordedSeconds)) / 목표 \(TLFormat.hms(s.targetSeconds))")
+                Text(String(format: String(localized: "Recorded %@ / Target %@"), TLFormat.hms(s.recordedSeconds), TLFormat.hms(s.targetSeconds)))
                     .font(.tlTimer(15)).foregroundStyle(TL.paper)
 
                 if let (_, points) = ScoreRules.points(for: outcome, intensity: s.intensity,
                                                        durationMinutes: s.targetSeconds / 60) {
                     HStack(spacing: 8) {
-                        Text(points > 0 ? "+\(points)점 적립" : "\(points)점 벌점")
+                        Text(points > 0 ? String(format: String(localized: "+%ld pts earned"), points) : String(format: String(localized: "%ld pts penalty"), points))
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundStyle(points > 0 ? TL.jade : TL.rec)
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             .background(Capsule().fill(TL.surface))
                         if points < 0 {
-                            Text("누적 벌점 \(penaltyCount)회")
+                            Text(String(format: String(localized: "%ld total penalties"), penaltyCount))
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(TL.rec)
                         }
@@ -550,7 +550,7 @@ struct SessionResultView: View {
 
                     // 슬롯 확장 보너스 — 연속 달성 단계를 넘은 순간에만 (파티클과 함께)
                     if let bonus = engine.lastSlotBonus {
-                        Label("연속 \(bonus.days)일 달성! 보너스 상점 +\(bonus.points)",
+                        Label(String(format: String(localized: "%ld-day streak! Bonus +%ld pts"), bonus.days, bonus.points),
                               systemImage: "party.popper.fill")
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(TL.ink)
@@ -562,7 +562,7 @@ struct SessionResultView: View {
 
                     // 미친 매운맛 잠금 해제 보너스 — 매운맛 완주 3회째 순간에만 (평생 1회)
                     if let unlockPoints = engine.lastUnlockBonus {
-                        Label("미친 매운맛 잠금 해제! 보너스 상점 +\(unlockPoints)",
+                        Label(String(format: String(localized: "Insane unlocked! Bonus +%ld pts"), unlockPoints),
                               systemImage: "flame.fill")
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(TL.paper)
@@ -572,7 +572,7 @@ struct SessionResultView: View {
                             .padding(.top, 6)
                     }
                 } else {
-                    Text("벌점 없음")
+                    Text("No Penalty")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(TL.amber)
                         .padding(.top, 4)
@@ -585,7 +585,7 @@ struct SessionResultView: View {
 
     private func previewCard(session: FocusSession, url: URL) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "타임랩스 미리보기")
+            TLEyebrow(text: "Timelapse Preview")
 
             // 미리보기 = 촬영 결과물과 동일 비율(세로 9:16 / 가로 16:9), 잘림 없음.
             // 카드 프레임을 영상 비율에 맞추고 resizeAspect로 그려 "잘린 데 없이" 확인 가능.
@@ -600,8 +600,8 @@ struct SessionResultView: View {
                 .frame(maxWidth: .infinity)   // 카드 안에서 가로 중앙 정렬
 
             Text(saved
-                 ? "저장 완료 · 원본은 기기에서 삭제되었습니다."
-                 : "저장하지 않으면 닫을 때 삭제됩니다. 기록·점수는 유지됩니다.")
+                 ? String(localized: "Saved · The original was deleted from your device.")
+                 : String(localized: "It will be deleted when you close this if you don't save. Your record and points stay."))
                 .font(.system(size: 11))
                 .foregroundStyle(TL.faint)
 
@@ -630,9 +630,9 @@ struct SessionResultView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 22)).foregroundStyle(TL.jade)
             VStack(alignment: .leading, spacing: 2) {
-                Text("타임랩스가 사진 앱에 저장되었습니다")
+                Text("Timelapse saved to Photos")
                     .font(.system(size: 14, weight: .semibold)).foregroundStyle(TL.paper)
-                Text("기록·점수는 유지됩니다.")
+                Text("Your record and points stay.")
                     .font(.system(size: 12)).foregroundStyle(TL.faint)
             }
             Spacer()
@@ -682,7 +682,7 @@ struct SessionResultView: View {
                     saved = true
                 } catch {
                     session.videoFileName = url.lastPathComponent   // 롤백 — 파일·참조 모두 보존
-                    saveError = "저장 상태를 기록하지 못했어요. 다시 시도해주세요."
+                    saveError = String(localized: "Couldn't record the save. Please try again.")
                 }
             } catch {
                 saveError = error.localizedDescription
@@ -701,11 +701,11 @@ struct SessionResultView: View {
     }
     private func title(for outcome: SessionOutcome) -> String {
         switch outcome {
-        case .completed:   return "완주했습니다"
-        case .exitFailed:  return "이탈 — 실패"
-        case .noShow:      return "노쇼 탈락"
-        case .emergency:   return "긴급 종료됨"
-        case .safetyEnded: return "안전 종료됨"
+        case .completed:   return String(localized: "Completed!")
+        case .exitFailed:  return String(localized: "Walked Away — Failed")
+        case .noShow:      return String(localized: "No-show")
+        case .emergency:   return String(localized: "Ended by Emergency")
+        case .safetyEnded: return String(localized: "Safety Stop")
         }
     }
 }
