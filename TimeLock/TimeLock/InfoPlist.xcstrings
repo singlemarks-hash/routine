@@ -1,7 +1,74 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-
+  "sourceLanguage": "en",
+  "strings": {
+    "CFBundleDisplayName": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AngryMoti"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앵그리모티"
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The front camera records a timelapse to dismiss your alarm and log your focus session. Videos are stored only on your device and visible only to you."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알람을 해제하고 집중 세션을 기록하려면 전면 카메라로 타임랩스를 촬영합니다. 영상은 기기에만 저장되며 본인만 볼 수 있습니다."
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used to save your completed timelapse videos to the Photos app."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "완주한 타임랩스 영상을 사진 앱에 저장할 때 사용합니다."
+          }
+        }
+      }
+    },
+    "NSUserNotificationsUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification permission is needed to sound the alarm at your scheduled activity time and send a 10-minute heads-up."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예약한 활동 시각에 알람을 울리고 10분 전 예고를 보내기 위해 알림 권한이 필요합니다."
+          }
+        }
+      }
+    }
   },
-  "version" : "1.2"
+  "version": "1.2"
 }
