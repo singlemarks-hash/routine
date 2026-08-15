@@ -503,6 +503,218 @@
           }
         }
       }
+    },
+    "Email": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이메일"
+          }
+        }
+      }
+    },
+    "Guest": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "게스트"
+          }
+        }
+      }
+    },
+    "That email address doesn't look right — make sure it includes an @.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이메일 형식이 올바르지 않습니다 — @를 포함해 입력하세요."
+          }
+        }
+      }
+    },
+    "Your password is under 8 characters — please use 8 or more.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비밀번호가 8자 미만입니다 — 8자 이상으로 설정하세요."
+          }
+        }
+      }
+    },
+    "That email or password isn't right.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이메일 또는 비밀번호가 맞지 않습니다."
+          }
+        }
+      }
+    },
+    "That email is already registered — try logging in instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 가입된 이메일입니다 — 로그인으로 전환하세요."
+          }
+        }
+      }
+    },
+    "For security, you need to sign in again before deleting your account. Sign out, sign back in, then try deleting again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보안을 위해 다시 로그인한 뒤 삭제할 수 있습니다. 로그아웃 후 다시 로그인하고 삭제를 진행하세요."
+          }
+        }
+      }
+    },
+    "Couldn't delete your account — %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계정 삭제에 실패했습니다 — %@"
+          }
+        }
+      }
+    },
+    "Email verification will be available once Firebase is connected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이메일 인증은 Firebase 연동 후 사용할 수 있습니다."
+          }
+        }
+      }
+    },
+    "Please enter the email address for the account first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비밀번호를 찾을 이메일 주소를 먼저 입력해주세요."
+          }
+        }
+      }
+    },
+    "Password reset will be available once Firebase is connected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비밀번호 재설정은 Firebase 연동 후 사용할 수 있습니다."
+          }
+        }
+      }
+    },
+    "Check your network connection, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "네트워크 상태를 확인한 뒤 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "Verification isn't confirmed yet. Tap the link in your inbox, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 인증이 확인되지 않았습니다. 메일함에서 인증 링크를 누른 뒤 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "GoogleService-Info.plist is missing CLIENT_ID.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GoogleService-Info.plist에 CLIENT_ID가 없습니다."
+          }
+        }
+      },
+      "comment": "개발자용 설정 오류 — 실사용자는 거의 못 볼 문구지만 카탈로그 일관성을 위해 등록"
+    },
+    "Couldn't open the sign-in screen. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인 화면을 띄울 수 없습니다. 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "Didn't receive a Google auth token. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 인증 토큰을 받지 못했습니다. 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "Google sign-in will be available once Firebase is connected. Follow the 'Backend setup' section in the README.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 로그인은 Firebase 연동 후 사용할 수 있습니다. README의 '백엔드 연동' 절을 따라 설정하세요."
+          }
+        }
+      },
+      "comment": "개발자용 안내 문구"
+    },
+    "Apple sign-in failed. Make sure Sign in with Apple is added under Signing & Capabilities.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 로그인에 실패했습니다. Signing & Capabilities에 Sign in with Apple이 추가되어 있는지 확인하세요."
+          }
+        }
+      },
+      "comment": "개발자용 안내 문구"
+    },
+    "Couldn't read Apple sign-in credentials.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 인증 정보를 읽지 못했습니다."
+          }
+        }
+      }
     }
   },
   "version": "1.2"

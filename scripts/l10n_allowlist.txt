@@ -1,4 +1,3 @@
-TimeLock/TimeLock/Services/AccountStore.swift
 TimeLock/TimeLock/Services/CanonicalKeys.swift
 TimeLock/TimeLock/Services/GroupStore.swift
 TimeLock/TimeLock/Views/Alarm/AlarmView.swift

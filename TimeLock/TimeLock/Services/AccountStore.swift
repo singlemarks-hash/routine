@@ -40,10 +40,10 @@ struct UserAccount: Codable, Equatable {
         case email, google, apple, guest
         var title: String {
             switch self {
-            case .email:  return "이메일"
+            case .email:  return String(localized: "Email")
             case .google: return "Google"
             case .apple:  return "Apple"
-            case .guest:  return "게스트"
+            case .guest:  return String(localized: "Guest")
             }
         }
     }
@@ -64,10 +64,10 @@ enum AuthError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidEmail:      return "이메일 형식이 올바르지 않습니다 — @를 포함해 입력하세요."
-        case .weakPassword:      return "비밀번호가 8자 미만입니다 — 8자 이상으로 설정하세요."
-        case .wrongCredentials:  return "이메일 또는 비밀번호가 맞지 않습니다."
-        case .duplicateEmail:    return "이미 가입된 이메일입니다 — 로그인으로 전환하세요."
+        case .invalidEmail:      return String(localized: "That email address doesn't look right — make sure it includes an @.")
+        case .weakPassword:      return String(localized: "Your password is under 8 characters — please use 8 or more.")
+        case .wrongCredentials:  return String(localized: "That email or password isn't right.")
+        case .duplicateEmail:    return String(localized: "That email is already registered — try logging in instead.")
         case .providerUnavailable(let detail): return detail
         case .cancelled:         return ""
         case .unknown(let message): return message
@@ -82,9 +82,9 @@ enum DeleteAccountError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .requiresRecentLogin:
-            return "보안을 위해 다시 로그인한 뒤 삭제할 수 있습니다. 로그아웃 후 다시 로그인하고 삭제를 진행하세요."
+            return String(localized: "For security, you need to sign in again before deleting your account. Sign out, sign back in, then try deleting again.")
         case .unknown(let message):
-            return "계정 삭제에 실패했습니다 — \(message)"
+            return String(format: String(localized: "Couldn't delete your account — %@"), message)
         }
     }
 }
@@ -145,8 +145,9 @@ final class AccountStore: ObservableObject {
         #endif
         #if canImport(FirebaseAuth)
         if backendActive {
-            // 인증·비밀번호 재설정 등 Firebase 발송 메일을 한국어 템플릿으로
-            Auth.auth().languageCode = "ko"
+            // 인증·비밀번호 재설정 등 Firebase 발송 메일 — 기기 로케일을 따른다(D1: ko 외 전부 영어).
+            // 이전엔 "ko" 고정이라 영어 사용자에게도 한국어 메일이 나갔다.
+            Auth.auth().languageCode = Locale.current.language.languageCode?.identifier == "ko" ? "ko" : "en"
         }
         if backendActive, let user = Auth.auth().currentUser {
             let provider: UserAccount.Provider =
@@ -239,7 +240,7 @@ final class AccountStore: ObservableObject {
             return
         }
         #endif
-        throw AuthError.providerUnavailable("이메일 인증은 Firebase 연동 후 사용할 수 있습니다.")
+        throw AuthError.providerUnavailable(String(localized: "Email verification will be available once Firebase is connected."))
     }
 
     /// 비밀번호 재설정 메일 발송 — 입력한 주소로 재설정 링크를 보낸다.
@@ -247,7 +248,7 @@ final class AccountStore: ObservableObject {
     func sendPasswordReset(email: String) async throws {
         let trimmed = email.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else {
-            throw AuthError.providerUnavailable("비밀번호를 찾을 이메일 주소를 먼저 입력해주세요.")
+            throw AuthError.providerUnavailable(String(localized: "Please enter the email address for the account first."))
         }
         #if canImport(FirebaseAuth)
         if backendActive {
@@ -255,7 +256,7 @@ final class AccountStore: ObservableObject {
             return
         }
         #endif
-        throw AuthError.providerUnavailable("비밀번호 재설정은 Firebase 연동 후 사용할 수 있습니다.")
+        throw AuthError.providerUnavailable(String(localized: "Password reset will be available once Firebase is connected."))
     }
 
     /// 서버에서 최신 인증 상태를 다시 읽는다 (사용자가 메일 인증을 마친 뒤 새로고침용)
@@ -272,17 +273,17 @@ final class AccountStore: ObservableObject {
     func confirmEmailVerified() async throws {
         #if canImport(FirebaseAuth)
         guard backendActive, let user = Auth.auth().currentUser else {
-            throw AuthError.providerUnavailable("네트워크 상태를 확인한 뒤 다시 시도하세요.")
+            throw AuthError.providerUnavailable(String(localized: "Check your network connection, then try again."))
         }
         try? await user.reload()
         guard user.isEmailVerified else {
-            throw AuthError.unknown("아직 인증이 확인되지 않았습니다. 메일함에서 인증 링크를 누른 뒤 다시 시도하세요.")
+            throw AuthError.unknown(String(localized: "Verification isn't confirmed yet. Tap the link in your inbox, then try again."))
         }
         pendingVerificationEmail = nil
         setUser(UserAccount(id: user.uid, email: user.email,
                             displayName: user.displayName, provider: .email))
         #else
-        throw AuthError.providerUnavailable("이메일 인증은 Firebase 연동 후 사용할 수 있습니다.")
+        throw AuthError.providerUnavailable(String(localized: "Email verification will be available once Firebase is connected."))
         #endif
     }
 
@@ -326,16 +327,16 @@ final class AccountStore: ObservableObject {
         #if canImport(GoogleSignIn) && canImport(FirebaseAuth)
         if backendActive {
             guard let clientID = FirebaseApp.app()?.options.clientID else {
-                throw AuthError.providerUnavailable("GoogleService-Info.plist에 CLIENT_ID가 없습니다.")
+                throw AuthError.providerUnavailable(String(localized: "GoogleService-Info.plist is missing CLIENT_ID."))
             }
             guard let presenter = Self.topViewController() else {
-                throw AuthError.unknown("로그인 화면을 띄울 수 없습니다. 다시 시도하세요.")
+                throw AuthError.unknown(String(localized: "Couldn't open the sign-in screen. Please try again."))
             }
             GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
             do {
                 let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenter)
                 guard let idToken = result.user.idToken?.tokenString else {
-                    throw AuthError.unknown("Google 인증 토큰을 받지 못했습니다. 다시 시도하세요.")
+                    throw AuthError.unknown(String(localized: "Didn't receive a Google auth token. Please try again."))
                 }
                 let credential = GoogleAuthProvider.credential(
                     withIDToken: idToken, accessToken: result.user.accessToken.tokenString)
@@ -354,7 +355,7 @@ final class AccountStore: ObservableObject {
         }
         #endif
         throw AuthError.providerUnavailable(
-            "Google 로그인은 Firebase 연동 후 사용할 수 있습니다. README의 '백엔드 연동' 절을 따라 설정하세요.")
+            String(localized: "Google sign-in will be available once Firebase is connected. Follow the 'Backend setup' section in the README."))
     }
 
     // MARK: Apple 로그인 (App Store 심사 규정 4.8 — Google 로그인 제공 시 필수)
@@ -376,10 +377,10 @@ final class AccountStore: ObservableObject {
             if let authError = error as? ASAuthorizationError, authError.code == .canceled {
                 throw AuthError.cancelled
             }
-            throw AuthError.unknown("Apple 로그인에 실패했습니다. Signing & Capabilities에 Sign in with Apple이 추가되어 있는지 확인하세요.")
+            throw AuthError.unknown(String(localized: "Apple sign-in failed. Make sure Sign in with Apple is added under Signing & Capabilities."))
         case .success(let authorization):
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-                throw AuthError.unknown("Apple 인증 정보를 읽지 못했습니다.")
+                throw AuthError.unknown(String(localized: "Couldn't read Apple sign-in credentials."))
             }
             let name = [credential.fullName?.givenName, credential.fullName?.familyName]
                 .compactMap { $0 }.joined(separator: " ")
@@ -409,7 +410,7 @@ final class AccountStore: ObservableObject {
     // MARK: 게스트 & 로그아웃
 
     func continueAsGuest() {
-        setUser(UserAccount(id: Self.guestID, email: nil, displayName: "게스트", provider: .guest))
+        setUser(UserAccount(id: Self.guestID, email: nil, displayName: String(localized: "Guest"), provider: .guest))
     }
 
     func signOut() {
