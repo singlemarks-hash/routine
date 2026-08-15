@@ -22,7 +22,7 @@ struct TimeLockApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
-            fatalError("SwiftData 컨테이너 생성 실패: \(error)")
+            fatalError("Failed to create SwiftData container: \(error)")
         }
     }()
 
