@@ -2004,6 +2004,94 @@
           }
         }
       }
+    },
+    "No routines scheduled yet. Tap + in the top right to create a weekly routine.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 예약된 루틴이 없습니다. 우측 상단 +로 주간 루틴을 만들어 보세요."
+          }
+        }
+      }
+    },
+    "Weekly Plan": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "주간 일정"
+          }
+        }
+      }
+    },
+    "Add": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "추가"
+          }
+        }
+      }
+    },
+    "Today": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오늘"
+          }
+        }
+      }
+    },
+    "Failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실패"
+          }
+        }
+      }
+    },
+    "No schedule": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일정 없음"
+          }
+        }
+      }
+    },
+    "Coming Up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이후 예정"
+          }
+        }
+      }
+    },
+    "Nothing this week": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이번 주에는 없어요"
+          }
+        }
+      }
     }
   },
   "version": "1.2"

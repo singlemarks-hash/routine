@@ -72,7 +72,7 @@ struct WeeklyScheduleView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     if reservations.isEmpty {
                         TLCard {
-                            Text("아직 예약된 루틴이 없습니다. 우측 상단 +로 주간 루틴을 만들어 보세요.")
+                            Text("No routines scheduled yet. Tap + in the top right to create a weekly routine.")
                                 .font(.system(size: 13)).foregroundStyle(TL.muted)
                         }
                     } else {
@@ -88,7 +88,7 @@ struct WeeklyScheduleView: View {
                 .padding(.bottom, 116)   // 하단 토글 자리
             }
             .background(TL.ink)
-            .navigationTitle("주간 일정")
+            .navigationTitle("Weekly Plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -97,7 +97,7 @@ struct WeeklyScheduleView: View {
                     Button {
                         editorTarget = .new
                     } label: {
-                        Label("추가", systemImage: "plus")
+                        Label("Add", systemImage: "plus")
                             .font(.system(size: 15, weight: .semibold))
                     }
                     .tint(TL.paper)
@@ -222,7 +222,7 @@ struct WeeklyScheduleView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(TL.muted)
                 if isToday {
-                    Text("오늘")
+                    Text("Today")
                         .font(.system(size: 11, weight: .heavy, design: .rounded))
                         .foregroundStyle(TL.ink)
                         .padding(.horizontal, 8).padding(.vertical, 3)
@@ -235,14 +235,14 @@ struct WeeklyScheduleView: View {
                     return false
                 }) {
                     HStack(spacing: 8) {
-                        legendDot(TL.jade, "완주")
-                        legendDot(TL.rec, "실패")
+                        legendDot(TL.jade, String(localized: "Completed"))
+                        legendDot(TL.rec, String(localized: "Failed"))
                     }
                 }
             }
 
             if rows.isEmpty {
-                Text("일정 없음")
+                Text("No schedule")
                     .font(.system(size: 12)).foregroundStyle(TL.faint)
                     .padding(.vertical, 6)
                     .padding(.leading, 2)
@@ -310,8 +310,8 @@ struct WeeklyScheduleView: View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Text("이후 예정").font(.tlTitle(16)).foregroundStyle(TL.paper)
-                    Text("이번 주에는 없어요")
+                    Text("Coming Up").font(.tlTitle(16)).foregroundStyle(TL.paper)
+                    Text("Nothing this week")
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
                     Spacer()
                 }
