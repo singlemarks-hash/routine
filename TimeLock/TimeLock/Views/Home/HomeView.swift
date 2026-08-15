@@ -45,10 +45,10 @@ struct HomeShellView: View {
     private var bottomToggle: some View {
         HStack(spacing: 5) {
             // 활동 = 불꽃(다짐을 불태운다), 일정 = 시계, 그룹 = 사람들
-            toggleSegment("활동", icon: "flame.fill", tab: .activity)
-            toggleSegment("일정", icon: "clock.fill", tab: .schedule)
+            toggleSegment(String(localized: "Focus"), icon: "flame.fill", tab: .activity)
+            toggleSegment(String(localized: "Plan"), icon: "clock.fill", tab: .schedule)
             if showsGroupTab {
-                toggleSegment("그룹", icon: "person.3.fill", tab: .group)
+                toggleSegment(String(localized: "Groups"), icon: "person.3.fill", tab: .group)
             }
         }
         .padding(7)
@@ -215,7 +215,7 @@ struct HomeView: View {
 
                     goalCard
 
-                    Button("활동 추가하기") {
+                    Button("Add Activity") {
                         editorTarget = .new
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
@@ -256,10 +256,10 @@ struct HomeView: View {
             .onReceive(clock) { now = $0 }
             .onAppear { account.reloadHomeGoal() }
             .onChange(of: account.currentUserID) { account.reloadHomeGoal() }
-            .alert("그룹 일정이에요", isPresented: $showGroupLockNotice) {
-                Button("확인", role: .cancel) {}
+            .alert("This is a group schedule", isPresented: $showGroupLockNotice) {
+                Button("OK", role: .cancel) {}
             } message: {
-                Text("그룹에서 만들어진 일정은 수정하거나 삭제할 수 없어요. 그만두려면 그룹 탭에서 탈퇴하세요.")
+                Text("Schedules created by a group can't be edited or deleted. To leave, go to the Groups tab.")
             }
         }
     }
@@ -315,7 +315,7 @@ struct HomeView: View {
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
-                    Text("연속달성")
+                    Text("Streak")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.muted)
                         // 좁은 기기에서 HStack이 왼쪽 열을 줄이면 라벨이 두 줄로 꺾인다 —
@@ -330,7 +330,7 @@ struct HomeView: View {
                         // 세 자리 연속(예: 132일)이면 스스로 줄어들어 요일 칸을 밀지 않는다
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                    Text("일")
+                    Text("days")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.muted)
                 }
@@ -404,10 +404,10 @@ struct HomeView: View {
         } label: {
             VStack(spacing: 6) {
                 if account.homeGoal.isEmpty {
-                    Text("나의 다짐, 목표를 적어보세요")
+                    Text("Write your commitment or goal")
                         .font(.tlTitle(17))
                         .foregroundStyle(TL.faint)
-                    Text("탭해서 작성")
+                    Text("Tap to write")
                         .font(.system(size: 12)).foregroundStyle(TL.faint)
                 } else {
                     Text(account.homeGoal)
@@ -436,7 +436,7 @@ struct HomeView: View {
             showQuickStart = true
         } label: {
             HStack {
-                Text("지금 바로 시작")
+                Text("Quick Start")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold))
@@ -473,7 +473,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     trialBadge
                     titleText
-                    Text("모든 프리미엄 기능을 경험해 보세요!")
+                    Text("Try all the premium features!")
                         .font(.system(size: 13, weight: .medium))
                         .opacity(0.68)
                 }
@@ -509,7 +509,7 @@ struct HomeView: View {
 
     /// trialInviteButton 전용 제목. lineLimit(1) — 제 줄을 통째로 쓰므로 잘릴 일이 없다.
     private var titleText: some View {
-        Text("마음껏 멤버십 기능 체험하기")
+        Text("Try Premium Free")
             .font(.system(size: 16, weight: .bold, design: .rounded))
             .lineLimit(1)
     }
@@ -532,7 +532,7 @@ struct HomeView: View {
     private var upcomingSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("오늘 예정된 활동")
+                Text("Today's Activities")
                     .font(.tlTitle(20))
                     .foregroundStyle(TL.paper)
                 Text(todayDateLabel)
@@ -542,7 +542,7 @@ struct HomeView: View {
 
             if upcoming.isEmpty {
                 TLCard {
-                    Text("오늘은 예정된 활동이 없어요. 이번 주 계획은 일정 탭에서 확인할 수 있어요.")
+                    Text("No activities scheduled for today. Check this week's plan in the Plan tab.")
                         .font(.system(size: 13)).foregroundStyle(TL.muted)
                 }
             } else {
@@ -625,10 +625,10 @@ struct HomeView: View {
     /// 남은 시간을 분단위 문구로 — 초 카운트다운의 불안감을 줄인다 (12시간 이내만 노출).
     /// 1분 미만은 "곧 시작", 그 외 "59분 / 1시간 20분 / 3시간 뒤 시작". 올림.
     private func remainingMinuteLabel(_ seconds: Int) -> String {
-        if seconds < 60 { return "곧 시작" }
+        if seconds < 60 { return String(localized: "Starting soon") }
         let m = Int((Double(seconds) / 60).rounded(.up))
-        let time = m >= 60 ? (m % 60 == 0 ? "\(m / 60)시간" : "\(m / 60)시간 \(m % 60)분") : "\(m)분"
-        return "\(time) 뒤 시작"
+        let time = TLFormat.durationLabel(m)
+        return String(format: String(localized: "Starts in %@"), time)
     }
 
 }
@@ -643,14 +643,14 @@ private struct GoalEditorSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
-                TextField("예: 올해는 매일 2시간씩 공부한다", text: $goal, axis: .vertical)
+                TextField("e.g. Study 2 hours every day this year", text: $goal, axis: .vertical)
                     .font(.tlBody)
                     .foregroundStyle(TL.paper)
                     .lineLimit(3...5)
                     .padding(14)
                     .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
 
-                Button("저장") {
+                Button("Save") {
                     onSave()
                     dismiss()
                 }
@@ -659,7 +659,7 @@ private struct GoalEditorSheet: View {
             .padding(20)
             .frame(maxHeight: .infinity, alignment: .top)
             .background(TL.ink)
-            .navigationTitle("나의 다짐")
+            .navigationTitle("My Commitment")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -677,7 +677,7 @@ private struct QuickStartSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 20) {
-                TextField("활동명 (예: 모의고사 풀기)", text: $name)
+                TextField("Activity name (e.g. Practice exam)", text: $name)
                     .font(.tlBody)
                     .padding(14)
                     .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
@@ -696,16 +696,16 @@ private struct QuickStartSheet: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        TLEyebrow(text: "활동 시간")
+                        TLEyebrow(text: "Duration")
                         Spacer()
                         // 선택한 길이의 완주 상점 미리 보기
-                        Text("완료 시 +\(ScoreRules.completionBase(forMinutes: minutes))점")
+                        Text(String(format: String(localized: "+%ld pts on completion"), ScoreRules.completionBase(forMinutes: minutes)))
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
                             .foregroundStyle(TL.jade)
                             .padding(.horizontal, 10).padding(.vertical, 5)
                             .background(Capsule().fill(TL.jade.opacity(0.14)))
                     }
-                    Picker("활동 시간", selection: $minutes) {
+                    Picker("Duration", selection: $minutes) {
                         ForEach(TimePolicy.durationOptionsMinutes, id: \.self) {
                             Text(TLFormat.durationLabel($0)).tag($0)
                         }
@@ -714,7 +714,7 @@ private struct QuickStartSheet: View {
                     .frame(height: 110)
                 }
 
-                Button("촬영 준비하기") {
+                Button("Get Ready") {
                     let finalName = name.trimmingCharacters(in: .whitespaces)
                     guard !finalName.isEmpty else { return }
                     dismiss()
@@ -725,14 +725,14 @@ private struct QuickStartSheet: View {
                 .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
 
                 if name.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Text("활동명을 입력해야 시작할 수 있습니다.")
+                    Text("Enter an activity name to get started.")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(TL.amber)
                 }
             }
             .padding(20)
             .background(TL.ink)
-            .navigationTitle("지금 바로 시작")
+            .navigationTitle("Quick Start")
             .navigationBarTitleDisplayMode(.inline)
         }
     }

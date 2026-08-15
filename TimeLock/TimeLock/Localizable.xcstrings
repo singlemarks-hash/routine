@@ -1748,6 +1748,262 @@
           }
         }
       }
+    },
+    "Focus": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동"
+          }
+        }
+      },
+      "comment": "하단 3탭 라벨 (용어집: 활동/일정/그룹 → Focus/Plan/Groups)"
+    },
+    "Plan": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일정"
+          }
+        }
+      },
+      "comment": "하단 3탭 라벨"
+    },
+    "Groups": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹"
+          }
+        }
+      },
+      "comment": "하단 3탭 라벨"
+    },
+    "Add Activity": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 추가하기"
+          }
+        }
+      }
+    },
+    "This is a group schedule": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹 일정이에요"
+          }
+        }
+      }
+    },
+    "OK": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인"
+          }
+        }
+      }
+    },
+    "Schedules created by a group can't be edited or deleted. To leave, go to the Groups tab.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹에서 만들어진 일정은 수정하거나 삭제할 수 없어요. 그만두려면 그룹 탭에서 탈퇴하세요."
+          }
+        }
+      }
+    },
+    "Write your commitment or goal": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나의 다짐, 목표를 적어보세요"
+          }
+        }
+      }
+    },
+    "Tap to write": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "탭해서 작성"
+          }
+        }
+      }
+    },
+    "Quick Start": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 바로 시작"
+          }
+        }
+      }
+    },
+    "Try all the premium features!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 프리미엄 기능을 경험해 보세요!"
+          }
+        }
+      }
+    },
+    "Try Premium Free": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마음껏 멤버십 기능 체험하기"
+          }
+        }
+      }
+    },
+    "Today's Activities": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오늘 예정된 활동"
+          }
+        }
+      }
+    },
+    "No activities scheduled for today. Check this week's plan in the Plan tab.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오늘은 예정된 활동이 없어요. 이번 주 계획은 일정 탭에서 확인할 수 있어요."
+          }
+        }
+      }
+    },
+    "Starting soon": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "곧 시작"
+          }
+        }
+      }
+    },
+    "Starts in %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 뒤 시작"
+          }
+        }
+      }
+    },
+    "e.g. Study 2 hours every day this year": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예: 올해는 매일 2시간씩 공부한다"
+          }
+        }
+      }
+    },
+    "Save": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장"
+          }
+        }
+      }
+    },
+    "My Commitment": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나의 다짐"
+          }
+        }
+      }
+    },
+    "Activity name (e.g. Practice exam)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동명 (예: 모의고사 풀기)"
+          }
+        }
+      }
+    },
+    "Duration": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 시간"
+          }
+        }
+      }
+    },
+    "+%ld pts on completion": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "완료 시 +%ld점"
+          }
+        }
+      }
+    },
+    "Enter an activity name to get started.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동명을 입력해야 시작할 수 있습니다."
+          }
+        }
+      }
     }
   },
   "version": "1.2"
