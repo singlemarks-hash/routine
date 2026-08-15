@@ -4173,6 +4173,1075 @@
           }
         }
       }
+    },
+    "Create a Group Room": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹방 만들기"
+          }
+        }
+      }
+    },
+    "Join with an Invite Code": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대코드로 참여하기"
+          }
+        }
+      }
+    },
+    "Couldn't load room info": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 정보를 불러오지 못했습니다"
+          }
+        }
+      }
+    },
+    "You have group activities in progress, but the room list couldn't be loaded. Check your network and try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 중인 그룹 활동이 있는데 방 목록을 읽지 못했어요. 네트워크를 확인하고 다시 시도해 주세요."
+          }
+        }
+      }
+    },
+    "New groups are members-only": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 그룹은 멤버십 전용이에요"
+          }
+        }
+      }
+    },
+    "You can still view and manage rooms you've joined. A membership is required to create a new room or join with an invite code.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 중인 방은 그대로 보고 관리할 수 있어요. 방을 새로 만들거나 초대코드로 참여하려면 멤버십이 필요합니다."
+          }
+        }
+      }
+    },
+    "Together, there's no backing out": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "같이 하면 못 도망간다"
+          }
+        }
+      }
+    },
+    "Gather with an invite code and compete on the same schedule.\nGroup scores start from 0 and also count toward your personal total.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대코드로 모여 같은 일정으로 대결해요.\n그룹 점수는 0점부터, 개인 누적에도 그대로 쌓입니다."
+          }
+        }
+      }
+    },
+    "My Groups": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 그룹"
+          }
+        }
+      }
+    },
+    "You're not in any groups. Create a room and share the invite code, or join with a code you've received.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 중인 그룹이 없습니다. 방을 만들어 초대코드를 공유하거나, 받은 코드로 참여해 보세요."
+          }
+        }
+      }
+    },
+    "%ld members": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld명"
+          }
+        }
+      }
+    },
+    "Deletion Pending": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "삭제 예정"
+          }
+        }
+      }
+    },
+    "Ended": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료"
+          }
+        }
+      }
+    },
+    "Checking": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 중"
+          }
+        }
+      }
+    },
+    "In Progress": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "진행 중"
+          }
+        }
+      }
+    },
+    "Starts %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 시작"
+          }
+        }
+      },
+      "comment": "상태 칩 — %@는 'Today' 또는 'D-3'"
+    },
+    "Room Created": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 완성"
+          }
+        }
+      }
+    },
+    "Room name (becomes the activity name for every member)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 이름 (참여자 전원의 활동명이 됩니다)"
+          }
+        }
+      }
+    },
+    "e.g. Study English 30 min every day!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예: 영어공부 매일 30분 도전!"
+          }
+        }
+      }
+    },
+    "My nickname (used only in this room · max %ld chars)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 닉네임 (이 방에서만 사용 · 최대 %ld자)"
+          }
+        }
+      }
+    },
+    "e.g. StudyMachine": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예: 열공대장"
+          }
+        }
+      }
+    },
+    "Intensity — applies to every member": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "강도 — 참여자 전원에게 동일 적용"
+          }
+        }
+      }
+    },
+    "What time, and for how long?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "몇시에 얼마나 진행하나요?"
+          }
+        }
+      }
+    },
+    "Period — starts at least 1 hour out, up to 3 months": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기간 — 시작은 1시간 뒤부터, 최대 3개월"
+          }
+        }
+      }
+    },
+    "This is a one-day group, so weekly repeat isn't needed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "하루짜리 그룹이라 요일 반복 설정이 필요 없어요."
+          }
+        }
+      }
+    },
+    "Select at least one weekday to repeat.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "반복할 요일을 하나 이상 선택하세요."
+          }
+        }
+      }
+    },
+    "Creating…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "만드는 중…"
+          }
+        }
+      }
+    },
+    "Create Room & Get Invite Code": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 만들고 초대코드 받기"
+          }
+        }
+      }
+    },
+    "Summary": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요약"
+          }
+        }
+      }
+    },
+    "Starts at %@ · %@ · %@\nJoining closes %ld minutes before start; the room is auto-deleted with fewer than %ld members at start time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 시작 · %@ · %@\n시작 %ld분 전까지만 참여할 수 있고, 시작 시각에 %ld명 미만이면 방이 자동 삭제됩니다."
+          }
+        }
+      }
+    },
+    "One day on %@ · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 하루 · %@"
+          }
+        }
+      }
+    },
+    "No weekdays selected": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요일 미선택"
+          }
+        }
+      }
+    },
+    "Repeats on %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "반복요일 %@"
+          }
+        }
+      }
+    },
+    "End date can't be before the start date.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료일이 시작일보다 빠를 수 없어요."
+          }
+        }
+      }
+    },
+    "The period can be up to %ld days (3 months).": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기간은 최대 %ld일(3개월)까지 가능해요."
+          }
+        }
+      }
+    },
+    "Set the start at least %ld hours from now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작은 지금부터 최소 %ld시간 이후로 설정해주세요."
+          }
+        }
+      }
+    },
+    "'%@'\nYour room is ready": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'%@'\n방이 만들어졌어요"
+          }
+        }
+      }
+    },
+    "Share the invite code and up to %ld people can join before start.\nOnly you, the host, can see the code.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대코드를 공유하면 시작 전까지 최대 %ld명이 참여할 수 있어요.\n코드는 방장인 나에게만 보여요."
+          }
+        }
+      }
+    },
+    "Enter the invite code from the host.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방장에게 받은 초대코드를 입력하세요."
+          }
+        }
+      }
+    },
+    "Invite code (5 characters)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대코드 (5자리)"
+          }
+        }
+      }
+    },
+    "Nickname for this room (unique · first come, first served · max %ld chars)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 방에서 쓸 닉네임 (중복 불가 · 선착순 · 최대 %ld자)"
+          }
+        }
+      }
+    },
+    "e.g. NeverGiveUp": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예: 지지않는사람"
+          }
+        }
+      }
+    },
+    "Searching…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "찾는 중…"
+          }
+        }
+      }
+    },
+    "Find Room": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 찾기"
+          }
+        }
+      }
+    },
+    "Joining…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 중…"
+          }
+        }
+      }
+    },
+    "Join This Room": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 방에 참여하기"
+          }
+        }
+      }
+    },
+    "Join with Invite Code": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대코드로 참여"
+          }
+        }
+      }
+    },
+    "%ld/%ld members": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld/%ld명"
+          }
+        }
+      }
+    },
+    "You're In!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 완료!"
+          }
+        }
+      }
+    },
+    "At start time, the group schedule is added to your activities automatically,\nand points and penalties count toward the group ranking from then on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 시각이 되면 그룹 일정이 자동으로 내 활동에 추가되고,\n그때부터 상벌점이 그룹 랭킹에 집계됩니다."
+          }
+        }
+      }
+    },
+    "Starts in %ld days": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld일 뒤 시작"
+          }
+        }
+      }
+    },
+    "Activity Check-in": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 인증"
+          }
+        }
+      }
+    },
+    "You can start your activity now": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 활동을 시작할 수 있어요"
+          }
+        }
+      }
+    },
+    "%ld min left": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "남은 시간 %ld분"
+          }
+        }
+      }
+    },
+    "Less than 1 min left": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "남은 시간 1분 미만"
+          }
+        }
+      }
+    },
+    "Start Activity": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 시작하기"
+          }
+        }
+      }
+    },
+    "You can only start within %ld minutes of the scheduled time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예정 시각부터 %ld분 안에만 시작할 수 있어요."
+          }
+        }
+      }
+    },
+    "No scheduled activities.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예정된 활동이 없어요."
+          }
+        }
+      }
+    },
+    "Couldn't complete that": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "처리하지 못했어요"
+          }
+        }
+      }
+    },
+    "%@ – %@ · %@ %@ · %ld members": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ~ %@ · %@ %@ · %ld명"
+          }
+        }
+      },
+      "comment": "방 상세 정보 줄 — 시작일 ~ 종료일 · 강도 이모지 · 강도명 · 인원"
+    },
+    "Not enough members — this room will be deleted at start time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 인원이 모자라 이 방은 시작 시각에 삭제됩니다."
+          }
+        }
+      }
+    },
+    "Joining has closed, so no one else can enter. The activity won't run and alarms have been cancelled.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여 마감이 지나 더 들어올 수 없어요. 활동은 진행되지 않고 알람도 취소했습니다."
+          }
+        }
+      }
+    },
+    "Checking whether the room started. Please reopen in a moment.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 여부를 확인하는 중입니다. 잠시 후 다시 열어주세요."
+          }
+        }
+      }
+    },
+    "Fewer than 2 members — this room will be deleted soon.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여자가 2명 미만이 되어 방이 곧 삭제될 예정입니다."
+          }
+        }
+      }
+    },
+    "Invite": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대하기"
+          }
+        }
+      }
+    },
+    "• You can join until 10 minutes before start": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "• 시작 10분 전까지만 참여할 수 있어요"
+          }
+        }
+      }
+    },
+    "• Only the host can see the invite code": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "• 초대코드는 방장만 볼 수 있어요"
+          }
+        }
+      }
+    },
+    "Members %ld/%ld": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여자 %ld/%ld"
+          }
+        }
+      }
+    },
+    "Me": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나"
+          }
+        }
+      }
+    },
+    "The room is auto-deleted if fewer than %ld members join by start time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 시각에 %ld명 미만이면 방이 자동 삭제됩니다."
+          }
+        }
+      }
+    },
+    "Live Ranking": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 랭킹"
+          }
+        }
+      }
+    },
+    "Only points and penalties from this group's schedule are counted. Ties share the same rank.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "점수는 이 그룹 일정에서 얻은 상벌점만 집계돼요. 동점은 공동 등수입니다."
+          }
+        }
+      }
+    },
+    "Final Results": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최종 결과"
+          }
+        }
+      }
+    },
+    "Results are kept for %ld days after the group ends.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "결과는 종료 후 %ld일 동안 보관됩니다."
+          }
+        }
+      }
+    },
+    "This room and its results will be deleted automatically today.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오늘 중 이 방과 결과가 자동으로 삭제됩니다."
+          }
+        }
+      }
+    },
+    "This room and its results will be deleted automatically in %ld days.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld일 뒤 이 방과 결과가 자동으로 삭제됩니다."
+          }
+        }
+      }
+    },
+    "Dropped Out": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "중도 포기"
+          }
+        }
+      }
+    },
+    "Leaving…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나가는 중…"
+          }
+        }
+      }
+    },
+    "Leave Room (results disappear from my list)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 나가기 (결과가 내 목록에서 사라져요)"
+          }
+        }
+      }
+    },
+    "Leave Room": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 나가기"
+          }
+        }
+      }
+    },
+    "Checking whether the room started. Please try again in a moment.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 여부를 확인하는 중이에요. 잠시 후 다시 시도해주세요."
+          }
+        }
+      }
+    },
+    "Disbanding…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "해체하는 중…"
+          }
+        }
+      }
+    },
+    "Disband Room": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 해체하기"
+          }
+        }
+      }
+    },
+    "Disband this room?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방을 해체할까요?"
+          }
+        }
+      }
+    },
+    "Disband": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "해체하기"
+          }
+        }
+      }
+    },
+    "The room disappears for every member. This can't be undone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여자 전원에게 방이 사라지고, 되돌릴 수 없습니다."
+          }
+        }
+      }
+    },
+    "Leaving group…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "탈퇴하는 중…"
+          }
+        }
+      }
+    },
+    "Leave Group": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "탈퇴하기"
+          }
+        }
+      }
+    },
+    "No penalty before start": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 전에는 벌점 없음"
+          }
+        }
+      }
+    },
+    "Leave this room?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방에서 나갈까요?"
+          }
+        }
+      }
+    },
+    "Drop Out (%ld pt penalty)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "중도 포기하기 (벌점 %ld점)"
+          }
+        }
+      }
+    },
+    "Give Up (%ld pt penalty)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "포기하기 (벌점 %ld점)"
+          }
+        }
+      }
+    },
+    "Really drop out?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "정말 중도 포기할까요?"
+          }
+        }
+      }
+    },
+    "A %ld-point penalty is recorded on both the group score and your personal total, and the remaining group schedule is deleted. Points earned so far are kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "벌점 %ld점이 그룹 점수와 내 누적 점수에 모두 기록되고, 남은 그룹 일정이 삭제됩니다. 지금까지 얻은 점수는 유지됩니다."
+          }
+        }
+      }
+    },
+    "Copied!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "복사됐어요!"
+          }
+        }
+      }
+    },
+    "Invite code · Tap to copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대코드 · 탭해서 복사"
+          }
+        }
+      }
+    },
+    "One day on %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 하루"
+          }
+        }
+      }
     }
   },
   "version": "1.2"

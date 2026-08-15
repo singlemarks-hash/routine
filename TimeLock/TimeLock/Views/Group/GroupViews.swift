@@ -49,12 +49,12 @@ struct GroupTabView: View {
 
                     if locked { membershipPromo }
 
-                    Button("그룹방 만들기") {
+                    Button("Create a Group Room") {
                         if locked { showPaywall = true } else { showCreate = true }
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
 
-                    Button("초대코드로 참여하기") {
+                    Button("Join with an Invite Code") {
                         if locked { showPaywall = true } else { showJoin = true }
                     }
                     .buttonStyle(TLGhostButtonStyle())
@@ -84,11 +84,11 @@ struct GroupTabView: View {
     private var loadFailureNotice: some View {
         if store.rooms.isEmpty && !myGroupReservations.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Text("방 정보를 불러오지 못했습니다")
+                Text("Couldn't load room info")
                     .font(.tlTitle(15)).foregroundStyle(TL.paper)
-                Text("참여 중인 그룹 활동이 있는데 방 목록을 읽지 못했어요. 네트워크를 확인하고 다시 시도해 주세요.")
+                Text("You have group activities in progress, but the room list couldn't be loaded. Check your network and try again.")
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
-                Button("다시 시도") { Task { await store.refresh() } }
+                Button("Try Again") { Task { await store.refresh() } }
                     .buttonStyle(TLGhostButtonStyle())
             }
             .padding(14)
@@ -105,10 +105,10 @@ struct GroupTabView: View {
             HStack(spacing: 8) {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 13)).foregroundStyle(TL.amber)
-                Text("새 그룹은 멤버십 전용이에요")
+                Text("New groups are members-only")
                     .font(.tlTitle(15)).foregroundStyle(TL.paper)
             }
-            Text("참여 중인 방은 그대로 보고 관리할 수 있어요. 방을 새로 만들거나 초대코드로 참여하려면 멤버십이 필요합니다.")
+            Text("You can still view and manage rooms you've joined. A membership is required to create a new room or join with an invite code.")
                 .font(.system(size: 13)).foregroundStyle(TL.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -120,10 +120,10 @@ struct GroupTabView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             TLEyebrow(text: "GROUP CHALLENGE", color: TL.rec)
-            Text("같이 하면 못 도망간다")
+            Text("Together, there's no backing out")
                 .font(.tlTitle(24))
                 .foregroundStyle(TL.paper)
-            Text("초대코드로 모여 같은 일정으로 대결해요.\n그룹 점수는 0점부터, 개인 누적에도 그대로 쌓입니다.")
+            Text("Gather with an invite code and compete on the same schedule.\nGroup scores start from 0 and also count toward your personal total.")
                 .font(.system(size: 13))
                 .foregroundStyle(TL.muted)
                 .lineSpacing(3)
@@ -164,13 +164,13 @@ struct GroupTabView: View {
     @ViewBuilder
     private var roomList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("내 그룹")
+            Text("My Groups")
                 .font(.tlTitle(20))
                 .foregroundStyle(TL.paper)
 
             if store.rooms.isEmpty {
                 TLCard {
-                    Text("참여 중인 그룹이 없습니다. 방을 만들어 초대코드를 공유하거나, 받은 코드로 참여해 보세요.")
+                    Text("You're not in any groups. Create a room and share the invite code, or join with a code you've received.")
                         .font(.system(size: 13)).foregroundStyle(TL.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -205,7 +205,7 @@ struct GroupTabView: View {
                 }
                 HStack(spacing: 6) {
                     Image(systemName: "person.2.fill").font(.system(size: 11))
-                    Text("\(room.memberCount)명")
+                    Text(String(format: String(localized: "%ld members"), room.memberCount))
                     Text("·")
                     Text(GroupFormat.scheduleLine(room))
                         .lineLimit(1)
@@ -218,12 +218,12 @@ struct GroupTabView: View {
 
     private func statusChip(_ room: GroupRoom) -> some View {
         let (label, color): (String, Color) =
-            room.doomed ? ("삭제 예정", TL.rec)
-            : room.isFinished ? ("종료", TL.faint)
+            room.doomed ? (String(localized: "Deletion Pending"), TL.rec)
+            : room.isFinished ? (String(localized: "Ended"), TL.faint)
             // 시작 시각은 지났지만 아직 시작/취소 판정이 안 끝난 방은 '진행 중'이 아니다.
-            : room.status == "scheduled" && room.hasStarted ? ("확인 중", TL.amber)
-            : room.hasStarted ? ("진행 중", TL.jade)
-            : ("\(GroupFormat.dDay(room.startDate)) 시작", TL.amber)
+            : room.status == "scheduled" && room.hasStarted ? (String(localized: "Checking"), TL.amber)
+            : room.hasStarted ? (String(localized: "In Progress"), TL.jade)
+            : (String(format: String(localized: "Starts %@"), GroupFormat.dDay(room.startDate)), TL.amber)
         return Text(label)
             .font(.system(size: 12, weight: .bold, design: .rounded))
             .foregroundStyle(color)
@@ -303,11 +303,11 @@ struct GroupCreateView: View {
                 }
             }
             .background(TL.ink)
-            .navigationTitle(createdRoom == nil ? "그룹방 만들기" : "방 완성")
+            .navigationTitle(createdRoom == nil ? String(localized: "Create a Group Room") : String(localized: "Room Created"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(createdRoom == nil ? "닫기" : "완료") { dismiss() }
+                    Button(createdRoom == nil ? String(localized: "Close") : String(localized: "OK")) { dismiss() }
                         .foregroundStyle(TL.muted)
                 }
             }
@@ -326,14 +326,14 @@ struct GroupCreateView: View {
                 SlotStatusBadge(used: slotUsed, allowed: slotAllowed, streak: slotStreak) {
                     showSlotPolicy = true
                 }
-                field("방 이름 (참여자 전원의 활동명이 됩니다)") {
+                field(String(localized: "Room name (becomes the activity name for every member)")) {
                     // 길이 제한 없음 — 방 이름으로 챌린지 규칙을 설명하는 경우가 있어
                     // (예: "매일 아침 6시, 늦으면 벌금") 개인 활동명 한도를 적용하지 않는다.
-                    TextField("예: 영어공부 매일 30분 도전!", text: $name)
+                    TextField("e.g. Study English 30 min every day!", text: $name)
                         .groupFieldStyle()
                 }
-                field("내 닉네임 (이 방에서만 사용 · 최대 \(GroupPolicy.nicknameMaxLength)자)") {
-                    TextField("예: 열공대장", text: $nickname)
+                field(String(format: String(localized: "My nickname (used only in this room · max %ld chars)"), GroupPolicy.nicknameMaxLength)) {
+                    TextField("e.g. StudyMachine", text: $nickname)
                         .groupFieldStyle()
                         .onChange(of: nickname) { _, new in
                             if new.count > GroupPolicy.nicknameMaxLength {
@@ -342,7 +342,7 @@ struct GroupCreateView: View {
                         }
                 }
 
-                field("강도 — 참여자 전원에게 동일 적용") {
+                field(String(localized: "Intensity — applies to every member")) {
                     HStack(spacing: 8) {
                         ForEach(Intensity.allCases) { candidate in
                             let locked = candidate == .insane && !insaneUnlocked
@@ -361,7 +361,7 @@ struct GroupCreateView: View {
                                         Text("\(candidate.emoji) \(candidate.title)")
                                             .font(.system(size: 14, weight: .bold, design: .rounded))
                                     }
-                                    Text(candidate == .spicy ? "최대 10분 긴급용무 허용" : "봐주기 없는 100% 몰입, 점수 2배")
+                                    Text(candidate == .spicy ? String(localized: "Up to 10 min emergency break allowed") : String(localized: "No exceptions, 100% focus, 2x points"))
                                         .font(.system(size: 10))
                                 }
                                 .foregroundStyle(intensity == candidate ? TL.ink : TL.muted)
@@ -383,14 +383,14 @@ struct GroupCreateView: View {
                 }
 
                 // 시작 시각 + 길이 — 컴팩트 pill(탭하면 팝업) + 길이 메뉴 + 완주 상점. 활동 예약과 동일 형태.
-                field("몇시에 얼마나 진행하나요?") {
+                field(String(localized: "What time, and for how long?")) {
                     TLCard {
                         VStack(spacing: 4) {
-                            DatePicker("시작 시각", selection: $startTime, displayedComponents: .hourAndMinute)
+                            DatePicker("Start Time", selection: $startTime, displayedComponents: .hourAndMinute)
                                 .font(.system(size: 15)).foregroundStyle(TL.paper)
                             Divider().overlay(TL.hairline)
                             HStack(spacing: 10) {
-                                Picker("활동 길이", selection: $minutes) {
+                                Picker("Duration", selection: $minutes) {
                                     ForEach(TimePolicy.durationOptionsMinutes, id: \.self) {
                                         Text(TLFormat.durationLabel($0)).tag($0)
                                     }
@@ -398,7 +398,7 @@ struct GroupCreateView: View {
                                 .pickerStyle(.menu)
                                 .tint(TL.paper)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                Text("완료 시 +\(ScoreRules.completionBase(forMinutes: minutes))점")
+                                Text(String(format: String(localized: "+%ld pts on completion"), ScoreRules.completionBase(forMinutes: minutes)))
                                     .font(.system(size: 12, weight: .heavy, design: .rounded))
                                     .foregroundStyle(TL.jade)
                                     .padding(.horizontal, 10).padding(.vertical, 5)
@@ -409,15 +409,15 @@ struct GroupCreateView: View {
                 }
 
                 // 기간 — 시작일·종료일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.
-                field("기간 — 시작은 1시간 뒤부터, 최대 3개월") {
+                field(String(localized: "Period — starts at least 1 hour out, up to 3 months")) {
                     VStack(spacing: 0) {
                         // 상한 3개월 — 개인 활동과 같은 규칙. 그보다 먼 알람은 보장할 수 없다.
-                        DatePicker("시작일", selection: $startDay,
+                        DatePicker("Start Date", selection: $startDay,
                                    in: Calendar.current.startOfDay(for: .now)...ReservationPolicy.maxStartDay(),
                                    displayedComponents: .date)
                         Divider().overlay(TL.hairline)
                             .padding(.vertical, 6)
-                        DatePicker("종료일", selection: $endDay, in: startDay...maxEndDay, displayedComponents: .date)
+                        DatePicker("End Date", selection: $endDay, in: startDay...maxEndDay, displayedComponents: .date)
                     }
                     .font(.system(size: 14))
                     .foregroundStyle(TL.paper)
@@ -433,17 +433,17 @@ struct GroupCreateView: View {
                 // 요일 반복(ON=고른 요일, OFF=매일). 시작일=종료일(하루)이면 요일 반복이
                 // 무의미하므로(그 요일이 빠지면 발생이 0번이 되는 모순도 방지) UI 자체를 숨긴다.
                 if isSingleDayRoom {
-                    Text("하루짜리 그룹이라 요일 반복 설정이 필요 없어요.")
+                    Text("This is a one-day group, so weekly repeat isn't needed.")
                         .font(.system(size: 12)).foregroundStyle(TL.faint)
                 } else {
-                    field("반복") {
+                    field(String(localized: "Repeat")) {
                         VStack(alignment: .leading, spacing: 14) {
                             Toggle(isOn: $isRepeating) {
                                 HStack(spacing: 6) {
-                                    Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                                    Text("Repeat on Days").font(.tlBody).foregroundStyle(TL.paper)
                                     // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
                                     if !isRepeating {
-                                        Text("(매일)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
+                                        Text("(Daily)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
                                     }
                                 }
                             }
@@ -482,7 +482,7 @@ struct GroupCreateView: View {
                     }
 
                     if isRepeating && weekdayError {
-                        Text("반복할 요일을 하나 이상 선택하세요.")
+                        Text("Select at least one weekday to repeat.")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(TL.rec)
                     }
@@ -497,7 +497,7 @@ struct GroupCreateView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Button(working ? "만드는 중…" : "방 만들고 초대코드 받기") { create() }
+                Button(working ? String(localized: "Creating…") : String(localized: "Create Room & Get Invite Code")) { create() }
                     .buttonStyle(TLPrimaryButtonStyle())
                     .disabled(working || !formReady)
                     .opacity(formReady ? 1 : 0.5)
@@ -510,7 +510,7 @@ struct GroupCreateView: View {
     private var summaryCard: some View {
         TLCard {
             VStack(alignment: .leading, spacing: 6) {
-                TLEyebrow(text: "요약")
+                TLEyebrow(text: String(localized: "Summary"))
                 Text(summaryText)
                     .font(.system(size: 13))
                     .foregroundStyle(TL.muted)
@@ -522,15 +522,15 @@ struct GroupCreateView: View {
 
     private var summaryText: String {
         let time = GroupFormat.time(startMinute)
-        let common = "\(time) 시작 · \(TLFormat.durationLabel(minutes)) · \(intensity.title)\n시작 \(GroupPolicy.joinCutoffMinutes)분 전까지만 참여할 수 있고, 시작 시각에 \(GroupPolicy.minMembersToStart)명 미만이면 방이 자동 삭제됩니다."
+        let common = String(format: String(localized: "Starts at %@ · %@ · %@\nJoining closes %ld minutes before start; the room is auto-deleted with fewer than %ld members at start time."), time, TLFormat.durationLabel(minutes), intensity.title, GroupPolicy.joinCutoffMinutes, GroupPolicy.minMembersToStart)
         // 시작일=종료일이면 요일 반복 여부와 무관하게 그날 하루만 진행하는 단발 그룹.
         if Calendar.current.isDate(startDay, inSameDayAs: endDay) {
-            return "\(GroupFormat.day(startDay)) 하루 · \(common)"
+            return String(format: String(localized: "One day on %@ · %@"), GroupFormat.day(startDay), common)
         }
-        let days = !isRepeating ? "매일"
-            : weekdays.isEmpty ? "요일 미선택"
-            : weekdays.count == 7 ? "매일"
-            : "반복요일 " + weekdays.sorted().compactMap { GroupFormat.weekdayNames[$0] }.joined(separator: " ")
+        let days = !isRepeating ? String(localized: "Daily")
+            : weekdays.isEmpty ? String(localized: "No weekdays selected")
+            : weekdays.count == 7 ? String(localized: "Daily")
+            : String(format: String(localized: "Repeats on %@"), weekdays.sorted().compactMap { GroupFormat.weekdayNames[$0] }.joined(separator: " "))
         return "\(GroupFormat.day(startDay)) ~ \(GroupFormat.day(endDay))\n\(days) · \(common)"
     }
 
@@ -557,20 +557,20 @@ struct GroupCreateView: View {
         // 다른 시간대 참여자가 자기 로컬 마지막 세션을 마칠 여유를 준다.
         let endDate = calendar.startOfDay(for: effectiveEndDay).addingTimeInterval(86_400 - 0.001)
         // 종료일·기간 검증 (안드로이드와 동일 — 시작일 포함 일수 기준)
-        guard effectiveEndDay >= startDay else { errorMessage = "종료일이 시작일보다 빠를 수 없어요."; return }
+        guard effectiveEndDay >= startDay else { errorMessage = String(localized: "End date can't be before the start date."); return }
         guard calendar.startOfDay(for: startDay) <= ReservationPolicy.maxStartDay(calendar: calendar) else {
-            errorMessage = "시작일은 오늘부터 \(ReservationPolicy.maxStartLeadMonths)개월 이내로 정해주세요."
+            errorMessage = String(format: String(localized: "Please set a start date within %ld month(s) from today."), ReservationPolicy.maxStartLeadMonths)
             return
         }
         let inclusiveDays = (calendar.dateComponents([.day],
             from: calendar.startOfDay(for: startDay), to: calendar.startOfDay(for: effectiveEndDay)).day ?? 0) + 1
         guard inclusiveDays <= GroupPolicy.maxDurationDays else {
-            errorMessage = "기간은 최대 \(GroupPolicy.maxDurationDays)일(3개월)까지 가능해요."
+            errorMessage = String(format: String(localized: "The period can be up to %ld days (3 months)."), GroupPolicy.maxDurationDays)
             return
         }
         // 시작은 지금부터 최소 1시간 뒤 (참여자가 10분 전 알람을 받을 수 있게 여유를 둔다)
         guard startDate >= Date().addingTimeInterval(Double(GroupPolicy.minStartLeadMinutes) * 60) else {
-            errorMessage = "시작은 지금부터 최소 \(GroupPolicy.minStartLeadMinutes / 60)시간 이후로 설정해주세요."
+            errorMessage = String(format: String(localized: "Set the start at least %ld hours from now."), GroupPolicy.minStartLeadMinutes / 60)
             return
         }
         // 방장도 참여자와 같은 규칙 — 슬롯 1개 확보 + 기존 예약(다른 그룹 포함) 겹침 검사
@@ -607,18 +607,18 @@ struct GroupCreateView: View {
             Image(systemName: "party.popper.fill")
                 .font(.system(size: 44))
                 .foregroundStyle(TL.amber)
-            Text("'\(room.name)'\n방이 만들어졌어요")
+            Text(String(format: String(localized: "'%@'\nYour room is ready"), room.name))
                 .font(.tlTitle(22))
                 .foregroundStyle(TL.paper)
                 .multilineTextAlignment(.center)
             InviteCodeCard(code: room.code)
-            Text("초대코드를 공유하면 시작 전까지 최대 \(GroupPolicy.maxMembers)명이 참여할 수 있어요.\n코드는 방장인 나에게만 보여요.")
+            Text(String(format: String(localized: "Share the invite code and up to %ld people can join before start.\nOnly you, the host, can see the code."), GroupPolicy.maxMembers))
                 .font(.system(size: 13))
                 .foregroundStyle(TL.muted)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
             Spacer()
-            Button("확인") { dismiss() }
+            Button("OK") { dismiss() }
                 .buttonStyle(TLPrimaryButtonStyle())
         }
         .padding(24)
@@ -667,11 +667,11 @@ struct GroupJoinView: View {
                         SlotStatusBadge(used: slotUsed, allowed: slotAllowed, streak: slotStreak) {
                             showSlotPolicy = true
                         }
-                        Text("방장에게 받은 초대코드를 입력하세요.")
+                        Text("Enter the invite code from the host.")
                             .font(.system(size: 14))
                             .foregroundStyle(TL.muted)
 
-                        TextField("초대코드 (5자리)", text: $code)
+                        TextField("Invite code (5 characters)", text: $code)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                             .font(.tlTimer(24))
@@ -686,10 +686,10 @@ struct GroupJoinView: View {
                             previewCard(room)
 
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("이 방에서 쓸 닉네임 (중복 불가 · 선착순 · 최대 \(GroupPolicy.nicknameMaxLength)자)")
+                                Text(String(format: String(localized: "Nickname for this room (unique · first come, first served · max %ld chars)"), GroupPolicy.nicknameMaxLength))
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(TL.muted)
-                                TextField("예: 지지않는사람", text: $nickname)
+                                TextField("e.g. NeverGiveUp", text: $nickname)
                                     .groupFieldStyle()
                                     .onChange(of: nickname) { _, new in
                                         if new.count > GroupPolicy.nicknameMaxLength {
@@ -707,12 +707,12 @@ struct GroupJoinView: View {
                         }
 
                         if preview == nil {
-                            Button(working ? "찾는 중…" : "방 찾기") { lookup() }
+                            Button(working ? String(localized: "Searching…") : String(localized: "Find Room")) { lookup() }
                                 .buttonStyle(TLPrimaryButtonStyle())
                                 .disabled(working || code.count < GroupPolicy.codeLength)
                                 .opacity(code.count >= GroupPolicy.codeLength ? 1 : 0.5)
                         } else {
-                            Button(working ? "참여 중…" : "이 방에 참여하기") { join() }
+                            Button(working ? String(localized: "Joining…") : String(localized: "Join This Room")) { join() }
                                 .buttonStyle(TLPrimaryButtonStyle())
                                 .disabled(working || nickname.trimmingCharacters(in: .whitespaces).isEmpty)
                                 .opacity(nickname.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
@@ -722,11 +722,11 @@ struct GroupJoinView: View {
                 .padding(20)
             }
             .background(TL.ink)
-            .navigationTitle("초대코드로 참여")
+            .navigationTitle("Join with Invite Code")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("닫기") { dismiss() }
+                    Button("Close") { dismiss() }
                         .foregroundStyle(TL.muted)
                 }
             }
@@ -746,7 +746,7 @@ struct GroupJoinView: View {
                         .font(.tlTitle(18))
                         .foregroundStyle(TL.paper)
                     Spacer()
-                    Text("\(room.memberCount)/\(GroupPolicy.maxMembers)명")
+                    Text(String(format: String(localized: "%ld/%ld members"), room.memberCount, GroupPolicy.maxMembers))
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(room.memberCount >= GroupPolicy.maxMembers ? TL.rec : TL.jade)
                 }
@@ -763,15 +763,15 @@ struct GroupJoinView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 44))
                 .foregroundStyle(TL.jade)
-            Text("참여 완료!")
+            Text("You're In!")
                 .font(.tlTitle(22))
                 .foregroundStyle(TL.paper)
-            Text("시작 시각이 되면 그룹 일정이 자동으로 내 활동에 추가되고,\n그때부터 상벌점이 그룹 랭킹에 집계됩니다.")
+            Text("At start time, the group schedule is added to your activities automatically,\nand points and penalties count toward the group ranking from then on.")
                 .font(.system(size: 13))
                 .foregroundStyle(TL.muted)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
-            Button("확인") { dismiss() }
+            Button("OK") { dismiss() }
                 .buttonStyle(TLPrimaryButtonStyle())
                 .padding(.top, 8)
         }
@@ -830,9 +830,9 @@ private struct GroupStartActivityCard: View {
     /// '다음 시작까지' 문구 — 예: "59분 뒤 시작", "2시간 5분 뒤 시작", "1분 뒤 시작".
     private func startsInLabel(_ seconds: Int) -> String {
         let m = minutesUp(seconds)
-        if m >= 1440 { return "\(m / 1440)일 뒤 시작" }
-        if m >= 60 { return "\(m / 60)시간 \(m % 60)분 뒤 시작" }
-        return "\(m)분 뒤 시작"
+        if m >= 1440 { return String(format: String(localized: "Starts in %ld days"), m / 1440) }
+        if m >= 60 { return String(format: String(localized: "Starts in %@"), TLFormat.durationLabel(m)) }
+        return String(format: String(localized: "Starts in %@"), TLFormat.durationLabel(m))
     }
 
     /// 예약·시작 창·다음 발생 시각을 다시 조회한다 (fetch 포함 — 15초 간격·onAppear에서만 호출).
@@ -846,16 +846,16 @@ private struct GroupStartActivityCard: View {
     var body: some View {
         TLCard {
             VStack(alignment: .leading, spacing: 12) {
-                TLEyebrow(text: "활동 인증")
+                TLEyebrow(text: String(localized: "Activity Check-in"))
 
                 if let fire = windowFire {
                     // 창 안 — 지금 시작 가능. 남은 시간을 분단위로(내림) 표시 — 초단위는 불안감만 키운다.
                     // 안전 쪽으로 내림: "1분 미만"이 되어도 실제로는 아직 여유가 있을 수 있음.
                     let remainSeconds = max(0, Int(fire.addingTimeInterval(TimePolicy.startWindowSeconds).timeIntervalSince(now)))
                     let remainMinutes = remainSeconds / 60
-                    Text("지금 활동을 시작할 수 있어요")
+                    Text("You can start your activity now")
                         .font(.system(size: 16, weight: .bold)).foregroundStyle(TL.paper)
-                    Label(remainMinutes >= 1 ? "남은 시간 \(remainMinutes)분" : "남은 시간 1분 미만", systemImage: "timer")
+                    Label(remainMinutes >= 1 ? String(format: String(localized: "%ld min left"), remainMinutes) : String(localized: "Less than 1 min left"), systemImage: "timer")
                         .font(.system(size: 14, weight: .heavy, design: .rounded))
                         .foregroundStyle(TL.amber)
                     Button {
@@ -867,7 +867,7 @@ private struct GroupStartActivityCard: View {
                         }
                         app.proceedToMountGuide(reservation: r, fireDate: freshFire, fromAlarm: false)
                     } label: {
-                        Label("활동 시작하기", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
+                        Label("Start Activity", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
                 } else if let next = nextFire {
@@ -875,15 +875,15 @@ private struct GroupStartActivityCard: View {
                     Text(startsInLabel(max(0, Int(next.timeIntervalSince(now)))))
                         .font(.system(size: 22, weight: .black, design: .rounded)).foregroundStyle(TL.amber)
                     Button {} label: {
-                        Label("활동 시작하기", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
+                        Label("Start Activity", systemImage: "record.circle.fill").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(TLPrimaryButtonStyle())
                     .disabled(true)
                     .opacity(0.4)
-                    Text("예정 시각부터 \(TimePolicy.startWindowMinutes)분 안에만 시작할 수 있어요.")
+                    Text(String(format: String(localized: "You can only start within %ld minutes of the scheduled time."), TimePolicy.startWindowMinutes))
                         .font(.system(size: 12)).foregroundStyle(TL.faint)
                 } else {
-                    Text("예정된 활동이 없어요.")
+                    Text("No scheduled activities.")
                         .font(.system(size: 14)).foregroundStyle(TL.muted)
                 }
             }
@@ -944,11 +944,11 @@ struct GroupRoomDetailView: View {
 
     /// 남은 시간 문구 — 예: "6시간 18분 뒤 시작", "42분 뒤 시작", "곧 시작".
     private func startRemainLabel(_ seconds: Int) -> String {
-        if seconds < 60 { return "곧 시작" }
+        if seconds < 60 { return String(localized: "Starting soon") }
         let m = seconds / 60
         let h = m / 60, mm = m % 60
-        if h > 0 { return "\(h)시간 \(mm)분 뒤 시작" }
-        return "\(mm)분 뒤 시작"
+        if h > 0 { return String(format: String(localized: "Starts in %@"), TLFormat.durationLabel(m)) }
+        return String(format: String(localized: "Starts in %@"), TLFormat.durationLabel(mm))
     }
 
     var body: some View {
@@ -1023,9 +1023,9 @@ struct GroupRoomDetailView: View {
                 Task { await store.refresh() }
             }
         }
-        .alert("처리하지 못했어요", isPresented: Binding(
+        .alert("Couldn't complete that", isPresented: Binding(
             get: { leaveError != nil }, set: { if !$0 { leaveError = nil } })) {
-            Button("확인", role: .cancel) { leaveError = nil }
+            Button("OK", role: .cancel) { leaveError = nil }
         } message: {
             Text(leaveError ?? "")
         }
@@ -1053,7 +1053,7 @@ struct GroupRoomDetailView: View {
                 }
                 Text(GroupFormat.scheduleLine(room))
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
-                Text("\(GroupFormat.day(room.startDate)) ~ \(GroupFormat.day(room.endDate)) · \(room.intensity.emoji) \(room.intensity.title) · \(room.memberCount)명")
+                Text(String(format: String(localized: "%@ – %@ · %@ %@ · %ld members"), GroupFormat.day(room.startDate), GroupFormat.day(room.endDate), room.intensity.emoji, room.intensity.title, room.memberCount))
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
             }
         }
@@ -1067,9 +1067,9 @@ struct GroupRoomDetailView: View {
             Image(systemName: "trash.fill")
                 .font(.system(size: 15)).foregroundStyle(TL.rec)
             VStack(alignment: .leading, spacing: 4) {
-                Text("참여 인원이 모자라 이 방은 시작 시각에 삭제됩니다.")
+                Text("Not enough members — this room will be deleted at start time.")
                     .font(.system(size: 13, weight: .bold)).foregroundStyle(TL.rec)
-                Text("참여 마감이 지나 더 들어올 수 없어요. 활동은 진행되지 않고 알람도 취소했습니다.")
+                Text("Joining has closed, so no one else can enter. The activity won't run and alarms have been cancelled.")
                     .font(.system(size: 12)).foregroundStyle(TL.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1085,7 +1085,7 @@ struct GroupRoomDetailView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "hourglass")
                 .font(.system(size: 15)).foregroundStyle(TL.amber)
-            Text("시작 여부를 확인하는 중입니다. 잠시 후 다시 열어주세요.")
+            Text("Checking whether the room started. Please reopen in a moment.")
                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.amber)
             Spacer(minLength: 0)
         }
@@ -1098,7 +1098,7 @@ struct GroupRoomDetailView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 15)).foregroundStyle(TL.rec)
-            Text("참여자가 2명 미만이 되어 방이 곧 삭제될 예정입니다.")
+            Text("Fewer than 2 members — this room will be deleted soon.")
                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.rec)
             Spacer(minLength: 0)
         }
@@ -1116,8 +1116,8 @@ struct GroupRoomDetailView: View {
         let secs = Int(room.startDate.timeIntervalSince(now))
         if secs <= 12 * 3600 { return (startRemainLabel(secs), true) }
         let m = max(1, secs / 60)
-        if m >= 1440 { return ("\(m / 1440)일 뒤 시작", false) }
-        return ("\(m / 60)시간 뒤 시작", false)
+        if m >= 1440 { return (String(format: String(localized: "Starts in %ld days"), m / 1440), false) }
+        return (String(format: String(localized: "Starts in %@"), TLFormat.durationLabel((m / 60) * 60)), false)
     }
 
     /// 최초 시작 전 — 활성 상태의 '활동 인증' 카드와 동일한 틀.
@@ -1126,7 +1126,7 @@ struct GroupRoomDetailView: View {
         let cd = startCountdown()
         return TLCard {
             VStack(alignment: .leading, spacing: 12) {
-                TLEyebrow(text: "초대하기")
+                TLEyebrow(text: String(localized: "Invite"))
                 Text(cd.text)
                     .font(.system(size: 22, weight: .black, design: .rounded))
                     .foregroundStyle(cd.urgent ? TL.amber : TL.paper)
@@ -1134,8 +1134,8 @@ struct GroupRoomDetailView: View {
                     InviteCodeCard(code: room.code)   // '활동 시작하기' 버튼 자리에 코드
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("• 시작 10분 전까지만 참여할 수 있어요")
-                    Text("• 초대코드는 방장만 볼 수 있어요")
+                    Text("• You can join until 10 minutes before start")
+                    Text("• Only the host can see the invite code")
                 }
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(TL.amber)
@@ -1147,7 +1147,7 @@ struct GroupRoomDetailView: View {
 
     private var waitingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "참여자 \(members.count)/\(GroupPolicy.maxMembers)")
+            TLEyebrow(text: String(format: String(localized: "Members %ld/%ld"), members.count, GroupPolicy.maxMembers))
             TLCard {
                 if loading {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 8)
@@ -1165,7 +1165,7 @@ struct GroupRoomDetailView: View {
                                 if member.id == myUID {
                                     // 좌우 패딩으로 크기를 잡으면 글자 폭만큼 늘어나 타원이 된다 —
                                     // 정사각 크기를 고정해 정원으로 만든다.
-                                    Text("나")
+                                    Text("Me")
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundStyle(TL.ink)
                                         .frame(width: 20, height: 20)
@@ -1181,7 +1181,7 @@ struct GroupRoomDetailView: View {
                     }
                 }
             }
-            Text("시작 시각에 \(GroupPolicy.minMembersToStart)명 미만이면 방이 자동 삭제됩니다.")
+            Text(String(format: String(localized: "The room is auto-deleted if fewer than %ld members join by start time."), GroupPolicy.minMembersToStart))
                 .font(.system(size: 12)).foregroundStyle(TL.faint)
         }
     }
@@ -1190,7 +1190,7 @@ struct GroupRoomDetailView: View {
 
     private var rankingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "실시간 랭킹")
+            TLEyebrow(text: String(localized: "Live Ranking"))
             TLCard {
                 if loading {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 8)
@@ -1218,7 +1218,7 @@ struct GroupRoomDetailView: View {
                     }
                 }
             }
-            Text("점수는 이 그룹 일정에서 얻은 상벌점만 집계돼요. 동점은 공동 등수입니다.")
+            Text("Only points and penalties from this group's schedule are counted. Ties share the same rank.")
                 .font(.system(size: 12)).foregroundStyle(TL.faint)
         }
     }
@@ -1227,7 +1227,7 @@ struct GroupRoomDetailView: View {
 
     private var resultSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "최종 결과", color: TL.amber)
+            TLEyebrow(text: String(localized: "Final Results"), color: TL.amber)
             TLCard {
                 if loading {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 8)
@@ -1249,7 +1249,7 @@ struct GroupRoomDetailView: View {
                 Text(deletionNotice)
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
             }
-            Text("결과는 종료 후 \(GroupPolicy.resultRetentionDays)일 동안 보관됩니다.")
+            Text(String(format: String(localized: "Results are kept for %ld days after the group ends."), GroupPolicy.resultRetentionDays))
                 .font(.system(size: 12)).foregroundStyle(TL.faint)
         }
     }
@@ -1260,8 +1260,8 @@ struct GroupRoomDetailView: View {
         let remaining = cal.dateComponents([.day],
                                            from: cal.startOfDay(for: now),
                                            to: cal.startOfDay(for: room.deleteAt)).day ?? 0
-        if remaining <= 0 { return "오늘 중 이 방과 결과가 자동으로 삭제됩니다." }
-        return "\(remaining)일 뒤 이 방과 결과가 자동으로 삭제됩니다."
+        if remaining <= 0 { return String(localized: "This room and its results will be deleted automatically today.") }
+        return String(format: String(localized: "This room and its results will be deleted automatically in %ld days."), remaining)
     }
 
     /// 1~3위 메달 에셋 이름. 그 밖의 순위는 nil(숫자로 표시).
@@ -1299,14 +1299,14 @@ struct GroupRoomDetailView: View {
                     .font(.system(size: 11)).foregroundStyle(TL.amber)
             }
             if isMe {
-                Text("나")
+                Text("Me")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(TL.ink)
                     .frame(width: 20, height: 20)
                     .background(Circle().fill(TL.jade))
             }
             if item.member.quit {
-                Text("중도 포기")
+                Text("Dropped Out")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(TL.rec)
                     .padding(.horizontal, 7).padding(.vertical, 2)
@@ -1325,7 +1325,7 @@ struct GroupRoomDetailView: View {
     @ViewBuilder
     private var actionSection: some View {
         if room.isFinished {
-            Button(working ? "나가는 중…" : "방 나가기 (결과가 내 목록에서 사라져요)") {
+            Button(working ? String(localized: "Leaving…") : String(localized: "Leave Room (results disappear from my list)")) {
                 // 다른 나가기 경로와 동일하게 — 성공했을 때만 닫는다.
                 Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
             }
@@ -1333,7 +1333,7 @@ struct GroupRoomDetailView: View {
             .disabled(working)
         } else if room.status == "cancelled" || room.status == "disbanded" {
             // 이미 끝난 방 — 정리가 아직 안 됐을 뿐이다. 벌점 액션을 보이면 안 된다.
-            Button(working ? "나가는 중…" : "방 나가기") {
+            Button(working ? String(localized: "Leaving…") : String(localized: "Leave Room")) {
                 Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
             }
             .buttonStyle(TLGhostButtonStyle())
@@ -1342,55 +1342,55 @@ struct GroupRoomDetailView: View {
             // 시작 시각은 지났는데 아직 시작/취소 판정이 안 끝났다. 여기서 무벌점 탈퇴를 열면
             // 곧 active가 될 방을 벌점 없이 빠져나가는 회피 경로가 되고, 중도 포기를 열면
             // 진행조차 안 한 방에서 -50점을 물게 된다. 그래서 아무 액션도 노출하지 않는다.
-            Text("시작 여부를 확인하는 중이에요. 잠시 후 다시 시도해주세요.")
+            Text("Checking whether the room started. Please try again in a moment.")
                 .font(.system(size: 12)).foregroundStyle(TL.faint)
                 .frame(maxWidth: .infinity, alignment: .center)
         } else if !room.hasStarted {
             if room.isHostMine {
                 // 처리 중에는 다시 누르지 못하게 막는다 — 두 번 실행되면 인원수가 두 번 줄어
                 // 목록·상세의 참여자 수가 어긋나고 허위 '정원 초과'까지 난다.
-                Button(working ? "해체하는 중…" : "방 해체하기") { confirmDisband = true }
+                Button(working ? String(localized: "Disbanding…") : String(localized: "Disband Room")) { confirmDisband = true }
                     .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
                     .disabled(working)
-                    .confirmationDialog("방을 해체할까요?", isPresented: $confirmDisband, titleVisibility: .visible) {
-                        Button("해체하기", role: .destructive) {
+                    .confirmationDialog("Disband this room?", isPresented: $confirmDisband, titleVisibility: .visible) {
+                        Button("Disband", role: .destructive) {
                             // 실패했는데 닫으면 '나갔다'고 오해하고 예약이 남는다 — 성공했을 때만 닫는다.
                             Task { await runLeaveAction { try await store.disband(room: room) } }
                         }
                     } message: {
-                        Text("참여자 전원에게 방이 사라지고, 되돌릴 수 없습니다.")
+                        Text("The room disappears for every member. This can't be undone.")
                     }
             } else {
                 Button {
                     confirmLeave = true
                 } label: {
                     VStack(spacing: 2) {
-                        Text(working ? "탈퇴하는 중…" : "탈퇴하기")
+                        Text(working ? String(localized: "Leaving group…") : String(localized: "Leave Group"))
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(TL.rec)
-                        Text("시작 전에는 벌점 없음")
+                        Text("No penalty before start")
                             .font(.system(size: 11))
                             .foregroundStyle(TL.faint)
                     }
                 }
                 .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
                 .disabled(working)
-                    .confirmationDialog("방에서 나갈까요?", isPresented: $confirmLeave, titleVisibility: .visible) {
-                        Button("탈퇴하기", role: .destructive) {
+                    .confirmationDialog("Leave this room?", isPresented: $confirmLeave, titleVisibility: .visible) {
+                        Button("Leave Group", role: .destructive) {
                             Task { await runLeaveAction { try await store.leaveBeforeStart(room: room) } }
                         }
                     }
             }
         } else {
-            Button(working ? "처리 중…" : "중도 포기하기 (벌점 \(ScoreRules.groupQuitPenalty)점)") { confirmQuit = true }
+            Button(working ? String(localized: "Processing…") : String(format: String(localized: "Drop Out (%ld pt penalty)"), ScoreRules.groupQuitPenalty)) { confirmQuit = true }
                 .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
                 .disabled(working)
-                .confirmationDialog("정말 중도 포기할까요?", isPresented: $confirmQuit, titleVisibility: .visible) {
-                    Button("포기하기 (벌점 \(ScoreRules.groupQuitPenalty)점)", role: .destructive) {
+                .confirmationDialog("Really drop out?", isPresented: $confirmQuit, titleVisibility: .visible) {
+                    Button(String(format: String(localized: "Give Up (%ld pt penalty)"), ScoreRules.groupQuitPenalty), role: .destructive) {
                         Task { await runLeaveAction { try await store.quitAfterStart(room: room) } }
                     }
                 } message: {
-                    Text("벌점 \(ScoreRules.groupQuitPenalty)점이 그룹 점수와 내 누적 점수에 모두 기록되고, 남은 그룹 일정이 삭제됩니다. 지금까지 얻은 점수는 유지됩니다.")
+                    Text(String(format: String(localized: "A %ld-point penalty is recorded on both the group score and your personal total, and the remaining group schedule is deleted. Points earned so far are kept."), ScoreRules.groupQuitPenalty))
                 }
         }
     }
@@ -1415,7 +1415,7 @@ struct InviteCodeCard: View {
                     .font(.tlTimer(30))
                     .foregroundStyle(TL.paper)
                     .kerning(2)
-                Text(copied ? "복사됐어요!" : "초대코드 · 탭해서 복사")
+            Text(copied ? String(localized: "Copied!") : String(localized: "Invite code · Tap to copy"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(copied ? TL.jade : TL.faint)
             }
@@ -1440,7 +1440,7 @@ enum GroupFormat {
         let formatter = DateFormatter()
         if TLFormat.isKorean {
             formatter.locale = Locale(identifier: "ko_KR")
-            formatter.dateFormat = "M월 d일 (E)"
+            formatter.dateFormat = "M월 d일 (E)"   // l10n:ko-literal — ko 전용 날짜 패턴
         } else {
             formatter.locale = .autoupdatingCurrent
             formatter.setLocalizedDateFormatFromTemplate("MMMdE")   // "Thu, Aug 14"
@@ -1453,8 +1453,8 @@ enum GroupFormat {
         if TLFormat.isKorean {
             let isPM = h >= 12
             let h12 = h % 12 == 0 ? 12 : h % 12
-            return m == 0 ? "\(isPM ? "오후" : "오전") \(h12)시"
-                          : "\(isPM ? "오후" : "오전") \(h12):\(String(format: "%02d", m))"
+            return m == 0 ? "\(isPM ? "오후" : "오전") \(h12)시"   // l10n:ko-literal — ko 전용 시각 표기
+                          : "\(isPM ? "오후" : "오전") \(h12):\(String(format: "%02d", m))"   // l10n:ko-literal
         }
         var comps = DateComponents(); comps.hour = h; comps.minute = m
         let date = Calendar.current.date(from: comps) ?? .now
@@ -1468,16 +1468,16 @@ enum GroupFormat {
         let days = Calendar.current.dateComponents(
             [.day], from: Calendar.current.startOfDay(for: .now),
             to: Calendar.current.startOfDay(for: date)).day ?? 0
-        return days <= 0 ? "오늘" : "D-\(days)"
+        return days <= 0 ? String(localized: "Today") : "D-\(days)"
     }
 
     static func scheduleLine(_ room: GroupRoom) -> String {
         // 시작일=종료일(또는 요일 없음, 레거시)이면 그날 하루만 진행하는 단발 그룹
         let sameDay = Calendar.current.isDate(room.startDate, inSameDayAs: room.endDate)
         let when = (room.repeatWeekdays.isEmpty || sameDay)
-            ? "\(day(room.startDate)) 하루"
-            : room.repeatWeekdays.count == 7 ? "매일"
-            : "반복요일 " + room.repeatWeekdays.sorted().compactMap { weekdayNames[$0] }.joined(separator: " ")
+            ? String(format: String(localized: "One day on %@"), day(room.startDate))
+            : room.repeatWeekdays.count == 7 ? String(localized: "Daily")
+            : String(format: String(localized: "Repeats on %@"), room.repeatWeekdays.sorted().compactMap { weekdayNames[$0] }.joined(separator: " "))
         return "\(when) · \(time(room.startMinute)) · \(TLFormat.durationLabel(room.durationMinutes))"
     }
 }
