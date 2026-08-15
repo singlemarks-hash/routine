@@ -1,0 +1,112 @@
+name: Screenshots (iOS)
+
+# G2 스크린샷 캡처 — iOS (docs/영어화-설계도.md §5)
+# 시뮬레이터에서 L10nScreenshotTests를 en·ko로 돌려 XCTAttachment PNG를 회수한다.
+# macOS 러너가 비싸므로 수동 트리거(workflow_dispatch)만 둔다.
+on:
+  workflow_dispatch:
+    inputs:
+      locales:
+        description: "캡처 로케일 (en ko | en | ko)"
+        default: "en ko"
+        required: true
+
+jobs:
+  capture:
+    name: 시뮬레이터 캡처 (${{ inputs.locales }})
+    runs-on: macos-15
+    timeout-minutes: 60
+    # shots-ios 브랜치 강제 푸시용 (Claude 샌드박스가 아티팩트 CDN에 접근 불가 → git 경유 회수)
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 버전 확인
+        run: xcodebuild -version
+
+      - name: 패키지 의존성 해석 (재시도 포함)
+        run: |
+          for attempt in 1 2 3; do
+            if xcodebuild -resolvePackageDependencies \
+                 -project TimeLock/TimeLock.xcodeproj \
+                 -scheme TimeLock; then
+              exit 0
+            fi
+            echo "패키지 해석 실패 — ${attempt}회차, 15초 후 재시도"
+            sleep 15
+          done
+          exit 1
+
+      # 빌드는 1회만, 로케일별 실행은 test-without-building으로 재사용
+      - name: 테스트용 빌드
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project TimeLock/TimeLock.xcodeproj \
+            -scheme TimeLock \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO
+
+      # TEST_RUNNER_ 접두사 환경변수는 xcodebuild가 테스트 러너 프로세스로 전달한다
+      - name: 로케일별 캡처 실행
+        run: |
+          set -o pipefail
+          for loc in ${{ inputs.locales }}; do
+            echo "=== locale: $loc ==="
+            TEST_RUNNER_SHOT_LOCALE=$loc xcodebuild test-without-building \
+              -project TimeLock/TimeLock.xcodeproj \
+              -scheme TimeLock \
+              -only-testing:TimeLockUITests/L10nScreenshotTests \
+              -destination 'platform=iOS Simulator,name=iPhone 16' \
+              -resultBundlePath "result-$loc.xcresult" \
+              CODE_SIGNING_ALLOWED=NO || echo "테스트 비정상 종료($loc) — 찍힌 장면까지는 추출한다"
+          done
+
+      - name: 첨부 스크린샷 추출·이름 복원
+        if: always()
+        run: |
+          mkdir -p shots
+          for loc in ${{ inputs.locales }}; do
+            [ -d "result-$loc.xcresult" ] || continue
+            out="attachments-$loc"
+            xcrun xcresulttool export attachments --path "result-$loc.xcresult" --output-path "$out" || continue
+            python3 - "$out" shots <<'PYEOF'
+          import json, os, shutil, sys
+          src, dst = sys.argv[1], sys.argv[2]
+          manifest_path = os.path.join(src, "manifest.json")
+          if not os.path.exists(manifest_path):
+              sys.exit(0)
+          manifest = json.load(open(manifest_path))
+          for test in manifest:
+              for att in test.get("attachments", []):
+                  name = att.get("suggestedHumanReadableName") or att["exportedFileName"]
+                  if not name.lower().endswith(".png"):
+                      name += ".png"
+                  shutil.copy(os.path.join(src, att["exportedFileName"]),
+                              os.path.join(dst, name))
+          PYEOF
+          done
+          ls -la shots || true
+
+      - name: 스크린샷 아티팩트 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots
+          path: shots/
+          if-no-files-found: warn
+
+      # Claude 샌드박스는 아티팩트 CDN(Azure blob)이 프록시에 막혀 있다 —
+      # 검수용 사본을 전용 고아 브랜치(shots-ios)로 강제 푸시해 git으로 회수한다.
+      - name: 캡처를 shots-ios 브랜치로 푸시
+        if: always()
+        run: |
+          [ -n "$(ls -A shots 2>/dev/null)" ] || { echo "캡처 없음 — 푸시 생략"; exit 0; }
+          cd shots
+          git init -q -b shots-ios
+          git config user.name "screenshot-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add . && git commit -qm "capture run ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/shots-ios
