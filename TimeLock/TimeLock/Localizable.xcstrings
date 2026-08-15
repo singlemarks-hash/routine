@@ -2092,6 +2092,348 @@
           }
         }
       }
+    },
+    "Alarm · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알람 · %@"
+          }
+        }
+      }
+    },
+    "to start recording": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "안에 촬영을 시작하세요"
+          }
+        }
+      },
+      "comment": "큰 타이머 아래 짧은 안내 — 타이머와 이어 읽힘"
+    },
+    "If you don't start, it's recorded as a no-show and a penalty applies.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작하지 않으면 탈락으로 기록되고 벌점이 부과됩니다."
+          }
+        }
+      }
+    },
+    "Get Ready": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "촬영 준비"
+          }
+        }
+      }
+    },
+    "Slide to Cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "밀어서 일정 취소"
+          }
+        }
+      }
+    },
+    "OK — Set Up My Shot": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 — 구도 잡으러 가기"
+          }
+        }
+      }
+    },
+    "Please select a reason for cancelling": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "취소 사유를 선택해주세요"
+          }
+        }
+      }
+    },
+    "Enter a reason": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사유를 입력하세요"
+          }
+        }
+      }
+    },
+    "Cancelling records a %ld-point penalty along with the reason.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "취소하면 벌점 %ld점이 사유와 함께 기록됩니다."
+          }
+        }
+      }
+    },
+    "Confirm Penalty · Cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "벌점 확인 · 일정 취소"
+          }
+        }
+      }
+    },
+    "Go Back — Resume Alarm": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "돌아가기 — 알람 다시 울리기"
+          }
+        }
+      }
+    },
+    "Camera Access Needed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "카메라 권한이 필요해요"
+          }
+        }
+      }
+    },
+    "Open Settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정 열기"
+          }
+        }
+      }
+    },
+    "Camera access is required to record a timelapse. Turn on Camera under Settings → AngryMoti.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "타임랩스를 촬영하려면 카메라 접근을 허용해야 합니다. 설정 → 앵그리모티에서 카메라를 켜주세요."
+          }
+        }
+      }
+    },
+    "Starting Recording": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "촬영 개시"
+          }
+        }
+      }
+    },
+    "Recording starts now": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이제부터 촬영 시작한다"
+          }
+        }
+      }
+    },
+    "Go!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작!"
+          }
+        }
+      }
+    },
+    "Preparing camera…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "카메라 준비 중…"
+          }
+        }
+      }
+    },
+    "Position yourself in the frame": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "영역 안에 내 모습이 보이도록 고정"
+          }
+        }
+      }
+    },
+    "I've mounted my phone on a stand": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "거치대에 폰을 고정했어요"
+          }
+        }
+      }
+    },
+    "I'm visible in the frame": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구도 안에 내가 보여요"
+          }
+        }
+      }
+    },
+    "Setup Guide": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "거치 가이드"
+          }
+        }
+      }
+    },
+    "You'll be marked as a no-show if you don't start within %02d:%02d": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%02d:%02d 안에 시작하지 않으면 노쇼처리됩니다"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "취소하기"
+          }
+        }
+      }
+    },
+    "Start Recording": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "촬영 시작"
+          }
+        }
+      }
+    },
+    "OK — Start Recording": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 — 촬영 시작"
+          }
+        }
+      }
+    },
+    "Before you start, turn on Focus mode\nto block notifications": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 전, 집중 모드를 켜서\n알림을 차단해보세요"
+          }
+        }
+      }
+    },
+    "Swipe down from the top-right corner to open Control Center": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화면 오른쪽 위 모서리에서 아래로 쓸어내려 제어 센터를 엽니다"
+          }
+        }
+      }
+    },
+    "Tap the 🌙 Focus button and choose 'Do Not Disturb'": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🌙 집중 모드 버튼을 누르고 '방해금지'를 선택합니다"
+          }
+        }
+      }
+    },
+    "Turn it off the same way once your session ends": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "세션이 끝나면 같은 방법으로 해제하면 됩니다"
+          }
+        }
+      }
+    },
+    "In-app banners are blocked automatically once recording starts, via 'Mute Notifications'. Resume alerts if you step away will still break through Focus mode.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱 화면 위 배너는 촬영이 시작되면 '알림차단'이 자동으로 켜져 막아줍니다. 이탈 시 재촬영 알림은 집중 모드를 뚫고 전달됩니다."
+          }
+        }
+      }
     }
   },
   "version": "1.2"

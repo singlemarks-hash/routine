@@ -34,7 +34,7 @@ struct AlarmView: View {
 
             VStack(spacing: 0) {
                 Spacer().frame(height: 36)
-                TLEyebrow(text: "알람 · \(TLFormat.clock(fireDate))", color: TL.rec)
+                TLEyebrow(text: String(format: String(localized: "Alarm · %@"), TLFormat.clock(fireDate)), color: TL.rec)
                 Text(reservation.name)
                     .font(.tlTitle(30))
                     .foregroundStyle(TL.paper)
@@ -54,14 +54,14 @@ struct AlarmView: View {
                         Text(TLFormat.hms(remaining))
                             .font(.tlTimer(52))
                             .foregroundStyle(TL.paper)
-                        Text("안에 촬영을 시작하세요")
+                        Text("to start recording")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(TL.muted)
                     }
                 }
                 .frame(width: 250, height: 250)
 
-                Text("시작하지 않으면 탈락으로 기록되고 벌점이 부과됩니다.")
+                Text("If you don't start, it's recorded as a no-show and a penalty applies.")
                     .font(.system(size: 13))
                     .foregroundStyle(TL.muted)
                     .padding(.top, 24)
@@ -78,7 +78,7 @@ struct AlarmView: View {
                     } label: {
                         // 시작 창 안내는 위 헤더(§remainingSeconds)에서 이미 하고 있어
                         // 여기서 또 적으면 중복 — 버튼은 라벨 하나로 간결하게.
-                        Label("촬영 준비", systemImage: "record.circle.fill")
+                        Label("Get Ready", systemImage: "record.circle.fill")
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
@@ -86,7 +86,7 @@ struct AlarmView: View {
                     .buttonStyle(TLPrimaryButtonStyle())
 
                     // 밀어서 일정 취소 — 밀자마자 알람이 꺼지고 사유 입력 + 벌점 확인
-                    SlideToCancelButton(title: "밀어서 일정 취소") {
+                    SlideToCancelButton(title: String(localized: "Slide to Cancel")) {
                         AlarmScheduler.shared.stopAlarmSound()
                         AlarmScheduler.shared.cancelAlarmNotifications(
                             reservationID: reservation.id, fireDate: fireDate)
@@ -109,7 +109,7 @@ struct AlarmView: View {
         }
         .onAppear { AlarmScheduler.shared.startAlarmSound() }
         .sheet(isPresented: $showFocusGuide) {
-            FocusModeGuideSheet(confirmTitle: "확인 — 구도 잡으러 가기") {
+            FocusModeGuideSheet(confirmTitle: String(localized: "OK — Set Up My Shot")) {
                 showFocusGuide = false
                 app.proceedToMountGuide(reservation: reservation, fireDate: fireDate)
             }
@@ -209,7 +209,7 @@ private struct CancelReasonSheet: View {
     @FocusState private var customFocused: Bool
 
     private let presets = CancelReason.presets   // 정본 코드 — 표시 문구는 CancelReason.label()
-    private static let etc = "기타"
+    private static var etc: String { String(localized: "Other") }
 
     /// 확정 가능한 최종 사유 (기타는 직접 입력 필수)
     private var finalReason: String? {
@@ -223,7 +223,7 @@ private struct CancelReasonSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("취소 사유를 선택해주세요")
+            Text("Please select a reason for cancelling")
                 .font(.tlTitle(20))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 24)
@@ -233,7 +233,7 @@ private struct CancelReasonSheet: View {
                     reasonRow(reason)
                 }
                 if selected == Self.etc {
-                    TextField("사유를 입력하세요", text: $customReason)
+                    TextField("Enter a reason", text: $customReason)
                         .font(.tlBody)
                         .foregroundStyle(TL.paper)
                         .focused($customFocused)
@@ -245,7 +245,7 @@ private struct CancelReasonSheet: View {
             }
             .padding(.top, 16)
 
-            Label("취소하면 벌점 \(penaltyPoints)점이 사유와 함께 기록됩니다.",
+            Label(String(format: String(localized: "Cancelling records a %ld-point penalty along with the reason."), penaltyPoints),
                   systemImage: "exclamationmark.triangle.fill")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(TL.rec)
@@ -254,14 +254,14 @@ private struct CancelReasonSheet: View {
             Spacer()
 
             VStack(spacing: 10) {
-                Button("벌점 확인 · 일정 취소") {
+                Button("Confirm Penalty · Cancel") {
                     if let reason = finalReason { onConfirm(reason) }
                 }
                 .buttonStyle(TLPrimaryButtonStyle())
                 .disabled(finalReason == nil)
                 .opacity(finalReason == nil ? 0.45 : 1)
 
-                Button("돌아가기 — 알람 다시 울리기") { onResume() }
+                Button("Go Back — Resume Alarm") { onResume() }
                     .buttonStyle(TLGhostButtonStyle(tint: TL.muted))
             }
             .padding(.bottom, 20)
@@ -374,15 +374,15 @@ struct MountGuideView: View {
             _ = await recorder.requestAuthorization()
             recorder.startPreview()
         }
-        .alert("카메라 권한이 필요해요", isPresented: $showCameraBlockedAlert) {
-            Button("설정 열기") {
+        .alert("Camera Access Needed", isPresented: $showCameraBlockedAlert) {
+            Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
             }
-            Button("닫기", role: .cancel) { app.route = .none }
+            Button("Close", role: .cancel) { app.route = .none }
         } message: {
-            Text("타임랩스를 촬영하려면 카메라 접근을 허용해야 합니다. 설정 → 앵그리모티에서 카메라를 켜주세요.")
+            Text("Camera access is required to record a timelapse. Turn on Camera under Settings → AngryMoti.")
         }
         .onReceive(windowClock) { tick in
             now = tick
@@ -449,8 +449,8 @@ struct MountGuideView: View {
                 .contentShape(Rectangle())
 
             VStack(spacing: 18) {
-                TLEyebrow(text: "촬영 개시", color: TL.rec)
-                Text("이제부터 촬영 시작한다")
+                TLEyebrow(text: "Starting Recording", color: TL.rec)
+                Text("Recording starts now")
                     .font(.tlTitle(23)).foregroundStyle(.white)
 
                 Group {
@@ -461,7 +461,7 @@ struct MountGuideView: View {
                             .id(value)
                             .transition(.scale(scale: 0.4).combined(with: .opacity))
                     } else {
-                        Text("시작!")
+                        Text("Go!")
                             .font(.system(size: 80, weight: .heavy, design: .rounded))
                             .foregroundStyle(TL.rec)
                             .transition(.scale(scale: 0.6).combined(with: .opacity))
@@ -474,7 +474,7 @@ struct MountGuideView: View {
                 if value == 0 && preparing {
                     HStack(spacing: 8) {
                         ProgressView().tint(.white).scaleEffect(0.85)
-                        Text("카메라 준비 중…")
+                        Text("Preparing camera…")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.85))
                     }
@@ -501,7 +501,7 @@ struct MountGuideView: View {
 
                 // 안내 문구 — 방향·전환 아이콘 바로 아래, 가운데 정렬(VStack 중앙).
                 // 프레임(중앙)과 넉넉히 떨어져 점선·다른 요소와 간섭이 없다.
-                Text("영역 안에 내 모습이 보이도록 고정")
+                Text("Position yourself in the frame")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12).padding(.vertical, 6)
@@ -511,8 +511,8 @@ struct MountGuideView: View {
                 Spacer()   // 가운데는 점선 프레임(별도 레이어)이 차지한다
 
                 VStack(spacing: 10) {
-                    checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount)
-                    checkRow("구도 안에 내가 보여요", isOn: $checkedFrame)
+                    checkRow(String(localized: "I've mounted my phone on a stand"), isOn: $checkedMount)
+                    checkRow(String(localized: "I'm visible in the frame"), isOn: $checkedFrame)
                     startButton
                     cancelButton
                 }
@@ -532,7 +532,7 @@ struct MountGuideView: View {
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(alignment: .top) {
-                    Text("영역 안에 내 모습이 보이도록 고정")
+                    Text("Position yourself in the frame")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -546,8 +546,8 @@ struct MountGuideView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     header
                     controlsBar
-                    checkRow("거치대에 폰을 고정했어요", isOn: $checkedMount, compact: true)
-                    checkRow("구도 안에 내가 보여요", isOn: $checkedFrame, compact: true)
+                    checkRow(String(localized: "I've mounted my phone on a stand"), isOn: $checkedMount, compact: true)
+                    checkRow(String(localized: "I'm visible in the frame"), isOn: $checkedFrame, compact: true)
                     startButton
                     cancelButton
                 }
@@ -570,7 +570,7 @@ struct MountGuideView: View {
 
     private var header: some View {
         VStack(alignment: isLandscape ? .leading : .center, spacing: 6) {
-            TLEyebrow(text: "거치 가이드", color: TL.amber)
+            TLEyebrow(text: "Setup Guide", color: TL.amber)
             Text(pending.activityName)
                 .font(.tlTitle(isLandscape ? 18 : 22))
                 .foregroundStyle(TL.paper)
@@ -579,7 +579,7 @@ struct MountGuideView: View {
             // 남은 시간은 원래 있던 경고 문구 안에서 흐른다. 큰 타이머를 줄로 따로 세웠더니
             // 헤더가 한 줄 늘어 아래 요소가 전부 밀렸고, 가로에서는 버튼이 화면 밖으로 나갔다.
             if let remaining = remainingSeconds {
-                Text(String(format: "%02d:%02d 안에 시작하지 않으면 노쇼처리됩니다",
+                Text(String(format: String(localized: "You'll be marked as a no-show if you don't start within %02d:%02d"),
                             remaining / 60, remaining % 60))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.rec)
@@ -600,7 +600,7 @@ struct MountGuideView: View {
     /// 아직 시작 전 — 마음이 바뀌면 아무 기록 없이 되돌아간다.
     /// (예약 세션은 알람 화면으로, 즉시 세션은 홈으로)
     private var cancelButton: some View {
-        Button("취소하기") {
+        Button("Cancel") {
             app.cancelMountGuide(pending: pending)
         }
         .font(.system(size: 15, weight: .semibold, design: .rounded))
@@ -626,7 +626,7 @@ struct MountGuideView: View {
                 runCountdown()
             }
         } label: {
-            Label("촬영 시작", systemImage: "record.circle.fill")
+            Label("Start Recording", systemImage: "record.circle.fill")
         }
         .buttonStyle(TLPrimaryButtonStyle())
         .disabled(!(checkedMount && checkedFrame))
@@ -718,7 +718,7 @@ struct MountGuideView: View {
 //  사용자가 직접 집중 모드를 켜도록 안내한 뒤 '확인'으로 촬영을 시작한다.
 
 struct FocusModeGuideSheet: View {
-    var confirmTitle: String = "확인 — 촬영 시작"
+    var confirmTitle: String = String(localized: "OK — Start Recording")
     /// '확인' 버튼 동작
     var onConfirm: () -> Void
 
@@ -728,7 +728,7 @@ struct FocusModeGuideSheet: View {
                 Image(systemName: "moon.fill")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(TL.amber)
-                Text("시작 전, 집중 모드를 켜서\n알림을 차단해보세요")
+                Text("Before you start, turn on Focus mode\nto block notifications")
                     .font(.tlTitle(19))
                     .foregroundStyle(TL.paper)
                     .fixedSize(horizontal: false, vertical: true)
@@ -736,15 +736,15 @@ struct FocusModeGuideSheet: View {
             .padding(.top, 24)
 
             VStack(alignment: .leading, spacing: 14) {
-                guideStep(number: 1, text: "화면 오른쪽 위 모서리에서 아래로 쓸어내려 제어 센터를 엽니다")
-                guideStep(number: 2, text: "🌙 집중 모드 버튼을 누르고 '방해금지'를 선택합니다")
-                guideStep(number: 3, text: "세션이 끝나면 같은 방법으로 해제하면 됩니다")
+                guideStep(number: 1, text: String(localized: "Swipe down from the top-right corner to open Control Center"))
+                guideStep(number: 2, text: String(localized: "Tap the 🌙 Focus button and choose 'Do Not Disturb'"))
+                guideStep(number: 3, text: String(localized: "Turn it off the same way once your session ends"))
             }
             .padding(16)
             .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerL, style: .continuous))
             .padding(.top, 20)
 
-            Text("앱 화면 위 배너는 촬영이 시작되면 '알림차단'이 자동으로 켜져 막아줍니다. 이탈 시 재촬영 알림은 집중 모드를 뚫고 전달됩니다.")
+            Text("In-app banners are blocked automatically once recording starts, via 'Mute Notifications'. Resume alerts if you step away will still break through Focus mode.")
                 .font(.system(size: 12))
                 .foregroundStyle(TL.faint)
                 .padding(.top, 12)

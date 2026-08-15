@@ -1,5 +1,4 @@
 TimeLock/TimeLock/Services/CanonicalKeys.swift
-TimeLock/TimeLock/Views/Alarm/AlarmView.swift
 TimeLock/TimeLock/Views/Group/GroupViews.swift
 TimeLock/TimeLock/Views/Reservation/ReservationEditView.swift
 TimeLock/TimeLock/Views/Session/SessionView.swift
