@@ -37,13 +37,13 @@ enum CanonicalTag {
     /// 저장값 → 표시 문구. 커스텀 태그는 사용자가 쓴 원문 그대로 보여준다.
     static func label(_ raw: String) -> String {
         switch canonical(raw) {
-        case "study":   return "공부"
-        case "reading": return "독서"
-        case "workout": return "운동"
-        case "work":    return "작업"
-        case "music":   return "연주"
-        case "writing": return "글쓰기"
-        case "group":   return "그룹"
+        case "study":   return String(localized: "Study")
+        case "reading": return String(localized: "Reading")
+        case "workout": return String(localized: "Workout")
+        case "work":    return String(localized: "Work")
+        case "music":   return String(localized: "Music")
+        case "writing": return String(localized: "Writing")
+        case "group":   return String(localized: "Group")
         default:        return raw
         }
     }
@@ -68,10 +68,10 @@ enum CancelReason {
 
     static func label(_ raw: String) -> String {
         switch canonical(raw) {
-        case "reason.urgent":            return "급한 일이 생겼어요"
-        case "reason.sick":              return "몸이 좋지 않아요"
-        case "reason.rest":              return "오늘은 쉬고싶어요"
-        case "reason.emergency_ongoing": return "긴급 용무 지속"
+        case "reason.urgent":            return String(localized: "Something urgent came up")
+        case "reason.sick":              return String(localized: "I'm not feeling well")
+        case "reason.rest":              return String(localized: "I need a rest today")
+        case "reason.emergency_ongoing": return String(localized: "Emergency break continued")
         default:                         return raw   // 자유 입력 사유
         }
     }
@@ -126,17 +126,17 @@ enum ScoreNote {
         let code = parts.first ?? ""
         let arg = parts.count > 1 ? parts[1] : ""
         switch code {
-        case "camera_start_failed":  return "카메라 시작 실패"
-        case "recording_incomplete": return "촬영 불완전 — 영상 손상/부족"
-        case "recording_stalled":    return "촬영이 정상 진행되지 않음"
-        case "exit_immediate":       return "이탈 즉시 실패"
-        case "app_killed":           return "촬영 중 앱 종료 (배터리·강제 종료 등)"
-        case "no_resume":            return "\(arg)분 내 재촬영 없음"
-        case "noshow_window":        return "\(arg)분 내 미시작"
-        case "slot_bonus":           return "연속 \(arg)일 달성 — 활동 슬롯 확장 보너스"
-        case "absence_over":         return "자리비움 \(arg)회 초과 — 즉시 실패"
-        case "absence_minutes":      return "자리비움 \(arg)분 — 즉시 실패"
-        case "group_giveup":         return "그룹 '\(arg)' 중도 포기"
+        case "camera_start_failed":  return String(localized: "Camera failed to start")
+        case "recording_incomplete": return String(localized: "Recording incomplete — video damaged or missing")
+        case "recording_stalled":    return String(localized: "Recording didn't progress normally")
+        case "exit_immediate":       return String(localized: "Instant failure on leaving")
+        case "app_killed":           return String(localized: "App terminated during recording (battery, force quit, etc.)")
+        case "no_resume":            return String(format: String(localized: "No resume within %@ min"), arg)
+        case "noshow_window":        return String(format: String(localized: "Not started within %@ min"), arg)
+        case "slot_bonus":           return String(format: String(localized: "%@-day streak — activity slot expansion bonus"), arg)
+        case "absence_over":         return String(format: String(localized: "Away more than %@ times — instant failure"), arg)
+        case "absence_minutes":      return String(format: String(localized: "Away %@ min — instant failure"), arg)
+        case "group_giveup":         return String(format: String(localized: "Dropped out of group '%@'"), arg)
         default:                     return raw   // 미래 토큰 — 원문 노출이 크래시보다 낫다
         }
     }

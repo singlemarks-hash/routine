@@ -5274,6 +5274,248 @@
           }
         }
       }
+    },
+    "Study": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "공부"
+          }
+        }
+      }
+    },
+    "Reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독서"
+          }
+        }
+      }
+    },
+    "Workout": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "운동"
+          }
+        }
+      }
+    },
+    "Work": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작업"
+          }
+        }
+      }
+    },
+    "Music": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연주"
+          }
+        }
+      }
+    },
+    "Writing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "글쓰기"
+          }
+        }
+      }
+    },
+    "Group": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹"
+          }
+        }
+      }
+    },
+    "Something urgent came up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "급한 일이 생겼어요"
+          }
+        }
+      }
+    },
+    "I'm not feeling well": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "몸이 좋지 않아요"
+          }
+        }
+      }
+    },
+    "I need a rest today": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오늘은 쉬고싶어요"
+          }
+        }
+      }
+    },
+    "Emergency break continued": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "긴급 용무 지속"
+          }
+        }
+      }
+    },
+    "Camera failed to start": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "카메라 시작 실패"
+          }
+        }
+      }
+    },
+    "Recording incomplete — video damaged or missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "촬영 불완전 — 영상 손상/부족"
+          }
+        }
+      }
+    },
+    "Recording didn't progress normally": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "촬영이 정상 진행되지 않음"
+          }
+        }
+      }
+    },
+    "Instant failure on leaving": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이탈 즉시 실패"
+          }
+        }
+      }
+    },
+    "App terminated during recording (battery, force quit, etc.)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "촬영 중 앱 종료 (배터리·강제 종료 등)"
+          }
+        }
+      }
+    },
+    "No resume within %@ min": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@분 내 재촬영 없음"
+          }
+        }
+      }
+    },
+    "Not started within %@ min": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@분 내 미시작"
+          }
+        }
+      }
+    },
+    "%@-day streak — activity slot expansion bonus": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속 %@일 달성 — 활동 슬롯 확장 보너스"
+          }
+        }
+      }
+    },
+    "Away more than %@ times — instant failure": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자리비움 %@회 초과 — 즉시 실패"
+          }
+        }
+      }
+    },
+    "Away %@ min — instant failure": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자리비움 %@분 — 즉시 실패"
+          }
+        }
+      }
+    },
+    "Dropped out of group '%@'": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹 '%@' 중도 포기"
+          }
+        }
+      }
     }
   },
   "version": "1.2"
