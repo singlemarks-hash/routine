@@ -38,7 +38,9 @@ jobs:
           done
           exit 1
 
-      # 빌드는 1회만, 로케일별 실행은 test-without-building으로 재사용
+      # 빌드는 1회만, 로케일별 실행은 test-without-building으로 재사용.
+      # UITest 타깃의 배포 타깃(26.5)이 러너 시뮬레이터 런타임(26.2)보다 높아 테스트가
+      # 거부된다 — pbxproj는 로컬 수정 금지이므로 커맨드라인에서 앱 타깃과 같은 17.0으로 통일.
       - name: 테스트용 빌드
         run: |
           set -o pipefail
@@ -47,7 +49,8 @@ jobs:
             -scheme TimeLock \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=17.0
 
       # TEST_RUNNER_ 접두사 환경변수는 xcodebuild가 테스트 러너 프로세스로 전달한다
       - name: 로케일별 캡처 실행
@@ -61,7 +64,8 @@ jobs:
               -only-testing:TimeLockUITests/L10nScreenshotTests \
               -destination 'platform=iOS Simulator,name=iPhone 16' \
               -resultBundlePath "result-$loc.xcresult" \
-              CODE_SIGNING_ALLOWED=NO || echo "테스트 비정상 종료($loc) — 찍힌 장면까지는 추출한다"
+              CODE_SIGNING_ALLOWED=NO \
+              IPHONEOS_DEPLOYMENT_TARGET=17.0 || echo "테스트 비정상 종료($loc) — 찍힌 장면까지는 추출한다"
           done
 
       - name: 첨부 스크린샷 추출·이름 복원

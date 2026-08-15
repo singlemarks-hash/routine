@@ -5242,6 +5242,18 @@
           }
         }
       }
+    },
+    "%ld": {
+      "extractionState": "manual",
+      "comment": "슬롯 개수 등 숫자만 렌더링하는 자리 — 언어별 차이 없음",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld"
+          }
+        }
+      }
     }
   },
   "version": "1.2"
