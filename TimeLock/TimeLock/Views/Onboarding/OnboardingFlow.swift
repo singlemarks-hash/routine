@@ -61,13 +61,13 @@ private struct ShootStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer().frame(height: 110)
-            TLEyebrow(text: "촬영하기")
-            Text("예약한 시각에 알람이 울리면\n바로 타임랩스를 촬영하세요")
+            TLEyebrow(text: "Recording")
+            Text("When your alarm goes off at the scheduled time,\nstart your timelapse right away")
                 .font(.tlTitle(26))
                 .foregroundStyle(TL.paper)
                 .lineSpacing(5)
                 .padding(.top, 10)
-            Text("내가 지정한 시간만큼 몰입 타이머가 시작돼요\n끝까지 완주하면 상점, 그만두면 벌점이 쌓여요")
+            Text("A focus timer starts for the length you set\nFinish it for points, quit and you'll take a penalty")
                 .font(.tlBody)
                 .foregroundStyle(TL.muted)
                 .lineSpacing(4)
@@ -90,7 +90,7 @@ private struct ShootStep: View {
 
             Spacer()
 
-            Button("다음") { next() }
+            Button("Next") { next() }
                 .buttonStyle(TLPrimaryButtonStyle())
                 .padding(.bottom, 20)
         }
@@ -116,13 +116,13 @@ private struct RecordStep: View {
                     .padding(8)
             }
             Spacer().frame(height: 22)
-            TLEyebrow(text: "기록관리")
-            Text("의지가 아닌, 실행할 수 밖에 없는\n환경을 만들어요")
+            TLEyebrow(text: "Track Your Progress")
+            Text("Not willpower — an environment\nthat makes you follow through")
                 .font(.tlTitle(26))
                 .foregroundStyle(TL.paper)
                 .lineSpacing(5)
                 .padding(.top, 10)
-            Text("목표달성을 위한 나의 몰입을 기록해요\n모티가 강력한 실행환경을 만들어 줄 거에요")
+            Text("Track your focus toward your goals\nMoti will build a powerful environment to keep you on track")
                 .font(.tlBody)
                 .foregroundStyle(TL.muted)
                 .lineSpacing(4)
@@ -134,7 +134,7 @@ private struct RecordStep: View {
 
             Spacer()
 
-            Button("다음") { next() }
+            Button("Next") { next() }
                 .buttonStyle(TLPrimaryButtonStyle())
                 .padding(.bottom, 20)
         }
@@ -147,51 +147,51 @@ private struct RecordStep: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 5) {
-                        Text("연속달성").font(.system(size: 13, weight: .bold)).foregroundStyle(TL.muted)
+                        Text("Streak").font(.system(size: 13, weight: .bold)).foregroundStyle(TL.muted)
                         Image("fire").resizable().scaledToFit().frame(width: 15, height: 15)
                     }
                     HStack(alignment: .lastTextBaseline, spacing: 2) {
                         Text("3").font(.tlTimer(38)).foregroundStyle(TL.jade)
-                        Text("일").font(.system(size: 17, weight: .bold)).foregroundStyle(TL.muted)
+                        Text("days").font(.system(size: 17, weight: .bold)).foregroundStyle(TL.muted)
                     }
-                    (Text("총 ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
+                    (Text("You've logged ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
                      + Text("506").font(.system(size: 13, weight: .heavy)).foregroundColor(TL.jade)
-                     + Text("시간 ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
+                     + Text("12h ").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted)
                      + Text("16").font(.system(size: 13, weight: .heavy)).foregroundColor(TL.jade)
-                     + Text("분을 기록했어요!").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted))
+                     + Text("30m total!").font(.system(size: 13, weight: .semibold)).foregroundColor(TL.muted))
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 8) {
                     VStack(alignment: .trailing, spacing: 2) {
                         HStack(spacing: 4) {
-                            Text("최고기록").font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
+                            Text("Best Streak").font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
                             Image("average").resizable().scaledToFit().frame(width: 13, height: 13)
                         }
                         HStack(alignment: .lastTextBaseline, spacing: 2) {
                             Text("56").font(.tlTimer(17)).foregroundStyle(TL.paper)
-                            Text("일").font(.system(size: 12)).foregroundStyle(TL.muted)
+                            Text("days").font(.system(size: 12)).foregroundStyle(TL.muted)
                         }
                     }
                     VStack(alignment: .trailing, spacing: 2) {
                         HStack(spacing: 4) {
-                            Text("평균 일정").font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
+                            Text("Avg per Day").font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.muted)
                             Image("record").resizable().scaledToFit().frame(width: 13, height: 13)
                         }
                         HStack(alignment: .lastTextBaseline, spacing: 2) {
                             Text("4.2").font(.tlTimer(17)).foregroundStyle(TL.paper)
-                            Text("개").font(.system(size: 12)).foregroundStyle(TL.muted)
+                            Text("").font(.system(size: 12)).foregroundStyle(TL.muted)
                         }
                     }
                 }
             }
 
             HStack(spacing: 0) {
-                mockDay("목", "23", icon: "success")
-                mockDay("목", "23", icon: "fail")
-                mockDay("금", "24", icon: "half")
-                mockDay("토", "25", icon: "success")
-                mockDay("일", "26", icon: "success", highlighted: true)
-                mockDay("월", "27", icon: "not_started")
+                mockDay(String(localized: "Thu"), "23", icon: "success")
+                mockDay(String(localized: "Thu"), "23", icon: "fail")
+                mockDay(String(localized: "Fri"), "24", icon: "half")
+                mockDay(String(localized: "Sat"), "25", icon: "success")
+                mockDay(String(localized: "Sun"), "26", icon: "success", highlighted: true)
+                mockDay(String(localized: "Mon"), "27", icon: "not_started")
             }
             .padding(.top, 18)
         }
@@ -229,26 +229,26 @@ private struct PermissionStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer().frame(height: 60)
-            TLEyebrow(text: "권한 설정")
+            TLEyebrow(text: "Permissions")
             // 심사(5.1.1(iv)) — 허용을 권하는 문구·버튼 금지. 무엇에 쓰는지만 알리고
             // 결정은 시스템 창에 맡긴다. ('허용해 주세요'는 용도 안내 제목으로 유지)
-            Text("두 가지 권한을 허용해 주세요")
+            Text("Please allow two permissions")
                 .font(.tlTitle(28))
                 .foregroundStyle(TL.paper)
                 .padding(.top, 8)
-            Text("카메라와 알람에 사용됩니다. 지금 허용하지 않아도 앱을 둘러볼 수 있고, 촬영·알람을 쓸 때 다시 요청합니다.")
+            Text("Used for your camera and alarms. You can still look around the app without allowing now — we'll ask again when you record or set an alarm.")
                 .font(.tlBody)
                 .foregroundStyle(TL.muted)
                 .padding(.top, 6)
 
             VStack(spacing: 12) {
-                permissionRow(icon: "camera.fill", title: "카메라",
-                              detail: "알람 해제와 세션 기록에 사용합니다. 영상은 기기에만 저장되고 본인만 봅니다.",
+                permissionRow(icon: "camera.fill", title: String(localized: "Camera"),
+                              detail: String(localized: "Used to stop the alarm and record your session. Videos are stored only on your device and only you can see them."),
                               granted: cameraGranted) {
                     Task { cameraGranted = await CameraRecorder.shared.requestAuthorization() }
                 }
-                permissionRow(icon: "bell.badge.fill", title: "알림",
-                              detail: "예약 시각의 알람과 10분 전 예고를 보냅니다.",
+                permissionRow(icon: "bell.badge.fill", title: String(localized: "Notifications"),
+                              detail: String(localized: "Sends the alarm at your scheduled time plus a 10-minute heads-up."),
                               granted: notifGranted) {
                     Task { notifGranted = await AlarmScheduler.shared.requestAuthorization() }
                 }
@@ -263,9 +263,9 @@ private struct PermissionStep: View {
                         .foregroundStyle(TL.amber)
                         .frame(width: 32)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("저장공간 용량 확인")
+                        Text("Check Your Storage")
                             .font(.tlTitle(15)).foregroundStyle(TL.paper)
-                        Text("영상 촬영 중간에 녹화가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 용량 부족으로 타임랩스가 끊기지 않도록 저장공간을 미리 확보해 주세요.")
+                        Text("If recording is interrupted mid-session, it counts as walking away and you may take a penalty. Free up storage ahead of time so your timelapse doesn't get cut short.")
                             .font(.system(size: 13)).foregroundStyle(TL.amber)
                             .lineSpacing(3)
                     }
@@ -275,7 +275,7 @@ private struct PermissionStep: View {
 
             // 권한은 선택 — 거부해도 온보딩을 진행할 수 있어야 한다(App Review 4.5.4/5.1.1).
             if cameraGranted == false || notifGranted == false {
-                Text("나중에 허용해도 괜찮아요. 촬영·알람 기능을 사용할 때 다시 안내해 드립니다.")
+                Text("It's fine to allow this later — we'll guide you again when you use recording or alarms.")
                     .font(.system(size: 13))
                     .foregroundStyle(TL.muted)
                     .padding(.top, 16)
@@ -283,7 +283,7 @@ private struct PermissionStep: View {
 
             Spacer()
 
-            Button("다음") { next() }
+            Button("Next") { next() }
                 .buttonStyle(TLPrimaryButtonStyle())
                 .padding(.bottom, 20)
         }
@@ -311,7 +311,7 @@ private struct PermissionStep: View {
                 case .none:
                     // 시스템 권한창 앞 버튼에 '허용'을 쓰면 반려된다 (5.1.1(iv)) —
                     // 이 버튼은 시스템 창을 여는 역할만 한다.
-                    Button("계속") { action() }
+                    Button("Continue") { action() }
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.ink)
                         .padding(.horizontal, 14).padding(.vertical, 8)

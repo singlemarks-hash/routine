@@ -1,10 +1,8 @@
 TimeLock/TimeLock/Services/CanonicalKeys.swift
 TimeLock/TimeLock/Views/Alarm/AlarmView.swift
-TimeLock/TimeLock/Views/Auth/AuthView.swift
 TimeLock/TimeLock/Views/Group/GroupViews.swift
 TimeLock/TimeLock/Views/Home/HomeView.swift
 TimeLock/TimeLock/Views/Home/WeeklyScheduleView.swift
-TimeLock/TimeLock/Views/Onboarding/OnboardingFlow.swift
 TimeLock/TimeLock/Views/Reservation/ReservationEditView.swift
 TimeLock/TimeLock/Views/Session/SessionView.swift
 TimeLock/TimeLock/Views/Settings/SettingsView.swift

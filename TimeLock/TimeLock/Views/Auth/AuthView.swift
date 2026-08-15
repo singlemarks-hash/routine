@@ -16,8 +16,11 @@ struct AuthView: View {
     @Environment(\.dismiss) private var dismiss
 
     enum Mode: String, CaseIterable {
-        case signIn = "로그인"
-        case signUp = "회원가입"
+        case signIn, signUp
+
+        var title: String {
+            self == .signIn ? String(localized: "Log In") : String(localized: "Sign Up")
+        }
     }
 
     @State private var mode: Mode = .signIn
@@ -81,7 +84,7 @@ struct AuthView: View {
                             .padding(.top, 20)
                     }
 
-                    Text("모든 영상 기록은 이 기기에만 저장됩니다.\n계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주합니다.")
+                    Text("All video recordings are stored only on this device.\nBy continuing, you agree to the Terms of Use and Privacy Policy.")
                         .font(.system(size: 11)).foregroundStyle(TL.faint)
                         .multilineTextAlignment(.center)
                         .lineSpacing(3)
@@ -105,12 +108,12 @@ struct AuthView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("타임랩스로 나의 몰입을 기록해요\n더 강력하게")
+            Text("Record your focus with timelapse\nfor even stronger accountability")
                 .font(.tlTitle(26))
                 .foregroundStyle(TL.paper)
                 .lineSpacing(5)
                 .padding(.top, 56)
-            Text("아래 버튼을 눌러\n로그인 또는 회원가입을 진행해 주세요.")
+            Text("Tap a button below\nto log in or sign up.")
                 .font(.system(size: 14))
                 .foregroundStyle(TL.muted)
                 .lineSpacing(4)
@@ -129,7 +132,7 @@ struct AuthView: View {
                     errorMessage = nil
                     infoMessage = nil
                 } label: {
-                    Text(candidate.rawValue)
+                    Text(candidate.title)
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(mode == candidate ? TL.ink : TL.muted)
                         .frame(maxWidth: .infinity)
@@ -150,7 +153,7 @@ struct AuthView: View {
     private var fields: some View {
         VStack(spacing: 10) {
             if mode == .signUp {
-                TextField("이름", text: $name)
+                TextField("Name", text: $name)
                     .textContentType(.name)
                     .focused($focusedField, equals: .name)
                     .submitLabel(.next)
@@ -158,7 +161,7 @@ struct AuthView: View {
                     .authFieldStyle()
             }
 
-            TextField("이메일", text: $email)
+            TextField("Email", text: $email)
                 .textContentType(.emailAddress)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
@@ -168,7 +171,7 @@ struct AuthView: View {
                 .onSubmit { focusedField = .password }
                 .authFieldStyle()
 
-            SecureField(mode == .signUp ? "비밀번호 (8자 이상)" : "비밀번호", text: $password)
+            SecureField(mode == .signUp ? String(localized: "Password (8+ characters)") : String(localized: "Password"), text: $password)
                 .textContentType(mode == .signUp ? .newPassword : .password)
                 .focused($focusedField, equals: .password)
                 .submitLabel(mode == .signUp ? .next : .go)
@@ -176,19 +179,19 @@ struct AuthView: View {
                 .authFieldStyle()
 
             if mode == .signUp {
-                SecureField("비밀번호 확인", text: $passwordConfirm)
+                SecureField("Confirm Password", text: $passwordConfirm)
                     .textContentType(.newPassword)
                     .focused($focusedField, equals: .passwordConfirm)
                     .submitLabel(.go)
                     .onSubmit { submit() }
                     .authFieldStyle()
                 if !passwordConfirm.isEmpty && password != passwordConfirm {
-                    Label("비밀번호가 서로 다릅니다", systemImage: "xmark.circle.fill")
+                    Label("Passwords don't match", systemImage: "xmark.circle.fill")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(TL.rec)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Text("가입하면 입력한 주소로 인증 메일이 발송됩니다.")
+                Text("A verification email will be sent to the address you enter.")
                     .font(.system(size: 11)).foregroundStyle(TL.faint)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -208,7 +211,7 @@ struct AuthView: View {
         Button {
             submit()
         } label: {
-            Text(working ? "확인 중…" : (mode == .signIn ? "로그인" : "회원가입"))
+            Text(working ? String(localized: "Checking…") : mode.title)
         }
         .buttonStyle(TLPrimaryButtonStyle())
         .disabled(working || !formReady)
@@ -218,7 +221,7 @@ struct AuthView: View {
     private var divider: some View {
         HStack(spacing: 12) {
             Rectangle().fill(TL.hairline).frame(height: 1)
-            Text("또는")
+            Text("or")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(TL.faint)
             Rectangle().fill(TL.hairline).frame(height: 1)
@@ -244,7 +247,7 @@ struct AuthView: View {
                     Image(systemName: "apple.logo")
                         .font(.system(size: 22, weight: .medium))
                         .foregroundStyle(TL.ink)
-                    Text("Apple로 계속하기")
+                    Text("Continue with Apple")
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(TL.ink)
                 }
@@ -261,7 +264,7 @@ struct AuthView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 20, height: 20)
-                    Text("Google로 계속하기")
+                    Text("Continue with Google")
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(TL.ink)
                 }
@@ -275,11 +278,11 @@ struct AuthView: View {
 
     /// 비밀번호 찾기 — 입력한 이메일로 Firebase 재설정 메일(한국어 템플릿) 발송
     private var resetPasswordButton: some View {
-        Button("비밀번호 찾기") {
+        Button("Forgot Password?") {
             run {
                 try await account.sendPasswordReset(email: email)
                 await MainActor.run {
-                    infoMessage = "재설정 메일을 보냈습니다. 메일함(스팸함 포함)에서 링크를 열어 새 비밀번호를 설정한 뒤 다시 로그인해주세요."
+                    infoMessage = String(localized: "We sent a reset email. Open the link in your inbox (check spam too), set a new password, then log in again.")
                 }
             }
         }
@@ -292,7 +295,7 @@ struct AuthView: View {
         Button {
             account.continueAsGuest()
         } label: {
-            Text("게스트로 시작")
+            Text("Continue as Guest")
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .foregroundStyle(TL.paper)
         }
@@ -309,9 +312,9 @@ struct AuthView: View {
                 .foregroundStyle(TL.amber)
 
             VStack(spacing: 6) {
-                Text("이메일 인증이 필요합니다")
+                Text("Email Verification Needed")
                     .font(.tlTitle(20)).foregroundStyle(TL.paper)
-                Text("\(email) 로 인증 메일을 보냈습니다.\n메일함에서 인증 링크를 누른 뒤 아래 버튼을 눌러주세요.")
+                Text(String(format: String(localized: "We sent a verification email to %@.\nTap the link in your inbox, then tap the button below."), email))
                     .font(.system(size: 13)).foregroundStyle(TL.muted)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
@@ -320,19 +323,19 @@ struct AuthView: View {
             Button {
                 run { try await account.confirmEmailVerified() }
             } label: {
-                Text(working ? "확인 중…" : "인증 완료했어요")
+                Text(working ? String(localized: "Checking…") : String(localized: "I've Verified"))
             }
             .buttonStyle(TLPrimaryButtonStyle())
             .disabled(working)
 
             HStack(spacing: 18) {
-                Button("인증 메일 재발송") {
+                Button("Resend Verification Email") {
                     run {
                         try await account.resendVerificationEmail()
-                        await MainActor.run { errorMessage = "인증 메일을 다시 보냈습니다. 메일함(스팸함 포함)을 확인하세요." }
+                        await MainActor.run { errorMessage = String(localized: "We resent the verification email. Please check your inbox (including spam).") }
                     }
                 }
-                Button("다른 계정으로") {
+                Button("Use a Different Account") {
                     errorMessage = nil
                     account.cancelPendingVerification()
                 }
