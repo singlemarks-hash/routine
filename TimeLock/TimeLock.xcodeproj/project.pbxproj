@@ -12,6 +12,21 @@
 		A100000100000000000000E3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A100000100000000000000D3 /* GoogleSignIn */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		38DBC1F030303181002EE118 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A100000100000000000000PJ /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A100000100000000000000T1;
+			remoteInfo = TimeLock;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		38DBC1EA30303181002EE118 /* TimeLockUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TimeLockUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A100000100000000000000PR /* AngryMoti.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AngryMoti.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		A1000001000000000000000A /* Exceptions for "TimeLock" folder in "TimeLock" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -23,14 +38,15 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		38DBC1EB30303181002EE118 /* TimeLockUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TimeLockUITests;
+			sourceTree = "<group>";
+		};
 		A1000001000000000000000G /* TimeLock */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				A1000001000000000000000A /* Exceptions for "TimeLock" folder in "TimeLock" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
 			);
 			path = TimeLock;
 			sourceTree = "<group>";
@@ -38,6 +54,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		38DBC1E730303181002EE118 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A100000100000000000000F1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -55,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000001000000000000000G /* TimeLock */,
+				38DBC1EB30303181002EE118 /* TimeLockUITests */,
 				A100000100000000000000P1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -62,7 +86,8 @@
 		A100000100000000000000P1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A100000100000000000000PR /* TimeLock.app */,
+				A100000100000000000000PR /* AngryMoti.app */,
+				38DBC1EA30303181002EE118 /* TimeLockUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		38DBC1E930303181002EE118 /* TimeLockUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 38DBC1F230303181002EE118 /* Build configuration list for PBXNativeTarget "TimeLockUITests" */;
+			buildPhases = (
+				38DBC1E630303181002EE118 /* Sources */,
+				38DBC1E730303181002EE118 /* Frameworks */,
+				38DBC1E830303181002EE118 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				38DBC1F130303181002EE118 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				38DBC1EB30303181002EE118 /* TimeLockUITests */,
+			);
+			name = TimeLockUITests;
+			packageProductDependencies = (
+			);
+			productName = TimeLockUITests;
+			productReference = 38DBC1EA30303181002EE118 /* TimeLockUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		A100000100000000000000T1 /* TimeLock */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A100000100000000000000C2 /* Build configuration list for PBXNativeTarget "TimeLock" */;
@@ -92,7 +140,7 @@
 				A100000100000000000000D3 /* GoogleSignIn */,
 			);
 			productName = TimeLock;
-			productReference = A100000100000000000000PR /* TimeLock.app */;
+			productReference = A100000100000000000000PR /* AngryMoti.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -102,16 +150,20 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1600;
+				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					38DBC1E930303181002EE118 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = A100000100000000000000T1;
+					};
 					A100000100000000000000T1 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
 			buildConfigurationList = A100000100000000000000C1 /* Build configuration list for PBXProject "TimeLock" */;
-			developmentRegion = ko;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				ko,
@@ -130,11 +182,19 @@
 			projectRoot = "";
 			targets = (
 				A100000100000000000000T1 /* TimeLock */,
+				38DBC1E930303181002EE118 /* TimeLockUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		38DBC1E830303181002EE118 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A100000100000000000000R1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -145,6 +205,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		38DBC1E630303181002EE118 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A100000100000000000000S1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -154,11 +221,58 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXFileReference section */
-		A100000100000000000000PR /* TimeLock.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TimeLock.app; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
+/* Begin PBXTargetDependency section */
+		38DBC1F130303181002EE118 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A100000100000000000000T1 /* TimeLock */;
+			targetProxy = 38DBC1F030303181002EE118 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		38DBC1F330303181002EE118 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 44GGYD7SGT;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "-.TimeLockUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TimeLock;
+			};
+			name = Debug;
+		};
+		38DBC1F430303181002EE118 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 44GGYD7SGT;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "-.TimeLockUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TimeLock;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		A100000100000000000000B1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -218,6 +332,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -274,6 +389,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};
@@ -284,18 +400,19 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = TimeLock/TimeLock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 44GGYD7SGT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TimeLock/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.selfer.angrymoti;
 				PRODUCT_NAME = AngryMoti;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -315,18 +432,19 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = TimeLock/TimeLock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 44GGYD7SGT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TimeLock/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.selfer.angrymoti;
 				PRODUCT_NAME = AngryMoti;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -342,6 +460,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		38DBC1F230303181002EE118 /* Build configuration list for PBXNativeTarget "TimeLockUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				38DBC1F330303181002EE118 /* Debug */,
+				38DBC1F430303181002EE118 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		A100000100000000000000C1 /* Build configuration list for PBXProject "TimeLock" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

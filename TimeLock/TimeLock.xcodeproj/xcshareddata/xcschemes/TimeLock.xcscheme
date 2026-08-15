@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
    LastUpgradeVersion = "1600"
-   version = "1.7">
+   version = "1.3">
    <BuildAction
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES">
@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A100000100000000000000T1"
-               BuildableName = "TimeLock.app"
+               BuildableName = "AngryMoti.app"
                BlueprintName = "TimeLock"
                ReferencedContainer = "container:TimeLock.xcodeproj">
             </BuildableReference>
@@ -28,6 +28,17 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "38DBC1E930303181002EE118"
+               BuildableName = "TimeLockUITests.xctest"
+               BlueprintName = "TimeLockUITests"
+               ReferencedContainer = "container:TimeLock.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
@@ -45,7 +56,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A100000100000000000000T1"
-            BuildableName = "TimeLock.app"
+            BuildableName = "AngryMoti.app"
             BlueprintName = "TimeLock"
             ReferencedContainer = "container:TimeLock.xcodeproj">
          </BuildableReference>
@@ -62,7 +73,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A100000100000000000000T1"
-            BuildableName = "TimeLock.app"
+            BuildableName = "AngryMoti.app"
             BlueprintName = "TimeLock"
             ReferencedContainer = "container:TimeLock.xcodeproj">
          </BuildableReference>
