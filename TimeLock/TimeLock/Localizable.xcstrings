@@ -1,7 +1,73 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-
+  "sourceLanguage": "en",
+  "strings": {
+    "Photo library access is off — allow it in iPhone Settings › AngryMoti.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사진 추가 권한이 꺼져 있습니다 — iPhone 설정 › 앵그리모티에서 허용하세요."
+          }
+        }
+      }
+    },
+    "Couldn't prepare the video. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "영상을 준비하지 못했습니다. 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "First %ld days free": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "첫 %ld일 무료"
+          }
+        }
+      },
+      "comment": "Free-trial length, e.g. 'First 7 days free' (week offers are pre-converted to days)"
+    },
+    "First %ld months free": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "첫 %ld개월 무료"
+          }
+        }
+      }
+    },
+    "First %ld years free": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "첫 %ld년 무료"
+          }
+        }
+      }
+    },
+    "Free trial": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "무료 체험"
+          }
+        }
+      }
+    }
   },
-  "version" : "1.2"
+  "version": "1.2"
 }

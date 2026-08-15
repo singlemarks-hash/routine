@@ -100,9 +100,9 @@ enum VideoDownloader {
         var errorDescription: String? {
             switch self {
             case .notAuthorized:
-                return "사진 추가 권한이 꺼져 있습니다 — iPhone 설정 › 앵그리모티에서 허용하세요."
+                return String(localized: "Photo library access is off — allow it in iPhone Settings › AngryMoti.")
             case .exportFailed:
-                return "영상을 준비하지 못했습니다. 다시 시도하세요."
+                return String(localized: "Couldn't prepare the video. Please try again.")
             }
         }
     }
@@ -158,11 +158,11 @@ final class SubscriptionManager: ObservableObject {
               offer.paymentMode == .freeTrial else { return nil }
         let n = offer.period.value
         switch offer.period.unit {
-        case .day:   return "첫 \(n)일 무료"
-        case .week:  return "첫 \(n * 7)일 무료"
-        case .month: return "첫 \(n)개월 무료"
-        case .year:  return "첫 \(n)년 무료"
-        @unknown default: return "무료 체험"
+        case .day:   return String(format: String(localized: "First %ld days free"), n)
+        case .week:  return String(format: String(localized: "First %ld days free"), n * 7)
+        case .month: return String(format: String(localized: "First %ld months free"), n)
+        case .year:  return String(format: String(localized: "First %ld years free"), n)
+        @unknown default: return String(localized: "Free trial")
         }
     }
 
