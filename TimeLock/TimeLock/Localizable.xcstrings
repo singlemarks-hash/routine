@@ -5263,6 +5263,17 @@
           }
         }
       }
+    },
+    "Follows your device language. You can change it in Settings.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 언어 설정을 따릅니다. 설정 앱에서 변경할 수 있어요."
+          }
+        }
+      }
     }
   },
   "version": "1.2"

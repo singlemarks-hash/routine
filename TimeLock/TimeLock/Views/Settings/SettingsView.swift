@@ -525,6 +525,11 @@ struct LedgerView: View {
 // MARK: - 앱 언어 (뼈대)
 
 struct AppLanguageView: View {
+    /// 앱이 실제로 그려지는 언어 — 체크마크는 하드코딩이 아니라 현재 로케일을 따라간다.
+    /// (예전엔 한국어에 고정 체크라 영어 기기에서 틀린 정보를 보여줬다)
+    /// 인앱 전환은 Phase 4에서 설정 딥링크로 붙는다 — 여기는 현재 상태 표시만.
+    private var isKorean: Bool { TLFormat.isKorean }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -532,18 +537,24 @@ struct AppLanguageView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Text("한국어")   // l10n:ko-literal — 언어 자체의 이름(고유명사), 번역 대상 아님
-                                .font(.tlTitle(16)).foregroundStyle(TL.paper)
+                                .font(.tlTitle(16)).foregroundStyle(isKorean ? TL.paper : TL.faint)
                             Spacer()
-                            Image(systemName: "checkmark").foregroundStyle(TL.jade)
+                            if isKorean {
+                                Image(systemName: "checkmark").foregroundStyle(TL.jade)
+                            }
                         }
                         HStack {
                             Text("English")
-                                .font(.tlTitle(16)).foregroundStyle(TL.faint)
+                                .font(.tlTitle(16)).foregroundStyle(isKorean ? TL.faint : TL.paper)
                             Spacer()
-                            TagChip(name: String(localized: "Coming Soon"))
+                            if !isKorean {
+                                Image(systemName: "checkmark").foregroundStyle(TL.jade)
+                            }
                         }
                     }
                 }
+                Text("Follows your device language. You can change it in Settings.")
+                    .font(.system(size: 12)).foregroundStyle(TL.faint)
             }
             .padding(20)
         }

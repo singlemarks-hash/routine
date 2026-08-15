@@ -58,6 +58,11 @@ jobs:
           set -o pipefail
           for loc in ${{ inputs.locales }}; do
             echo "=== locale: $loc ==="
+            # 로케일 사이에 시뮬레이터를 완전히 리셋한다 — 앞 로케일 실행 뒤 러너 앱
+            # 재실행이 실패하는 플레이크(Failed to launch …xctrunner)가 있었다.
+            # 상태 초기화 덕에 두 번째 로케일도 온보딩부터 동일하게 시작한다.
+            xcrun simctl shutdown all || true
+            xcrun simctl erase all || true
             TEST_RUNNER_SHOT_LOCALE=$loc xcodebuild test-without-building \
               -project TimeLock/TimeLock.xcodeproj \
               -scheme TimeLock \
@@ -86,6 +91,8 @@ jobs:
           for test in manifest:
               for att in test.get("attachments", []):
                   name = att.get("suggestedHumanReadableName") or att["exportedFileName"]
+                  if ".mp4" in name.lower():
+                      continue   # 실패 시 자동 화면 녹화 — 스크린샷 검수 대상 아님
                   if not name.lower().endswith(".png"):
                       name += ".png"
                   shutil.copy(os.path.join(src, att["exportedFileName"]),
