@@ -16,7 +16,7 @@ enum SessionOrientation: String, Codable, CaseIterable {
     case portrait   // 세로 거치
     case landscape  // 가로 거치
 
-    var title: String { self == .portrait ? "세로" : "가로" }
+    var title: String { self == .portrait ? String(localized: "Portrait") : String(localized: "Landscape") }
     var icon: String { self == .portrait ? "iphone" : "iphone.landscape" }
 
     /// 세션 화면을 이 방향으로 '잠그는' 인터페이스 마스크.
@@ -185,11 +185,11 @@ enum Intensity: String, Codable, CaseIterable, Identifiable {
     case insane = "insane"        // 미친 매운맛
 
     var id: String { rawValue }
-    var title: String { self == .spicy ? "매운맛" : "미친 매운맛" }
+    var title: String { self == .spicy ? String(localized: "Spicy") : String(localized: "Insane") }
     var subtitle: String {
         self == .spicy
-        ? "긴급 용무로 중단해도 10분 안에 재촬영하면 벌점 없음."
-        : "유예도 사유도 없다. 이탈 즉시 실패. 상점 2배, 벌점 2배."
+        ? String(localized: "Pause for an emergency and resume within 10 minutes — no penalty.")
+        : String(localized: "No grace period, no excuses. Stepping away fails you instantly. Double points, double penalties.")
     }
     var emoji: String { self == .spicy ? "🌶️" : "🔥" }
 }
@@ -333,17 +333,17 @@ final class Reservation {
     func repeatLabel(calendar: Calendar = .current) -> String {
         let range = activeDayRange(calendar: calendar)
         // 시작일 = 종료일이면 그날 하루뿐 (요일 반복 여부와 무관)
-        if let hi = range.hi, calendar.isDate(range.lo, inSameDayAs: hi) { return "하루" }
-        guard isRepeating else { return "하루" }   // 반복 자체가 없는 레거시 일회성
+        if let hi = range.hi, calendar.isDate(range.lo, inSameDayAs: hi) { return String(localized: "One day") }
+        guard isRepeating else { return String(localized: "One day") }   // 반복 자체가 없는 레거시 일회성
         let days = Set(repeatWeekdays)
         // count == 7로 보면 [0...6] 같은 0-base 유입도 '매일'이 된다. 그런데 occurrence()는
         // 토요일(7)을 못 맞춰 영영 안 울린다 — 표시와 실제가 어긋난다.
-        if Set(1...7).isSubset(of: days) { return "매일" }
+        if Set(1...7).isSubset(of: days) { return String(localized: "Daily") }
         // 요일 값은 클라우드에서 그대로 들어오므로 1~7을 벗어난 값이 섞일 수 있다.
         // 배열을 직접 인덱싱하면 그 순간 화면이 크래시하므로 범위 밖은 조용히 버린다.
         let label = days.sorted().compactMap { (1...7).contains($0) ? TLFormat.weekdaySymbol($0) : nil }
             .joined(separator: " ")
-        return label.isEmpty ? "하루" : label
+        return label.isEmpty ? String(localized: "One day") : label
     }
 
     /// 시간 구간 겹침 판정 (같은 날 기준, 분 단위)
@@ -457,11 +457,11 @@ enum SessionOutcome: String, Codable {
 
     var title: String {
         switch self {
-        case .completed:   return "완주"
-        case .exitFailed:  return "이탈 실패"
-        case .noShow:      return "노쇼 탈락"
-        case .emergency:   return "긴급 종료"
-        case .safetyEnded: return "안전 종료"
+        case .completed:   return String(localized: "Completed")
+        case .exitFailed:  return String(localized: "Walked Away")
+        case .noShow:      return String(localized: "No-show")
+        case .emergency:   return String(localized: "Emergency End")
+        case .safetyEnded: return String(localized: "Safety Stop")
         }
     }
     var isSuccess: Bool { self == .completed }
@@ -549,15 +549,15 @@ enum ScoreEventType: String, Codable, CaseIterable {
 
     var title: String {
         switch self {
-        case .complete:     return "완주 상점"
-        case .exitFail:     return "이탈 벌점"
-        case .noShow:       return "노쇼 벌점"
-        case .emergency:    return "긴급 종료"
-        case .unlockBonus:  return "잠금 해제 보너스"
-        case .absence:      return "자리비움 벌점"
-        case .penaltyReset: return "멤버십 벌점 리셋"
-        case .slotBonus:    return "슬롯 확장 보너스"
-        case .groupQuit:    return "그룹 중도 포기"
+        case .complete:     return String(localized: "Completion Reward")
+        case .exitFail:     return String(localized: "Walk-away Penalty")
+        case .noShow:       return String(localized: "No-show Penalty")
+        case .emergency:    return String(localized: "Emergency End")
+        case .unlockBonus:  return String(localized: "Unlock Bonus")
+        case .absence:      return String(localized: "Away Penalty")
+        case .penaltyReset: return String(localized: "Membership Penalty Reset")
+        case .slotBonus:    return String(localized: "Slot Expansion Bonus")
+        case .groupQuit:    return String(localized: "Group Dropped Out")
         }
     }
 }

@@ -67,6 +67,284 @@
           }
         }
       }
+    },
+    "We couldn't find a subscription to restore. Make sure you're signed in with the Apple ID you subscribed with. If you haven't subscribed yet, please subscribe first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "복원할 구독을 찾지 못했습니다. 구독하신 Apple 계정으로 로그인되어 있는지 확인해 주세요. 구독한 적이 없다면 먼저 구독을 진행해 주세요."
+          }
+        }
+      }
+    },
+    "AngryMoti Membership is a monthly auto-renewing subscription. Unless cancelled at least 24 hours before the end of the current billing period, it will automatically renew and charge your Apple ID account. You can manage or cancel anytime in your App Store account settings after purchase.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앵그리모티 멤버십은 월 단위 자동 갱신 구독입니다. 현재 결제 기간이 끝나기 최소 24시간 전에 해지하지 않으면 등록된 Apple 계정으로 자동 갱신·청구됩니다. 구매 후 App Store 계정 설정에서 언제든 관리·해지할 수 있습니다."
+          }
+        }
+      },
+      "comment": "App Store 3.1.2 필수 자동갱신 고지 — 문구 변경 시 심사 리스크, 임의 수정 금지"
+    },
+    "Terms of Use": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이용약관"
+          }
+        }
+      }
+    },
+    "Privacy Policy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인정보처리방침"
+          }
+        }
+      }
+    },
+    "Portrait": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "세로"
+          }
+        }
+      }
+    },
+    "Landscape": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가로"
+          }
+        }
+      }
+    },
+    "Spicy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "매운맛"
+          }
+        }
+      }
+    },
+    "Insane": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미친 매운맛"
+          }
+        }
+      }
+    },
+    "Pause for an emergency and resume within 10 minutes — no penalty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "긴급 용무로 중단해도 10분 안에 재촬영하면 벌점 없음."
+          }
+        }
+      }
+    },
+    "No grace period, no excuses. Stepping away fails you instantly. Double points, double penalties.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "유예도 사유도 없다. 이탈 즉시 실패. 상점 2배, 벌점 2배."
+          }
+        }
+      }
+    },
+    "One day": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "하루"
+          }
+        }
+      },
+      "comment": "예약 반복 요약 라벨 — 홈/일정 탭의 짧은 한 줄 요약에 쓰인다"
+    },
+    "Daily": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "매일"
+          }
+        }
+      }
+    },
+    "Completed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "완주"
+          }
+        }
+      }
+    },
+    "Walked Away": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이탈 실패"
+          }
+        }
+      }
+    },
+    "No-show": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "노쇼 탈락"
+          }
+        }
+      }
+    },
+    "Emergency End": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "긴급 종료"
+          }
+        }
+      }
+    },
+    "Safety Stop": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "안전 종료"
+          }
+        }
+      },
+      "comment": "배터리/저장공간/크래시/통화 불능 등 기기 사정으로 인한 무효 종료"
+    },
+    "Completion Reward": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "완주 상점"
+          }
+        }
+      }
+    },
+    "Walk-away Penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이탈 벌점"
+          }
+        }
+      }
+    },
+    "No-show Penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "노쇼 벌점"
+          }
+        }
+      }
+    },
+    "Unlock Bonus": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "잠금 해제 보너스"
+          }
+        }
+      }
+    },
+    "Away Penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자리비움 벌점"
+          }
+        }
+      }
+    },
+    "Membership Penalty Reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "멤버십 벌점 리셋"
+          }
+        }
+      }
+    },
+    "Slot Expansion Bonus": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "슬롯 확장 보너스"
+          }
+        }
+      }
+    },
+    "Group Dropped Out": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹 중도 포기"
+          }
+        }
+      }
     }
   },
   "version": "1.2"

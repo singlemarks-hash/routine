@@ -1,5 +1,3 @@
-TimeLock/TimeLock/Legal.swift
-TimeLock/TimeLock/Models/Models.swift
 TimeLock/TimeLock/Services/AccountStore.swift
 TimeLock/TimeLock/Services/AlarmScheduler.swift
 TimeLock/TimeLock/Services/CanonicalKeys.swift
