@@ -715,6 +715,204 @@
           }
         }
       }
+    },
+    "Group features need a network connection. Please try again shortly.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹 기능은 네트워크 연결이 필요해요. 잠시 후 다시 시도해주세요."
+          }
+        }
+      }
+    },
+    "We couldn't find a room for that invite code. Please double-check the code.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대코드에 해당하는 방을 찾지 못했어요. 코드를 다시 확인해주세요."
+          }
+        }
+      }
+    },
+    "You can't join a room that has already started.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 시작된 방에는 참여할 수 없어요."
+          }
+        }
+      }
+    },
+    "This room is full (%ld members).": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 방은 정원(%ld명)이 가득 찼어요."
+          }
+        }
+      }
+    },
+    "That nickname is already taken. Please choose another.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요."
+          }
+        }
+      }
+    },
+    "You're already in this room.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 참여 중인 방이에요."
+          }
+        }
+      }
+    },
+    "This overlaps with your existing '%@' schedule. Move or delete that personal schedule to join.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기존 예약 '%@'과(와) 시간이 겹쳐요. 개인 예약을 옮기거나 삭제해야 참여할 수 있어요."
+          }
+        }
+      }
+    },
+    "Your activity slots are full (%ld/%ld). Groups take up a slot too — clear an existing activity or build a streak to unlock more slots.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 슬롯이 가득 찼어요 (%ld/%ld). 그룹도 슬롯 1개를 차지해요 — 기존 활동을 정리하거나 연속 달성으로 슬롯을 늘려주세요."
+          }
+        }
+      }
+    },
+    "A group room you joined was cleaned up after its results retention period ended.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요."
+          }
+        }
+      }
+    },
+    "A group room you joined was cleaned up because it never started. Related penalties were cancelled.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여했던 그룹방이 시작되지 못하고 정리되었어요. 관련 벌점은 취소했습니다."
+          }
+        }
+      }
+    },
+    "The host disbanded '%@'.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'%@' 방을 방장이 해체했어요."
+          }
+        }
+      }
+    },
+    "'%@' — the group room was cancelled due to too few participants.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'%@' — 참여자가 부족해 그룹방이 취소되었습니다."
+          }
+        }
+      }
+    },
+    "Couldn't create the room — %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방 생성에 실패했어요 — %@"
+          }
+        }
+      }
+    },
+    "Joining closed %ld minutes before the start time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 %ld분 전이 지나 참여가 마감된 방이에요."
+          }
+        }
+      }
+    },
+    "Joining closed %ld minutes before the start time. (You need to be able to receive the 10-minute alert to join.)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 %ld분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)"
+          }
+        }
+      }
+    },
+    "Couldn't join — please try again shortly.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여에 실패했어요 — 잠시 후 다시 시도해주세요."
+          }
+        }
+      }
+    },
+    "You joined, but saving to your list failed — check your connection and try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "참여는 됐지만 목록 저장에 실패했어요 — 네트워크 확인 후 다시 시도해주세요."
+          }
+        }
+      }
+    },
+    "Only the host can disband the room.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "방장만 해체할 수 있어요."
+          }
+        }
+      }
     }
   },
   "version": "1.2"

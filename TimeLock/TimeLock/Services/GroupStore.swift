@@ -109,15 +109,15 @@ enum GroupError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .backendUnavailable: return "그룹 기능은 네트워크 연결이 필요해요. 잠시 후 다시 시도해주세요."
-        case .roomNotFound:       return "초대코드에 해당하는 방을 찾지 못했어요. 코드를 다시 확인해주세요."
-        case .alreadyStarted:     return "이미 시작된 방에는 참여할 수 없어요."
-        case .roomFull:           return "이 방은 정원(\(GroupPolicy.maxMembers)명)이 가득 찼어요."
-        case .nicknameTaken:      return "이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요."
-        case .alreadyJoined:      return "이미 참여 중인 방이에요."
-        case .scheduleConflict(let name): return "기존 예약 '\(name)'과(와) 시간이 겹쳐요. 개인 예약을 옮기거나 삭제해야 참여할 수 있어요."
+        case .backendUnavailable: return String(localized: "Group features need a network connection. Please try again shortly.")
+        case .roomNotFound:       return String(localized: "We couldn't find a room for that invite code. Please double-check the code.")
+        case .alreadyStarted:     return String(localized: "You can't join a room that has already started.")
+        case .roomFull:           return String(format: String(localized: "This room is full (%ld members)."), GroupPolicy.maxMembers)
+        case .nicknameTaken:      return String(localized: "That nickname is already taken. Please choose another.")
+        case .alreadyJoined:      return String(localized: "You're already in this room.")
+        case .scheduleConflict(let name): return String(format: String(localized: "This overlaps with your existing '%@' schedule. Move or delete that personal schedule to join."), name)
         case .slotFull(let used, let allowed):
-            return "활동 슬롯이 가득 찼어요 (\(used)/\(allowed)). 그룹도 슬롯 1개를 차지해요 — 기존 활동을 정리하거나 연속 달성으로 슬롯을 늘려주세요."
+            return String(format: String(localized: "Your activity slots are full (%ld/%ld). Groups take up a slot too — clear an existing activity or build a streak to unlock more slots."), used, allowed)
         case .unknown(let message): return message
         }
     }
@@ -182,8 +182,8 @@ final class GroupStore: ObservableObject {
                 // 다시 '내 방'으로 잡혀 예약이 되살아나기 때문이다. 안내도 그때 한 번만 띄운다.
                 guard await detachMembership(roomID: id) else { continue }
                 disbandedNotices.append(everRan
-                    ? "참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요."
-                    : "참여했던 그룹방이 시작되지 못하고 정리되었어요. 관련 벌점은 취소했습니다.")
+                    ? String(localized: "A group room you joined was cleaned up after its results retention period ended.")
+                    : String(localized: "A group room you joined was cleaned up because it never started. Related penalties were cancelled."))
                 removeLocalReservation(roomID: id, purgeNoShows: !everRan)
                 forgetRoomActive(id)
                 continue
@@ -196,7 +196,7 @@ final class GroupStore: ObservableObject {
             }
             if room.status == "disbanded" {
                 guard await detachMembership(roomID: id) else { next.append(room); continue }
-                if !room.isHostMine { disbandedNotices.append("'\(room.name)' 방을 방장이 해체했어요.") }
+                if !room.isHostMine { disbandedNotices.append(String(format: String(localized: "The host disbanded '%@'."), room.name)) }
                 // 해체는 시작 전에만 가능 — 미리 만들어 둔 예약과 혹시 찍힌 노쇼까지 정리
                 removeLocalReservation(roomID: id, purgeNoShows: true)
                 forgetRoomActive(id)
@@ -264,7 +264,7 @@ final class GroupStore: ObservableObject {
             if room.status == "cancelled" {
                 guard await detachMembership(roomID: id) else { next.append(room); continue }
                 if room.isHostMine {
-                    cancelledNotices.append("'\(room.name)' — 참여자가 부족해 그룹방이 취소되었습니다.")
+                    cancelledNotices.append(String(format: String(localized: "'%@' — the group room was cancelled due to too few participants."), room.name))
                 }
                 // mass-delete 금지 — 각자 자기 멤버 문서만 지우고, 마지막 참여자면 방 문서 삭제.
                 // (한 기기가 전원 문서를 통째로 지우던 파괴적 경로 제거 — 오판이어도 폭파 안 됨)
@@ -358,7 +358,7 @@ final class GroupStore: ObservableObject {
             try await db.collection("users").document(uid).setData(
                 ["groupIDs": FieldValue.arrayUnion([roomRef.documentID])], merge: true)
         } catch {
-            throw GroupError.unknown("방 생성에 실패했어요 — \(error.localizedDescription)")
+            throw GroupError.unknown(String(format: String(localized: "Couldn't create the room — %@"), error.localizedDescription))
         }
         let room = GroupRoom(id: roomRef.documentID, name: name, code: code, hostUID: uid,
                              intensityRaw: intensity.rawValue, startMinute: startMinute,
@@ -390,7 +390,7 @@ final class GroupStore: ObservableObject {
         }
         guard room.status == "scheduled" else { throw GroupError.alreadyStarted }
         guard Date() < room.startDate.addingTimeInterval(-Double(GroupPolicy.joinCutoffMinutes) * 60) else {
-            throw GroupError.unknown("시작 \(GroupPolicy.joinCutoffMinutes)분 전이 지나 참여가 마감된 방이에요.")
+            throw GroupError.unknown(String(format: String(localized: "Joining closed %ld minutes before the start time."), GroupPolicy.joinCutoffMinutes))
         }
         return room
         #else
@@ -491,7 +491,7 @@ final class GroupStore: ObservableObject {
             guard (snap.data()?["status"] as? String) == "scheduled" else { rejection = .alreadyStarted; return nil }
             let startTS = (snap.data()?["startDate"] as? Timestamp)?.dateValue() ?? .distantPast
             guard Date() < startTS.addingTimeInterval(-Double(GroupPolicy.joinCutoffMinutes) * 60) else {
-                rejection = .unknown("시작 \(GroupPolicy.joinCutoffMinutes)분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)")
+                rejection = .unknown(String(format: String(localized: "Joining closed %ld minutes before the start time. (You need to be able to receive the 10-minute alert to join.)"), GroupPolicy.joinCutoffMinutes))
                 return nil
             }
             guard !mine.exists else { rejection = .alreadyJoined; return nil }
@@ -511,7 +511,7 @@ final class GroupStore: ObservableObject {
             return true
         }
         if let rejection { throw rejection }
-        guard result != nil else { throw GroupError.unknown("참여에 실패했어요 — 잠시 후 다시 시도해주세요.") }
+        guard result != nil else { throw GroupError.unknown(String(localized: "Couldn't join — please try again shortly.")) }
         // 내 계정 문서의 그룹 목록 — 경합 무관(merge)이라 트랜잭션 밖.
         // 여기서 실패를 삼키면 안 된다: 서버엔 멤버로 등록됐는데 내 그룹 목록에는 없어서,
         // 곧바로 도는 고아 정리가 방금 만든 예약을 지워 버린다(알람 없이 노쇼만 쌓임).
@@ -519,7 +519,7 @@ final class GroupStore: ObservableObject {
             try await db.collection("users").document(uid).setData(
                 ["groupIDs": FieldValue.arrayUnion([room.id])], merge: true)
         } catch {
-            throw GroupError.unknown("참여는 됐지만 목록 저장에 실패했어요 — 네트워크 확인 후 다시 시도해주세요.")
+            throw GroupError.unknown(String(localized: "You joined, but saving to your list failed — check your connection and try again."))
         }
         // 예약을 지금 만들어 두어야 시작 시각 정각의 첫 알람이 울린다 (시작일 전엔 발생 없음)
         ensureLocalReservation(for: room)
@@ -777,7 +777,7 @@ final class GroupStore: ObservableObject {
         // 조용히 return하면 호출 측이 성공으로 착각해 화면을 닫는다 — 방은 그대로인데
         // '해체했다'고 오해하게 되므로 반드시 던진다.
         guard backendActive else { throw GroupError.backendUnavailable }
-        guard room.isHostMine else { throw GroupError.unknown("방장만 해체할 수 있어요.") }
+        guard room.isHostMine else { throw GroupError.unknown(String(localized: "Only the host can disband the room.")) }
         let db = Firestore.firestore()
         // 시작 전에만 해체할 수 있다. 화면이 옛 상태를 들고 있으면 이미 진행 중인 방을
         // 해체로 덮어쓰게 되고, 그러면 전원의 refresh가 '해체된 방' 경로로 들어가
