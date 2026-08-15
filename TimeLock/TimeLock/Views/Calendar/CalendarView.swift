@@ -44,7 +44,7 @@ struct CalendarView: View {
             .padding(.bottom, 116)
         }
         .background(TL.ink)
-        .navigationTitle("기록")
+        .navigationTitle("History")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: Binding(
             get: { selectedDay.map(DayBox.init) },
@@ -149,7 +149,7 @@ struct CalendarView: View {
         let f = DateFormatter()
         if TLFormat.isKorean {
             f.locale = Locale(identifier: "ko_KR")
-            f.dateFormat = "yyyy년 M월"
+            f.dateFormat = "yyyy년 M월"   // l10n:ko-literal — ko 전용 날짜 패턴, 영원히 한글
         } else {
             f.locale = .autoupdatingCurrent
             f.setLocalizedDateFormatFromTemplate("yMMMM")   // "August 2026"
@@ -204,7 +204,7 @@ struct DayDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     if ordered.isEmpty {
                         TLCard {
-                            Text("이 날은 기록이 없습니다.")
+                            Text("No records for this day.")
                                 .font(.system(size: 14)).foregroundStyle(TL.muted)
                         }
                     } else {
@@ -237,8 +237,8 @@ struct DayDetailView: View {
                             // 가장 긴 라벨로 폭을 잡고 가운데 정렬한다 — 고정 폭 + 왼쪽 정렬은
                             // 짧은 문구('모두 접기')일 때 오른쪽에 빈 자리가 남아 버튼이 비뚤어 보였다.
                             ZStack {
-                                Text("모두 펼치기").hidden()   // 폭 기준(보이지 않음)
-                                Text(allOpen ? "모두 접기" : "모두 펼치기")
+                                Text("Expand All").hidden()   // 폭 기준(보이지 않음)
+                                Text(allOpen ? "Collapse All" : "Expand All")
                             }
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(TL.muted)
@@ -247,7 +247,7 @@ struct DayDetailView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
+                    Button("Close") { dismiss() }.foregroundStyle(TL.muted)
                 }
             }
         }
@@ -258,9 +258,9 @@ struct DayDetailView: View {
 
     private var summaryHeader: some View {
         HStack(spacing: 10) {
-            summaryChip(value: "+\(dayReward)", label: "상점", tint: TL.jade)
-            summaryChip(value: "\(dayPenalty)", label: "벌점", tint: TL.rec)
-            summaryChip(value: "\(dayReward + dayPenalty)", label: "합계",
+            summaryChip(value: "+\(dayReward)", label: String(localized: "Points"), tint: TL.jade)
+            summaryChip(value: "\(dayPenalty)", label: String(localized: "Penalty"), tint: TL.rec)
+            summaryChip(value: "\(dayReward + dayPenalty)", label: String(localized: "Total"),
                         tint: dayReward + dayPenalty >= 0 ? TL.paper : TL.rec)
         }
     }
@@ -354,7 +354,8 @@ struct DayDetailView: View {
                     .foregroundStyle(TL.amber)
             }
 
-            Text("순수 촬영 \(TLFormat.hms(session.recordedSeconds)) / 목표 \(TLFormat.hms(session.targetSeconds))")
+            Text(String(format: String(localized: "Recorded %@ / Target %@"),
+                       TLFormat.hms(session.recordedSeconds), TLFormat.hms(session.targetSeconds)))
                 .font(.system(size: 12)).foregroundStyle(TL.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -427,7 +428,7 @@ struct StreakHeaderCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 5) {
-                        Text("연속달성")
+                        Text("Streak")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(TL.muted)
                             .fixedSize()   // 좁은 기기에서 두 줄로 꺾이지 않게 (홈 카드와 동일)
@@ -437,18 +438,18 @@ struct StreakHeaderCard: View {
                         Text("\(detail.days)")
                             .font(.tlTimer(36))
                             .foregroundStyle(TL.jade)
-                        Text("일")
+                        Text("days")
                             .font(.system(size: 17, weight: .bold, design: .rounded))
                             .foregroundStyle(TL.muted)
                     }
-                    // "총 N시간 n분을 기록했어요!" — 1시간 미만도 0시간이 아니라 분으로 보인다
-                    (Text("총 ").font(.system(size: 13, weight: .semibold, design: .rounded))
+                    // "You've logged N hr n min total!" — under 1 hour shows minutes only, not "0h"
+                    (Text("You've logged ").font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(TL.muted)
                      + styledHourMinute(
                         seconds: totalSuccessSeconds,
                         numberFont: .system(size: 13, weight: .semibold, design: .rounded),
                         unitFont: .system(size: 13, weight: .semibold, design: .rounded))
-                     + Text("을 기록했어요!").font(.system(size: 13, weight: .semibold, design: .rounded))
+                     + Text(" total!").font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(TL.muted))
                 }
 
@@ -457,8 +458,8 @@ struct StreakHeaderCard: View {
                 VStack(alignment: .trailing, spacing: 12) {
                     // 아이콘 배정: 최고기록 = 별(average.svg), 평균 일정 = 깃발(record.svg).
                     // 에셋 파일명과 화면 배정이 어긋나 있으니 이름만 보고 되돌리지 말 것.
-                    sideStat(label: "최고기록", icon: "average", value: "\(best)", unit: "일")
-                    sideStat(label: "평균 일정", icon: "record", value: averageLabel, unit: "개")
+                    sideStat(label: String(localized: "Best Streak"), icon: "average", value: "\(best)", unit: String(localized: "days"))
+                    sideStat(label: String(localized: "Avg per Day"), icon: "record", value: averageLabel, unit: "")
                 }
             }
 
@@ -542,7 +543,7 @@ struct TagDonutView: View {
     private var segments: [(name: String, seconds: Int, color: Color)] {
         var rows: [(String, Int)] = Array(byTag.prefix(4))
         let restSeconds = byTag.dropFirst(4).reduce(0) { $0 + $1.1 }
-        if restSeconds > 0 { rows.append(("그 외", restSeconds)) }
+        if restSeconds > 0 { rows.append((String(localized: "Other"), restSeconds)) }
         var fallbackIndex = 0
         return rows.map { row in
             let color: Color
@@ -564,10 +565,10 @@ struct TagDonutView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("태그별 시간 분포")
+                Text("Time by Tag")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(TL.paper)
-                Text("(시간 : 분)")
+                Text("(h : m)")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(TL.faint)
             }
@@ -642,9 +643,9 @@ struct TagDonutView: View {
                 Image(systemName: "clock")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.faint)
-                (Text("총 ").foregroundStyle(TL.muted)
+                (Text("Total ").foregroundStyle(TL.muted)
                  + Text(totalMinutesLabel).foregroundStyle(TL.jade)
-                 + Text("분").foregroundStyle(TL.muted))
+                 + Text("m").foregroundStyle(TL.muted))
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
@@ -681,18 +682,18 @@ struct DashboardSection: View {
     // 연속달성·태그 분포는 상단 헤더 카드로 이사했다.
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TLEyebrow(text: "누적 대시보드")
+            TLEyebrow(text: "Cumulative Dashboard")
 
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("총점")
+                    Text("Total Score")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(TL.muted)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("\(totalReward + totalPenalty)")
                             .font(.tlTimer(36))
                             .foregroundStyle(totalReward + totalPenalty >= 0 ? TL.jade : TL.rec)
-                        Text("점")
+                        Text("pts")
                             .font(.system(size: 16, weight: .bold, design: .rounded))
                             .foregroundStyle(TL.muted)
                     }
@@ -702,13 +703,13 @@ struct DashboardSection: View {
 
                 VStack(alignment: .trailing, spacing: 12) {
                     HStack(spacing: 22) {
-                        miniStat(label: "총 상점", value: "\(totalReward)", tint: TL.jade)
-                        miniStat(label: "완주율", value: "\(completionRate)%", tint: TL.jade)
+                        miniStat(label: String(localized: "Total Points"), value: "\(totalReward)", tint: TL.jade)
+                        miniStat(label: String(localized: "Completion Rate"), value: "\(completionRate)%", tint: TL.jade)
                     }
                     HStack(spacing: 22) {
                         // 벌점은 빨간색이 이미 '깎였다'를 말하므로 절대값으로 표기
-                        miniStat(label: "총 벌점", value: "\(abs(totalPenalty))", tint: TL.rec)
-                        miniStat(label: "노쇼율", value: "\(noShowRate)%",
+                        miniStat(label: String(localized: "Total Penalty"), value: "\(abs(totalPenalty))", tint: TL.rec)
+                        miniStat(label: String(localized: "No-show Rate"), value: "\(noShowRate)%",
                                  tint: noShowRate > 0 ? TL.rec : TL.muted)
                     }
                 }

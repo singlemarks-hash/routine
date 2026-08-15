@@ -913,6 +913,300 @@
           }
         }
       }
+    },
+    "History": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기록"
+          }
+        }
+      }
+    },
+    "No records for this day.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 날은 기록이 없습니다."
+          }
+        }
+      }
+    },
+    "Expand All": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모두 펼치기"
+          }
+        }
+      }
+    },
+    "Collapse All": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모두 접기"
+          }
+        }
+      }
+    },
+    "Close": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "닫기"
+          }
+        }
+      }
+    },
+    "Points": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "상점"
+          }
+        }
+      },
+      "comment": "일별 요약 칩 라벨 (짧은 폭)"
+    },
+    "Penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "벌점"
+          }
+        }
+      },
+      "comment": "일별 요약 칩 라벨 (짧은 폭)"
+    },
+    "Total": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "합계"
+          }
+        }
+      },
+      "comment": "일별 요약 칩 라벨 (짧은 폭)"
+    },
+    "Recorded %@ / Target %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "순수 촬영 %@ / 목표 %@"
+          }
+        }
+      }
+    },
+    "Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속달성"
+          }
+        }
+      }
+    },
+    "days": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일"
+          }
+        }
+      },
+      "comment": "스트릭 숫자 뒤 단위 — 여러 곳에서 재사용"
+    },
+    "You've logged ": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "총 "
+          }
+        }
+      },
+      "comment": "스트릭 카드 누적시간 문구 앞부분 — styledHourMinute 다음에 ' total!'과 이어붙음"
+    },
+    " total!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "을 기록했어요!"
+          }
+        }
+      }
+    },
+    "Best Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최고기록"
+          }
+        }
+      }
+    },
+    "Avg per Day": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "평균 일정"
+          }
+        }
+      }
+    },
+    "Other": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그 외"
+          }
+        }
+      },
+      "comment": "태그별 시간 분포 도넛의 상위 4개 외 나머지 묶음"
+    },
+    "Time by Tag": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "태그별 시간 분포"
+          }
+        }
+      }
+    },
+    "(h : m)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(시간 : 분)"
+          }
+        }
+      }
+    },
+    "Total ": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "총 "
+          }
+        }
+      },
+      "comment": "태그 도넛 중앙 총 분 표기 앞부분 — 숫자·'m'과 이어붙음"
+    },
+    "m": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "분"
+          }
+        }
+      },
+      "comment": "태그 도넛 중앙 분 단위 — 짧은 표기이므로 문맥 의존, 다른 m과 충돌 시 분리"
+    },
+    "Total Score": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "총점"
+          }
+        }
+      }
+    },
+    "pts": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "점"
+          }
+        }
+      }
+    },
+    "Total Points": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "총 상점"
+          }
+        }
+      }
+    },
+    "Completion Rate": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "완주율"
+          }
+        }
+      }
+    },
+    "Total Penalty": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "총 벌점"
+          }
+        }
+      }
+    },
+    "No-show Rate": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "노쇼율"
+          }
+        }
+      }
     }
   },
   "version": "1.2"
