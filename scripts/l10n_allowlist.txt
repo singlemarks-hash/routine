@@ -1,6 +1,5 @@
 TimeLock/TimeLock/Services/CanonicalKeys.swift
 TimeLock/TimeLock/Views/Group/GroupViews.swift
-TimeLock/TimeLock/Views/Reservation/ReservationEditView.swift
 TimeLock/TimeLock/Views/Session/SessionView.swift
 TimeLock/TimeLock/Views/Settings/SettingsView.swift
 android/app/src/main/java/com/singlemarks/angrymoti/models/CanonicalKeys.kt

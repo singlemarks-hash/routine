@@ -2434,6 +2434,677 @@
           }
         }
       }
+    },
+    "%ld/Unlimited": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld/무제한"
+          }
+        }
+      }
+    },
+    "Activity Slots %@ · %ld-Day Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 슬롯 %@ · 연속 달성 %ld일"
+          }
+        }
+      }
+    },
+    "Tap to see the slot policy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "터치하면 슬롯 정책을 볼 수 있어요"
+          }
+        }
+      }
+    },
+    "Delete Activity": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예약 삭제"
+          }
+        }
+      }
+    },
+    "New Activity": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 예약"
+          }
+        }
+      }
+    },
+    "Edit Activity": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예약 편집"
+          }
+        }
+      }
+    },
+    "Delete this activity?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 예약을 삭제할까요?"
+          }
+        }
+      }
+    },
+    "Delete": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "삭제"
+          }
+        }
+      }
+    },
+    "Notifications Are Off": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알림이 꺼져 있어요"
+          }
+        }
+      }
+    },
+    "Later": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나중에"
+          }
+        }
+      }
+    },
+    "The alarm won't sound at the scheduled time. Turn on Notifications for AngryMoti under Settings.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예약한 시각에 알람이 울리지 않습니다. 설정 → 알림에서 앵그리모티를 켜주세요."
+          }
+        }
+      }
+    },
+    "This activity has been deleted and can no longer be edited. It stays on today's schedule until midnight so you can check today's record, then disappears from the list. Past records remain in the History tab.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 활동은 삭제(종료)되어 더 이상 수정할 수 없습니다. 오늘 기록 확인용으로 자정까지만 일정에 표시되고, 이후에는 목록에서 사라집니다. 지난 기록은 기록 탭에서 계속 볼 수 있어요."
+          }
+        }
+      }
+    },
+    "It's within 30 minutes of the start time. To keep you accountable, this activity can no longer be edited or deleted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 30분 전입니다. 다짐을 지키기 위해 이 예약은 더 이상 수정하거나 삭제할 수 없습니다."
+          }
+        }
+      }
+    },
+    "This activity was created with Insane intensity. That level isn't available right now, so you can only view or delete it. We won't auto-downgrade it, since that would change the 2x scoring it already accrued.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다."
+          }
+        }
+      }
+    },
+    "Your activity slots dropped to %@ and your activities now exceed the limit. Delete activities to fit within your slots, or get a membership or build a streak to unlock more.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 슬롯이 %@로 줄어 보유한 예약이 한도를 넘었습니다. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요."
+          }
+        }
+      }
+    },
+    "Activity Name": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동명"
+          }
+        }
+      }
+    },
+    "e.g. Practice exam set 3": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예: 기출문제 3회분"
+          }
+        }
+      }
+    },
+    "Tag": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "태그"
+          }
+        }
+      }
+    },
+    "Custom (optional)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "직접 입력 (선택)"
+          }
+        }
+      }
+    },
+    "Intensity": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "강도"
+          }
+        }
+      }
+    },
+    "Up to 10 min emergency break allowed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최대 10분 긴급용무 허용"
+          }
+        }
+      }
+    },
+    "No exceptions, 100% focus, 2x points": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "봐주기 없는 100% 몰입, 점수 2배"
+          }
+        }
+      }
+    },
+    "When and how long?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "몇시에 얼마나 진행하나요?"
+          }
+        }
+      }
+    },
+    "Start Time": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작 시각"
+          }
+        }
+      }
+    },
+    "Repeat": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "반복"
+          }
+        }
+      }
+    },
+    "Start Date": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작일"
+          }
+        }
+      }
+    },
+    "This activity has already started, so its start date can't be changed. This protects past records and points.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 시작한 활동이라 시작일은 바꿀 수 없어요. 지난 기록과 점수를 지키기 위한 제한이에요."
+          }
+        }
+      }
+    },
+    "The start date can be set up to %ld month(s) from today.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작일은 오늘부터 %ld개월 이내로 정할 수 있어요."
+          }
+        }
+      }
+    },
+    "No End Date": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료일 없음"
+          }
+        }
+      }
+    },
+    "End Date": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료일"
+          }
+        }
+      }
+    },
+    "This is a one-day activity, so weekly repeat isn't needed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "하루짜리 활동이라 요일 반복 설정이 필요 없어요."
+          }
+        }
+      }
+    },
+    "Repeat on Days": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요일 반복"
+          }
+        }
+      }
+    },
+    "(Daily)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(매일)"
+          }
+        }
+      }
+    },
+    "Insane activities can't be edited right now. You can only view or delete them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미친 매운맛 활동은 지금 편집할 수 없어요. 조회와 삭제만 가능합니다."
+          }
+        }
+      }
+    },
+    "Editing is locked because you're over your slot limit. Delete activities to fit within your slots to edit again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "슬롯 한도를 초과해 편집이 잠겼습니다. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."
+          }
+        }
+      }
+    },
+    "Your activity slots are full (current streak %ld days → max %ld).": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 슬롯이 가득 찼습니다 (현재 연속 %ld일 → 최대 %ld개)."
+          }
+        }
+      }
+    },
+    "Reach a %ld-day streak to unlock up to %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속 %ld일을 달성하면 %@까지 열려요."
+          }
+        }
+      }
+    },
+    "Activities you've already created are unaffected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 만든 활동은 그대로 유지됩니다."
+          }
+        }
+      }
+    },
+    "Please enter an activity name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동명을 입력하세요."
+          }
+        }
+      }
+    },
+    "Please select the days to repeat.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "반복할 요일을 선택하세요."
+          }
+        }
+      }
+    },
+    "Please set a start date within %ld month(s) from today.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작일은 오늘부터 %ld개월 이내로 정해주세요."
+          }
+        }
+      }
+    },
+    "The end date must be after the start date.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료일은 시작일 이후여야 해요."
+          }
+        }
+      }
+    },
+    "The end date has already passed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료일이 이미 지났어요."
+          }
+        }
+      }
+    },
+    "None of the selected days fall within the date range. Please adjust the days or the range.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 기간 안에 고른 요일이 없어요. 요일이나 기간을 조정해주세요."
+          }
+        }
+      }
+    },
+    "That time has already passed. Please adjust the start time or date.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 지난 시각이에요. 시작 시각이나 날짜를 조정해주세요."
+          }
+        }
+      }
+    },
+    "This overlaps with '%@' at %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ '%1$@' 예약과 시간이 겹칩니다."
+          }
+        }
+      }
+    },
+    "Groups use a slot too · Tap for policy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹도 슬롯 1개를 사용해요 · 터치하면 정책"
+          }
+        }
+      }
+    },
+    "Base": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기본"
+          }
+        }
+      }
+    },
+    "30-Day Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속 30일"
+          }
+        }
+      }
+    },
+    "Unlimited": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "무제한"
+          }
+        }
+      }
+    },
+    "3-Day Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속 3일"
+          }
+        }
+      }
+    },
+    "5-Day Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속 5일"
+          }
+        }
+      }
+    },
+    "7-Day Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속 7일"
+          }
+        }
+      }
+    },
+    "10-Day Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속 10일"
+          }
+        }
+      }
+    },
+    "Activity slots are limited to help you focus on one thing at a time.\nSlots increase as your streak grows.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "한 가지에 집중하는 습관을 위해 활동 슬롯은 제한됩니다.\n연속 달성일이 늘어날수록 활동 슬롯도 함께 늘어납니다."
+          }
+        }
+      }
+    },
+    "Max Activities": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최대 활동"
+          }
+        }
+      }
+    },
+    "Current": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재"
+          }
+        }
+      }
+    },
+    "Membership active — guaranteed at least %ld slots regardless of streak.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "멤버십 적용 중 — 연속일과 무관하게 최소 %ld개가 보장됩니다."
+          }
+        }
+      }
+    },
+    "With a membership, you start with at least %ld slots regardless of streak.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "멤버십에 가입하면 연속일과 무관하게 최소 %ld개부터 시작합니다."
+          }
+        }
+      }
+    },
+    "If your streak breaks, your limit drops, but activities you've already created stay. Only adding new ones is restricted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 사라지지 않아요. 새로 추가하는 것만 제한됩니다."
+          }
+        }
+      }
+    },
+    "Slot Policy · %ld-Day Streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활동 슬롯 정책 · 연속 %ld일"
+          }
+        }
+      }
     }
   },
   "version": "1.2"

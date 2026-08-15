@@ -163,7 +163,7 @@ struct ReservationEditView: View {
         let used = slotUsingReservations.count
         let allowed = allowedSlots            // nil = 무제한 (연속 30일+)
         let full = allowed.map { used >= $0 } ?? false
-        let slotLabel = allowed.map { "\(used)/\($0)" } ?? "\(used)/무제한"
+        let slotLabel = allowed.map { "\(used)/\($0)" } ?? String(format: String(localized: "%ld/Unlimited"), used)
 
         return Button {
             showSlotPolicy = true
@@ -173,10 +173,10 @@ struct ReservationEditView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(full ? TL.amber : TL.jade)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("활동 슬롯 \(slotLabel) · 연속 달성 \(currentStreak)일")
+                    Text(String(format: String(localized: "Activity Slots %@ · %ld-Day Streak"), slotLabel, currentStreak))
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.paper)
-                    Text("터치하면 슬롯 정책을 볼 수 있어요")
+                    Text("Tap to see the slot policy")
                         .font(.system(size: 11)).foregroundStyle(TL.faint)
                 }
                 Spacer()
@@ -232,7 +232,7 @@ struct ReservationEditView: View {
                     timeAndDurationSection
                     repeatSection
                     if reservation != nil && !isRetired {
-                        Button("예약 삭제") { showDeleteConfirm = true }
+                        Button("Delete Activity") { showDeleteConfirm = true }
                             .buttonStyle(TLGhostButtonStyle(tint: TL.rec))
                             .disabled(isLocked)   // 읽기 전용(슬롯 초과)에서도 삭제는 허용
                             .opacity(isLocked ? 0.4 : 1)
@@ -241,23 +241,23 @@ struct ReservationEditView: View {
                 .padding(20)
             }
             .background(TL.ink)
-            .navigationTitle(reservation == nil ? "활동 예약" : "예약 편집")
+            .navigationTitle(reservation == nil ? String(localized: "New Activity") : String(localized: "Edit Activity"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
+                    Button("Close") { dismiss() }.foregroundStyle(TL.muted)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if !isRetired {           // 은퇴한 예약은 저장 버튼 자체가 없다 — 보여주기 전용
-                        Button("저장") { save() }
+                        Button("Save") { save() }
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(editingDisabled ? TL.faint : TL.rec)
                             .disabled(editingDisabled)
                     }
                 }
             }
-            .confirmationDialog("이 예약을 삭제할까요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("삭제", role: .destructive) { delete() }
+            .confirmationDialog("Delete this activity?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { delete() }
             }
             .sheet(isPresented: $showSlotPolicy) {
                 SlotPolicySheet(currentStreak: currentStreak, usedSlots: slotUsingReservations.count,
@@ -267,16 +267,16 @@ struct ReservationEditView: View {
             .sheet(isPresented: $showIntensityPaywall) { PaywallView() }
             // 알림이 이미 거부된 상태 — iOS는 시스템 창을 다시 띄워주지 않으므로
             // 설정으로 직접 보내는 것 말고는 사용자가 켤 방법이 없다.
-            .alert("알림이 꺼져 있어요", isPresented: $showNotificationBlockedAlert) {
-                Button("설정 열기") {
+            .alert("Notifications Are Off", isPresented: $showNotificationBlockedAlert) {
+                Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
                     dismiss()
                 }
-                Button("나중에", role: .cancel) { dismiss() }
+                Button("Later", role: .cancel) { dismiss() }
             } message: {
-                Text("예약한 시각에 알람이 울리지 않습니다. 설정 → 알림에서 앵그리모티를 켜주세요.")
+                Text("The alarm won't sound at the scheduled time. Turn on Notifications for AngryMoti under Settings.")
             }
             .onAppear(perform: load)
             }   // ScrollViewReader
@@ -291,7 +291,7 @@ struct ReservationEditView: View {
         TLCard {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "clock.badge.xmark.fill").foregroundStyle(TL.amber)
-                Text("이 활동은 삭제(종료)되어 더 이상 수정할 수 없습니다. 오늘 기록 확인용으로 자정까지만 일정에 표시되고, 이후에는 목록에서 사라집니다. 지난 기록은 기록 탭에서 계속 볼 수 있어요.")
+                Text("This activity has been deleted and can no longer be edited. It stays on today's schedule until midnight so you can check today's record, then disappears from the list. Past records remain in the History tab.")
                     .font(.system(size: 13))
                     .foregroundStyle(TL.paper)
             }
@@ -302,7 +302,7 @@ struct ReservationEditView: View {
         TLCard {
             HStack(spacing: 10) {
                 Image(systemName: "lock.fill").foregroundStyle(TL.amber)
-                Text("시작 30분 전입니다. 다짐을 지키기 위해 이 예약은 더 이상 수정하거나 삭제할 수 없습니다.")
+                Text("It's within 30 minutes of the start time. To keep you accountable, this activity can no longer be edited or deleted.")
                     .font(.system(size: 13))
                     .foregroundStyle(TL.paper)
             }
@@ -317,10 +317,11 @@ struct ReservationEditView: View {
                 // 두 사유가 겹칠 수 있다. 하나만 보여주면 "멤버십을 복구하면 편집된다"고 안내해놓고
                 // 복구해도 슬롯 초과로 여전히 잠기는 상황이 된다 — 걸린 사유를 모두 적는다.
                 Text([isLockedInsane
-                      ? "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다."
+                      ? String(localized: "This activity was created with Insane intensity. That level isn't available right now, so you can only view or delete it. We won't auto-downgrade it, since that would change the 2x scoring it already accrued.")
                       : nil,
                       isOverSlotLimit
-                      ? "활동 슬롯이 \(allowedSlots.map { "\($0)개" } ?? "무제한")로 줄어 보유한 예약이 한도를 넘었습니다. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요."
+                      ? String(format: String(localized: "Your activity slots dropped to %@ and your activities now exceed the limit. Delete activities to fit within your slots, or get a membership or build a streak to unlock more."),
+                               allowedSlots.map { String(format: String(localized: "%ld"), $0) } ?? String(localized: "Unlimited"))
                       : nil].compactMap { $0 }.joined(separator: "\n\n"))
                     .font(.system(size: 13))
                     .foregroundStyle(TL.paper)
@@ -331,10 +332,10 @@ struct ReservationEditView: View {
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
-                TLEyebrow(text: "활동명")
+                TLEyebrow(text: "Activity Name")
                 Text("*").font(.tlLabel).foregroundStyle(TL.rec)
             }
-            TextField("예: 기출문제 3회분", text: $name)
+            TextField("e.g. Practice exam set 3", text: $name)
                 .font(.tlBody)
                 .padding(14)
                 .background(TL.surface, in: RoundedRectangle(cornerRadius: TL.cornerM))
@@ -362,7 +363,7 @@ struct ReservationEditView: View {
 
     private var tagSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "태그")
+            TLEyebrow(text: "Tag")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(ActivityTag.presets, id: \.self) { preset in
@@ -381,7 +382,7 @@ struct ReservationEditView: View {
             }
             .opacity(customTagActive ? 0.55 : 1)
 
-            TextField("직접 입력 (선택)", text: $customTag)
+            TextField("Custom (optional)", text: $customTag)
                 .font(.system(size: 14))
                 .focused($customTagFocused)
                 .padding(10)
@@ -412,7 +413,7 @@ struct ReservationEditView: View {
     /// 귀속되므로 게스트에게는 결제 유도를 하지 않는다(로그인부터 해야 함).
     private var intensitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "강도")
+            TLEyebrow(text: "Intensity")
             HStack(spacing: 8) {
                 ForEach(Intensity.allCases) { candidate in
                     let locked = candidate == .insane && !app.insaneUnlocked
@@ -429,7 +430,7 @@ struct ReservationEditView: View {
                                 Text("\(candidate.emoji) \(candidate.title)")
                                     .font(.system(size: 14, weight: .bold, design: .rounded))
                             }
-                            Text(candidate == .spicy ? "최대 10분 긴급용무 허용" : "봐주기 없는 100% 몰입, 점수 2배")
+                            Text(candidate == .spicy ? String(localized: "Up to 10 min emergency break allowed") : String(localized: "No exceptions, 100% focus, 2x points"))
                                 .font(.system(size: 10))
                         }
                         .foregroundStyle(intensity == candidate ? TL.ink : TL.muted)
@@ -455,22 +456,22 @@ struct ReservationEditView: View {
     /// 가장 직관적이라 그룹 방 만들기와 동일한 형태로 통일.
     private var timeAndDurationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "몇시에 얼마나 진행하나요?")
+            TLEyebrow(text: "When and how long?")
             TLCard {
                 VStack(spacing: 4) {
-                    DatePicker("시작 시각", selection: $startTime, displayedComponents: .hourAndMinute)
+                    DatePicker("Start Time", selection: $startTime, displayedComponents: .hourAndMinute)
                         .font(.tlBody).foregroundStyle(TL.paper)
                         .disabled(editingDisabled)
                     Divider().overlay(TL.hairline)
                     HStack(spacing: 10) {
-                        Picker("활동 시간", selection: $durationMinutes) {
+                        Picker("Duration", selection: $durationMinutes) {
                             ForEach(durations, id: \.self) { Text(TLFormat.durationLabel($0)).tag($0) }
                         }
                         .pickerStyle(.menu)
                         .tint(TL.paper)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .disabled(editingDisabled)
-                        Text("완료 시 +\(ScoreRules.completionBase(forMinutes: durationMinutes))점")
+                        Text(String(format: String(localized: "+%ld pts on completion"), ScoreRules.completionBase(forMinutes: durationMinutes)))
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
                             .foregroundStyle(TL.jade)
                             .padding(.horizontal, 10).padding(.vertical, 5)
@@ -489,7 +490,7 @@ struct ReservationEditView: View {
 
     private var repeatSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TLEyebrow(text: "반복")
+            TLEyebrow(text: "Repeat")
             TLCard {
                 VStack(alignment: .leading, spacing: 14) {
                     // 기간 — 시작일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.
@@ -498,19 +499,19 @@ struct ReservationEditView: View {
                         // 선택 범위(오늘~) 밖의 과거 날짜라 표시가 깨지고, 되돌릴 수 없는
                         // 기록 삭제로 이어질 수 있다.
                         HStack {
-                            Text("시작일").font(.tlBody).foregroundStyle(TL.paper)
+                            Text("Start Date").font(.tlBody).foregroundStyle(TL.paper)
                             Spacer()
                             Text(oneOffDate, style: .date)
                                 .font(.tlBody).foregroundStyle(TL.muted)
                         }
-                        Text("이미 시작한 활동이라 시작일은 바꿀 수 없어요. 지난 기록과 점수를 지키기 위한 제한이에요.")
+                        Text("This activity has already started, so its start date can't be changed. This protects past records and points.")
                             .font(.system(size: 12)).foregroundStyle(TL.faint)
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         // 하한은 '지금'이 아니라 '오늘 자정' — 오늘을 고를 수 있어야 한다.
                         // 상한은 ReservationPolicy.maxStartLeadMonths(1개월) — 그보다 먼 알람은
                         // 앱 업데이트·기기 교체를 지나서까지 울린다고 보장할 수 없다.
-                        DatePicker("시작일", selection: $oneOffDate,
+                        DatePicker("Start Date", selection: $oneOffDate,
                                    in: Calendar.current.startOfDay(for: Date())...ReservationPolicy.maxStartDay(),
                                    displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
@@ -531,11 +532,11 @@ struct ReservationEditView: View {
                                                               to: cal.startOfDay(for: oneOffEndDate)).day ?? 0
                                 oneOffEndDate = cal.date(byAdding: .day, value: max(span, 0), to: newStart) ?? newStart
                             }
-                        Text("시작일은 오늘부터 \(ReservationPolicy.maxStartLeadMonths)개월 이내로 정할 수 있어요.")
+                        Text(String(format: String(localized: "The start date can be set up to %ld month(s) from today."), ReservationPolicy.maxStartLeadMonths))
                             .font(.system(size: 12)).foregroundStyle(TL.faint)
                     }
                     Toggle(isOn: $noEndDate) {
-                        Text("종료일 없음").font(.tlBody).foregroundStyle(TL.paper)
+                        Text("No End Date").font(.tlBody).foregroundStyle(TL.paper)
                     }
                     .tint(TL.rec)
                     .disabled(editingDisabled)
@@ -558,7 +559,7 @@ struct ReservationEditView: View {
                     }
                     if !noEndDate {
                         // 종료일 하한 = 시작일과 오늘 중 늦은 쪽 (이미 지난 종료일은 고를 수 없게)
-                        DatePicker("종료일", selection: $oneOffEndDate,
+                        DatePicker("End Date", selection: $oneOffEndDate,
                                    in: max(oneOffDate, Calendar.current.startOfDay(for: Date()))...,
                                    displayedComponents: .date)
                             .font(.tlBody).foregroundStyle(TL.paper)
@@ -567,7 +568,7 @@ struct ReservationEditView: View {
 
                     if isSingleDay {
                         Divider().overlay(TL.hairline)
-                        Text("하루짜리 활동이라 요일 반복 설정이 필요 없어요.")
+                        Text("This is a one-day activity, so weekly repeat isn't needed.")
                             .font(.system(size: 12)).foregroundStyle(TL.faint)
                     } else {
                         Divider().overlay(TL.hairline)
@@ -582,10 +583,10 @@ struct ReservationEditView: View {
                             }
                         )) {
                             HStack(spacing: 6) {
-                                Text("요일 반복").font(.tlBody).foregroundStyle(TL.paper)
+                                Text("Repeat on Days").font(.tlBody).foregroundStyle(TL.paper)
                                 // 꺼짐 = 매일 — 토글 의미를 바로 알 수 있게 옆에 힌트 표시
                                 if !isRepeating {
-                                    Text("(매일)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
+                                    Text("(Daily)").font(.system(size: 13, weight: .semibold)).foregroundStyle(TL.muted)
                                 }
                             }
                         }
@@ -673,30 +674,31 @@ struct ReservationEditView: View {
         // (버튼도 비활성이지만 백스톱으로 이중 방어)
         if isEditReadOnly {
             errorMessage = isLockedInsane
-                ? "미친 매운맛 활동은 지금 편집할 수 없어요. 조회와 삭제만 가능합니다."
-                : "슬롯 한도를 초과해 편집이 잠겼습니다. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."
+                ? String(localized: "Insane activities can't be edited right now. You can only view or delete them.")
+                : String(localized: "Editing is locked because you're over your slot limit. Delete activities to fit within your slots to edit again.")
             return
         }
 
         // 검증: 활동 슬롯 정책 (신규 생성만) — 연속 달성일 사다리. 기존 예약은 영향 없음.
         if reservation == nil, let allowed = allowedSlots, slotUsingReservations.count >= allowed {
-            var message = "활동 슬롯이 가득 찼습니다 (현재 연속 \(currentStreak)일 → 최대 \(allowed)개)."
+            var message = String(format: String(localized: "Your activity slots are full (current streak %ld days → max %ld)."), currentStreak, allowed)
             if let next = SlotPolicy.nextTier(afterStreak: currentStreak) {
-                message += " 연속 \(next.days)일을 달성하면 \(next.slots.map { "\($0)개" } ?? "무제한")까지 열려요."
+                message += " " + String(format: String(localized: "Reach a %ld-day streak to unlock up to %@."),
+                                        next.days, next.slots.map { String(format: String(localized: "%ld"), $0) } ?? String(localized: "Unlimited"))
             }
-            message += " 이미 만든 활동은 그대로 유지됩니다."
+            message += " " + String(localized: "Activities you've already created are unaffected.")
             errorMessage = message
             return
         }
 
         // 검증: 활동명 필수
         guard !trimmedName.isEmpty else {
-            errorMessage = "활동명을 입력하세요."
+            errorMessage = String(localized: "Please enter an activity name.")
             return
         }
         // 검증: 주간 반복이면 요일 최소 1개 (하루짜리 활동은 요일 반복 UI가 없으므로 제외)
         if !isSingleDay && isRepeating && weekdays.isEmpty {
-            errorMessage = "반복할 요일을 선택하세요."
+            errorMessage = String(localized: "Please select the days to repeat.")
             return
         }
         let comps = Calendar.current.dateComponents([.hour, .minute], from: startTime)
@@ -718,15 +720,15 @@ struct ReservationEditView: View {
         // 검증: 시작일 상한 (신규 생성만). 기존 예약은 상한 도입 전에 만들어진 먼 시작일을
         // 가질 수 있는데, 이름만 고치는 정상 편집까지 막으면 손댈 방법이 없어진다.
         if reservation == nil, startDay > ReservationPolicy.maxStartDay(calendar: cal) {
-            errorMessage = "시작일은 오늘부터 \(ReservationPolicy.maxStartLeadMonths)개월 이내로 정해주세요."
+            errorMessage = String(format: String(localized: "Please set a start date within %ld month(s) from today."), ReservationPolicy.maxStartLeadMonths)
             return
         }
 
         // 검증: 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남 (두 모드 공통)
         if !noEndDate {
             let endDay = cal.startOfDay(for: oneOffEndDate)
-            guard endDay >= startDay else { errorMessage = "종료일은 시작일 이후여야 해요."; return }
-            guard endDay >= cal.startOfDay(for: .now) else { errorMessage = "종료일이 이미 지났어요."; return }
+            guard endDay >= startDay else { errorMessage = String(localized: "The end date must be after the start date."); return }
+            guard endDay >= cal.startOfDay(for: .now) else { errorMessage = String(localized: "The end date has already passed."); return }
         }
         let targetWeekdays = Set(resolvedWeekdays)
 
@@ -741,7 +743,7 @@ struct ReservationEditView: View {
             if targetWeekdays.contains(cal.component(.weekday, from: day)) { anyOccurrence = true; break }
         }
         if !anyOccurrence {
-            errorMessage = "선택한 기간 안에 고른 요일이 없어요. 요일이나 기간을 조정해주세요."
+            errorMessage = String(localized: "None of the selected days fall within the date range. Please adjust the days or the range.")
             return
         }
 
@@ -760,7 +762,7 @@ struct ReservationEditView: View {
                 if fire > .now { futureOccurrence = true; break }
             }
             if !futureOccurrence {
-                errorMessage = "이미 지난 시각이에요. 시작 시각이나 날짜를 조정해주세요."
+                errorMessage = String(localized: "That time has already passed. Please adjust the start time or date.")
                 return
             }
         }
@@ -775,7 +777,7 @@ struct ReservationEditView: View {
                 aStart: startMinute, aDuration: durationMinutes,
                 bRange: other.activeDayRange(calendar: cal), bWeekdays: other.occupiedWeekdays(calendar: cal),
                 bStart: other.startMinute, bDuration: other.durationMinutes) {
-                errorMessage = "\(TLFormat.clock(clockDate(other.startMinute))) '\(other.name)' 예약과 시간이 겹칩니다."
+                errorMessage = String(format: String(localized: "This overlaps with '%@' at %@."), other.name, TLFormat.clock(clockDate(other.startMinute)))
                 return
             }
         }
@@ -909,17 +911,17 @@ struct SlotStatusBadge: View {
 
     var body: some View {
         let full = allowed.map { used >= $0 } ?? false
-        let label = allowed.map { "\(used)/\($0)" } ?? "\(used)/무제한"
+        let label = allowed.map { "\(used)/\($0)" } ?? String(format: String(localized: "%ld/Unlimited"), used)
         Button(action: onTap) {
             HStack(spacing: 10) {
                 Image(systemName: full ? "lock.fill" : "flame.fill")
                     .font(.system(size: 14))
                     .foregroundStyle(full ? TL.amber : TL.jade)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("활동 슬롯 \(label) · 연속 달성 \(streak)일")
+                    Text(String(format: String(localized: "Activity Slots %@ · %ld-Day Streak"), label, streak))
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(TL.paper)
-                    Text("그룹도 슬롯 1개를 사용해요 · 터치하면 정책")
+                    Text("Groups use a slot too · Tap for policy")
                         .font(.system(size: 11)).foregroundStyle(TL.faint)
                 }
                 Spacer()
@@ -948,17 +950,17 @@ struct SlotPolicySheet: View {
     private var rows: [(label: String, minDays: Int, slots: String)] {
         if isMember {
             return [
-                ("기본",       0,  "\(SlotPolicy.memberFloorSlots)개"),
-                ("연속 30일", 30,  "무제한")
+                (String(localized: "Base"),          0,  String(format: String(localized: "%ld"), SlotPolicy.memberFloorSlots)),
+                (String(localized: "30-Day Streak"), 30,  String(localized: "Unlimited"))
             ]
         }
         return [
-            ("기본",       0,  "2개"),
-            ("연속 3일",   3,  "3개"),
-            ("연속 5일",   5,  "4개"),
-            ("연속 7일",   7,  "5개"),
-            ("연속 10일", 10,  "10개"),
-            ("연속 30일", 30,  "무제한")
+            (String(localized: "Base"),          0,  "2"),
+            (String(localized: "3-Day Streak"),   3,  "3"),
+            (String(localized: "5-Day Streak"),   5,  "4"),
+            (String(localized: "7-Day Streak"),   7,  "5"),
+            (String(localized: "10-Day Streak"), 10, "10"),
+            (String(localized: "30-Day Streak"), 30,  String(localized: "Unlimited"))
         ]
     }
 
@@ -973,7 +975,7 @@ struct SlotPolicySheet: View {
         NavigationStack {
             ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("한 가지에 집중하는 습관을 위해 활동 슬롯은 제한됩니다.\n연속 달성일이 늘어날수록 활동 슬롯도 함께 늘어납니다.")
+                Text("Activity slots are limited to help you focus on one thing at a time.\nSlots increase as your streak grows.")
                     .font(.system(size: 14)).foregroundStyle(TL.muted)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -982,9 +984,9 @@ struct SlotPolicySheet: View {
                 // 단계표
                 VStack(spacing: 0) {
                     HStack {
-                        Text("연속 달성일").font(.tlLabel).foregroundStyle(TL.faint)
+                        Text("Streak").font(.tlLabel).foregroundStyle(TL.faint)
                         Spacer()
-                        Text("최대 활동").font(.tlLabel).foregroundStyle(TL.faint)
+                        Text("Max Activities").font(.tlLabel).foregroundStyle(TL.faint)
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
 
@@ -995,7 +997,7 @@ struct SlotPolicySheet: View {
                                 .font(.system(size: 15, weight: isCurrent ? .bold : .medium, design: .rounded))
                                 .foregroundStyle(isCurrent ? TL.jade : TL.paper)
                             if isCurrent {
-                                Text("현재")
+                                Text("Current")
                                     .font(.system(size: 10, weight: .heavy, design: .rounded))
                                     .foregroundStyle(TL.ink)
                                     .padding(.horizontal, 7).padding(.vertical, 2)
@@ -1017,14 +1019,14 @@ struct SlotPolicySheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: TL.cornerM, style: .continuous))
 
                 Label(isMember
-                      ? "멤버십 적용 중 — 연속일과 무관하게 최소 \(SlotPolicy.memberFloorSlots)개가 보장됩니다."
-                      : "멤버십에 가입하면 연속일과 무관하게 최소 \(SlotPolicy.memberFloorSlots)개부터 시작합니다.",
+                      ? String(format: String(localized: "Membership active — guaranteed at least %ld slots regardless of streak."), SlotPolicy.memberFloorSlots)
+                      : String(format: String(localized: "With a membership, you start with at least %ld slots regardless of streak."), SlotPolicy.memberFloorSlots),
                       systemImage: "crown.fill")
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(TL.jade)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Label("연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 사라지지 않아요. 새로 추가하는 것만 제한됩니다.", systemImage: "shield.checkerboard")
+                Label("If your streak breaks, your limit drops, but activities you've already created stay. Only adding new ones is restricted.", systemImage: "shield.checkerboard")
                     .font(.system(size: 12)).foregroundStyle(TL.muted)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1033,11 +1035,11 @@ struct SlotPolicySheet: View {
             .padding(20)
             }
             .background(TL.ink)
-            .navigationTitle("활동 슬롯 정책 · 연속 \(currentStreak)일")
+            .navigationTitle(String(format: String(localized: "Slot Policy · %ld-Day Streak"), currentStreak))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { dismiss() }.foregroundStyle(TL.muted)
+                    Button("Close") { dismiss() }.foregroundStyle(TL.muted)
                 }
             }
         }
