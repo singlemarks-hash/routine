@@ -31,6 +31,6 @@ object GoogleSignIn {
         ) {
             return GoogleIdTokenCredential.createFrom(credential.data).idToken
         }
-        error("Google 계정 정보를 가져오지 못했어요.")
+        error(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.google_account_fetch_failed))
     }
 }

@@ -2,12 +2,9 @@ TimeLock/TimeLock/Services/CanonicalKeys.swift
 android/app/src/main/java/com/singlemarks/angrymoti/models/CanonicalKeys.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/AccountStore.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/AlarmScheduler.kt
-android/app/src/main/java/com/singlemarks/angrymoti/services/CameraRecorder.kt
-android/app/src/main/java/com/singlemarks/angrymoti/services/GoogleSignIn.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/GroupStore.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/L10nKeySweep.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/SessionEngine.kt
-android/app/src/main/java/com/singlemarks/angrymoti/services/SessionService.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/SubscriptionManager.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/AuthScreen.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/CalendarScreen.kt

@@ -23,4 +23,7 @@
     <string name="score_penalty_reset">Membership Penalty Reset</string>
     <string name="score_slot_bonus">Slot Expansion Bonus</string>
     <string name="score_group_quit">Group Dropped Out</string>
+    <string name="google_account_fetch_failed">Couldn\'t get your Google account info. Please try again.</string>
+    <string name="recording_notification_title">AngryMoti is recording</string>
+    <string name="recording_notification_body">Your timelapse session is in progress.</string>
 </resources>

@@ -103,7 +103,7 @@ object CameraRecorder {
         // 카메라 권한이 없으면 바인딩이 조용히 실패한다 — 명시적으로 로그를 남긴다
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            android.util.Log.e("AngryMoti", "startPreview: CAMERA 권한 없음 — 프리뷰 시작 불가")
+            android.util.Log.e("AngryMoti", "startPreview: no CAMERA permission — cannot start preview")
             return
         }
         val future = ProcessCameraProvider.getInstance(context)
@@ -125,15 +125,15 @@ object CameraRecorder {
                         p.bindToLifecycle(camLifecycle, CameraSelector.DEFAULT_FRONT_CAMERA,
                             previewUseCase, analysis)
                         bound = true
-                        android.util.Log.i("AngryMoti", "startPreview: 카메라 바인딩 성공")
+                        android.util.Log.i("AngryMoti", "startPreview: camera bound")
                     } catch (e: Exception) {
                         // 잠금 상태에서 열거나 다른 앱이 카메라 점유 중이면 여기서 실패한다
                         bound = false
-                        android.util.Log.e("AngryMoti", "startPreview: bindToLifecycle 실패", e)
+                        android.util.Log.e("AngryMoti", "startPreview: bindToLifecycle failed", e)
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.e("AngryMoti", "startPreview: provider 획득 실패", e)
+                android.util.Log.e("AngryMoti", "startPreview: failed to obtain provider", e)
             }
         }, ContextCompat.getMainExecutor(context))
     }
@@ -239,10 +239,10 @@ object CameraRecorder {
                     previewUseCase, analysis,
                 )
                 bound = true
-                android.util.Log.i("AngryMoti", "resume: 카메라 재바인딩 (통화 등 인터럽트 복구)")
+                android.util.Log.i("AngryMoti", "resume: rebinding camera (recovering from interruption e.g. phone call)")
             } catch (e: Exception) {
                 bound = false
-                android.util.Log.e("AngryMoti", "resume: 카메라 재바인딩 실패", e)
+                android.util.Log.e("AngryMoti", "resume: camera rebind failed", e)
             }
         }
     }

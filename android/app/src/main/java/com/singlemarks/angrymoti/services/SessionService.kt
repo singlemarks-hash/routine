@@ -26,8 +26,8 @@ class SessionService : Service() {
         )
         val n: Notification = NotificationCompat.Builder(this, AlarmScheduler.CHANNEL_STATUS)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
-            .setContentTitle("앵그리모티 촬영 중")
-            .setContentText("타임랩스 세션이 진행되고 있습니다.")
+            .setContentTitle(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.recording_notification_title))
+            .setContentText(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.recording_notification_body))
             .setOngoing(true)
             .setContentIntent(open)
             .build()
@@ -42,7 +42,7 @@ class SessionService : Service() {
             }
         }.isSuccess
         if (!started) {
-            android.util.Log.e("AngryMoti", "SessionService: 포그라운드 시작 실패 — 서비스 없이 진행")
+            android.util.Log.e("AngryMoti", "SessionService: foreground start failed — continuing without service")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -71,7 +71,7 @@ class SessionService : Service() {
             // UI(거치 가이드)에서도 막고 있지만 그건 화면 한 곳의 방어라, 진입 경로가 하나만
             // 늘어도 크래시가 된다. 서비스를 켜는 쪽에서 한 번 더 본다.
             if (!Permissions.cameraGranted(context)) {
-                android.util.Log.e("AngryMoti", "SessionService.start: CAMERA 권한 없음 — 시작 보류")
+                android.util.Log.e("AngryMoti", "SessionService.start: no CAMERA permission — start deferred")
                 return
             }
             // 2차 방어 — 실제로 녹화 중일 때만 켠다.
@@ -81,14 +81,14 @@ class SessionService : Service() {
             // 나중에 부팅·브로드캐스트 경로에서 세션을 되살리는 코드가 붙으면 그대로 크래시가 된다.
             // 사용자가 촬영을 시작해 phase가 Recording일 때만 통과시켜 그 경로를 원천 차단한다.
             if (SessionEngine.phase.value !is SessionEngine.Phase.Recording) {
-                android.util.Log.e("AngryMoti", "SessionService.start: 녹화 중이 아님 — 시작 보류")
+                android.util.Log.e("AngryMoti", "SessionService.start: not recording — start deferred")
                 return
             }
             runCatching {
                 context.startForegroundService(Intent(context, SessionService::class.java))
             }.onFailure {
                 // ForegroundServiceStartNotAllowedException 등 — 서비스는 포기하되 세션은 잇는다
-                android.util.Log.e("AngryMoti", "SessionService.start 실패: ${it.message}")
+                android.util.Log.e("AngryMoti", "SessionService.start failed: ${it.message}")
             }
         }
         fun stop(context: Context) {

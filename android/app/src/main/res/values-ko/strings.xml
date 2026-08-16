@@ -22,4 +22,7 @@
     <string name="score_penalty_reset">멤버십 벌점 리셋</string>
     <string name="score_slot_bonus">슬롯 확장 보너스</string>
     <string name="score_group_quit">그룹 중도 포기</string>
+    <string name="google_account_fetch_failed">Google 계정 정보를 가져오지 못했어요.</string>
+    <string name="recording_notification_title">앵그리모티 촬영 중</string>
+    <string name="recording_notification_body">타임랩스 세션이 진행되고 있습니다.</string>
 </resources>
