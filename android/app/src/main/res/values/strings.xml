@@ -6,4 +6,21 @@
     <string name="open_settings">Open Settings</string>
     <string name="later">Later</string>
     <string name="back">Back</string>
+    <string name="intensity_spicy">Spicy</string>
+    <string name="intensity_insane">Insane</string>
+    <string name="intensity_spicy_desc">Pause for an emergency and resume within 10 minutes — no penalty.</string>
+    <string name="intensity_insane_desc">No grace period, no excuses. Stepping away fails you instantly. Double points, double penalties.</string>
+    <string name="outcome_completed">Completed</string>
+    <string name="outcome_walked_away">Walked Away</string>
+    <string name="outcome_no_show">No-show</string>
+    <string name="emergency_end">Emergency End</string>
+    <string name="outcome_safety_stop">Safety Stop</string>
+    <string name="score_completion_reward">Completion Reward</string>
+    <string name="score_walk_away_penalty">Walk-away Penalty</string>
+    <string name="score_no_show_penalty">No-show Penalty</string>
+    <string name="score_unlock_bonus">Unlock Bonus</string>
+    <string name="score_away_penalty">Away Penalty</string>
+    <string name="score_penalty_reset">Membership Penalty Reset</string>
+    <string name="score_slot_bonus">Slot Expansion Bonus</string>
+    <string name="score_group_quit">Group Dropped Out</string>
 </resources>

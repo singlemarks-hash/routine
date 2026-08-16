@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 class AngryMotiApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        L10n.init(this)   // 문자열 리소스 전역 헬퍼 — 다른 init보다 먼저
         Prefs.init(this)
         // 레거시 한글 저장값 → 정본 키 1회 재작성 (docs/영어화-설계도.md D3, iOS와 1:1).
         // 멱등이라 이후 동기화·미러와 순서가 엇갈려도 무해하다 (미처 못 바꾼 값은 읽기 호환이 흡수).

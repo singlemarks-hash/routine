@@ -1,6 +1,5 @@
 TimeLock/TimeLock/Services/CanonicalKeys.swift
 android/app/src/main/java/com/singlemarks/angrymoti/models/CanonicalKeys.kt
-android/app/src/main/java/com/singlemarks/angrymoti/models/Models.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/AccountStore.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/AlarmScheduler.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/CameraRecorder.kt

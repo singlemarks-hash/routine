@@ -1,6 +1,8 @@
 package com.singlemarks.angrymoti.models
 
 import java.util.Calendar
+import com.singlemarks.angrymoti.L10n
+import com.singlemarks.angrymoti.R
 
 // iOS Models.swift와 1:1 대응 — 정책 수치를 바꿀 땐 반드시 양쪽 + README를 함께 수정한다.
 
@@ -30,11 +32,11 @@ object TimePolicy {
 enum class Intensity(val raw: String) {
     SPICY("spicy"), INSANE("insane");
 
-    val title get() = if (this == SPICY) "매운맛" else "미친 매운맛"
+    val title get() = L10n.str(if (this == SPICY) R.string.intensity_spicy else R.string.intensity_insane)
     val subtitle get() = if (this == SPICY)
-        "긴급 용무로 중단해도 10분 안에 재촬영하면 벌점 없음."
+        L10n.str(R.string.intensity_spicy_desc)
     else
-        "유예도 사유도 없다. 이탈 즉시 실패. 상점 2배, 벌점 2배."
+        L10n.str(R.string.intensity_insane_desc)
     val emoji get() = if (this == SPICY) "🌶️" else "🔥"
 
     companion object {
@@ -52,8 +54,8 @@ enum class SessionOutcome(val raw: String) {
     SAFETY_ENDED("safetyEnded");// 안전 종료 (배터리/저장공간/크래시) — 벌점 없음, 캘린더 중립
 
     val title get() = when (this) {
-        COMPLETED -> "완주"; EXIT_FAILED -> "이탈 실패"; NO_SHOW -> "노쇼 탈락"
-        EMERGENCY -> "긴급 종료"; SAFETY_ENDED -> "안전 종료"
+        COMPLETED -> L10n.str(R.string.outcome_completed); EXIT_FAILED -> L10n.str(R.string.outcome_walked_away); NO_SHOW -> L10n.str(R.string.outcome_no_show)
+        EMERGENCY -> L10n.str(R.string.emergency_end); SAFETY_ENDED -> L10n.str(R.string.outcome_safety_stop)
     }
     val isSuccess get() = this == COMPLETED
     /** 캘린더 색 판정에서 '실패'(빨강)로 치는가. 긴급 종료도 사용자가 스스로 그만둔
@@ -73,10 +75,10 @@ enum class ScoreEventType(val raw: String) {
     GROUP_QUIT("groupQuit");
 
     val title get() = when (this) {
-        COMPLETE -> "완주 상점"; EXIT_FAIL -> "이탈 벌점"; NO_SHOW -> "노쇼 벌점"
-        EMERGENCY -> "긴급 종료"; UNLOCK_BONUS -> "잠금 해제 보너스"; ABSENCE -> "자리비움 벌점"
-        PENALTY_RESET -> "멤버십 벌점 리셋"; SLOT_BONUS -> "슬롯 확장 보너스"
-        GROUP_QUIT -> "그룹 중도 포기"
+        COMPLETE -> L10n.str(R.string.score_completion_reward); EXIT_FAIL -> L10n.str(R.string.score_walk_away_penalty); NO_SHOW -> L10n.str(R.string.score_no_show_penalty)
+        EMERGENCY -> L10n.str(R.string.emergency_end); UNLOCK_BONUS -> L10n.str(R.string.score_unlock_bonus); ABSENCE -> L10n.str(R.string.score_away_penalty)
+        PENALTY_RESET -> L10n.str(R.string.score_penalty_reset); SLOT_BONUS -> L10n.str(R.string.score_slot_bonus)
+        GROUP_QUIT -> L10n.str(R.string.score_group_quit)
     }
 
     companion object {

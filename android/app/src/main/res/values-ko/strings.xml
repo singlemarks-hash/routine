@@ -5,4 +5,21 @@
     <string name="open_settings">설정 열기</string>
     <string name="later">나중에</string>
     <string name="back">뒤로</string>
+    <string name="intensity_spicy">매운맛</string>
+    <string name="intensity_insane">미친 매운맛</string>
+    <string name="intensity_spicy_desc">긴급 용무로 중단해도 10분 안에 재촬영하면 벌점 없음.</string>
+    <string name="intensity_insane_desc">유예도 사유도 없다. 이탈 즉시 실패. 상점 2배, 벌점 2배.</string>
+    <string name="outcome_completed">완주</string>
+    <string name="outcome_walked_away">이탈 실패</string>
+    <string name="outcome_no_show">노쇼 탈락</string>
+    <string name="emergency_end">긴급 종료</string>
+    <string name="outcome_safety_stop">안전 종료</string>
+    <string name="score_completion_reward">완주 상점</string>
+    <string name="score_walk_away_penalty">이탈 벌점</string>
+    <string name="score_no_show_penalty">노쇼 벌점</string>
+    <string name="score_unlock_bonus">잠금 해제 보너스</string>
+    <string name="score_away_penalty">자리비움 벌점</string>
+    <string name="score_penalty_reset">멤버십 벌점 리셋</string>
+    <string name="score_slot_bonus">슬롯 확장 보너스</string>
+    <string name="score_group_quit">그룹 중도 포기</string>
 </resources>
