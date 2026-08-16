@@ -1,59 +1,52 @@
 {
-  "identifier" : "8F2A1C0E-0000-4000-9000-TIMELOCKPRO0",
-  "nonRenewingSubscriptions" : [
-
-  ],
-  "products" : [
-
-  ],
-  "settings" : {
-    "_applicationInternalID" : "0",
-    "_developerTeamID" : "",
-    "_failTransactionsEnabled" : false,
-    "_locale" : "ko_KR",
-    "_storefront" : "KOR",
-    "_storeKitErrors" : [
-
-    ]
+  "identifier": "8F2A1C0E-0000-4000-9000-TIMELOCKPRO0",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_applicationInternalID": "0",
+    "_developerTeamID": "",
+    "_failTransactionsEnabled": false,
+    "_locale": "ko_KR",
+    "_storefront": "KOR",
+    "_storeKitErrors": []
   },
-  "subscriptionGroups" : [
+  "subscriptionGroups": [
     {
-      "id" : "21000001",
-      "localizations" : [
-
-      ],
-      "name" : "AngryMoti Membership",
-      "subscriptions" : [
+      "id": "21000001",
+      "localizations": [],
+      "name": "AngryMoti Membership",
+      "subscriptions": [
         {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "4400",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "21000002",
-          "introductoryOffer" : null,
-          "localizations" : [
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "4400",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "21000002",
+          "introductoryOffer": null,
+          "localizations": [
             {
-              "description" : "공유 영상 워터마크 제거",
-              "displayName" : "앵그리모티 멤버십",
-              "locale" : "ko_KR"
+              "description": "No watermark on shared videos.",
+              "displayName": "AngryMoti Membership",
+              "locale": "en_US"
+            },
+            {
+              "description": "공유 영상 워터마크 제거",
+              "displayName": "앵그리모티 멤버십",
+              "locale": "ko_KR"
             }
           ],
-          "productID" : "com.timelock.pro.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "AngryMoti Membership Monthly",
-          "subscriptionGroupID" : "21000001",
-          "type" : "RecurringSubscription"
+          "productID": "com.timelock.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "AngryMoti Membership Monthly",
+          "subscriptionGroupID": "21000001",
+          "type": "RecurringSubscription"
         }
       ]
     }
   ],
-  "version" : {
-    "major" : 3,
-    "minor" : 0
+  "version": {
+    "major": 3,
+    "minor": 0
   }
 }
