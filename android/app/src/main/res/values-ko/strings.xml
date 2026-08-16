@@ -46,4 +46,15 @@
     <string name="first_n_days_free">첫 %1$d일 무료</string>
     <string name="first_n_months_free">첫 %1$d개월 무료</string>
     <string name="first_n_years_free">첫 %1$d년 무료</string>
+    <string name="channel_alarm">활동 알람</string>
+    <string name="channel_alarm_desc">예약한 활동 시각의 알람</string>
+    <string name="channel_status">세션 상태</string>
+    <string name="channel_reminder">시작 예고·경고</string>
+    <string name="channel_reminder_desc">활동 10분 전 예고와 미시작 경고</string>
+    <string name="pre_alert_title">\'%1$s\' 시작 10분 전입니다</string>
+    <string name="pre_alert_body">촬영을 준비해주세요. 정각에 알람이 울립니다.</string>
+    <string name="alarm_starting_title">%1$s 시작</string>
+    <string name="no_show_5min_warning">아직 시작하지 않았습니다. 5분이 지나면 탈락 처리됩니다.</string>
+    <string name="alarm_time_title">활동 시간!</string>
+    <string name="alarm_time_body">알람을 끄는 유일한 방법은 촬영 시작입니다.</string>
 </resources>

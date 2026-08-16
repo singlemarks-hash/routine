@@ -47,4 +47,15 @@
     <string name="first_n_days_free">First %1$d days free</string>
     <string name="first_n_months_free">First %1$d months free</string>
     <string name="first_n_years_free">First %1$d years free</string>
+    <string name="channel_alarm">Activity Alarms</string>
+    <string name="channel_alarm_desc">Alarms at your scheduled activity times</string>
+    <string name="channel_status">Session Status</string>
+    <string name="channel_reminder">Heads-up &amp; Warnings</string>
+    <string name="channel_reminder_desc">10-minute heads-up and not-started warnings</string>
+    <string name="pre_alert_title">\'%1$s\' starts in 10 minutes</string>
+    <string name="pre_alert_body">Get your camera ready. The alarm goes off on the hour.</string>
+    <string name="alarm_starting_title">%1$s Starting</string>
+    <string name="no_show_5min_warning">You haven\'t started yet. You\'ll be marked as a no-show in 5 minutes.</string>
+    <string name="alarm_time_title">Activity time!</string>
+    <string name="alarm_time_body">The only way to stop this alarm is to start recording.</string>
 </resources>

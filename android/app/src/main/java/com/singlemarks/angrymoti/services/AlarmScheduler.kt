@@ -36,19 +36,19 @@ object AlarmScheduler {
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ALARM, "활동 알람", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "예약한 활동 시각의 알람"
+            NotificationChannel(CHANNEL_ALARM, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.channel_alarm), NotificationManager.IMPORTANCE_HIGH).apply {
+                description = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.channel_alarm_desc)
                 setSound(null, null)   // 사운드는 앱이 알람 스트림으로 직접 재생 (무음 모드 관통)
                 enableVibration(true)
             }
         )
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_STATUS, "세션 상태", NotificationManager.IMPORTANCE_DEFAULT)
+            NotificationChannel(CHANNEL_STATUS, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.channel_status), NotificationManager.IMPORTANCE_DEFAULT)
         )
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_REMINDER, "시작 예고·경고",
+            NotificationChannel(CHANNEL_REMINDER, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.channel_reminder),
                 NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "활동 10분 전 예고와 미시작 경고"
+                description = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.channel_reminder_desc)
                 enableVibration(true)
             }
         )
@@ -142,8 +142,8 @@ object AlarmScheduler {
     fun showPreAlert(context: Context, reservationId: String, activityName: String, fireAt: Long) {
         val n = NotificationCompat.Builder(context, CHANNEL_REMINDER)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("'$activityName' 시작 10분 전입니다")
-            .setContentText("촬영을 준비해주세요. 정각에 알람이 울립니다.")
+            .setContentTitle(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.pre_alert_title, activityName))
+            .setContentText(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.pre_alert_body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
@@ -155,8 +155,8 @@ object AlarmScheduler {
     fun showLastWarn(context: Context, reservationId: String, activityName: String, fireAt: Long) {
         val n = NotificationCompat.Builder(context, CHANNEL_REMINDER)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("$activityName 시작")
-            .setContentText("아직 시작하지 않았습니다. 5분이 지나면 탈락 처리됩니다.")
+            .setContentTitle(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.alarm_starting_title, activityName))
+            .setContentText(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.no_show_5min_warning))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
@@ -238,8 +238,8 @@ object AlarmScheduler {
         )
         val n = NotificationCompat.Builder(context, CHANNEL_ALARM)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("활동 시간!")
-            .setContentText("알람을 끄는 유일한 방법은 촬영 시작입니다.")
+            .setContentTitle(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.alarm_time_title))
+            .setContentText(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.alarm_time_body))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setFullScreenIntent(fullPi, true)
@@ -347,7 +347,7 @@ object AlarmScheduler {
                 prepare(); start()
             }
         }.onFailure {
-            android.util.Log.e("AngryMoti", "startAlarmSound 실패", it)
+            android.util.Log.e("AngryMoti", "startAlarmSound failed", it)
             runCatching { alarmPlayer?.release() }
             alarmPlayer = null
         }
@@ -428,7 +428,7 @@ object AlarmScheduler {
                 prepare(); start()
             }
         }.onFailure {
-            android.util.Log.e("AngryMoti", "playChime 실패", it)
+            android.util.Log.e("AngryMoti", "playChime failed", it)
             runCatching { chimePlayer?.release() }
             chimePlayer = null
         }
