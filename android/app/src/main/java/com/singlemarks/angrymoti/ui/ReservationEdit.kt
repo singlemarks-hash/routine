@@ -1023,7 +1023,11 @@ private fun TLField(
 
 private fun dateLabel(dayStart: Long): String {
     val c = Calendar.getInstance().apply { timeInMillis = dayStart }
-    return "${c.get(Calendar.YEAR)}. ${c.get(Calendar.MONTH) + 1}. ${c.get(Calendar.DAY_OF_MONTH)}."
+    if (TLFormat.isKorean)
+        return "${c.get(Calendar.YEAR)}. ${c.get(Calendar.MONTH) + 1}. ${c.get(Calendar.DAY_OF_MONTH)}."   // l10n:ko-literal
+    val pattern = android.text.format.DateFormat
+        .getBestDateTimePattern(java.util.Locale.getDefault(), "yMMMd")   // "Aug 16, 2026"
+    return java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(java.util.Date(dayStart))
 }
 
 private fun todayStart(): Long = Calendar.getInstance().apply {

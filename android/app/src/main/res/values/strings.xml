@@ -500,4 +500,26 @@
     <string name="start_activity">Start Activity</string>
     <string name="start_window_note">You can only start within %1$d minutes of the scheduled time.</string>
     <string name="no_scheduled_activity">No scheduled activities.</string>
+    <string name="tag_study">Study</string>
+    <string name="tag_reading">Reading</string>
+    <string name="tag_workout">Workout</string>
+    <string name="tag_work">Work</string>
+    <string name="tag_music">Music</string>
+    <string name="tag_writing">Writing</string>
+    <string name="tag_group">Group</string>
+    <string name="reason_urgent">Something urgent came up</string>
+    <string name="reason_sick">I\'m not feeling well</string>
+    <string name="reason_rest">I need a rest today</string>
+    <string name="reason_emergency_ongoing">Emergency break continued</string>
+    <string name="note_camera_failed">Camera failed to start</string>
+    <string name="note_recording_incomplete">Recording incomplete — video damaged or missing</string>
+    <string name="note_recording_stalled">Recording didn\'t progress normally</string>
+    <string name="note_exit_immediate">Instant failure on leaving</string>
+    <string name="note_app_killed">App terminated during recording (battery, force quit, etc.)</string>
+    <string name="note_no_resume">No resume within %1$s min</string>
+    <string name="note_noshow_window">Not started within %1$s min</string>
+    <string name="note_slot_bonus">%1$s-day streak — activity slot expansion bonus</string>
+    <string name="note_absence_over">Away more than %1$s times — instant failure</string>
+    <string name="note_absence_minutes">Away %1$s min — instant failure</string>
+    <string name="note_group_giveup">Dropped out of group \'%1$s\'</string>
 </resources>

@@ -29,13 +29,13 @@ object CanonicalTag {
 
     /** 저장값 → 표시 문구. 커스텀 태그는 사용자가 쓴 원문 그대로 보여준다. */
     fun label(raw: String): String = when (canonical(raw)) {
-        "study" -> "공부"
-        "reading" -> "독서"
-        "workout" -> "운동"
-        "work" -> "작업"
-        "music" -> "연주"
-        "writing" -> "글쓰기"
-        "group" -> "그룹"
+        "study" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.tag_study)
+        "reading" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.tag_reading)
+        "workout" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.tag_workout)
+        "work" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.tag_work)
+        "music" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.tag_music)
+        "writing" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.tag_writing)
+        "group" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.tag_group)
         else -> raw
     }
 }
@@ -57,10 +57,10 @@ object CancelReason {
     fun canonical(raw: String): String = legacy[raw] ?: raw
 
     fun label(raw: String): String = when (canonical(raw)) {
-        "reason.urgent" -> "급한 일이 생겼어요"
-        "reason.sick" -> "몸이 좋지 않아요"
-        "reason.rest" -> "오늘은 쉬고싶어요"
-        "reason.emergency_ongoing" -> "긴급 용무 지속"
+        "reason.urgent" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.reason_urgent)
+        "reason.sick" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.reason_sick)
+        "reason.rest" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.reason_rest)
+        "reason.emergency_ongoing" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.reason_emergency_ongoing)
         else -> raw   // 자유 입력 사유
     }
 }
@@ -112,17 +112,17 @@ object ScoreNote {
         val code = body.substringBefore('|')
         val arg = if ('|' in body) body.substringAfter('|') else ""
         return when (code) {
-            "camera_start_failed" -> "카메라 시작 실패"
-            "recording_incomplete" -> "촬영 불완전 — 영상 손상/부족"
-            "recording_stalled" -> "촬영이 정상 진행되지 않음"
-            "exit_immediate" -> "이탈 즉시 실패"
-            "app_killed" -> "촬영 중 앱 종료 (배터리·강제 종료 등)"
-            "no_resume" -> "${arg}분 내 재촬영 없음"
-            "noshow_window" -> "${arg}분 내 미시작"
-            "slot_bonus" -> "연속 ${arg}일 달성 — 활동 슬롯 확장 보너스"
-            "absence_over" -> "자리비움 ${arg}회 초과 — 즉시 실패"
-            "absence_minutes" -> "자리비움 ${arg}분 — 즉시 실패"
-            "group_giveup" -> "그룹 '${arg}' 중도 포기"
+            "camera_start_failed" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_camera_failed)
+            "recording_incomplete" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_recording_incomplete)
+            "recording_stalled" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_recording_stalled)
+            "exit_immediate" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_exit_immediate)
+            "app_killed" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_app_killed)
+            "no_resume" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_no_resume, arg)
+            "noshow_window" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_noshow_window, arg)
+            "slot_bonus" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_slot_bonus, arg)
+            "absence_over" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_absence_over, arg)
+            "absence_minutes" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_absence_minutes, arg)
+            "group_giveup" -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.note_group_giveup, arg)
             else -> raw   // 미래 토큰 — 원문 노출이 크래시보다 낫다
         }
     }

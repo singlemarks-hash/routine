@@ -499,4 +499,26 @@
     <string name="start_activity">활동 시작하기</string>
     <string name="start_window_note">예정 시각부터 %1$d분 안에만 시작할 수 있어요.</string>
     <string name="no_scheduled_activity">예정된 활동이 없어요.</string>
+    <string name="tag_study">공부</string>
+    <string name="tag_reading">독서</string>
+    <string name="tag_workout">운동</string>
+    <string name="tag_work">작업</string>
+    <string name="tag_music">연주</string>
+    <string name="tag_writing">글쓰기</string>
+    <string name="tag_group">그룹</string>
+    <string name="reason_urgent">급한 일이 생겼어요</string>
+    <string name="reason_sick">몸이 좋지 않아요</string>
+    <string name="reason_rest">오늘은 쉬고싶어요</string>
+    <string name="reason_emergency_ongoing">긴급 용무 지속</string>
+    <string name="note_camera_failed">카메라 시작 실패</string>
+    <string name="note_recording_incomplete">촬영 불완전 — 영상 손상/부족</string>
+    <string name="note_recording_stalled">촬영이 정상 진행되지 않음</string>
+    <string name="note_exit_immediate">이탈 즉시 실패</string>
+    <string name="note_app_killed">촬영 중 앱 종료 (배터리·강제 종료 등)</string>
+    <string name="note_no_resume">%1$s분 내 재촬영 없음</string>
+    <string name="note_noshow_window">%1$s분 내 미시작</string>
+    <string name="note_slot_bonus">연속 %1$s일 달성 — 활동 슬롯 확장 보너스</string>
+    <string name="note_absence_over">자리비움 %1$s회 초과 — 즉시 실패</string>
+    <string name="note_absence_minutes">자리비움 %1$s분 — 즉시 실패</string>
+    <string name="note_group_giveup">그룹 \'%1$s\' 중도 포기</string>
 </resources>
