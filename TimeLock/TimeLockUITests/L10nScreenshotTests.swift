@@ -127,11 +127,19 @@ final class L10nScreenshotTests: XCTestCase {
                 allowSystemAlerts()
                 sleep(1)
             }
-            tapAny(app, ["Next", "다음"], timeout: 4)
-            sleep(2)
+            // 홈 전환 검증 — 시스템 알럿이 늦게 떠서 Next 탭이 막히면 알럿을 걷어내고 재시도
+            // (6차 ko가 여기서 막혀 이후 장면 전부가 권한 페이지로 찍혔다)
+            for _ in 0..<3 {
+                tapAny(app, ["Next", "다음"], timeout: 4)
+                sleep(2)
+                if app.buttons["Add Activity"].exists || app.buttons["활동 추가하기"].exists { break }
+                allowSystemAlerts()
+            }
         }
 
         // 4) 홈 — 활동(Focus) 탭
+        _ = app.buttons["Add Activity"].waitForExistence(timeout: 6)
+            || app.buttons["활동 추가하기"].waitForExistence(timeout: 2)
         shoot(app, "home-focus")
 
         // 4) 일정(Plan) 탭
@@ -189,21 +197,8 @@ final class L10nScreenshotTests: XCTestCase {
         if tapAny(app, ["Add Activity", "활동 추가하기"], timeout: 4) {
             sleep(1)
             shoot(app, "reservation-new")
-            // 강도 선택지의 미친 매운맛 — 라벨에 🔥 이모지가 붙어 CONTAINS로 찾는다
-            let insane = app.buttons.matching(
-                NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "Insane", "미친 매운맛")
-            ).firstMatch
-            if insane.waitForExistence(timeout: 3) {
-                insane.tap()
-                sleep(2)
-                if !app.buttons["Subscribe"].exists && !app.staticTexts["AngryMoti Membership"].exists
-                    && !app.staticTexts["앵그리모티 멤버십"].exists {
-                    // 페이월이 아니라 다른 시트가 떴을 수도 있다 — 그래도 찍어둔다
-                }
-                shoot(app, "paywall")
-                tapAny(app, ["Close", "닫기"], timeout: 3)
-                sleep(1)
-            }
+            // 페이월은 게스트가 도달할 수 없다(잠긴 미친 매운맛 탭은 로그인 회원에게만
+            // 페이월을 연다 — ReservationEditView intensitySection). 별도 훅 없이는 캡처 불가.
             tapAny(app, ["Close", "닫기"], timeout: 3)   // 편집 시트 닫기
             sleep(1)
         }
