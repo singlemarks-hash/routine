@@ -154,16 +154,16 @@ object GroupStore {
                     val everRan = id in Prefs.seenActiveRoomIDs
                     if (!removeMembershipRef(id)) continue   // 참조 정리 실패 — 다음 새로고침에 재시도
                     disbandedNotices.value += if (everRan)
-                        "참여했던 그룹방의 결과 보존 기간이 끝나 정리되었어요."
+                        com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.group_cleanup_retention)
                     else
-                        "참여했던 그룹방이 시작되지 못하고 정리되었어요. 관련 벌점은 취소했습니다."
+                        com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.group_cleanup_never_started)
                     removeLocalReservation(context, id, purgeNoShows = !everRan)
                     forgetRoomActive(id)
                     continue
                 }
                 if (room.status == "disbanded") {
                     if (!removeMembershipRef(id)) { next.add(room); continue }
-                    if (!room.isHostMine) disbandedNotices.value += "'${room.name}' 방을 방장이 해체했어요."
+                    if (!room.isHostMine) disbandedNotices.value += com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.host_disbanded_room, room.name)
                     // 해체는 시작 전에만 가능 — 미리 만들어 둔 예약과 혹시 찍힌 노쇼까지 정리
                     removeLocalReservation(context, id, purgeNoShows = true)
                     forgetRoomActive(id)
@@ -226,7 +226,7 @@ object GroupStore {
                 if (room.status == "cancelled") {
                     if (!removeMembershipRef(id)) { next.add(room); continue }
                     if (room.isHostMine) {
-                        cancelledNotices.value += "'${room.name}' — 참여자가 부족해 그룹방이 취소되었습니다."
+                        cancelledNotices.value += com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.room_cancelled_too_few, room.name)
                     }
                     // mass-delete 금지 — 각자 자기 멤버 문서만 지우고, 마지막 참여자면 방 문서 삭제.
                     cleanupDisbandedRoom(id, myUid)
@@ -280,7 +280,7 @@ object GroupStore {
         startMinute: Int, durationMinutes: Int, repeatWeekdays: List<Int>,
         startDate: Long, endDate: Long,
     ): GroupRoom {
-        if (!signedInMember) throw GroupException("그룹 기능은 네트워크 연결과 로그인이 필요해요.")
+        if (!signedInMember) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.group_needs_network_login))
 
         // 초대코드 — 헷갈리는 문자(0/O/1/I) 제외, 중복 시 재발급.
         // 고유가 확인되면 즉시 멈춘다 — 계속 돌면 확인된 코드를 최대 4번 더 재검사하는 낭비.
@@ -317,7 +317,7 @@ object GroupStore {
                 .set(mapOf("groupIDs" to FieldValue.arrayUnion(roomRef.id)),
                     com.google.firebase.firestore.SetOptions.merge()).await()
         } catch (e: Exception) {
-            throw GroupException("방 생성에 실패했어요 — ${e.localizedMessage}")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.create_room_failed, e.localizedMessage ?: ""))
         }
         val room = GroupRoom(roomRef.id, name, code, uid, intensity.raw, startMinute,
             durationMinutes, repeatWeekdays, startDate, endDate, "scheduled", 1)
@@ -332,18 +332,18 @@ object GroupStore {
 
     /** 초대코드로 방을 조회한다 (참여 전 미리보기 + 일정 충돌 검사용) */
     suspend fun lookup(code: String): GroupRoom {
-        if (!signedInMember) throw GroupException("그룹 기능은 네트워크 연결과 로그인이 필요해요.")
+        if (!signedInMember) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.group_needs_network_login))
         val normalized = code.uppercase().trim()
         val snapshot = runCatching {
             db().collection("groups").whereEqualTo("code", normalized).limit(1).get().await()
         }.getOrNull()
         val doc = snapshot?.documents?.firstOrNull()
-            ?: throw GroupException("초대코드에 해당하는 방을 찾지 못했어요. 코드를 다시 확인해주세요.")
-        val room = roomFrom(doc) ?: throw GroupException("방 정보를 읽지 못했어요.")
+            ?: throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.room_not_found_check))
+        val room = roomFrom(doc) ?: throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.room_read_failed))
         if (room.status != "scheduled")
-            throw GroupException("이미 시작됐거나 취소된 방이에요.")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.room_started_or_cancelled))
         if (System.currentTimeMillis() >= room.startDate - GroupPolicy.JOIN_CUTOFF_MINUTES * 60_000L)
-            throw GroupException("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전이 지나 참여가 마감된 방이에요.")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.join_closed, GroupPolicy.JOIN_CUTOFF_MINUTES))
         return room
     }
 
@@ -356,8 +356,7 @@ object GroupStore {
         val streak = SlotPolicy.currentStreak(dbLocal.sessions().all(owner))
         val allowed = SlotPolicy.allowedSlots(streak, SubscriptionManager.isPro.value) ?: return
         if (reservations.size >= allowed) {
-            throw GroupException("활동 슬롯이 가득 찼어요 (${reservations.size}/$allowed). " +
-                "그룹도 슬롯 1개를 차지해요 — 기존 활동을 정리하거나 연속 달성으로 슬롯을 늘려주세요.")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.slots_full_group, reservations.size, allowed))
         }
     }
 
@@ -382,8 +381,7 @@ object GroupStore {
             if (com.singlemarks.angrymoti.models.ScheduleConflict.conflicts(
                     roomLo, roomHi, repeatWeekdays.toSet(), startMinute, durationMinutes,
                     bLo, bHi, r.occupiedWeekdays(), r.startMinute, r.durationMinutes)) {
-                throw GroupException("기존 예약 '${r.name}'과(와) 시간이 겹쳐요. " +
-                    "개인 예약을 옮기거나 삭제해야 참여할 수 있어요.")
+                throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.schedule_overlap_join, r.name))
             }
         }
     }
@@ -394,7 +392,7 @@ object GroupStore {
 
     /** 방에 참여한다 (닉네임 선점·정원·중복 참여 검사 포함) */
     suspend fun join(context: Context, room: GroupRoom, nickname: String) {
-        if (!signedInMember) throw GroupException("그룹 기능은 네트워크 연결과 로그인이 필요해요.")
+        if (!signedInMember) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.group_needs_network_login))
         val roomRef = db().collection("groups").document(room.id)
         val memberRef = roomRef.collection("members").document(uid)
         val lowerNick = nickname.lowercase()
@@ -408,20 +406,20 @@ object GroupStore {
             db().runTransaction { txn ->
                 val snap = txn.get(roomRef)
                 val mine = txn.get(memberRef)   // 읽기는 모두 쓰기보다 앞
-                if (!snap.exists()) throw GroupException("초대코드에 해당하는 방을 찾지 못했어요.")
+                if (!snap.exists()) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.room_not_found))
                 if (snap.getString("status") != "scheduled")
-                    throw GroupException("이미 시작됐거나 취소된 방이에요.")
+                    throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.room_started_or_cancelled))
                 val startDate = snap.getTimestamp("startDate")?.toDate()?.time ?: 0L
                 if (System.currentTimeMillis() >= startDate - GroupPolicy.JOIN_CUTOFF_MINUTES * 60_000L)
-                    throw GroupException("시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전이 지나 참여가 마감됐어요. (10분 전 알람을 받을 수 있어야 참여할 수 있어요)")
-                if (mine.exists()) throw GroupException("이미 참여 중인 방이에요.")
+                    throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.join_closed_alert_note, GroupPolicy.JOIN_CUTOFF_MINUTES))
+                if (mine.exists()) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.already_in_room))
                 val count = (snap.getLong("memberCount") ?: 0L).toInt()
                 if (count >= GroupPolicy.MAX_MEMBERS)
-                    throw GroupException("이 방은 정원(${GroupPolicy.MAX_MEMBERS}명)이 가득 찼어요.")
+                    throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.room_full, GroupPolicy.MAX_MEMBERS))
                 @Suppress("UNCHECKED_CAST")
                 val taken = (snap.get("takenNicknames") as? List<String>) ?: emptyList()
                 if (taken.any { it.equals(lowerNick, ignoreCase = true) })
-                    throw GroupException("이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해주세요.")
+                    throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.nickname_taken))
                 txn.set(memberRef, mapOf("nickname" to nickname, "score" to 0, "quit" to false,
                     "joinedAt" to Timestamp(Date()),
                     "timeZoneID" to java.util.TimeZone.getDefault().id))   // 타임존 저장 (다른 나라 멤버 표시·기간 계산 기반)
@@ -432,7 +430,7 @@ object GroupStore {
         } catch (e: Exception) {
             // 트랜잭션 함수가 던진 GroupException(친절한 사유)을 그대로 전달
             throw (e as? GroupException) ?: (e.cause as? GroupException)
-                ?: GroupException("참여에 실패했어요 — ${e.localizedMessage}")
+                ?: GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.join_failed_reason, e.localizedMessage ?: ""))
         }
         // 내 계정 문서의 그룹 목록 — 경합 무관(merge)이라 트랜잭션 밖.
         // 여기서 실패를 삼키면 안 된다: 서버엔 멤버로 등록됐는데 내 그룹 목록에는 없어서,
@@ -442,7 +440,7 @@ object GroupStore {
                 .set(mapOf("groupIDs" to FieldValue.arrayUnion(room.id)),
                     com.google.firebase.firestore.SetOptions.merge()).await()
         } catch (_: Exception) {
-            throw GroupException("참여는 됐지만 목록 저장에 실패했어요 — 네트워크 확인 후 다시 시도해주세요.")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.joined_save_failed))
         }
         // 예약을 지금 만들어 두어야 시작 시각 정각의 첫 알람이 울린다 (시작일 전엔 발생 없음)
         ensureLocalReservation(context, room)
@@ -632,7 +630,7 @@ object GroupStore {
 
     /** 시작 전 자유 탈퇴 — 멤버 삭제 + 인원수 감소 */
     suspend fun leaveBeforeStart(context: Context, room: GroupRoom) {
-        if (!signedInMember) throw GroupException("네트워크 연결이 필요해요.")
+        if (!signedInMember) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.needs_network))
         val roomRef = db().collection("groups").document(room.id)
         val memberRef = roomRef.collection("members").document(uid)
         // 내 닉네임을 takenNicknames에서 풀어 재사용 가능하게(#15) — 삭제 전에 읽어 둔다
@@ -644,7 +642,7 @@ object GroupStore {
         myNick?.let { updates["takenNicknames"] = FieldValue.arrayRemove(it.lowercase()) }
         runCatching { roomRef.update(updates).await() }
         if (!removeMembershipRef(room.id))
-            throw GroupException("나가기는 됐지만 목록 정리에 실패했어요. 잠시 후 다시 시도해주세요.")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.left_cleanup_failed))
         removeLocalReservation(context, room.id)   // 미리 만들어 둔 예약 정리
         rooms.value = rooms.value.filterNot { it.id == room.id }
         AlarmScheduler.rescheduleAll(context)
@@ -655,7 +653,7 @@ object GroupStore {
      *  벌점·예약 삭제가 남아, 다음 새로고침에 방이 되살아나고 재시도마다 개인
      *  벌점이 중복으로 쌓인다 (iOS와 동일한 실패 전파). */
     suspend fun quitAfterStart(context: Context, room: GroupRoom) {
-        if (!signedInMember) throw GroupException("네트워크 연결이 필요해요. 잠시 후 다시 시도해주세요.")
+        if (!signedInMember) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.needs_network_retry))
         val memberRef = db().collection("groups").document(room.id)
             .collection("members").document(uid)
         // 벌점을 먼저 넣고 포기 표시를 나중에 한다. 순서가 반대면 중간에 끊겼을 때
@@ -675,25 +673,25 @@ object GroupStore {
         // groupIDs 정리 실패를 무시하면 안 된다 — 방이 목록에 유령으로 남아 보존 만료까지
         // 계속 보인다. quit 표시는 이미 서버에 남았으므로 재시도해도 벌점이 중복되지 않는다.
         if (!removeMembershipRef(room.id))
-            throw GroupException("포기는 처리됐지만 목록 정리에 실패했어요 — 네트워크 확인 후 방 나가기를 다시 시도해주세요.")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.quit_cleanup_failed))
         rooms.value = rooms.value.filterNot { it.id == room.id }
         AlarmScheduler.rescheduleAll(context)
     }
 
     /** 방장 전용, 시작 전 해체 — 참여자들은 다음 새로고침에서 안내를 받는다 */
     suspend fun disband(context: Context, room: GroupRoom) {
-        if (!signedInMember) throw GroupException("네트워크 연결이 필요해요.")
-        if (!room.isHostMine) throw GroupException("방장만 해체할 수 있어요.")
+        if (!signedInMember) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.needs_network))
+        if (!room.isHostMine) throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.host_only_disband))
         // 서버 상태 재확인 — 로컬 스냅샷이 낡았을 수 있다. 이미 시작한 방을 해체하면
         // 참여자들의 진행 중 벌점·기록이 통째로 무효가 되는 회피 경로가 열린다.
         val live = runCatching {
             db().collection("groups").document(room.id)
                 .get(com.google.firebase.firestore.Source.SERVER).await()
-        }.getOrNull() ?: throw GroupException("방 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요.")
+        }.getOrNull() ?: throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.room_state_check_failed))
         val liveStatus = live.getString("status") ?: "scheduled"
         val liveStart = live.getTimestamp("startDate")?.toDate()?.time ?: room.startDate
         if (liveStatus != "scheduled" || System.currentTimeMillis() >= liveStart)
-            throw GroupException("이미 시작된 방은 해체할 수 없어요.")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.cannot_disband_started))
         db().collection("groups").document(room.id).update("status", "disbanded").await()
         removeMembershipRef(room.id)
         // 방장 자신의 멤버 문서 정리 — 혼자였던 방이면 문서까지 즉시 삭제,
@@ -707,7 +705,7 @@ object GroupStore {
     /** 종료된 방 '나가기' — 내 목록에서만 사라진다 (다른 참여자의 결과는 유지) */
     suspend fun hideFinishedRoom(context: Context, room: GroupRoom) {
         if (!removeMembershipRef(room.id))
-            throw GroupException("처리하지 못했어요. 네트워크를 확인하고 다시 시도해주세요.")
+            throw GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.operation_failed_network))
         // 끝난 방이라도 로컬 예약은 남아 일정·홈에 계속 뜬다 — 반드시 함께 정리한다.
         removeLocalReservation(context, room.id)
         rooms.value = rooms.value.filterNot { it.id == room.id }
