@@ -527,38 +527,55 @@ struct LedgerView: View {
 struct AppLanguageView: View {
     @Environment(\.openURL) private var openURL
 
-    /// 앱이 실제로 그려지는 언어 — 체크마크는 하드코딩이 아니라 현재 로케일을 따라간다.
+    /// 고른 언어 코드("ko"/"en"). 재시작 전까지는 화면에 그려지는 언어와 다를 수 있다.
+    @State private var selection = ""
+    @State private var showRestartNotice = false
+
+    /// 인앱 전환은 이 키 하나로 이뤄진다. 설정 앱의 '앱별 언어'도 **같은 키**를 쓰므로
+    /// 두 경로가 충돌하지 않고 서로를 덮어쓴다. 공식 API는 아니지만 표준적인 방식이고,
+    /// 번들 스위즐링(즉시 반영)과 달리 유지보수 부담이 없다 — 대신 재시작이 필요하다.
+    private static let languageKey = "AppleLanguages"
+
+    /// 앱이 실제로 그려지는 언어 — 하드코딩이 아니라 현재 로케일을 따라간다.
     /// (예전엔 한국어에 고정 체크라 영어 기기에서 틀린 정보를 보여줬다)
-    private var isKorean: Bool { TLFormat.isKorean }
+    private var current: String { TLFormat.isKorean ? "ko" : "en" }
+
+    /// 저장된 선택 → 없으면 기기 언어를 따른 현재 값
+    private var storedSelection: String {
+        guard let first = UserDefaults.standard.stringArray(forKey: Self.languageKey)?.first
+        else { return current }
+        return first.hasPrefix("ko") ? "ko" : "en"
+    }
+
+    /// 골랐지만 아직 반영되지 않은 상태 — 재시작 안내를 계속 띄워둔다
+    private var needsRestart: Bool { !selection.isEmpty && selection != current }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 TLCard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text("한국어")   // l10n:ko-literal — 언어 자체의 이름(고유명사), 번역 대상 아님
-                                .font(.tlTitle(16)).foregroundStyle(isKorean ? TL.paper : TL.faint)
-                            Spacer()
-                            if isKorean {
-                                Image(systemName: "checkmark").foregroundStyle(TL.jade)
-                            }
-                        }
-                        HStack {
-                            Text("English")
-                                .font(.tlTitle(16)).foregroundStyle(isKorean ? TL.faint : TL.paper)
-                            Spacer()
-                            if !isKorean {
-                                Image(systemName: "checkmark").foregroundStyle(TL.jade)
-                            }
-                        }
+                    VStack(spacing: 0) {
+                        languageRow(code: "ko", name: "한국어")   // l10n:ko-literal — 언어 자체의 이름, 번역 대상 아님
+                        Divider().overlay(TL.hairline)
+                        languageRow(code: "en", name: "English")
                     }
                 }
-                Text("Follows your device language. You can change it in Settings.")
+
+                if needsRestart {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13)).foregroundStyle(TL.amber)
+                        Text("Restart the app to apply the new language.")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(TL.amber)
+                    }
+                }
+
+                Text("The language you pick here overrides your device setting.")
                     .font(.system(size: 12)).foregroundStyle(TL.faint)
 
                 // iOS는 앱이 2개 이상 언어를 지원하면 설정 앱에 '기본 언어' 항목을 자동으로
-                // 만들어 준다 — 인앱 픽커를 따로 두지 않고 그리로 보낸다(D1).
+                // 만들어 준다 — 시스템 언어로 되돌리는 길이기도 하므로 함께 남겨둔다.
                 Button("Change in Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                 }
@@ -570,6 +587,38 @@ struct AppLanguageView: View {
         .background(TL.ink)
         .navigationTitle("App Language")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { if selection.isEmpty { selection = storedSelection } }
+        .alert("Language changed", isPresented: $showRestartNotice) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Restart the app to apply the new language.")
+        }
+    }
+
+    private func languageRow(code: String, name: String) -> some View {
+        Button {
+            select(code)
+        } label: {
+            HStack {
+                Text(name)
+                    .font(.tlTitle(16))
+                    .foregroundStyle(selection == code ? TL.paper : TL.faint)
+                Spacer()
+                if selection == code {
+                    Image(systemName: "checkmark").foregroundStyle(TL.jade)
+                }
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func select(_ code: String) {
+        guard code != selection else { return }
+        UserDefaults.standard.set([code], forKey: Self.languageKey)
+        selection = code
+        showRestartNotice = true
     }
 }
 

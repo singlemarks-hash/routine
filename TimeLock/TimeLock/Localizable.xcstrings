@@ -5253,17 +5253,6 @@
         }
       }
     },
-    "Follows your device language. You can change it in Settings.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "기기 언어 설정을 따릅니다. 설정 앱에서 변경할 수 있어요."
-          }
-        }
-      }
-    },
     "Study": {
       "extractionState": "manual",
       "localizations": {
@@ -5524,6 +5513,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "설정에서 변경하기"
+          }
+        }
+      }
+    },
+    "Restart the app to apply the new language.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱을 다시 시작하면 새 언어가 적용됩니다."
+          }
+        }
+      }
+    },
+    "Language changed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "언어를 변경했습니다"
+          }
+        }
+      }
+    },
+    "The language you pick here overrides your device setting.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "여기서 고른 언어가 기기 설정보다 우선합니다."
           }
         }
       }
