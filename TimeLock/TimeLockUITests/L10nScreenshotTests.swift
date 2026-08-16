@@ -168,7 +168,8 @@ final class L10nScreenshotTests: XCTestCase {
                 (["Profile & Subscription", "프로필 및 구독 관리"], "profile-guest"),
                 (["Privacy", "프라이버시"], "privacy"),
                 (["Score Ledger", "점수 원장"], "ledger"),
-                (["App Language", "앱 언어"], "app-language"),
+                // '언어 설정'은 iOS 설정 앱을 여는 링크라 투어에서 제외한다 —
+                // 탭하면 앱을 벗어나 이후 장면이 전부 어긋난다.
             ]
             for screen in subScreens {
                 guard tapAny(app, screen.names, timeout: 4) else { continue }
