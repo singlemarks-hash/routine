@@ -66,24 +66,15 @@ import java.util.Calendar
 private object GroupFormat {
     private val weekdayNames: List<String> get() = listOf("") + TLFormat.weekdaySymbols
 
-    // iOS 1:1 — 요일 전체면 "매일", 아니면 "반복요일 월 화 수" (공백 구분)
+    // 요일 전체면 "매일/Daily", 아니면 "반복요일 월 화 수" — 문구는 리소스, 요일은 로케일 심볼
     fun weekdays(days: List<Int>): String =
-        if (days.size == 7) "매일"
-        else "반복요일 " + days.sorted().joinToString(" ") { weekdayNames[it] }
+        if (days.size == 7) com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.daily)
+        else com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.repeats_on, days.sorted().joinToString(" ") { weekdayNames[it] })
 
-    // iOS: "오후 7시" / "오전 9:30" (12시간 한국어) 1:1
-    fun time(startMinute: Int): String {
-        val h = startMinute / 60; val m = startMinute % 60
-        val ampm = if (h >= 12) "오후" else "오전"
-        val h12 = if (h % 12 == 0) 12 else h % 12
-        return if (m == 0) "$ampm ${h12}시" else "$ampm $h12:${"%02d".format(m)}"
-    }
+    // 12시간제 시각·길이 — 한국어 전용 조립을 버리고 로케일 인지 TLFormat에 위임
+    fun time(startMinute: Int): String = TLFormat.timeLabel(startMinute)
 
-    fun duration(minutes: Int): String = when {
-        minutes % 60 == 0 -> "${minutes / 60}시간"
-        minutes > 60 -> "${minutes / 60}시간 ${minutes % 60}분"
-        else -> "${minutes}분"
-    }
+    fun duration(minutes: Int): String = TLFormat.durationLabel(minutes)
 
     // iOS: "M월 d일 (E)" 1:1
     fun day(millis: Long): String =
@@ -97,7 +88,7 @@ private object GroupFormat {
         val cal2 = Calendar.getInstance().apply { timeInMillis = room.endDate }
         val sameDay = cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
             cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
-        val whenLabel = if (room.repeatWeekdays.isEmpty() || sameDay) "${day(room.startDate)} 하루"
+        val whenLabel = if (room.repeatWeekdays.isEmpty() || sameDay) com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.one_day_meta, day(room.startDate))
                         else weekdays(room.repeatWeekdays)
         return "$whenLabel · ${time(room.startMinute)} · ${duration(room.durationMinutes)}"
     }
@@ -114,15 +105,13 @@ private object GroupFormat {
             set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
         val days = ((startDay - today) / 86_400_000L).toInt()
-        return if (days <= 0) "오늘" else "D-$days"
+        return if (days <= 0) com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.today) else "D-$days"
     }
 
     /** 남은 시간 문구 — iOS startRemainLabel 1:1. 예: "6시간 18분 뒤 시작", "42분 뒤 시작", "곧 시작". */
     fun startRemain(seconds: Long): String {
-        if (seconds < 60) return "곧 시작"
-        val m = seconds / 60
-        val h = m / 60; val mm = m % 60
-        return if (h > 0) "${h}시간 ${mm}분 뒤 시작" else "${mm}분 뒤 시작"
+        if (seconds < 60) return com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.starting_soon)
+        return com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.starts_in, TLFormat.durationLabel((seconds / 60).toInt()))
     }
 }
 
@@ -193,9 +182,9 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
             if (refreshing) CircularProgressIndicator(
                 modifier = Modifier.size(16.dp), color = TL.muted, strokeWidth = 2.dp)
         }
-        Text("같이 하면 못 도망간다", color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.group_headline), color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(6.dp))
-        Text("초대코드로 모여 같은 일정으로 대결해요.\n그룹 점수는 0점부터, 개인 누적에도 그대로 쌓입니다.",
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.group_sub),
             color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
         Spacer(Modifier.height(16.dp))
 
@@ -207,7 +196,7 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
                         tint = TL.amber, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(10.dp))
                     Text(notice, color = TL.paper, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Text("확인", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.clickable { GroupStore.clearNotices() }.padding(4.dp))
                 }
             }
@@ -231,13 +220,13 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
         if (rooms.isEmpty() && hasGroupReservations.value && !refreshing) {
             TLCard {
                 Column {
-                    Text("방 정보를 불러오지 못했습니다", color = TL.paper,
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.rooms_load_failed_title), color = TL.paper,
                         fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
-                    Text("참여 중인 그룹 활동이 있는데 방 목록을 읽지 못했어요. 네트워크를 확인하고 다시 시도해 주세요.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.rooms_load_failed_body),
                         color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
                     Spacer(Modifier.height(10.dp))
-                    TLGhostButton("다시 시도") {
+                    TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.try_again)) {
                         scope.launch { GroupStore.refresh(context) }
                     }
                 }
@@ -253,11 +242,11 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
                         androidx.compose.material3.Icon(AppIcon.Lock, null,
                             tint = TL.amber, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("새 그룹은 멤버십 전용이에요", color = TL.paper,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.groups_members_only), color = TL.paper,
                             fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(6.dp))
-                    Text("참여 중인 방은 그대로 보고 관리할 수 있어요. 방을 새로 만들거나 초대코드로 참여하려면 멤버십이 필요합니다.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.groups_members_only_body),
                         color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
                 }
             }
@@ -265,22 +254,22 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
         }
 
         // iOS 1:1 — 버튼 세로 스택 (그룹방 만들기 rec / 초대코드로 참여하기 ghost)
-        TLPrimaryButton("그룹방 만들기") {
+        TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.create_group_room)) {
             if (locked) nav = GroupNav.Paywall else nav = GroupNav.Create
         }
         Spacer(Modifier.height(10.dp))
-        TLGhostButton("초대코드로 참여하기") {
+        TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.join_with_code)) {
             if (locked) nav = GroupNav.Paywall else nav = GroupNav.Join
         }
         Spacer(Modifier.height(22.dp))
 
         // '내 그룹' 섹션 헤더 (iOS와 동일하게 목록을 별도로 묶는다)
-        Text("내 그룹", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.my_groups), color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(12.dp))
 
         if (rooms.isEmpty()) {
             TLCard {
-                Text("참여 중인 그룹이 없습니다. 방을 만들어 초대코드를 공유하거나, 받은 코드로 참여해 보세요.",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_groups_yet),
                     color = TL.muted, fontSize = 13.sp, lineHeight = 20.sp)
             }
         } else {
@@ -298,11 +287,11 @@ private fun GroupRoomCard(room: GroupRoom, onClick: () -> Unit) {
     // iOS statusChip 1:1 — 우선순위: 삭제 예정(rec) > 종료(faint) > 확인 중(amber)
     // > 진행 중(jade) > 시작 D-N(amber)
     val (statusLabel, statusColor) = when {
-        room.doomed -> "삭제 예정" to TL.rec
-        room.isFinished -> "종료" to TL.faint
-        room.status == "scheduled" && room.hasStarted -> "확인 중" to TL.amber
-        room.hasStarted -> "진행 중" to TL.jade
-        else -> "${GroupFormat.dDay(room.startDate)} 시작" to TL.amber
+        room.doomed -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.deletion_pending) to TL.rec
+        room.isFinished -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.finished_label) to TL.faint
+        room.status == "scheduled" && room.hasStarted -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.checking_label) to TL.amber
+        room.hasStarted -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.in_progress) to TL.jade
+        else -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.starts_at_fmt, GroupFormat.dDay(room.startDate)) to TL.amber
     }
     Column(
         Modifier.fillMaxWidth().background(TL.surface, TL.cornerL)
@@ -328,7 +317,7 @@ private fun GroupRoomCard(room: GroupRoom, onClick: () -> Unit) {
             androidx.compose.material3.Icon(AppIcon.Users, null,
                 tint = TL.muted, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(5.dp))
-            Text("${room.memberCount}명", color = TL.muted, fontSize = 13.sp)
+            Text(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.n_members, room.memberCount), color = TL.muted, fontSize = 13.sp)
             Text("  ·  ", color = TL.muted, fontSize = 13.sp)
             Text(GroupFormat.schedule(room), color = TL.muted, fontSize = 13.sp, maxLines = 1)
         }
@@ -346,7 +335,7 @@ private fun InviteCodeCard(code: String) {
             .border(1.dp, TL.rec.copy(alpha = 0.45f), TL.cornerL)
             .clickable {
                 clipboard.setText(AnnotatedString(code))
-                Toast.makeText(context, "초대코드를 복사했어요", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.code_copied), Toast.LENGTH_SHORT).show()
             }
             .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -358,7 +347,7 @@ private fun InviteCodeCard(code: String) {
             androidx.compose.material3.Icon(AppIcon.Copy, null,
                 tint = TL.muted, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(5.dp))
-            Text("초대코드 · 탭해서 복사", color = TL.muted, fontSize = 12.sp)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.invite_code_tap_copy), color = TL.muted, fontSize = 12.sp)
         }
     }
 }
@@ -430,11 +419,11 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TLPillButton("닫기", tint = TL.paper, onClick = onDone)
+            TLPillButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.close), tint = TL.paper, onClick = onDone)
             Spacer(Modifier.weight(1f))
-            Text("그룹방 만들기", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.create_group_room), color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
-            TLPillButton("만들기", tint = TL.rec,
+            TLPillButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.create_label), tint = TL.rec,
                 // 요일 미선택이어도 버튼 활성 — 눌렀을 때 안내(빨간 박스 + 흔들림)를 보여준다
                 enabled = !busy && created == null && name.isNotBlank() && nickname.isNotBlank()) {
                 // 요일 반복인데 요일 미선택 → 안내 + 흔들림 (하루짜리는 요일 반복 UI가 없으므로 제외)
@@ -451,16 +440,16 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 scope.launch {
                     try {
                         val days = ((effectiveEndDay - startDay) / 86_400_000L).toInt() + 1
-                        if (effectiveEndDay < startDay) throw GroupStore.GroupException("종료일이 시작일보다 빠를 수 없어요.")
+                        if (effectiveEndDay < startDay) throw GroupStore.GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.end_before_start_error))
                         if (days > GroupPolicy.MAX_DURATION_DAYS)
-                            throw GroupStore.GroupException("기간은 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월)까지 가능해요.")
+                            throw GroupStore.GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.period_too_long, GroupPolicy.MAX_DURATION_DAYS))
                         // 시작일 상한 — 오늘부터 1개월 (iOS ReservationPolicy와 동일)
                         if (startDay > com.singlemarks.angrymoti.models.ReservationPolicy.maxStartDayMillis())
-                            throw GroupStore.GroupException("시작일은 오늘부터 1개월 이내로 정해주세요.")
+                            throw GroupStore.GroupException(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.start_lead_error, 1))
                         // 시작은 지금부터 최소 1시간 뒤 (참여자가 10분 전 알람을 받을 수 있게 여유를 둔다)
                         if (startMoment < System.currentTimeMillis() + GroupPolicy.MIN_START_LEAD_MINUTES * 60_000L)
                             throw GroupStore.GroupException(
-                                "시작은 지금부터 최소 ${GroupPolicy.MIN_START_LEAD_MINUTES / 60}시간 이후로 설정해주세요.")
+                                com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.start_min_lead, GroupPolicy.MIN_START_LEAD_MINUTES / 60))
                         GroupStore.checkSlotAvailable(context)
                         GroupStore.checkScheduleConflict(context, chosenStartMinute, durationMinutes,
                             effectiveDays, startDay, effectiveEndDay + 86_400_000L - 1)
@@ -470,7 +459,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                             startMoment, effectiveEndDay + 86_400_000L - 1,   // startDate = 실제 시작 순간(iOS 통일)
                         )
                     } catch (e: Exception) {
-                        error = e.message ?: "방 생성에 실패했어요."
+                        error = e.message ?: com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.create_room_failed_short)
                     } finally { busy = false }
                 }
             }
@@ -485,14 +474,14 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(32.dp))
-                Text("방이 만들어졌어요!", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.room_created_excl), color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(8.dp))
-                Text("아래 초대코드를 지인들에게 공유하세요.\n시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 이상이면 대결이 시작됩니다.",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.share_code_note, GroupPolicy.MIN_MEMBERS_TO_START),
                     color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
                 Spacer(Modifier.height(20.dp))
                 InviteCodeCard(createdRoom.code)
                 Spacer(Modifier.height(20.dp))
-                TLPrimaryButton("완료", tint = TL.jade) { onDone() }
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.done_short), tint = TL.jade) { onDone() }
             }
         } else Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -505,16 +494,16 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                     modifier = Modifier.padding(bottom = 10.dp))
             }
 
-            GroupField(name, { name = it }, "방 이름 (예: 아침 공부방)")
+            GroupField(name, { name = it }, androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.room_name_placeholder))
             Spacer(Modifier.height(10.dp))
             GroupField(nickname, { nickname = it.take(GroupPolicy.NICKNAME_MAX_LENGTH) },
-                "내 닉네임 (최대 ${GroupPolicy.NICKNAME_MAX_LENGTH}자)")
+                androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.nickname_placeholder, GroupPolicy.NICKNAME_MAX_LENGTH))
             Spacer(Modifier.height(14.dp))
 
             // 강도 — 활동 예약과 동일한 2카드 구성(iOS 1:1). 이 화면은 이미 멤버십 계정만
             // 들어올 수 있어 잠금이 실제로 걸릴 일은 없지만, 구조는 통일해 둔다.
             TLCard {
-                TLEyebrow("강도")
+                TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.intensity_label))
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Intensity.entries.forEach { level ->
@@ -542,7 +531,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                                 Text("${level.emoji} ${level.title}", color = fg,
                                     fontSize = 14.sp, fontWeight = FontWeight.Bold, lineHeight = 17.sp)
                             }
-                            Text(if (level == Intensity.SPICY) "최대 10분 긴급용무 허용" else "봐주기 없는 100% 몰입, 점수 2배",
+                            Text(if (level == Intensity.SPICY) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.spicy_short_desc) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.insane_short_desc),
                                 color = fg, fontSize = 10.sp, lineHeight = 13.sp)
                         }
                     }
@@ -551,10 +540,10 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
             Spacer(Modifier.height(10.dp))
 
             TLCard {
-                TLEyebrow("일정 — 전원에게 동일하게 적용")
+                TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.schedule_applies_all))
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("시작 시각", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_time), color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
                     Text(GroupFormat.time(timeState.hour * 60 + timeState.minute),
                         color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Black,
                         modifier = Modifier.background(TL.raised, CircleShape)
@@ -567,9 +556,9 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("1회 길이", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.session_length), color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
                     // 선택한 길이의 완주 상점 미리보기 — 정책에 맞춰 갱신
-                    Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.pts_on_completion, ScoreRules.completionBase(durationMinutes)),
                         color = TL.jade, fontSize = 12.sp, fontWeight = FontWeight.Black,
                         modifier = Modifier.background(TL.jade.copy(alpha = 0.16f), CircleShape)
                             .padding(horizontal = 10.dp, vertical = 5.dp))
@@ -601,10 +590,10 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 }
                 // 기간 — 시작일·종료일 먼저 정하고, 그 기간에 요일 반복을 적용할지 고른다.
                 Spacer(Modifier.height(12.dp))
-                Text("기간 — 시작은 1시간 뒤부터, 최대 3개월", color = TL.muted, fontSize = 13.sp)
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.period_note), color = TL.muted, fontSize = 13.sp)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("시작일 ~ 종료일", color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_end_date), color = TL.paper, fontSize = 15.sp, modifier = Modifier.weight(1f))
                     Text(GroupFormat.day(startDay), color = TL.paper, fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier.background(TL.raised, CircleShape)
@@ -622,15 +611,15 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 // 무의미하므로(그 요일이 빠지면 발생이 0번이 되는 모순도 방지) UI 자체를 숨긴다.
                 if (isSingleDayRoom) {
                     Spacer(Modifier.height(6.dp))
-                    Text("하루짜리 그룹이라 요일 반복 설정이 필요 없어요.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.one_day_group_no_repeat),
                         color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
                 } else {
                     Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("요일 반복", color = TL.paper, fontSize = 15.sp)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.repeat_on_days), color = TL.paper, fontSize = 15.sp)
                         if (!isRepeating) {
                             Spacer(Modifier.width(6.dp))
-                            Text("(매일)", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.daily_paren), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(Modifier.weight(1f))
                         Switch(
@@ -678,33 +667,30 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                         }
                         if (weekdayError) {
                             Spacer(Modifier.height(6.dp))
-                            Text("반복할 요일을 하나 이상 선택하세요.",
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.select_weekday_min_one),
                                 color = TL.rec, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Text("시작은 지금부터 1시간 뒤부터 · 최대 ${GroupPolicy.MAX_DURATION_DAYS}일(3개월) · " +
-                    "시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 자동 취소",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.group_create_footnote, GroupPolicy.MAX_DURATION_DAYS, GroupPolicy.MIN_MEMBERS_TO_START),
                     color = TL.faint, fontSize = 12.sp, lineHeight = 18.sp)
             }
             Spacer(Modifier.height(10.dp))
 
             // 요약 카드 — 설정을 문장으로 재확인 (iOS summaryCard 1:1)
             TLCard {
-                TLEyebrow("요약")
+                TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.summary))
                 Spacer(Modifier.height(6.dp))
                 val sm = timeState.hour * 60 + timeState.minute
-                val common = "${GroupFormat.time(sm)} 시작 · ${TLFormat.durationLabel(durationMinutes)} · ${intensity.title}\n" +
-                    "시작 ${GroupPolicy.JOIN_CUTOFF_MINUTES}분 전까지만 참여할 수 있고, " +
-                    "시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 방이 자동 삭제됩니다."
+                val common = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.group_summary_common, GroupFormat.time(sm), TLFormat.durationLabel(durationMinutes), intensity.title, GroupPolicy.JOIN_CUTOFF_MINUTES, GroupPolicy.MIN_MEMBERS_TO_START)
                 val summary = if (isSingleDayRoom) {
-                    "${GroupFormat.day(startDay)} 하루 · $common"
+                    com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.one_day_meta, GroupFormat.day(startDay)) + " · " + common
                 } else {
                     val days = when {
-                        !isRepeating -> "매일"
-                        repeatDays.isEmpty() -> "요일 미선택"
-                        repeatDays.size == 7 -> "매일"
+                        !isRepeating -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.daily)
+                        repeatDays.isEmpty() -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.no_weekdays_selected)
+                        repeatDays.size == 7 -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.daily)
                         else -> GroupFormat.weekdays(repeatDays.toList())
                     }
                     "${GroupFormat.period(startDay, endDay)}\n$days · $common"
@@ -749,11 +735,11 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                         } else endDay = local
                     }
                     pickingDate = null
-                }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
+                }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), color = TL.rec, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { pickingDate = null }) {
-                    Text("취소", color = TL.muted)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_short), color = TL.muted)
                 }
             },
         ) { androidx.compose.material3.DatePicker(state = dateState) }
@@ -797,9 +783,9 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TLPillButton("닫기", tint = TL.paper, onClick = onDone)
+            TLPillButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.close), tint = TL.paper, onClick = onDone)
             Spacer(Modifier.weight(1f))
-            Text("초대코드로 참여", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.join_with_code_title), color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.width(52.dp))
         }
@@ -827,18 +813,18 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
                             tint = TL.ink, modifier = Modifier.size(28.dp))
                     }
                     Spacer(Modifier.height(16.dp))
-                    Text("참여 완료!", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.joined_excl), color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
                     Spacer(Modifier.height(8.dp))
-                    Text("그룹 일정이 활동 목록에 추가됐어요.\n시작일부터 알람이 울립니다.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.joined_note),
                         color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
                     Spacer(Modifier.height(24.dp))
-                    TLPrimaryButton("확인", tint = TL.jade) { onDone() }
+                    TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), tint = TL.jade) { onDone() }
                 }
             } else if (room == null) {
                 GroupField(code, { code = it.uppercase().take(GroupPolicy.CODE_LENGTH) },
-                    "초대코드 ${GroupPolicy.CODE_LENGTH}자리")
+                    androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.invite_code_n_chars, GroupPolicy.CODE_LENGTH))
                 Spacer(Modifier.height(14.dp))
-                TLPrimaryButton("방 찾기",
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.find_room),
                     enabled = !busy && code.length == GroupPolicy.CODE_LENGTH) {
                     error = null; busy = true
                     scope.launch {
@@ -856,14 +842,14 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
                     Text(GroupFormat.period(room.startDate, room.endDate), color = TL.muted, fontSize = 13.sp)
                     Spacer(Modifier.height(4.dp))
                     Text("${room.intensity.emoji} ${room.intensity.title} · " +
-                        "현재 ${room.memberCount}/${GroupPolicy.MAX_MEMBERS}명",
+                        com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.current_members, room.memberCount, GroupPolicy.MAX_MEMBERS),
                         color = TL.muted, fontSize = 13.sp)
                 }
                 Spacer(Modifier.height(12.dp))
                 GroupField(nickname, { nickname = it.take(GroupPolicy.NICKNAME_MAX_LENGTH) },
-                    "이 방에서 쓸 닉네임 (최대 ${GroupPolicy.NICKNAME_MAX_LENGTH}자)")
+                    androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.room_nickname_placeholder, GroupPolicy.NICKNAME_MAX_LENGTH))
                 Spacer(Modifier.height(14.dp))
-                TLPrimaryButton(if (busy) "참여 중…" else "이 방에 참여하기",
+                TLPrimaryButton(if (busy) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.joining) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.join_this_room),
                     enabled = !busy && nickname.isNotBlank()) {
                     error = null; busy = true
                     scope.launch {
@@ -878,7 +864,7 @@ private fun GroupJoinScreen(onDone: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                TLGhostButton("다른 코드 입력", tint = TL.muted) {
+                TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.enter_other_code), tint = TL.muted) {
                     preview = null; nickname = ""; error = null
                 }
             }
@@ -977,7 +963,8 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                 Text(GroupFormat.schedule(room), color = TL.muted, fontSize = 13.sp)
                 Spacer(Modifier.height(2.dp))
                 Text("${GroupFormat.period(room.startDate, room.endDate)} · " +
-                    "${room.intensity.emoji} ${room.intensity.title} · ${room.memberCount}명",
+                    "${room.intensity.emoji} ${room.intensity.title} · " +
+                    com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.n_members, room.memberCount),
                     color = TL.muted, fontSize = 13.sp)
             }
             Spacer(Modifier.height(16.dp))
@@ -997,7 +984,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                     androidx.compose.material3.Icon(AppIcon.Siren, null,
                         tint = TL.rec, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text("참여자가 2명 미만이 되어 방이 곧 삭제될 예정입니다.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.under_two_members),
                         color = TL.rec, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(16.dp))
@@ -1013,10 +1000,10 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                                 tint = TL.rec, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(10.dp))
                             Column {
-                                Text("참여 인원이 모자라 이 방은 시작 시각에 삭제됩니다.",
+                                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.doomed_note),
                                     color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.height(4.dp))
-                                Text("참여 마감이 지나 더 들어올 수 없어요. 활동은 진행되지 않고 알람도 취소했습니다.",
+                                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.join_closed_doomed),
                                     color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
                             }
                         }
@@ -1026,7 +1013,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                 }
                 pendingDecision -> {
                     TLCard {
-                        Text("시작 여부를 확인하는 중입니다. 잠시 후 다시 열어주세요.",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.checking_room_start),
                             color = TL.muted, fontSize = 13.sp)
                     }
                     Spacer(Modifier.height(16.dp))
@@ -1036,20 +1023,20 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                     // 이미 취소·해체된 방이 목록 정리 전 잠깐 남은 상태 — 벌점 액션 금지,
                     // 하단의 '방 나가기'만 노출된다.
                     TLCard {
-                        Text("이미 취소되었거나 해체된 방이에요. 활동은 진행되지 않습니다.",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.room_cancelled_note),
                             color = TL.muted, fontSize = 13.sp)
                     }
                 }
                 waiting -> {
                     // 최초 시작 전 '활동 인증' 카드 통일 — 카운트다운 + 코드(방장) + 참여 마감 안내 (iOS 1:1)
                     TLCard {
-                        TLEyebrow("초대하기")
+                        TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.invite))
                         Spacer(Modifier.height(10.dp))
                         val secs = (room.startDate - now) / 1000L
                         val urgent = secs <= 12 * 3600
                         val cd = if (urgent) GroupFormat.startRemain(secs) else {
                             val m = maxOf(1L, secs / 60)
-                            if (m >= 1440) "${m / 1440}일 뒤 시작" else "${m / 60}시간 뒤 시작"
+                            if (m >= 1440) com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.starts_in, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.n_days, (m / 1440).toInt())) else com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.starts_in, TLFormat.durationLabel((m - m % 60).toInt()))
                         }
                         Text(cd, color = if (urgent) TL.amber else TL.paper,
                             fontSize = 22.sp, fontWeight = FontWeight.Black)
@@ -1058,16 +1045,16 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                             InviteCodeCard(room.code)   // '활동 시작하기' 버튼 자리에 코드
                         }
                         Spacer(Modifier.height(10.dp))
-                        Text("• 시작 10분 전까지만 참여할 수 있어요",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.join_until_10),
                             color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(2.dp))
-                        Text("• 초대코드는 방장만 볼 수 있어요",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.host_only_code),
                             color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(16.dp))
                     GroupMemberListCard(members, room, myUid)
                     Spacer(Modifier.height(8.dp))
-                    Text("시작 시각에 ${GroupPolicy.MIN_MEMBERS_TO_START}명 미만이면 방이 자동 삭제됩니다.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.auto_delete_under_min, GroupPolicy.MIN_MEMBERS_TO_START),
                         color = TL.faint, fontSize = 12.sp)
                 }
                 finished -> {
@@ -1080,10 +1067,10 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                     // 통일한다 (iOS deletionNotice 1:1).
                     val daysLeft = ((com.singlemarks.angrymoti.models.DayOutcome.startOfDay(room.deleteAt) -
                         com.singlemarks.angrymoti.models.DayOutcome.startOfDay(now)) / 86_400_000L).toInt()
-                    Text(if (daysLeft > 0) "${daysLeft}일 뒤 이 방과 결과가 자동으로 삭제됩니다."
-                         else "오늘 중 이 방과 결과가 자동으로 삭제됩니다.",
+                    Text(if (daysLeft > 0) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.room_delete_in_days, daysLeft)
+                         else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.room_delete_today),
                         color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text("결과는 종료 후 ${GroupPolicy.RESULT_RETENTION_DAYS}일까지 보관됩니다.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.results_kept_days, GroupPolicy.RESULT_RETENTION_DAYS),
                         color = TL.faint, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 6.dp))
                 }
@@ -1101,8 +1088,8 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
             when {
                 finished || cancelledOrDisbanded -> {
                     TLGhostButton(
-                        if (working) "나가는 중…"
-                        else if (finished) "방 나가기 — 내 목록에서 제거" else "방 나가기",
+                        if (working) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.leaving)
+                        else if (finished) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.leave_room_remove) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.leave_room),
                         tint = TL.muted,
                     ) {
                         if (working) return@TLGhostButton
@@ -1110,7 +1097,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                         scope.launch {
                             runCatching { GroupStore.hideFinishedRoom(context, room) }
                                 .onSuccess { onBack() }
-                                .onFailure { actionError = it.message ?: "처리하지 못했어요." }
+                                .onFailure { actionError = it.message ?: com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.couldnt_complete) }
                             working = false
                         }
                     }
@@ -1121,7 +1108,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                 !room.hasStarted -> {
                     // 시작 전(대기·doomed 포함) — 벌점 없는 정리 액션
                     if (room.isHostMine) {
-                        TLGhostButton("방 해체하기", tint = TL.rec) { confirmAction = "disband" }
+                        TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.disband_room), tint = TL.rec) { confirmAction = "disband" }
                     } else {
                         // 탈퇴 버튼 — 제목(빨강) + 보조문구(회색) 2줄 (iOS 1:1)
                         Column(
@@ -1131,15 +1118,15 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                                 .padding(vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("탈퇴하기", color = TL.rec, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            Text("시작 전에는 벌점 없음", color = TL.faint, fontSize = 11.sp)
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.leave_group), color = TL.rec, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_penalty_before_start), color = TL.faint, fontSize = 11.sp)
                         }
                     }
                 }
                 else -> {
                     val meQuit = members.firstOrNull { it.id == myUid }?.quit == true
                     if (!meQuit) {
-                        TLGhostButton("중도 포기 (${ScoreRules.GROUP_QUIT_PENALTY}점 벌점)",
+                        TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.drop_out_penalty, ScoreRules.GROUP_QUIT_PENALTY),
                             tint = TL.rec) { confirmAction = "quit" }
                     }
                 }
@@ -1150,12 +1137,12 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
 
     confirmAction?.let { action ->
         val (title, desc, button) = when (action) {
-            "disband" -> Triple("방을 해체할까요?",
-                "참여자들의 그룹 일정도 함께 사라집니다. 되돌릴 수 없어요.", "해체하기")
-            "leave" -> Triple("방을 나갈까요?",
-                "시작 전에는 벌점 없이 자유롭게 나갈 수 있어요.", "나가기")
-            else -> Triple("정말 중도 포기할까요?",
-                "${ScoreRules.GROUP_QUIT_PENALTY}점 벌점이 그룹 점수와 개인 점수에 모두 기록되고, 되돌릴 수 없어요.", "포기하기")
+            "disband" -> Triple(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.disband_q),
+                com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.disband_note), com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.disband_action))
+            "leave" -> Triple(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.leave_q),
+                com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.leave_note), com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.leave_action))
+            else -> Triple(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.drop_out_q),
+                com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.drop_out_note, ScoreRules.GROUP_QUIT_PENALTY), com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.give_up_action))
         }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmAction = null },
@@ -1174,14 +1161,14 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
                                 else -> GroupStore.quitAfterStart(context, room)
                             }
                         }.onSuccess { onBack() }
-                            .onFailure { actionError = it.message ?: "처리하지 못했어요." }
+                            .onFailure { actionError = it.message ?: com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.couldnt_complete) }
                         working = false
                     }
                 }) { Text(button, color = TL.rec, fontWeight = FontWeight.Black) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmAction = null }) {
-                    Text("취소", color = TL.muted)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_short), color = TL.muted)
                 }
             },
         )
@@ -1191,11 +1178,11 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { actionError = null },
             containerColor = TL.surface,
-            title = { Text("처리하지 못했어요", color = TL.paper, fontWeight = FontWeight.Black) },
+            title = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.couldnt_complete), color = TL.paper, fontWeight = FontWeight.Black) },
             text = { Text(msg, color = TL.muted) },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = { actionError = null }) {
-                    Text("확인", color = TL.rec, fontWeight = FontWeight.Black)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), color = TL.rec, fontWeight = FontWeight.Black)
                 }
             },
         )
@@ -1207,7 +1194,7 @@ private fun GroupRoomDetailScreen(initialRoom: GroupRoom, onBack: () -> Unit) {
 private fun GroupMemberListCard(
     members: List<GroupStore.GroupMember>, room: GroupRoom, myUid: String,
 ) {
-    TLEyebrow("참여자 ${members.size}/${GroupPolicy.MAX_MEMBERS}")
+    TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.members_count, members.size, GroupPolicy.MAX_MEMBERS))
     Spacer(Modifier.height(8.dp))
     TLCard {
         val sorted = members.sortedBy { it.joinedAt }
@@ -1226,7 +1213,7 @@ private fun GroupMemberListCard(
                     // 정사각 크기를 고정해 정원으로 만든다.
                     Box(Modifier.size(20.dp).background(TL.jade, CircleShape),
                         contentAlignment = Alignment.Center) {
-                        Text("나", color = TL.ink, fontSize = 11.sp,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.me_label), color = TL.ink, fontSize = 11.sp,
                             fontWeight = FontWeight.Bold, style = circleBadgeTextStyle)
                     }
                 }
@@ -1237,7 +1224,7 @@ private fun GroupMemberListCard(
             }
         }
         if (members.isEmpty()) {
-            Text("불러오는 중…", color = TL.faint, fontSize = 13.sp)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.loading), color = TL.faint, fontSize = 13.sp)
         }
     }
 }
@@ -1248,7 +1235,7 @@ private fun GroupRankingCard(
     members: List<GroupStore.GroupMember>, room: GroupRoom, myUid: String, finished: Boolean,
 ) {
     TLCard(raised = true) {
-        TLEyebrow(if (finished) "최종 결과" else "실시간 랭킹")
+        TLEyebrow(if (finished) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.final_results) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.live_ranking))
         Spacer(Modifier.height(8.dp))
         val ranked = GroupStore.ranked(members)
         val display = if (ranked.size > 7) {
@@ -1302,13 +1289,13 @@ private fun GroupRankingCard(
                         Spacer(Modifier.width(6.dp))
                         Box(Modifier.size(20.dp).background(TL.jade, CircleShape),
                             contentAlignment = Alignment.Center) {
-                            Text("나", color = TL.ink, fontSize = 11.sp,
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.me_label), color = TL.ink, fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold, style = circleBadgeTextStyle)
                         }
                     }
                 }
                 if (m.quit) {
-                    Text("포기", color = TL.faint, fontSize = 11.sp,
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.gave_up_label), color = TL.faint, fontSize = 11.sp,
                         modifier = Modifier.padding(end = 8.dp))
                 }
                 Text(TLFormat.scoreLabel(m.score),
@@ -1317,7 +1304,7 @@ private fun GroupRankingCard(
             }
         }
         if (members.isEmpty()) {
-            Text("불러오는 중…", color = TL.faint, fontSize = 13.sp)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.loading), color = TL.faint, fontSize = 13.sp)
         }
     }
 }
@@ -1376,7 +1363,7 @@ private fun GroupStartActivityCard(room: GroupRoom) {
     }
 
     TLCard {
-        TLEyebrow("활동 인증")
+        TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.activity_checkin))
         Spacer(Modifier.height(10.dp))
         val fire = windowFire
         val next = nextFire
@@ -1385,13 +1372,13 @@ private fun GroupStartActivityCard(room: GroupRoom) {
                 // 창 안 — 지금 시작 가능. 남은 시간을 분 단위(내림)로 — 초 단위는 불안감만 키운다.
                 val remainMinutes =
                     ((fire + TimePolicy.START_WINDOW_SECONDS * 1000 - now) / 60_000L).coerceAtLeast(0)
-                Text("지금 활동을 시작할 수 있어요",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.can_start_now),
                     color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                Text(if (remainMinutes >= 1) "남은 시간 ${remainMinutes}분" else "남은 시간 1분 미만",
+                Text(if (remainMinutes >= 1) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.time_left_min, remainMinutes) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.time_left_under_1),
                     color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(12.dp))
-                TLPrimaryButton("활동 시작하기") {
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_activity)) {
                     scope.launch {
                         // 탭 '그 순간' 창을 다시 검증한다 — 15초 캐시 탓에 창이 닫힌 뒤 눌리면
                         // 노쇼 스위퍼와 이중 기록될 수 있으므로 fresh 값으로 확인 (iOS 1:1)
@@ -1416,19 +1403,19 @@ private fun GroupStartActivityCard(room: GroupRoom) {
             next != null -> {
                 val m = ((next - now) / 60_000L).coerceAtLeast(1)
                 val label = when {
-                    m >= 1440 -> "${m / 1440}일 뒤 시작"
-                    m >= 60 -> "${m / 60}시간 ${m % 60}분 뒤 시작"
-                    else -> "${m}분 뒤 시작"
+                    m >= 1440 -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.starts_in, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.n_days, (m / 1440).toInt()))
+                    m >= 60 -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.starts_in, TLFormat.durationLabel(m.toInt()))
+                    else -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.starts_in, TLFormat.durationLabel(m.toInt()))
                 }
                 Text(label, color = TL.amber, fontSize = 22.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(12.dp))
-                TLPrimaryButton("활동 시작하기", enabled = false) {}
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_activity), enabled = false) {}
                 Spacer(Modifier.height(6.dp))
-                Text("예정 시각부터 ${TimePolicy.START_WINDOW_MINUTES}분 안에만 시작할 수 있어요.",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_window_note, TimePolicy.START_WINDOW_MINUTES),
                     color = TL.faint, fontSize = 12.sp)
             }
             else -> {
-                Text("예정된 활동이 없어요.", color = TL.muted, fontSize = 14.sp)
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_scheduled_activity), color = TL.muted, fontSize = 14.sp)
             }
         }
     }
