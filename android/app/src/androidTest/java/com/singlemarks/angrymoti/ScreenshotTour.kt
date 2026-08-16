@@ -71,6 +71,16 @@ class ScreenshotTour {
     @Before
     fun seed() {
         Locale.setDefault(Locale.forLanguageTag(localeTag))
+        // L10n(비컴포저블 경로 — CanonicalKeys label() 등)은 Application Context를 쓰는데,
+        // 에뮬레이터 기본 로케일(en)이라 LocalContext 오버라이드가 닿지 않는다. 실기기에서는
+        // 앱 로케일이 Application Context에도 적용되므로 하네스만의 문제 — 여기서 직접 주입한다.
+        val localized = appContext.createConfigurationContext(
+            Configuration(appContext.resources.configuration).apply {
+                setLocales(LocaleList(Locale.forLanguageTag(localeTag)))
+            })
+        L10n.initForTest { id, args ->
+            if (args.isEmpty()) localized.getString(id) else localized.getString(id, *args)
+        }
         // 포맷터가 실제로 보이는 베이스라인을 위해 예약 2건 시딩 (게스트 소유, 멱등 ID)
         val today = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
