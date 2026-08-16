@@ -6,6 +6,5 @@ android/app/src/main/java/com/singlemarks/angrymoti/ui/CalendarScreen.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/CaptureFlow.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/GroupScreens.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/HomeShell.kt
-android/app/src/main/java/com/singlemarks/angrymoti/ui/OnboardingFlow.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/ReservationEdit.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/SettingsScreens.kt

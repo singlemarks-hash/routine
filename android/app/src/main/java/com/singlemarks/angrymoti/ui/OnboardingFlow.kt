@@ -94,14 +94,14 @@ fun OnboardingFlow() {
 private fun ShootStep(next: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(110.dp))
-        TLEyebrow("촬영하기")
+        TLEyebrow(androidx.compose.ui.res.stringResource(R.string.eyebrow_recording))
         // 강제 줄바꿈(\n) 대신 자연 줄바꿈 — 갤럭시 노트20처럼 디스플레이 크기 설정이
         // 커서 유효 폭이 좁은 기기에서 \n 뒤 문구가 통째로 밀려 "없는"처럼 짧은 단어만
         // 홀로 한 줄을 차지하는 문제가 있었다. 공백으로 두면 기기 폭에 맞게 통째로 흐른다.
-        Text("예약한 시각에 알람이 울리면 바로 타임랩스를 촬영하세요",
+        Text(androidx.compose.ui.res.stringResource(R.string.onb_headline_1),
             color = TL.paper, fontSize = 26.sp, fontWeight = FontWeight.Black, lineHeight = 34.sp)
         Spacer(Modifier.height(10.dp))
-        Text("내가 지정한 시간만큼 몰입 타이머가 시작돼요\n끝까지 완주하면 상점, 그만두면 벌점이 쌓여요",
+        Text(androidx.compose.ui.res.stringResource(R.string.onb_sub_1),
             color = TL.muted, fontSize = 15.sp, lineHeight = 21.sp)
 
         Spacer(Modifier.weight(1f))
@@ -116,7 +116,7 @@ private fun ShootStep(next: () -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        TLPrimaryButton("다음", onClick = next)
+        TLPrimaryButton(androidx.compose.ui.res.stringResource(R.string.next), onClick = next)
         Spacer(Modifier.height(20.dp))
     }
 }
@@ -128,17 +128,17 @@ private fun RecordStep(onBack: () -> Unit, next: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(60.dp))
         Box(Modifier.clickable(onClick = onBack).padding(8.dp)) {
-            androidx.compose.material3.Icon(AppIcon.ChevronLeft, contentDescription = "이전",
+            androidx.compose.material3.Icon(AppIcon.ChevronLeft, contentDescription = androidx.compose.ui.res.stringResource(R.string.back),
                 tint = TL.muted, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.height(22.dp))
-        TLEyebrow("기록관리")
+        TLEyebrow(androidx.compose.ui.res.stringResource(R.string.eyebrow_tracking))
         // 강제 줄바꿈(\n) 대신 자연 줄바꿈 — 위 ShootStep과 같은 이유(갤럭시 노트20 실기기
         // 리포트에서 "없는"이 단독 줄로 떨어지는 문제 확인됨).
-        Text("의지가 아닌, 실행할 수 밖에 없는 환경을 만들어요",
+        Text(androidx.compose.ui.res.stringResource(R.string.onb_headline_2),
             color = TL.paper, fontSize = 26.sp, fontWeight = FontWeight.Black, lineHeight = 34.sp)
         Spacer(Modifier.height(10.dp))
-        Text("목표달성을 위한 나의 몰입을 기록해요\n모티가 강력한 실행환경을 만들어 줄 거에요",
+        Text(androidx.compose.ui.res.stringResource(R.string.onb_sub_2),
             color = TL.muted, fontSize = 15.sp, lineHeight = 21.sp)
 
         Spacer(Modifier.weight(1f))
@@ -147,7 +147,7 @@ private fun RecordStep(onBack: () -> Unit, next: () -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        TLPrimaryButton("다음", onClick = next)
+        TLPrimaryButton(androidx.compose.ui.res.stringResource(R.string.next), onClick = next)
         Spacer(Modifier.height(20.dp))
     }
 }
@@ -164,58 +164,64 @@ private fun StreakCardMock() {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("연속달성", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(androidx.compose.ui.res.stringResource(R.string.streak), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(5.dp))
                     Image(painterResource(R.drawable.stat_fire), null, Modifier.size(15.dp))
                 }
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("3", color = TL.jade, fontSize = 38.sp, fontWeight = FontWeight.Black)
                     Spacer(Modifier.width(2.dp))
-                    Text("일", color = TL.muted, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(androidx.compose.ui.res.stringResource(R.string.days_unit), color = TL.muted, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 }
                 Text(streakSummaryText(), fontSize = 13.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("최고기록", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(androidx.compose.ui.res.stringResource(R.string.best_streak), color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(4.dp))
                     Image(painterResource(R.drawable.stat_average), null, Modifier.size(13.dp))
                 }
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("56", color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Black)
-                    Text("일", color = TL.muted, fontSize = 12.sp)
+                    Text(androidx.compose.ui.res.stringResource(R.string.days_unit), color = TL.muted, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("평균 일정", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(androidx.compose.ui.res.stringResource(R.string.avg_per_day), color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(4.dp))
                     Image(painterResource(R.drawable.stat_record), null, Modifier.size(13.dp))
                 }
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("4.2", color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Black)
-                    Text("개", color = TL.muted, fontSize = 12.sp)
+                    Text(androidx.compose.ui.res.stringResource(R.string.count_unit), color = TL.muted, fontSize = 12.sp)
                 }
             }
         }
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth()) {
-            mockDay("목", "23", R.drawable.day_success, Modifier.weight(1f))
-            mockDay("목", "23", R.drawable.day_fail, Modifier.weight(1f))
-            mockDay("금", "24", R.drawable.day_half, Modifier.weight(1f))
-            mockDay("토", "25", R.drawable.day_success, Modifier.weight(1f))
-            mockDay("일", "26", R.drawable.day_success, Modifier.weight(1f), highlighted = true)
-            mockDay("월", "27", R.drawable.day_not_started, Modifier.weight(1f))
+            mockDay(androidx.compose.ui.res.stringResource(R.string.thu), "23", R.drawable.day_success, Modifier.weight(1f))
+            mockDay(androidx.compose.ui.res.stringResource(R.string.thu), "23", R.drawable.day_fail, Modifier.weight(1f))
+            mockDay(androidx.compose.ui.res.stringResource(R.string.fri), "24", R.drawable.day_half, Modifier.weight(1f))
+            mockDay(androidx.compose.ui.res.stringResource(R.string.sat), "25", R.drawable.day_success, Modifier.weight(1f))
+            mockDay(androidx.compose.ui.res.stringResource(R.string.sun), "26", R.drawable.day_success, Modifier.weight(1f), highlighted = true)
+            mockDay(androidx.compose.ui.res.stringResource(R.string.mon), "27", R.drawable.day_not_started, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun streakSummaryText() = buildAnnotatedString {
-    withStyle(SpanStyle(color = TL.muted, fontWeight = FontWeight.SemiBold)) { append("총 ") }
-    withStyle(SpanStyle(color = TL.jade, fontWeight = FontWeight.Black)) { append("506") }
-    withStyle(SpanStyle(color = TL.muted, fontWeight = FontWeight.SemiBold)) { append("시간 ") }
-    withStyle(SpanStyle(color = TL.jade, fontWeight = FontWeight.Black)) { append("16") }
-    withStyle(SpanStyle(color = TL.muted, fontWeight = FontWeight.SemiBold)) { append("분을 기록했어요!") }
+private fun streakSummaryText(): androidx.compose.ui.text.AnnotatedString {
+    // buildAnnotatedString의 빌더 람다는 컴포저블 문맥이 아니라 리소스를 먼저 캡처한다
+    val prefix = androidx.compose.ui.res.stringResource(R.string.logged_prefix)
+    val hours = androidx.compose.ui.res.stringResource(R.string.hours_suffix)
+    val minutes = androidx.compose.ui.res.stringResource(R.string.minutes_total_suffix)
+    return buildAnnotatedString {
+        withStyle(SpanStyle(color = TL.muted, fontWeight = FontWeight.SemiBold)) { append(prefix) }
+        withStyle(SpanStyle(color = TL.jade, fontWeight = FontWeight.Black)) { append("506") }
+        withStyle(SpanStyle(color = TL.muted, fontWeight = FontWeight.SemiBold)) { append(hours) }
+        withStyle(SpanStyle(color = TL.jade, fontWeight = FontWeight.Black)) { append("16") }
+        withStyle(SpanStyle(color = TL.muted, fontWeight = FontWeight.SemiBold)) { append(minutes) }
+    }
 }
 
 @Composable
@@ -254,12 +260,12 @@ private fun PermissionStep(onFinish: () -> Unit) {
             .padding(24.dp),
     ) {
         Spacer(Modifier.height(60.dp))
-        TLEyebrow("권한 설정")
+        TLEyebrow(androidx.compose.ui.res.stringResource(R.string.eyebrow_permissions))
         // 심사(5.1.1(iv)) — 허용을 권하는 문구·버튼 금지. 무엇에 쓰는지만 알리고
         // 결정은 시스템 창에 맡긴다.
-        Text("두 가지 권한을 허용해 주세요", color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
+        Text(androidx.compose.ui.res.stringResource(R.string.perm_headline), color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(6.dp))
-        Text("카메라와 알람에 사용됩니다. 지금 허용하지 않아도 앱을 둘러볼 수 있고, 촬영·알람을 쓸 때 다시 요청합니다.",
+        Text(androidx.compose.ui.res.stringResource(R.string.perm_sub),
             color = TL.muted, fontSize = 15.sp, lineHeight = 21.sp)
 
         Spacer(Modifier.height(28.dp))
@@ -269,8 +275,8 @@ private fun PermissionStep(onFinish: () -> Unit) {
                     modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("카메라", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("알람 해제와 세션 기록에 사용합니다. 영상은 기기에만 저장되고 본인만 봅니다.",
+                    Text(androidx.compose.ui.res.stringResource(R.string.camera), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(androidx.compose.ui.res.stringResource(R.string.camera_perm_desc),
                         color = TL.muted, fontSize = 13.sp)
                 }
                 PermissionStatusButton(cameraGranted) {
@@ -289,8 +295,8 @@ private fun PermissionStep(onFinish: () -> Unit) {
                     modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("알림", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("예약 시각의 알람과 10분 전 예고를 보냅니다.",
+                    Text(androidx.compose.ui.res.stringResource(R.string.notifications), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(androidx.compose.ui.res.stringResource(R.string.notif_perm_desc),
                         color = TL.muted, fontSize = 13.sp)
                 }
                 PermissionStatusButton(notifGranted) {
@@ -312,8 +318,8 @@ private fun PermissionStep(onFinish: () -> Unit) {
                     modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("저장공간 용량 확인", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("영상 촬영 중간에 녹화가 중단되면, 이탈로 간주되어 패널티를 받을 수 있습니다. 용량 부족으로 타임랩스가 끊기지 않도록 저장공간을 미리 확보해 주세요.",
+                    Text(androidx.compose.ui.res.stringResource(R.string.check_storage), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(androidx.compose.ui.res.stringResource(R.string.storage_warning),
                         color = TL.amber, fontSize = 13.sp, lineHeight = 18.sp)
                 }
             }
@@ -322,12 +328,12 @@ private fun PermissionStep(onFinish: () -> Unit) {
         // 권한은 선택 — 거부해도 진행할 수 있다 (App Review 4.5.4/5.1.1)
         if (cameraGranted == false || notifGranted == false) {
             Spacer(Modifier.height(16.dp))
-            Text("나중에 허용해도 괜찮아요. 촬영·알람 기능을 사용할 때 다시 안내해 드립니다.",
+            Text(androidx.compose.ui.res.stringResource(R.string.allow_later_note),
                 color = TL.muted, fontSize = 13.sp)
         }
 
         Spacer(Modifier.height(28.dp))
-        TLPrimaryButton("다음", onClick = onFinish)
+        TLPrimaryButton(androidx.compose.ui.res.stringResource(R.string.next), onClick = onFinish)
         Spacer(Modifier.height(20.dp))
     }
 }
@@ -342,6 +348,6 @@ private fun PermissionStatusButton(granted: Boolean?, action: () -> Unit) {
             Modifier.background(TL.paper, CircleShape)
                 .clickable(onClick = action)
                 .padding(horizontal = 14.dp, vertical = 8.dp),
-        ) { Text("계속", color = TL.ink, fontSize = 14.sp, fontWeight = FontWeight.Black) }
+        ) { Text(androidx.compose.ui.res.stringResource(R.string.continue_label), color = TL.ink, fontSize = 14.sp, fontWeight = FontWeight.Black) }
     }
 }
