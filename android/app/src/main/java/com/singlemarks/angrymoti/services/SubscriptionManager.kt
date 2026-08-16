@@ -101,7 +101,7 @@ object SubscriptionManager : PurchasesUpdatedListener {
                 // (상품 미등록·비활성 등)을 로그에 남겨야 콘솔 설정 문제를 추적할 수 있다.
                 detailsResult.unfetchedProductList.forEach {
                     android.util.Log.w("AngryMoti",
-                        "Billing: 상품 조회 실패 ${it.productId} (statusCode=${it.statusCode})")
+                        "Billing: product query failed ${it.productId} (statusCode=${it.statusCode})")
                 }
             }
             loadingProduct.value = false
@@ -205,10 +205,10 @@ object SubscriptionManager : PurchasesUpdatedListener {
     /** 정기 결제가 — 무료 체험 오퍼일 때 첫 phase는 ₩0이므로, 가격이 있는 phase를 골라 표시한다 */
     val displayPrice: String
         get() {
-            val details = product.value ?: return "₩4,400"
-            val phases = bestOffer(details)?.pricingPhases?.pricingPhaseList ?: return "₩4,400"
+            val details = product.value ?: return com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.price_fallback)
+            val phases = bestOffer(details)?.pricingPhases?.pricingPhaseList ?: return com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.price_fallback)
             return phases.lastOrNull { it.priceAmountMicros > 0L }?.formattedPrice
-                ?: phases.firstOrNull()?.formattedPrice ?: "₩4,400"
+                ?: phases.firstOrNull()?.formattedPrice ?: com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.price_fallback)
         }
 
     /** 무료 체험 문구("첫 14일 무료") — 무료 phase가 없으면 null → 페이월이 기존 문구로 폴백 */
@@ -217,18 +217,19 @@ object SubscriptionManager : PurchasesUpdatedListener {
             val details = product.value ?: return null
             val trialPhase = bestOffer(details)?.pricingPhases?.pricingPhaseList
                 ?.firstOrNull { it.priceAmountMicros == 0L } ?: return null
-            return isoDurationToKorean(trialPhase.billingPeriod)?.let { "첫 $it 무료" }
+            return trialLabel(trialPhase.billingPeriod)
         }
 
-    /** ISO-8601 기간(P14D · P2W · P1M …)을 한국어로 — 파싱 실패 시 null */
-    private fun isoDurationToKorean(period: String): String? {
+    /** ISO-8601 기간(P14D · P2W · P1M …) → "First 14 days free" 류 문구 — 파싱 실패 시 null.
+     *  iOS freeTrialDescription과 같은 단위별 포맷 키를 쓴다 (주 단위는 일수로 환산). */
+    private fun trialLabel(period: String): String? {
         val m = Regex("""P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?""").matchEntire(period) ?: return null
         val (y, mo, w, d) = m.destructured
         return when {
-            y.isNotEmpty()  -> "${y}년"
-            mo.isNotEmpty() -> "${mo}개월"
-            w.isNotEmpty()  -> "${w.toInt() * 7}일"
-            d.isNotEmpty()  -> "${d}일"
+            y.isNotEmpty()  -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.first_n_years_free, y.toInt())
+            mo.isNotEmpty() -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.first_n_months_free, mo.toInt())
+            w.isNotEmpty()  -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.first_n_days_free, w.toInt() * 7)
+            d.isNotEmpty()  -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.first_n_days_free, d.toInt())
             else -> null
         }
     }

@@ -64,13 +64,13 @@ object AccountStore {
 
     fun continueAsGuest(name: String?) {
         com.singlemarks.angrymoti.data.Prefs.guestName = name
-        user.value = UserInfo("guest", name ?: "게스트", null, "guest", true)
+        user.value = UserInfo("guest", name ?: com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.guest), null, "guest", true)
     }
 
     // MARK: 이메일
 
     suspend fun signUpEmail(email: String, password: String, name: String) {
-        require(firebaseAvailable) { "이메일 가입은 Firebase 연동 후 사용할 수 있습니다." }
+        require(firebaseAvailable) { com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.email_signup_needs_firebase) }
         val auth = FirebaseAuth.getInstance()
         val result = auth.createUserWithEmailAndPassword(email, password).await()
         result.user?.updateProfile(
@@ -81,10 +81,10 @@ object AccountStore {
     }
 
     suspend fun signInEmail(email: String, password: String) {
-        require(firebaseAvailable) { "이메일 로그인은 Firebase 연동 후 사용할 수 있습니다." }
+        require(firebaseAvailable) { com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.email_signin_needs_firebase) }
         val auth = FirebaseAuth.getInstance()
         val result = auth.signInWithEmailAndPassword(email, password).await()
-        val u = result.user ?: error("로그인 실패")
+        val u = result.user ?: error(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.sign_in_failed))
         if (!u.isEmailVerified) {
             // 인증 대기 화면으로만 보낸다 — 로그인할 때마다 인증 메일을 다시 쏘면
             // Firebase rate-limit(too-many-requests)에 걸려 정작 '재발송' 버튼이 막힌다.
@@ -120,17 +120,17 @@ object AccountStore {
 
     /** 비밀번호 찾기 — 입력한 이메일로 Firebase 재설정 메일(한국어 템플릿) 발송 */
     suspend fun sendPasswordReset(email: String) {
-        require(firebaseAvailable && email.isNotBlank()) { "비밀번호 재설정은 이메일 로그인 계정만 가능합니다." }
+        require(firebaseAvailable && email.isNotBlank()) { com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.password_reset_email_only) }
         FirebaseAuth.getInstance().sendPasswordResetEmail(email).await()
     }
 
     // MARK: Google (ID 토큰은 UI 계층에서 Google Sign-In으로 획득)
 
     suspend fun signInGoogle(idToken: String) {
-        require(firebaseAvailable) { "Google 로그인은 Firebase 연동 후 사용할 수 있습니다." }
+        require(firebaseAvailable) { com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.google_signin_needs_firebase) }
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         val result = FirebaseAuth.getInstance().signInWithCredential(credential).await()
-        val u = result.user ?: error("로그인 실패")
+        val u = result.user ?: error(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.sign_in_failed))
         user.value = UserInfo(u.uid, u.displayName, u.email, "google", true)
         syncFromCloud()   // 다른 기기에서 쌓인 예약·점수·멤버십 즉시 병합
     }
@@ -151,7 +151,7 @@ object AccountStore {
             val lastSignIn = FirebaseAuth.getInstance().currentUser?.metadata?.lastSignInTimestamp ?: 0L
             if (System.currentTimeMillis() - lastSignIn > 4 * 60_000L) {
                 throw IllegalStateException(
-                    "보안을 위해 다시 로그인한 뒤 계정 삭제를 진행해주세요. (로그아웃 → 로그인 → 계정 삭제)")
+                    com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.reauth_before_delete))
             }
             val fs = FirebaseFirestore.getInstance()
             // 참여 중인 그룹방에서 내 멤버 문서 제거 (유령 멤버 방지 — iOS와 동일)
@@ -192,8 +192,8 @@ object AccountStore {
             } catch (e: Exception) {
                 val recent = (e as? com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException) != null
                 throw IllegalStateException(
-                    if (recent) "보안을 위해 다시 로그인한 뒤 계정 삭제를 진행해주세요. (로그아웃 → 로그인 → 계정 삭제)"
-                    else "계정 삭제에 실패했어요 — 네트워크 확인 후 다시 시도해주세요.", e)
+                    if (recent) com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.reauth_before_delete)
+                    else com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.delete_account_failed_network), e)
             }
         }
         user.value = null

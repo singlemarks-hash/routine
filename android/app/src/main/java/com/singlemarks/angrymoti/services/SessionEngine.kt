@@ -124,8 +124,8 @@ object SessionEngine {
             val remain = p.deadline - System.currentTimeMillis()
             if (!breakWarnPosted && remain in 1..120_000) {   // 마감 2분 전 (iOS 통일)
                 breakWarnPosted = true
-                AlarmScheduler.postStatus(appContext, 2001, "재촬영까지 2분",
-                    "2분 안에 재촬영을 시작하지 않으면 세션이 실패로 기록됩니다.")
+                AlarmScheduler.postStatus(appContext, 2001, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.resume_2min_title),
+                    com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.resume_2min_body))
             }
             if (remain <= 0) failBreakExpired(s)
             return
@@ -202,7 +202,7 @@ object SessionEngine {
                 finalize(applyRecording(s, result), SessionOutcome.COMPLETED, null)
             } else {
                 android.util.Log.e("AngryMoti",
-                    "헛완주 방어 — captured=${capturedSeconds}s/target=${s.targetSeconds}s thumb=${result?.thumbnailFileName != null}")
+                    "phantom-completion guard — captured=${capturedSeconds}s/target=${s.targetSeconds}s thumb=${result?.thumbnailFileName != null}")
                 finalize(applyRecording(s, result), SessionOutcome.SAFETY_ENDED, ScoreNote.RECORDING_INCOMPLETE)
             }
         }
@@ -221,8 +221,8 @@ object SessionEngine {
         breakNote.value = null   // 일반 긴급용무엔 안내문구 없음
         phase.value = Phase.PausedForBreak(deadline)
         Prefs.breakDeadline = deadline
-        AlarmScheduler.postStatus(appContext, 2000, "긴급 용무 중단",
-            "${TimePolicy.RESUME_WINDOW_MINUTES}분 예산 안에 돌아와 재촬영을 시작하면 벌점이 없습니다.")
+        AlarmScheduler.postStatus(appContext, 2000, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.emergency_break_title),
+            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.resume_budget_body, TimePolicy.RESUME_WINDOW_MINUTES))
     }
 
     /** 저장공간이 실제로 임계 이하인지 (사전 차단이 아니라 촬영이 막힌 '실패 시점'에만 원인 분류용으로 확인) */
@@ -239,12 +239,12 @@ object SessionEngine {
         val deadline = System.currentTimeMillis() + budget * 1000
         CameraRecorder.pause()
         breakWarnPosted = false
-        breakNote.value = "저장공간이 부족합니다. 저장공간을 확보 후 촬영을 재개하세요."
+        breakNote.value = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.storage_low_note)
         phase.value = Phase.PausedForBreak(deadline)
         Prefs.breakDeadline = deadline
         AlarmScheduler.playChime(appContext)
-        AlarmScheduler.postStatus(appContext, 2000, "촬영 일시중단 — 저장공간 부족",
-            "저장공간을 확보한 뒤 앱으로 돌아와 재촬영을 시작하세요.")
+        AlarmScheduler.postStatus(appContext, 2000, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.storage_paused_title),
+            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.storage_paused_body))
     }
 
     fun resumeFromBreak() {
@@ -266,8 +266,8 @@ object SessionEngine {
         isFinalizing = true
         scope.launch(Dispatchers.IO) {
             val result = CameraRecorder.stopPreservingFootage(appContext)
-            AlarmScheduler.postStatus(appContext, 2002, "세션 실패",
-                "${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하지 않아 실패로 기록되었습니다.")
+            AlarmScheduler.postStatus(appContext, 2002, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.session_failed_title),
+                com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.no_resume_failed_body, TimePolicy.RESUME_WINDOW_MINUTES))
             finalize(applyRecording(s, result), SessionOutcome.EXIT_FAILED,
                 ScoreNote.noResume(TimePolicy.RESUME_WINDOW_MINUTES))
         }

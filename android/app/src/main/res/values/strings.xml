@@ -26,4 +26,25 @@
     <string name="google_account_fetch_failed">Couldn\'t get your Google account info. Please try again.</string>
     <string name="recording_notification_title">AngryMoti is recording</string>
     <string name="recording_notification_body">Your timelapse session is in progress.</string>
+    <string name="guest">Guest</string>
+    <string name="email_signup_needs_firebase">Email sign-up will be available once Firebase is connected.</string>
+    <string name="email_signin_needs_firebase">Email sign-in will be available once Firebase is connected.</string>
+    <string name="sign_in_failed">Sign-in failed</string>
+    <string name="password_reset_email_only">Password reset is only available for email accounts.</string>
+    <string name="google_signin_needs_firebase">Google sign-in will be available once Firebase is connected.</string>
+    <string name="reauth_before_delete">For security, you need to sign in again before deleting your account. Sign out, sign back in, then try deleting again.</string>
+    <string name="delete_account_failed_network">Couldn\'t delete your account — check your network and try again.</string>
+    <string name="resume_2min_title">2 Minutes to Resume</string>
+    <string name="resume_2min_body">If you don\'t resume within 2 minutes, the session will be recorded as failed.</string>
+    <string name="emergency_break_title">Emergency Break</string>
+    <string name="resume_budget_body">Come back and resume within your %1$d-minute budget — no penalty.</string>
+    <string name="storage_low_note">Storage is low. Free up space, then resume recording.</string>
+    <string name="storage_paused_title">Recording Paused — Low Storage</string>
+    <string name="storage_paused_body">Free up space, then come back to the app and resume recording.</string>
+    <string name="session_failed_title">Session Failed</string>
+    <string name="no_resume_failed_body">You didn\'t resume within %1$d minutes, so the session was recorded as failed.</string>
+    <string name="price_fallback">$2.99</string>
+    <string name="first_n_days_free">First %1$d days free</string>
+    <string name="first_n_months_free">First %1$d months free</string>
+    <string name="first_n_years_free">First %1$d years free</string>
 </resources>
