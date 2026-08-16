@@ -99,10 +99,10 @@ fun AuthScreen() {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
             // 강제 줄바꿈(\n) 대신 자연 줄바꿈 — 온보딩과 같은 이유(갤럭시 노트20 등
             // 유효 폭이 좁은 기기에서 단어 하나가 홀로 다음 줄로 밀리는 문제 방지).
-            Text("타임랩스로 나의 몰입을 기록해요 더 강력하게", color = TL.paper, fontSize = 26.sp,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.auth_headline), color = TL.paper, fontSize = 26.sp,
                 fontWeight = FontWeight.Black, lineHeight = 33.sp)
             Spacer(Modifier.height(14.dp))
-            Text("아래 버튼을 눌러\n로그인 또는 회원가입을 진행해 주세요.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.auth_sub),
                 color = TL.muted, fontSize = 14.sp, lineHeight = 20.sp)
         }
         Spacer(Modifier.height(28.dp))
@@ -115,18 +115,18 @@ fun AuthScreen() {
             ) {
                 Text("✉️", fontSize = 40.sp)
                 Spacer(Modifier.height(12.dp))
-                Text("이메일 인증이 필요합니다", color = TL.paper, fontSize = 20.sp,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.email_verification_needed), color = TL.paper, fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(6.dp))
-                Text("$pendingEmail 로 인증 메일을 보냈습니다.\n메일함에서 인증 링크를 누른 뒤 아래 버튼을 눌러주세요.",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.verification_sent, pendingEmail ?: ""),
                     color = TL.muted, fontSize = 13.sp, textAlign = TextAlign.Center, lineHeight = 19.sp)
                 Spacer(Modifier.height(16.dp))
-                TLPrimaryButton(if (busy) "확인 중…" else "인증 완료했어요", enabled = !busy) {
+                TLPrimaryButton(if (busy) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.checking) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ive_verified), enabled = !busy) {
                     scope.launch {
                         busy = true; error = null; info = null
                         runCatching {
                             if (!AccountStore.confirmEmailVerified())
-                                error = "아직 인증이 확인되지 않았어요. 메일의 링크를 먼저 눌러주세요."
+                                error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.not_verified_yet)
                         }.onFailure { error = friendlyAuthError(it) }
                         busy = false
                     }
@@ -136,12 +136,12 @@ fun AuthScreen() {
                     TextButton(onClick = {
                         scope.launch {
                             runCatching { AccountStore.resendVerificationEmail() }
-                            info = "인증 메일을 다시 보냈습니다. 메일함(스팸함 포함)을 확인하세요."
+                            info = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.verification_resent)
                         }
-                    }) { Text("인증 메일 재발송", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                    }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.resend_verification), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
                     Spacer(Modifier.width(18.dp))
                     TextButton(onClick = { error = null; info = null; AccountStore.cancelPendingVerification() }) {
-                        Text("다른 계정으로", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.use_different_account), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -159,7 +159,7 @@ fun AuthScreen() {
                 Modifier.fillMaxWidth().background(TL.surface, CircleShape)
                     .border(1.dp, TL.hairline, CircleShape).padding(4.dp),
             ) {
-                listOf("signin" to "로그인", "signup" to "회원가입").forEach { (key, label) ->
+                listOf("signin" to androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.log_in), "signup" to androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.sign_up)).forEach { (key, label) ->
                     Box(
                         Modifier.weight(1f)
                             .background(if (mode == key) TL.paper else Color.Transparent, CircleShape)
@@ -181,32 +181,32 @@ fun AuthScreen() {
                 cursorColor = TL.rec,
             )
             if (mode == "signup") {
-                OutlinedTextField(name, { name = it }, label = { Text("이름") },
+                OutlinedTextField(name, { name = it }, label = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.name)) },
                     colors = fieldColors, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Spacer(Modifier.height(10.dp))
             }
-            OutlinedTextField(email, { email = it.trim() }, label = { Text("이메일") },
+            OutlinedTextField(email, { email = it.trim() }, label = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.email)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 colors = fieldColors, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(password, { password = it },
-                label = { Text(if (mode == "signup") "비밀번호 (${PASSWORD_MIN_LENGTH}자 이상)" else "비밀번호") },
+                label = { Text(if (mode == "signup") androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.password_min, PASSWORD_MIN_LENGTH) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.password)) },
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = fieldColors, modifier = Modifier.fillMaxWidth(), singleLine = true)
             if (mode == "signup") {
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(passwordConfirm, { passwordConfirm = it },
-                    label = { Text("비밀번호 확인") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.confirm_password)) },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     colors = fieldColors, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 if (passwordConfirm.isNotEmpty() && password != passwordConfirm) {
-                    Text("✕ 비밀번호가 서로 다릅니다", color = TL.rec, fontSize = 12.sp,
+                    Text("✕ " + androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.passwords_differ), color = TL.rec, fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                 }
-                Text("가입하면 입력한 주소로 인증 메일이 발송됩니다.", color = TL.faint, fontSize = 11.sp,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.verification_will_send), color = TL.faint, fontSize = 11.sp,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
             }
             Spacer(Modifier.height(16.dp))
@@ -223,7 +223,7 @@ fun AuthScreen() {
                     password.length >= PASSWORD_MIN_LENGTH && password == passwordConfirm
             }
             TLPrimaryButton(
-                if (busy) "확인 중…" else if (mode == "signin") "로그인" else "회원가입",
+                if (busy) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.checking) else if (mode == "signin") androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.log_in) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.sign_up),
                 enabled = !busy && formReady,
             ) {
                 scope.launch {
@@ -233,7 +233,7 @@ fun AuthScreen() {
                         else AccountStore.signUpEmail(email, password, name.trim())
                     }.onFailure {
                         error = if (!AccountStore.firebaseAvailable)
-                            "서버 미연동 상태예요. 게스트 모드로 시작해보세요." else friendlyAuthError(it)
+                            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.server_not_connected) else friendlyAuthError(it)
                     }
                     busy = false
                 }
@@ -242,13 +242,13 @@ fun AuthScreen() {
             // 비밀번호 찾기 — 로그인 모드에서만 (iOS 1:1)
             if (mode == "signin") {
                 Spacer(Modifier.height(14.dp))
-                Text("비밀번호 찾기", color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.forgot_password), color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clickable(enabled = !busy) {
                         scope.launch {
                             busy = true; error = null; info = null
                             runCatching { AccountStore.sendPasswordReset(email) }
                                 .onSuccess {
-                                    info = "재설정 메일을 보냈습니다. 메일함(스팸함 포함)에서 링크를 열어 새 비밀번호를 설정한 뒤 다시 로그인해주세요."
+                                    info = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.reset_email_sent)
                                 }
                                 .onFailure { error = friendlyAuthError(it) }
                             busy = false
@@ -262,13 +262,13 @@ fun AuthScreen() {
             // ── 또는 ──
             Row(Modifier.fillMaxWidth().padding(vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f).height(1.dp).background(TL.hairline))
-                Text("또는", color = TL.faint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.or_divider), color = TL.faint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 12.dp))
                 Box(Modifier.weight(1f).height(1.dp).background(TL.hairline))
             }
 
             // 게스트를 구글보다 먼저 — iOS 1:1 순서. 서브텍스트는 뺐다(과한 설명).
-            Text("게스트로 시작", color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.continue_as_guest), color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
                     .clickable(enabled = !busy) { AccountStore.continueAsGuest(null) }
@@ -293,17 +293,17 @@ fun AuthScreen() {
         }
 
         // 약관 동의 고지 + 링크 (iOS 1:1)
-        Text("모든 영상 기록은 이 기기에만 저장됩니다.",
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.all_recordings_local),
             color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 18.dp))
-        Text("계속하면 이용약관과 개인정보처리방침에 동의하는 것으로 간주합니다.",
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.agree_terms),
             color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 4.dp))
         Row(Modifier.padding(top = 8.dp, bottom = 24.dp)) {
-            Text("이용약관", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.terms_of_use), color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { open(Legal.TERMS_URL) })
             Text(" · ", color = TL.faint, fontSize = 12.sp)
-            Text("개인정보처리방침", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_policy), color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { open(Legal.PRIVACY_URL) })
         }
     }
@@ -328,21 +328,21 @@ private fun GoogleButton(enabled: Boolean, onClick: () -> Unit) {
             modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(12.dp))
-        Text("Google로 계속하기", color = TL.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.continue_with_google), color = TL.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 private fun friendlyAuthError(t: Throwable): String {
     if (t is androidx.credentials.exceptions.NoCredentialException)
-        return "기기에 등록된 Google 계정이 없어요. 설정 → 계정에서 Google 계정을 추가한 뒤 다시 시도해주세요."
-    val m = t.message ?: return "오류가 발생했어요. 잠시 후 다시 시도해주세요."
+        return com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.no_google_account)
+    val m = t.message ?: return com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.generic_error)
     return when {
-        m.contains("badly formatted") -> "이메일 형식이 올바르지 않아요."
+        m.contains("badly formatted") -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.invalid_email)
         m.contains("password is invalid") || m.contains("INVALID_LOGIN_CREDENTIALS") ->
-            "이메일 또는 비밀번호가 맞지 않아요."
-        m.contains("already in use") -> "이미 가입된 이메일이에요. 로그인해주세요."
-        m.contains("at least 6 characters") -> "비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상으로 설정해주세요."
-        m.contains("network") -> "네트워크 연결을 확인해주세요."
+            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.wrong_credentials)
+        m.contains("already in use") -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.email_in_use)
+        m.contains("at least 6 characters") -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.password_too_short, PASSWORD_MIN_LENGTH)
+        m.contains("network") -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.check_network)
         else -> m
     }
 }

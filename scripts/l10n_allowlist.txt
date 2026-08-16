@@ -1,7 +1,6 @@
 TimeLock/TimeLock/Services/CanonicalKeys.swift
 android/app/src/main/java/com/singlemarks/angrymoti/models/CanonicalKeys.kt
 android/app/src/main/java/com/singlemarks/angrymoti/services/L10nKeySweep.kt
-android/app/src/main/java/com/singlemarks/angrymoti/ui/AuthScreen.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/CaptureFlow.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/GroupScreens.kt
 android/app/src/main/java/com/singlemarks/angrymoti/ui/ReservationEdit.kt
