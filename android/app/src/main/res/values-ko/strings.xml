@@ -142,4 +142,27 @@
     <string name="pts_on_completion">완료 시 +%1$d점</string>
     <string name="get_ready">촬영 준비하기</string>
     <string name="enter_activity_name">활동명을 입력해야 시작할 수 있습니다.</string>
+    <string name="history">기록</string>
+    <string name="prev_month">이전 달</string>
+    <string name="next_month">다음 달</string>
+    <string name="cumulative_dashboard">누적 대시보드</string>
+    <string name="total_score">총점</string>
+    <string name="pts_unit">점</string>
+    <string name="total_points">총 상점</string>
+    <string name="completion_rate">완주율</string>
+    <string name="total_penalty">총 벌점</string>
+    <string name="no_show_rate">노쇼율</string>
+    <string name="logged_suffix">을 기록했어요!</string>
+    <string name="other_tag">그 외</string>
+    <string name="time_by_tag">태그별 시간 분포</string>
+    <string name="h_m_note">(시간 : 분)</string>
+    <string name="total_prefix">"총 "</string>
+    <string name="m_unit">분</string>
+    <string name="expand_all">모두 펼치기</string>
+    <string name="collapse_all">모두 접기</string>
+    <string name="close">닫기</string>
+    <string name="points">상점</string>
+    <string name="penalty">벌점</string>
+    <string name="total">합계</string>
+    <string name="recorded_target">순수 촬영 %1$s / 목표 %2$s</string>
 </resources>

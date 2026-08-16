@@ -143,4 +143,27 @@
     <string name="pts_on_completion">+%1$d pts on completion</string>
     <string name="get_ready">Get Ready</string>
     <string name="enter_activity_name">Enter an activity name to get started.</string>
+    <string name="history">History</string>
+    <string name="prev_month">Previous month</string>
+    <string name="next_month">Next month</string>
+    <string name="cumulative_dashboard">Cumulative Dashboard</string>
+    <string name="total_score">Total Score</string>
+    <string name="pts_unit">pts</string>
+    <string name="total_points">Total Points</string>
+    <string name="completion_rate">Completion Rate</string>
+    <string name="total_penalty">Total Penalty</string>
+    <string name="no_show_rate">No-show Rate</string>
+    <string name="logged_suffix">" total!"</string>
+    <string name="other_tag">Other</string>
+    <string name="time_by_tag">Time by Tag</string>
+    <string name="h_m_note">(h : m)</string>
+    <string name="total_prefix">"Total "</string>
+    <string name="m_unit">m</string>
+    <string name="expand_all">Expand All</string>
+    <string name="collapse_all">Collapse All</string>
+    <string name="close">Close</string>
+    <string name="points">Points</string>
+    <string name="penalty">Penalty</string>
+    <string name="total">Total</string>
+    <string name="recorded_target">Recorded %1$s / Target %2$s</string>
 </resources>

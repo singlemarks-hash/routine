@@ -80,7 +80,7 @@ fun CalendarScreen(onBack: () -> Unit) {
     // 바로 뒤로 갈 수 있다.
     Column(Modifier.fillMaxSize().background(TL.ink)) {
         Box(Modifier.padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 6.dp)) {
-            TLScreenHeader("기록", onBack = onBack)
+            TLScreenHeader(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.history), onBack = onBack)
         }
         LazyColumn(Modifier.weight(1f).padding(horizontal = 20.dp)) {
         item {
@@ -98,7 +98,7 @@ fun CalendarScreen(onBack: () -> Unit) {
                     Box(Modifier.size(32.dp).clip(TL.cornerS).clickable {
                         month = (month.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
                     }, contentAlignment = Alignment.Center) {
-                        androidx.compose.material3.Icon(AppIcon.ChevronLeft, "이전 달",
+                        androidx.compose.material3.Icon(AppIcon.ChevronLeft, androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.prev_month),
                             tint = TL.muted, modifier = Modifier.size(22.dp))
                     }
                     Spacer(Modifier.weight(1f))
@@ -108,7 +108,7 @@ fun CalendarScreen(onBack: () -> Unit) {
                     Box(Modifier.size(32.dp).clip(TL.cornerS).clickable {
                         month = (month.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
                     }, contentAlignment = Alignment.Center) {
-                        androidx.compose.material3.Icon(AppIcon.ChevronRight, "다음 달",
+                        androidx.compose.material3.Icon(AppIcon.ChevronRight, androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.next_month),
                             tint = TL.muted, modifier = Modifier.size(22.dp))
                     }
                 }
@@ -186,7 +186,7 @@ fun CalendarScreen(onBack: () -> Unit) {
         item {
             // 누적 대시보드 — 카드 1장: 좌측 큰 총점, 우측 2×2 (상점/완주율 · 벌점/노쇼율).
             // 연속달성·태그 분포는 상단 헤더 카드로 이사했다 (iOS 1:1).
-            TLEyebrow("누적 대시보드")
+            TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cumulative_dashboard))
             val done = finished.size
             val successes = finished.count { it.outcome!!.isSuccess }
             val noShows = finished.count { it.outcome == com.singlemarks.angrymoti.models.SessionOutcome.NO_SHOW }
@@ -205,12 +205,12 @@ fun CalendarScreen(onBack: () -> Unit) {
                     .background(TL.surface, TL.cornerL).padding(16.dp),
             ) {
                 Column {
-                    Text("총점", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.total_score), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text("$total", color = if (total >= 0) TL.jade else TL.rec,
                             fontSize = 36.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                        Text("점", color = TL.muted, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.pts_unit), color = TL.muted, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 4.dp, bottom = 5.dp))
                     }
                 }
@@ -218,13 +218,13 @@ fun CalendarScreen(onBack: () -> Unit) {
                 Column(horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                        MiniStat("총 상점", "$plus", TL.jade)
-                        MiniStat("완주율", "$completeRate%", TL.jade)
+                        MiniStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.total_points), "$plus", TL.jade)
+                        MiniStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.completion_rate), "$completeRate%", TL.jade)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                         // 벌점은 빨간색이 이미 '깎였다'를 말하므로 절대값으로 표기
-                        MiniStat("총 벌점", "${kotlin.math.abs(minusSum)}", TL.rec)
-                        MiniStat("노쇼율", "$noShowRate%", if (noShowRate > 0) TL.rec else TL.muted)
+                        MiniStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.total_penalty), "${kotlin.math.abs(minusSum)}", TL.rec)
+                        MiniStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_show_rate), "$noShowRate%", if (noShowRate > 0) TL.rec else TL.muted)
                     }
                 }
             }
@@ -296,7 +296,7 @@ private fun StreakHeaderCard(sessions: List<FocusSession>) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 좁은 화면에서 두 줄로 꺾이지 않게 — 라벨은 항상 한 줄 (홈 카드와 동일)
-                    Text("연속달성", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.streak), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         maxLines = 1, softWrap = false)
                     Spacer(Modifier.width(5.dp))
                     Image(painterResource(com.singlemarks.angrymoti.R.drawable.stat_fire), null,
@@ -306,19 +306,19 @@ private fun StreakHeaderCard(sessions: List<FocusSession>) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("${detail.first}", color = TL.jade, fontSize = 36.sp,
                         fontWeight = FontWeight.Black, maxLines = 1)
-                    Text("일", color = TL.muted, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.days_unit), color = TL.muted, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(start = 2.dp, bottom = 5.dp))
                 }
                 Spacer(Modifier.height(5.dp))
                 // "총 N시간 n분을 기록했어요!" — 1시간 미만도 0시간이 아니라 분으로 보인다
                 Row {
-                    Text("총 ", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.logged_prefix), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     hourMinuteParts(totalSeconds).forEachIndexed { i, (value, unit) ->
                         if (i > 0) Text(" ", fontSize = 13.sp)
                         Text(value, color = TL.jade, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         Text(unit, color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Text("을 기록했어요!", color = TL.muted, fontSize = 13.sp,
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.logged_suffix), color = TL.muted, fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold)
                 }
             }
@@ -327,8 +327,8 @@ private fun StreakHeaderCard(sessions: List<FocusSession>) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // 아이콘 배정: 최고기록 = 별(stat_average), 평균 일정 = 깃발(stat_record).
                 // 에셋 파일명과 화면 배정이 어긋나 있으니 이름만 보고 되돌리지 말 것 (iOS 동일).
-                SideStat("최고기록", com.singlemarks.angrymoti.R.drawable.stat_average, "$best", "일")
-                SideStat("평균 일정", com.singlemarks.angrymoti.R.drawable.stat_record, averageLabel, "개")
+                SideStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.best_streak), com.singlemarks.angrymoti.R.drawable.stat_average, "$best", androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.days_unit))
+                SideStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.avg_per_day), com.singlemarks.angrymoti.R.drawable.stat_record, averageLabel, androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.count_unit))
             }
         }
 
@@ -388,7 +388,7 @@ private fun TagDonut(byTag: List<Pair<String, Int>>) {
     val segments = remember(byTag) {
         val rows = byTag.take(4).toMutableList()
         val rest = byTag.drop(4).sumOf { it.second }
-        if (rest > 0) rows.add("그 외" to rest)
+        if (rest > 0) rows.add(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.other_tag) to rest)
         var fallbackIndex = 0
         rows.map { (name, seconds) ->
             val color = tagTint(name) ?: fallbackPalette[fallbackIndex++ % fallbackPalette.size]
@@ -401,8 +401,8 @@ private fun TagDonut(byTag: List<Pair<String, Int>>) {
     fun hoursMinutes(seconds: Int) = "%d:%02d".format(seconds / 3600, (seconds % 3600) / 60)
 
     Column(Modifier.fillMaxWidth()) {
-        Text("태그별 시간 분포", color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Text("(시간 : 분)", color = TL.faint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.time_by_tag), color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.h_m_note), color = TL.faint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(14.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -453,10 +453,10 @@ private fun TagDonut(byTag: List<Pair<String, Int>>) {
                         tint = TL.faint, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.height(3.dp))
                     Row {
-                        Text("총 ", color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.total_prefix), color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.Black)
                         Text("%,d".format(totalSeconds / 60), color = TL.jade,
                             fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                        Text("분", color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.m_unit), color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }
@@ -513,25 +513,25 @@ private fun DayDetailSheet(
                             expanded = if (allOpen) emptySet() else ordered.map { it.id }.toSet()
                         },
                         contentAlignment = Alignment.Center) {
-                        Text("모두 펼치기", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.expand_all), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                             color = androidx.compose.ui.graphics.Color.Transparent)   // 폭 기준
-                        Text(if (allOpen) "모두 접기" else "모두 펼치기",
+                        Text(if (allOpen) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.collapse_all) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.expand_all),
                             color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                             maxLines = 1)
                     }
                 }
                 Text(dayTitle, color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.align(Alignment.Center))
-                Text("닫기", color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.close), color = TL.muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.align(Alignment.CenterEnd).clickable(onClick = onClose))
             }
         }
         item {
             // 상단 합계 — 성적표 헤더 (iOS summaryHeader 1:1)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryChip("+$dayReward", "상점", TL.jade, Modifier.weight(1f))
-                SummaryChip("$dayPenalty", "벌점", TL.rec, Modifier.weight(1f))
-                SummaryChip("${dayReward + dayPenalty}", "합계",
+                SummaryChip("+$dayReward", androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.points), TL.jade, Modifier.weight(1f))
+                SummaryChip("$dayPenalty", androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.penalty), TL.rec, Modifier.weight(1f))
+                SummaryChip("${dayReward + dayPenalty}", androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.total),
                     if (dayReward + dayPenalty >= 0) TL.paper else TL.rec, Modifier.weight(1f))
             }
             Spacer(Modifier.height(16.dp))
@@ -642,7 +642,7 @@ private fun ReportRow(
                     Text(it, color = TL.amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                 }
-                Text("순수 촬영 ${TLFormat.hms(s.recordedSeconds.toLong())} / 목표 ${TLFormat.hms(s.targetSeconds.toLong())}",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.recorded_target, TLFormat.hms(s.recordedSeconds.toLong()), TLFormat.hms(s.targetSeconds.toLong())),
                     color = TL.muted, fontSize = 12.sp)
             }
         }
