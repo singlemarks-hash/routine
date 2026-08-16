@@ -134,15 +134,15 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(60.dp))
-        Text("활동 시간!", color = TL.rec, fontSize = 34.sp, fontWeight = FontWeight.Black)
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.alarm_time_title), color = TL.rec, fontSize = 34.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(10.dp))
         Text(r.name, color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text("${TLFormat.durationLabel(r.durationMinutes)} · ${CanonicalTag.label(r.tag)}", color = TL.muted, fontSize = 15.sp)
         Spacer(Modifier.height(30.dp))
         Text(TLFormat.hms(remaining.toLong()), color = TL.amber, fontSize = 44.sp, fontWeight = FontWeight.Black)
-        Text("이 안에 촬영을 시작하지 않으면 노쇼로 기록됩니다", color = TL.muted, fontSize = 13.sp)
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_show_if_not_started), color = TL.muted, fontSize = 13.sp)
         Spacer(Modifier.weight(1f))
-        TLPrimaryButton("촬영 준비") {
+        TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.get_ready_short)) {
             AppState.beginRecording(context, PendingSession(
                 activityName = r.name, tag = r.tag, targetSeconds = r.durationMinutes * 60,
                 reservationId = r.id, scheduledAt = fireAt,
@@ -152,7 +152,7 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
         Spacer(Modifier.height(12.dp))
         // 벌점 액수는 시트 안에서 사유와 함께 안내한다 — 여기서도 적으면 같은 숫자가
         // 두 번 나온다 (iOS는 진입 버튼에 숫자를 두지 않는다).
-        Text("일정 취소", color = TL.muted, fontSize = 14.sp,
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_schedule), color = TL.muted, fontSize = 14.sp,
             modifier = Modifier.clickable {
                 // 취소를 고민하는 동안에는 알람을 멈춘다 — 시트 위에서 계속 울리면
                 // 사유를 입력할 수 없다. '돌아가기'(시트 닫기)면 다시 울린다 (iOS 1:1).
@@ -179,7 +179,7 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
                 if (sel == CANCEL_REASON_ETC) customReason.trim().ifBlank { null } else sel
             }
             Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 20.dp)) {
-                Text("취소 사유를 선택해주세요", color = TL.paper, fontSize = 20.sp,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.select_cancel_reason), color = TL.paper, fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
 
                 Spacer(Modifier.height(16.dp))
@@ -190,7 +190,7 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
                 if (selectedReason == CANCEL_REASON_ETC) {
                     OutlinedTextField(customReason, { customReason = it },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        placeholder = { Text("사유를 입력하세요", color = TL.faint) },
+                        placeholder = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.enter_reason), color = TL.faint) },
                         shape = TL.cornerM,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = TL.surface, unfocusedContainerColor = TL.surface,
@@ -209,25 +209,26 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
                     // 전역 강도로 계산하면 미친맛 활동에서 안내와 실제가 어긋난다 (iOS 1:1).
                     val penalty = ScoreRules.points(SessionOutcome.EMERGENCY,
                         r.intensityOverride ?: AppState.intensity.value, r.durationMinutes)?.second ?: -10
-                    Text("취소하면 벌점 ${penalty}점이 사유와 함께 기록됩니다.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_penalty_note, penalty),
                         color = TL.rec, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 Spacer(Modifier.height(24.dp))
-                TLPrimaryButton("벌점 확인 · 일정 취소", enabled = finalReason != null) {
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.confirm_penalty_cancel), enabled = finalReason != null) {
                     finalReason?.let { AppState.cancelSchedule(context, r, fireAt, it) }
                 }
                 Spacer(Modifier.height(10.dp))
-                TLGhostButton("돌아가기 — 알람 다시 울리기", tint = TL.muted) { resume() }
+                TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.go_back_resume_alarm), tint = TL.muted) { resume() }
             }
         }
     }
 }
 
 // 취소 사유 프리셋 — iOS AlarmView.CancelReasonSheet와 문구·순서 동일
-private const val CANCEL_REASON_ETC = "기타"
+// 게터인 이유: 상수로 캡처하면 로케일 전환 후 비교(센티널)와 표시가 서로 다른 언어 값이 된다
+private val CANCEL_REASON_ETC: String get() = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.other_etc)
 // 정본 코드로 저장 — 표시 문구는 CancelReason.label() ('기타'는 UI 전용 항목)
-private val CANCEL_REASON_PRESETS = CancelReason.presets + CANCEL_REASON_ETC
+private val CANCEL_REASON_PRESETS: List<String> get() = CancelReason.presets + CANCEL_REASON_ETC
 
 /** 취소 사유 한 줄 — 선택 시 채워진 체크 원 + 밝은 서피스 (iOS reasonRow 1:1) */
 @Composable
@@ -423,7 +424,7 @@ fun MountGuideScreen(pending: PendingSession) {
     val orientationRow: @Composable () -> Unit = {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.background(TL.ink.copy(alpha = 0.55f), CircleShape).padding(5.dp)) {
-                listOf(true to "세로", false to "가로").forEach { (isPortrait, label) ->
+                listOf(true to androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.portrait), false to androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.landscape)).forEach { (isPortrait, label) ->
                     val selected = portrait == isPortrait
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -448,14 +449,14 @@ fun MountGuideScreen(pending: PendingSession) {
                     .clickable { if (countdown == null) CameraRecorder.flipCamera(context) },
                 contentAlignment = Alignment.Center,
             ) {
-                androidx.compose.material3.Icon(AppIcon.SwitchCamera, "카메라 전환",
+                androidx.compose.material3.Icon(AppIcon.SwitchCamera, androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.switch_camera),
                     tint = TL.paper, modifier = Modifier.size(20.dp))
             }
         }
     }
     // compact = 가로용 축소 타이포 (한 화면에 담기 위한 리밸런싱)
     val header: @Composable (Boolean) -> Unit = { compact ->
-        Text("거치 가이드", color = TL.amber, fontSize = if (compact) 12.sp else 13.sp,
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.setup_guide), color = TL.amber, fontSize = if (compact) 12.sp else 13.sp,
             fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
         Spacer(Modifier.height(4.dp))
         Text(pending.activityName, color = TL.paper,
@@ -464,8 +465,7 @@ fun MountGuideScreen(pending: PendingSession) {
             Spacer(Modifier.height(4.dp))
             // 남은 시간은 경고 문구 안에서 흐른다. 큰 타이머를 줄로 따로 세우면 헤더가
             // 한 줄 늘어 아래 요소가 밀리고 가로에서 버튼이 화면 밖으로 나간다 (iOS 사고 이력).
-            Text("%02d:%02d 안에 시작하지 않으면 노쇼처리됩니다"
-                    .format(remainingSeconds / 60, remainingSeconds % 60),
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.noshow_countdown, remainingSeconds / 60, remainingSeconds % 60),
                 color = TL.rec, fontSize = if (compact) 12.sp else 14.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -481,12 +481,12 @@ fun MountGuideScreen(pending: PendingSession) {
         countdown = 3
     }
     val checklistAndStart: @Composable () -> Unit = {
-        MountCheckRow("거치대에 폰을 고정했어요", check1) { if (countdown == null) check1 = !check1 }
+        MountCheckRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.mounted_check), check1) { if (countdown == null) check1 = !check1 }
         Spacer(Modifier.height(10.dp))
-        MountCheckRow("구도 안에 내가 보여요", check2) { if (countdown == null) check2 = !check2 }
+        MountCheckRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.visible_check), check2) { if (countdown == null) check2 = !check2 }
         Spacer(Modifier.height(14.dp))
         TLPrimaryButton(
-            if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
+            if (countdown != null) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.starting_shortly) else "◉  " + androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_recording),
             enabled = check1 && check2 && countdown == null,
         ) { startCountdown() }
         Spacer(Modifier.height(10.dp))
@@ -498,7 +498,7 @@ fun MountGuideScreen(pending: PendingSession) {
                 .padding(vertical = 13.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text("취소하기",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_action),
                 color = if (countdown == null) TL.paper else TL.faint,
                 fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         }
@@ -522,7 +522,7 @@ fun MountGuideScreen(pending: PendingSession) {
                 // 안내 문구 — 방향·전환 아이콘 바로 아래, 가운데 정렬(Column 중앙). 프레임과 넉넉히 떨어져 간섭 없음.
                 // 배경 캡슐 없이 반투명 글씨만 — 프리뷰 위에 자연스럽게 얹힌다.
                 Spacer(Modifier.height(16.dp))
-                Text("영역 안에 내 모습이 보이도록 고정",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.position_in_frame),
                     color = Color.White.copy(alpha = 0.75f),
                     fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))   // 가운데는 점선 프레임(별도 레이어)이 차지한다
@@ -538,7 +538,7 @@ fun MountGuideScreen(pending: PendingSession) {
                 // 좌: 프리뷰 영역 — 상단 중앙에 안내 문구 (우측 패널과 간섭 없음)
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     // 배경 캡슐 없이 반투명 글씨만 — 프리뷰 위에 자연스럽게 (세로와 동일)
-                    Text("영역 안에 내 모습이 보이도록 고정",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.position_in_frame),
                         color = Color.White.copy(alpha = 0.75f),
                         fontSize = 12.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier
@@ -558,11 +558,11 @@ fun MountGuideScreen(pending: PendingSession) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) { header(true) }
                     orientationRow()
                     Column(Modifier.fillMaxWidth()) {
-                        MountCheckRow("거치대에 폰을 고정했어요", check1, compact = true) {
+                        MountCheckRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.mounted_check), check1, compact = true) {
                             if (countdown == null) check1 = !check1
                         }
                         Spacer(Modifier.height(8.dp))
-                        MountCheckRow("구도 안에 내가 보여요", check2, compact = true) {
+                        MountCheckRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.visible_check), check2, compact = true) {
                             if (countdown == null) check2 = !check2
                         }
                     }
@@ -579,12 +579,12 @@ fun MountGuideScreen(pending: PendingSession) {
                                 .padding(vertical = 15.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("취소하기", color = if (countdown == null) TL.paper else TL.faint,
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_action), color = if (countdown == null) TL.paper else TL.faint,
                                 fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                         }
                         Box(Modifier.weight(1.4f)) {
                             TLPrimaryButton(
-                                if (countdown != null) "곧 시작합니다…" else "◉  촬영 시작",
+                                if (countdown != null) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.starting_shortly) else "◉  " + androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_recording),
                                 enabled = check1 && check2 && countdown == null,
                             ) { startCountdown() }
                         }
@@ -601,10 +601,10 @@ fun MountGuideScreen(pending: PendingSession) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = TL.rec)
                         Spacer(Modifier.height(10.dp))
-                        Text("카메라 준비 중…", color = TL.paper, fontSize = 15.sp)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.preparing_camera), color = TL.paper, fontSize = 15.sp)
                     }
                 } else {
-                    Text(if (c == 0) "시작!" else "$c", color = TL.paper,
+                    Text(if (c == 0) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.go_label) else "$c", color = TL.paper,
                         fontSize = 84.sp, fontWeight = FontWeight.Black)
                 }
             }
@@ -614,10 +614,9 @@ fun MountGuideScreen(pending: PendingSession) {
         // 촬영이 아예 불가능한 상황이라 '닫기'는 거치 가이드를 정리하고 나간다.
         if (showCameraBlocked) {
             TLSettingsDialog(
-                title = "카메라 권한이 필요해요",
-                message = "타임랩스를 촬영하려면 카메라 접근을 허용해야 합니다. " +
-                    "설정 → 권한에서 카메라를 켜주세요.",
-                dismissLabel = "닫기",
+                title = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.camera_access_needed),
+                message = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.camera_perm_message),
+                dismissLabel = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.close),
                 onConfirm = {
                     showCameraBlocked = false
                     Permissions.openAppSettings(context)
@@ -747,7 +746,7 @@ fun SessionScreen() {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             SessionSquareButton(
                 icon = AppIcon.BellOff,
-                label = if (muted) "차단 중" else "알림 허용",
+                label = if (muted) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.muted) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.alerts_on),
                 active = muted,
             ) {
                 if (muted) {
@@ -770,7 +769,7 @@ fun SessionScreen() {
             // UI가 눌리는 척하면 거짓말이다 (iOS '긴급 소진' 비활성 1:1)
             val budgetExhausted = intensity == Intensity.SPICY && budget <= 0L
             SessionSquareButton(icon = AppIcon.Siren,
-                label = if (budgetExhausted) "긴급 소진" else "긴급중단", active = false) {
+                label = if (budgetExhausted) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.emergency_used_up) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.emergency_break_short), active = false) {
                 if (budgetExhausted) return@SessionSquareButton
                 if (intensity == Intensity.SPICY && phase == SessionEngine.Phase.Recording) {
                     SessionEngine.startBreak()
@@ -794,7 +793,7 @@ fun SessionScreen() {
                 Text(s?.activityName ?: "", color = TL.paper, fontSize = 22.sp, fontWeight = FontWeight.Black)
                 if (oneMinuteWarning) {
                     Spacer(Modifier.height(4.dp))
-                    Text("1분 뒤 자동 종료됩니다", color = TL.jade, fontSize = 12.sp,
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.auto_end_1min), color = TL.jade, fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.weight(1f))
@@ -862,18 +861,18 @@ fun SessionScreen() {
                 Column(
                     Modifier.fillMaxWidth().background(TL.amber, TL.cornerM).padding(12.dp),
                 ) {
-                    Text("자리비움 감지 · ${minOf(episodes, AbsencePolicy.MAX_EPISODES)}/${AbsencePolicy.MAX_EPISODES}",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.absence_detected, minOf(episodes, AbsencePolicy.MAX_EPISODES), AbsencePolicy.MAX_EPISODES),
                         color = TL.ink, fontSize = 14.sp, fontWeight = FontWeight.Black)
                     Text(
                         when {
                             intensity == Intensity.INSANE && episodes >= AbsencePolicy.MAX_EPISODES ->
-                                "마지막 경고 — 다음 자리비움은 알림 없이 즉시 실패합니다"
+                                androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.absence_final_insane)
                             intensity == Intensity.INSANE ->
-                                "2분 안에 돌아오세요 — 초과 시 즉시 실패 (경고는 ${AbsencePolicy.MAX_EPISODES}번까지)"
+                                androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.absence_warn_insane, AbsencePolicy.MAX_EPISODES)
                             episodes >= AbsencePolicy.MAX_EPISODES ->
-                                "마지막 경고 — 다음 자리비움은 알림 없이 자동 긴급 중단됩니다"
+                                androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.absence_final_spicy)
                             else ->
-                                "2분 안에 돌아오세요 — 초과 시 자동 긴급 중단 (경고는 ${AbsencePolicy.MAX_EPISODES}번까지)"
+                                androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.absence_warn_spicy, AbsencePolicy.MAX_EPISODES)
                         },
                         color = TL.ink.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     )
@@ -918,17 +917,17 @@ fun SessionScreen() {
                         modifier = Modifier.padding(horizontal = 34.dp)) {
                         Text(TLFormat.hms(left.toLong()), color = TL.paper,
                             fontSize = timerFont, fontWeight = FontWeight.Black, maxLines = 1)
-                        Text("안에 재촬영을 시작하세요", color = TL.muted, fontSize = 12.sp,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.to_resume_recording), color = TL.muted, fontSize = 12.sp,
                             maxLines = 1, textAlign = TextAlign.Center)
                     }
                 }
             }
             val resumeButton: @Composable () -> Unit = {
-                TLPrimaryButton("◉  지금 재촬영 시작") { SessionEngine.resumeFromBreak() }
+                TLPrimaryButton("◉  " + androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.resume_recording_now)) { SessionEngine.resumeFromBreak() }
             }
             // 실수로 종료되는 것 방지 — 재확인 다이얼로그 후에만 세션 포기
             val quitButton: @Composable () -> Unit = {
-                TLGhostButton("세션 포기 — 벌점 받기", tint = TL.muted) {
+                TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.give_up_penalty), tint = TL.muted) {
                     showQuitConfirm = true
                 }
             }
@@ -941,10 +940,10 @@ fun SessionScreen() {
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
                     ) {
-                        Text("촬영 일시중단", color = TL.amber, fontSize = 13.sp,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.recording_paused), color = TL.amber, fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
                         Spacer(Modifier.height(6.dp))
-                        Text(if (breakNote == null) "긴급 용무 중" else "촬영이 중단됐어요",
+                        Text(if (breakNote == null) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.on_emergency_break) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.recording_interrupted),
                             color = TL.paper, fontSize = 28.sp, fontWeight = FontWeight.Black)
                         breakNote?.let {
                             Spacer(Modifier.height(10.dp))
@@ -954,10 +953,10 @@ fun SessionScreen() {
                         Spacer(Modifier.height(36.dp))
                         breakRing(300.dp, 56.sp)
                         Spacer(Modifier.height(32.dp))
-                        Text("총 ${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하면 벌점이 없습니다.\n시간이 지나면 벌점과 함께 세션이 종료됩니다.",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.resume_total_note, TimePolicy.RESUME_WINDOW_MINUTES),
                             color = TL.muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
                         Spacer(Modifier.height(12.dp))
-                        Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.emergency_time_continues),
                             color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(36.dp))
                         resumeButton()
@@ -976,10 +975,10 @@ fun SessionScreen() {
                             verticalArrangement = Arrangement.Center,
                         ) {
                             // 가로는 링이 주인공 — 제목을 줄이고 링을 키운다
-                            Text("촬영 일시중단", color = TL.amber, fontSize = 11.sp,
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.recording_paused), color = TL.amber, fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
                             Spacer(Modifier.height(4.dp))
-                            Text(if (breakNote == null) "긴급 용무 중" else "촬영이 중단됐어요",
+                            Text(if (breakNote == null) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.on_emergency_break) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.recording_interrupted),
                                 color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Black)
                             breakNote?.let {
                                 Spacer(Modifier.height(6.dp))
@@ -992,10 +991,10 @@ fun SessionScreen() {
                         Column(
                             Modifier.weight(1f), verticalArrangement = Arrangement.Center,
                         ) {
-                            Text("총 ${TimePolicy.RESUME_WINDOW_MINUTES}분 안에 재촬영을 시작하면 벌점이 없습니다. 시간이 지나면 벌점과 함께 세션이 종료됩니다.",
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.resume_total_note_inline, TimePolicy.RESUME_WINDOW_MINUTES),
                                 color = TL.muted, fontSize = 13.sp, lineHeight = 20.sp)
                             Spacer(Modifier.height(10.dp))
-                            Text("긴급 용무 시간은 리셋되지 않고, 계속 이어집니다",
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.emergency_time_continues),
                                 color = TL.amber, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(20.dp))
                             resumeButton()
@@ -1013,17 +1012,17 @@ fun SessionScreen() {
     if (showEmergency) {
         ModalBottomSheet(onDismissRequest = { showEmergency = false }, containerColor = TL.ink) {
             Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-                Text("긴급 종료", color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.emergency_end), color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(10.dp))
-                Text("미친 매운맛은 사유 없이 즉시 종료되며 '긴급'으로 구분 표시되고 벌점이 부과됩니다.",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.insane_emergency_note),
                     color = TL.muted, fontSize = 14.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(18.dp))
-                TLPrimaryButton("긴급 종료") {
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.emergency_end)) {
                     showEmergency = false
                     SessionEngine.emergencyEnd(null)
                 }
                 Spacer(Modifier.height(10.dp))
-                TLGhostButton("계속 진행", tint = TL.muted) { showEmergency = false }
+                TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.keep_going), tint = TL.muted) { showEmergency = false }
             }
         }
     }
@@ -1032,17 +1031,17 @@ fun SessionScreen() {
     if (showQuitConfirm) {
         ModalBottomSheet(onDismissRequest = { showQuitConfirm = false }, containerColor = TL.ink) {
             Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-                Text("세션을 포기할까요?", color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.give_up_session_q), color = TL.paper, fontSize = 19.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(10.dp))
-                Text("지금 포기하면 벌점이 부과되고 되돌릴 수 없습니다.",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.give_up_warning),
                     color = TL.muted, fontSize = 14.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(18.dp))
-                TLPrimaryButton("세션 포기 — 벌점 받기") {
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.give_up_penalty)) {
                     showQuitConfirm = false
                     SessionEngine.emergencyEnd(CancelReason.EMERGENCY_ONGOING)
                 }
                 Spacer(Modifier.height(10.dp))
-                TLGhostButton("계속 진행", tint = TL.muted) { showQuitConfirm = false }
+                TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.keep_going), tint = TL.muted) { showQuitConfirm = false }
             }
         }
     }
@@ -1087,11 +1086,11 @@ fun SessionResultScreen() {
                 if (outcome.isSuccess && (slotBonus != null || unlockBonus != null)) ConfettiBurst()
             }
             Spacer(Modifier.height(12.dp))
-            Text(if (outcome == SessionOutcome.EMERGENCY) "긴급 종료됨" else outcome.title,
+            Text(if (outcome == SessionOutcome.EMERGENCY) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ended_by_emergency) else outcome.title,
                 color = TL.paper, fontSize = 30.sp, fontWeight = FontWeight.Black)
             Text(session.activityName, color = TL.muted, fontSize = 15.sp)
             Spacer(Modifier.height(12.dp))
-            Text("순수 촬영 ${TLFormat.hms(session.recordedSeconds.toLong())} / 목표 ${TLFormat.hms(session.targetSeconds.toLong())}",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.recorded_target, TLFormat.hms(session.recordedSeconds.toLong()), TLFormat.hms(session.targetSeconds.toLong())),
                 color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(12.dp))
             ScoreRules.points(outcome, session.intensity, session.targetSeconds / 60)?.let { (_, pts) ->
@@ -1099,7 +1098,7 @@ fun SessionResultScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        if (pts >= 0) "+${pts}점 적립" else "${pts}점 벌점",
+                        if (pts >= 0) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.pts_earned, pts) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.pts_penalty, pts),
                         color = if (pts >= 0) TL.jade else TL.rec,
                         fontSize = 14.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.background(TL.surface, CircleShape)
@@ -1109,22 +1108,22 @@ fun SessionResultScreen() {
                         val events by AppDb.get(context).scores()
                             .allFlow(AccountStore.currentUserID)
                             .collectAsStateWithLifecycle(initialValue = emptyList())
-                        Text("누적 벌점 ${events.count { it.points < 0 }}회", color = TL.rec,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.penalty_count, events.count { it.points < 0 }), color = TL.rec,
                             fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
-            } ?: Text("벌점 없음", color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            } ?: Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_penalty), color = TL.amber, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
 
             slotBonus?.let { (days, pts) ->
                 Spacer(Modifier.height(10.dp))
-                Text("🎉 연속 ${days}일 달성! 보너스 상점 +$pts", color = TL.ink,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slot_bonus_msg, days, pts), color = TL.ink,
                     fontSize = 13.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.background(TL.amber, CircleShape)
                         .padding(horizontal = 14.dp, vertical = 8.dp))
             }
             unlockBonus?.let { pts ->
                 Spacer(Modifier.height(8.dp))
-                Text("🔥 미친 매운맛 잠금 해제! 보너스 상점 +$pts", color = TL.paper,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.unlock_bonus_msg, pts), color = TL.paper,
                     fontSize = 13.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.background(TL.rec, CircleShape)
                         .padding(horizontal = 14.dp, vertical = 8.dp))
@@ -1134,7 +1133,7 @@ fun SessionResultScreen() {
             session.videoFileName?.let {
                 Spacer(Modifier.height(18.dp))
                 TLCard(raised = true) {
-                    TLEyebrow("타임랩스 미리보기")
+                    TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.timelapse_preview))
                     // IO 스레드에서 디코드 — 컴포지션 중 파일 디코드는 프레임 드랍을 만든다
                     val thumb = session.thumbnailFileName?.let { name ->
                         androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, name) {
@@ -1201,8 +1200,8 @@ fun SessionResultScreen() {
                                                 saving = false
                                                 if (ok) saved = true
                                                 android.widget.Toast.makeText(context,
-                                                    if (ok) "갤러리에 저장했어요 (Movies/AngryMoti)"
-                                                    else "저장에 실패했어요 — 다시 시도해주세요",
+                                                    if (ok) com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.saved_to_gallery)
+                                                    else com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.save_failed),
                                                     android.widget.Toast.LENGTH_SHORT).show()
                                             }
                                         }
@@ -1219,14 +1218,14 @@ fun SessionResultScreen() {
                             } else {
                                 androidx.compose.material3.Icon(
                                     if (saved) AppIcon.Check else AppIcon.ArrowDownToLine,
-                                    "갤러리에 저장",
+                                    androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.save_to_gallery),
                                     tint = TL.ink,
                                     modifier = Modifier.size(21.dp))
                             }
                         }
                     }
                     Spacer(Modifier.height(10.dp))
-                    Text("저장하지 않으면 닫을 때 삭제됩니다. 기록·점수는 유지됩니다.",
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.unsaved_delete_note),
                         color = TL.faint, fontSize = 12.sp)
                 }
             }
@@ -1235,7 +1234,7 @@ fun SessionResultScreen() {
 
         // 하단 고정 버튼 — 저장은 미리보기 우측 상단 다운로드 버튼이 담당 (iOS 1:1)
         Column(Modifier.padding(horizontal = 24.dp)) {
-            TLPrimaryButton("종료", tint = TL.amber) {
+            TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.done_label), tint = TL.amber) {
                 // 영상만 지운다 — 썸네일은 캘린더 '이 날의 기록'이 계속 쓰므로 보존한다.
                 // 화면 문구 "기록·점수는 유지됩니다"와도 이쪽이 맞다 (iOS 1:1).
                 // DB의 videoFileName도 비워 죽은 파일명이 남지 않게 한다.
