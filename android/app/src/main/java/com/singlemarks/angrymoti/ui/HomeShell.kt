@@ -171,7 +171,7 @@ fun HomeShell() {
                 val isPro by com.singlemarks.angrymoti.services.SubscriptionManager.isPro.collectAsState()
                 Image(
                     painterResource(if (isPro) R.drawable.profile_member else R.drawable.profile),
-                    contentDescription = "마이페이지",
+                    contentDescription = androidx.compose.ui.res.stringResource(R.string.my_page),
                     modifier = Modifier.height(45.dp)
                         .width(if (isPro) 70.dp else 47.dp)   // 45 × (31/20), 45 × (21/20)
                         .clip(RoundedCornerShape(12.dp))
@@ -223,13 +223,13 @@ fun HomeShell() {
             val user by AccountStore.user.collectAsState()
             val isGuest = user?.provider == "guest"
             (if (isGuest) listOf(
-                Triple("activity", "활동", AppIcon.CircleDot),
-                Triple("schedule", "일정", AppIcon.Clock),
+                Triple("activity", androidx.compose.ui.res.stringResource(R.string.tab_focus), AppIcon.CircleDot),
+                Triple("schedule", androidx.compose.ui.res.stringResource(R.string.tab_plan), AppIcon.Clock),
             ) else listOf(
                 // 그룹 챌린지는 계정 필요 — 게스트에겐 탭 자체를 숨긴다 (iOS 동일)
-                Triple("activity", "활동", AppIcon.CircleDot),
-                Triple("schedule", "일정", AppIcon.Clock),
-                Triple("group", "그룹", AppIcon.Users),
+                Triple("activity", androidx.compose.ui.res.stringResource(R.string.tab_focus), AppIcon.CircleDot),
+                Triple("schedule", androidx.compose.ui.res.stringResource(R.string.tab_plan), AppIcon.Clock),
+                Triple("group", androidx.compose.ui.res.stringResource(R.string.tab_groups), AppIcon.Users),
             )).forEach { (key, label, icon) ->
                 val selected = tab == key
                 Row(
@@ -255,19 +255,19 @@ fun HomeShell() {
             // 입력 중 재생성돼도 쓰던 문구를 잃지 않게 saveable
             var draft by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(goalText) }
             Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-                Text("나의 다짐", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                Text(androidx.compose.ui.res.stringResource(R.string.my_commitment), color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(16.dp))
                 androidx.compose.material3.OutlinedTextField(
                     draft, { draft = it }, modifier = Modifier.fillMaxWidth(),
                     minLines = 3, maxLines = 5,
-                    placeholder = { Text("예: 올해는 매일 2시간씩 공부한다", color = TL.faint) },
+                    placeholder = { Text(androidx.compose.ui.res.stringResource(R.string.commitment_placeholder), color = TL.faint) },
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
                         focusedBorderColor = TL.rec, unfocusedBorderColor = TL.hairline,
                         cursorColor = TL.rec),
                 )
                 Spacer(Modifier.height(16.dp))
-                TLPrimaryButton("저장") {
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(R.string.save)) {
                     AccountStore.saveHomeGoal(draft.trim())   // 로컬+flow+클라우드 한 번에
                     showGoalEditor = false
                 }
@@ -360,10 +360,10 @@ private fun ActivityTab(
                 if (goal.isEmpty()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(16.dp)) {
-                        Text("나의 다짐, 목표를 적어보세요",
+                        Text(androidx.compose.ui.res.stringResource(R.string.commitment_empty),
                             color = TL.faint, fontSize = 17.sp, fontWeight = FontWeight.Black)
                         Spacer(Modifier.height(6.dp))
-                        Text("탭해서 작성", color = TL.faint, fontSize = 12.sp)
+                        Text(androidx.compose.ui.res.stringResource(R.string.tap_to_write), color = TL.faint, fontSize = 12.sp)
                     }
                 } else {
                     Text(goal, color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black,
@@ -373,7 +373,7 @@ private fun ActivityTab(
                 }
             }
         }
-        item { TLPrimaryButton("활동 추가하기", onClick = onAdd) }
+        item { TLPrimaryButton(androidx.compose.ui.res.stringResource(R.string.add_activity), onClick = onAdd) }
         // 멤버십 무료 체험 배너 — 무료 회원 전용 (iOS 홈 1:1)
         if (showsTrialInvite) {
             item {
@@ -410,7 +410,7 @@ private fun ActivityTab(
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text("마음껏 멤버십 기능 체험하기",
+                            Text(androidx.compose.ui.res.stringResource(R.string.try_premium_free),
                                 color = TL.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             trial?.let {
                                 Spacer(Modifier.width(6.dp))
@@ -419,7 +419,7 @@ private fun ActivityTab(
                             }
                         }
                         Spacer(Modifier.height(3.dp))
-                        Text("모든 프리미엄 기능을 경험해 보세요!",
+                        Text(androidx.compose.ui.res.stringResource(R.string.try_all_premium),
                             color = TL.ink.copy(alpha = 0.68f), fontSize = 13.sp,
                             fontWeight = FontWeight.Normal)
                     }
@@ -441,7 +441,7 @@ private fun ActivityTab(
                     .padding(horizontal = 20.dp, vertical = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("지금 바로 시작", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(androidx.compose.ui.res.stringResource(R.string.quick_start), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 androidx.compose.material3.Icon(
                     AppIcon.ChevronRight,
@@ -450,7 +450,7 @@ private fun ActivityTab(
         }
         item {
             Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
-                Text("오늘 예정된 활동", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                Text(androidx.compose.ui.res.stringResource(R.string.todays_activities), color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.width(8.dp))
                 val t = java.util.Calendar.getInstance().apply { timeInMillis = todayStart }
                 Text(TLFormat.monthDay(t.timeInMillis),
@@ -462,7 +462,7 @@ private fun ActivityTab(
         if (todayItems.isEmpty()) {
             item {
                 TLCard {
-                    Text("오늘은 예정된 활동이 없어요. 이번 주 계획은 일정 탭에서 확인할 수 있어요.",
+                    Text(androidx.compose.ui.res.stringResource(R.string.no_activities_today),
                         color = TL.muted, fontSize = 13.sp)
                 }
             }
@@ -482,10 +482,10 @@ private fun ActivityTab(
                     if (showsTimer) {
                         // 분단위 문구 — 1분 미만 "곧 시작", 그 외 "… 뒤 시작". 올림.
                         val secs = (next - now) / 1000
-                        val label = if (secs < 60) "곧 시작" else {
+                        val label = if (secs < 60) com.singlemarks.angrymoti.L10n.str(R.string.starting_soon) else {
                             val m = kotlin.math.ceil(secs / 60.0).toLong()
                             val time = TLFormat.durationLabel(m.toInt())
-                            "$time 뒤 시작"
+                            com.singlemarks.angrymoti.L10n.str(R.string.starts_in, time)
                         }
                         Text(label, color = TL.amber, fontSize = 13.sp,
                             fontWeight = FontWeight.Black, maxLines = 1)
@@ -539,7 +539,7 @@ private fun StreakCard(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 좁은 화면에서 두 줄로 꺾이지 않게 — 라벨은 항상 한 줄 (iOS와 동일)
-                Text("연속달성", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                Text(androidx.compose.ui.res.stringResource(R.string.streak), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, softWrap = false)
                 Spacer(Modifier.width(5.dp))
                 Image(painterResource(R.drawable.stat_fire), null, Modifier.size(15.dp))
@@ -548,7 +548,7 @@ private fun StreakCard(
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("$streak", color = TL.jade, fontSize = 38.sp, fontWeight = FontWeight.Black,
                     maxLines = 1)
-                Text("일", color = TL.muted, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                Text(androidx.compose.ui.res.stringResource(R.string.days_unit), color = TL.muted, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 6.dp, start = 2.dp))
             }
         }
@@ -606,7 +606,7 @@ private fun StreakCard(
 }
 
 fun nextLabel(next: Long?): String {
-    if (next == null) return "예정 없음"
+    if (next == null) return com.singlemarks.angrymoti.L10n.str(R.string.none_scheduled)
     val cal = java.util.Calendar.getInstance()
     val today = (cal.clone() as java.util.Calendar).apply {
         set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
@@ -615,7 +615,7 @@ fun nextLabel(next: Long?): String {
     val dayDiff = ((next - today) / 86_400_000L).toInt()
     val t = java.util.Calendar.getInstance().apply { timeInMillis = next }
     val minute = t.get(java.util.Calendar.HOUR_OF_DAY) * 60 + t.get(java.util.Calendar.MINUTE)
-    val prefix = when (dayDiff) { 0 -> "오늘"; 1 -> "내일"; else -> TLFormat.monthDay(t.timeInMillis) }
+    val prefix = when (dayDiff) { 0 -> com.singlemarks.angrymoti.L10n.str(R.string.today); 1 -> com.singlemarks.angrymoti.L10n.str(R.string.tomorrow); else -> TLFormat.monthDay(t.timeInMillis) }
     return "$prefix ${TLFormat.timeLabel(minute)}"
 }
 
@@ -633,8 +633,8 @@ fun repeatSuffix(r: Reservation): String {
     }
     // '매일' / '반복요일' 두 가지로만 표기 (기간이 짧으면 '매주'는 사실과 다름)
     return when {
-        r.repeatWeekdays.size == 7 -> " · 매일"
-        r.isRepeating -> " · 반복요일 " + weekdayLabel(r.repeatWeekdays)
+        r.repeatWeekdays.size == 7 -> " · " + com.singlemarks.angrymoti.L10n.str(R.string.daily)
+        r.isRepeating -> " · " + com.singlemarks.angrymoti.L10n.str(R.string.repeats_on, weekdayLabel(r.repeatWeekdays))
         else -> ""
     }
 }
@@ -646,12 +646,12 @@ private fun QuickStartSheet(onStart: (PendingSession) -> Unit) {
     var minutes by remember { mutableStateOf(60) }   // 기본 1시간 (iOS 1:1)
 
     Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-        Text("지금 바로 시작", color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
+        Text(androidx.compose.ui.res.stringResource(R.string.quick_start), color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(16.dp))
         // 라벨 없이 입력창·태그가 바로 이어진다 (iOS QuickStartSheet 1:1)
         androidx.compose.material3.OutlinedTextField(
             name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            placeholder = { Text("활동명 (예: 모의고사 풀기)", color = TL.faint) },
+            placeholder = { Text(androidx.compose.ui.res.stringResource(R.string.activity_name_placeholder), color = TL.faint) },
             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                 focusedTextColor = TL.paper, unfocusedTextColor = TL.paper,
                 focusedBorderColor = TL.rec, unfocusedBorderColor = TL.hairline, cursorColor = TL.rec),
@@ -666,9 +666,9 @@ private fun QuickStartSheet(onStart: (PendingSession) -> Unit) {
         }
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TLEyebrow("활동 시간")
+            TLEyebrow(androidx.compose.ui.res.stringResource(R.string.duration))
             Spacer(Modifier.weight(1f))
-            Text("완료 시 +${ScoreRules.completionBase(minutes)}점", color = TL.jade,
+            Text(androidx.compose.ui.res.stringResource(R.string.pts_on_completion, ScoreRules.completionBase(minutes)), color = TL.jade,
                 fontSize = 12.sp, fontWeight = FontWeight.Black,
                 modifier = Modifier.background(TL.jade.copy(alpha = 0.14f), CircleShape)
                     .padding(horizontal = 10.dp, vertical = 5.dp))
@@ -683,12 +683,12 @@ private fun QuickStartSheet(onStart: (PendingSession) -> Unit) {
             }
         }
         Spacer(Modifier.height(24.dp))
-        TLPrimaryButton("촬영 준비하기", enabled = name.isNotBlank()) {
+        TLPrimaryButton(androidx.compose.ui.res.stringResource(R.string.get_ready), enabled = name.isNotBlank()) {
             onStart(PendingSession(name.trim(), tag, minutes * 60))
         }
         // 경고는 버튼 아래 (iOS 1:1)
         if (name.isBlank()) {
-            Text("활동명을 입력해야 시작할 수 있습니다.", color = TL.amber, fontSize = 12.sp,
+            Text(androidx.compose.ui.res.stringResource(R.string.enter_activity_name), color = TL.amber, fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
         }
     }
