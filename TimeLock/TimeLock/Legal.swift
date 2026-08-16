@@ -11,13 +11,28 @@ import Foundation
 import SwiftUI
 
 enum Legal {
-    /// 이용약관 — 노션 공개 페이지 (App Store Connect의 EULA 필드에도 동일 주소 등록)
-    static let termsOfUseURL = URL(string:
-        "https://singlemark.notion.site/39f41b10f64b8026ab19cab6bf66ade2")!
+    /// 기기 언어가 한국어인가 (D1: ko 외에는 전부 영어)
+    private static var isKorean: Bool {
+        Locale.current.language.languageCode?.identifier == "ko"
+    }
 
-    /// 개인정보처리방침 — 노션 공개 페이지 (App Store Connect '개인정보처리방침 URL'에 동일 등록)
-    static let privacyPolicyURL = URL(string:
-        "https://singlemark.notion.site/39f41b10f64b80d2acaffcb5815106a9")!
+    /// 이용약관 — 노션 공개 페이지. 언어별 하위 페이지로 바로 보낸다.
+    /// App Store Connect의 EULA 필드에는 두 언어를 모두 담은 허브 페이지를 등록한다
+    /// (심사자가 어느 언어든 찾을 수 있도록):
+    /// https://singlemark.notion.site/Terms-of-Use-3be41b10f64b80edaf31da1742338b2c
+    static var termsOfUseURL: URL {
+        URL(string: isKorean
+            ? "https://singlemark.notion.site/39f41b10f64b8026ab19cab6bf66ade2"
+            : "https://singlemark.notion.site/Terms-of-Use-English-3be41b10f64b8016ba06e582c2a03caf")!
+    }
+
+    /// 개인정보처리방침 — 위와 동일. App Store Connect '개인정보처리방침 URL'에는 허브를 등록한다:
+    /// https://singlemark.notion.site/Privacy-Policy-3be41b10f64b80788968de130cb0a7d2
+    static var privacyPolicyURL: URL {
+        URL(string: isKorean
+            ? "https://singlemark.notion.site/39f41b10f64b80d2acaffcb5815106a9"
+            : "https://singlemark.notion.site/Privacy-Policy-English-3be41b10f64b80d99cc8d8ed818fc6ec")!
+    }
 
     /// 복원할 구독을 못 찾았을 때. 복원은 없는 구독을 만들어내지 못하므로 이건 정상 동작이지만,
     /// 암호까지 입력한 사용자에게 아무 반응이 없으면 고장으로 읽힌다.
