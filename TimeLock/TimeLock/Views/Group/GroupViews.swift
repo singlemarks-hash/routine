@@ -918,6 +918,7 @@ struct GroupRoomDetailView: View {
     @State private var confirmLeave = false
     @State private var confirmQuit = false
     @State private var confirmDisband = false
+    @State private var confirmHideFinished = false
     @State private var working = false
     @State private var leaveError: String?
     @State private var now = Date()
@@ -1325,12 +1326,17 @@ struct GroupRoomDetailView: View {
     @ViewBuilder
     private var actionSection: some View {
         if room.isFinished {
-            Button(working ? String(localized: "Leaving…") : String(localized: "Leave Room (results disappear from my list)")) {
-                // 다른 나가기 경로와 동일하게 — 성공했을 때만 닫는다.
-                Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
-            }
+            Button(working ? String(localized: "Leaving…") : String(localized: "Leave Room")) { confirmHideFinished = true }
             .buttonStyle(TLGhostButtonStyle())
             .disabled(working)
+            .confirmationDialog("Leave this room?", isPresented: $confirmHideFinished, titleVisibility: .visible) {
+                Button("Leave Room", role: .destructive) {
+                    // 다른 나가기 경로와 동일하게 — 성공했을 때만 닫는다.
+                    Task { await runLeaveAction { try await store.hideFinishedRoom(room: room) } }
+                }
+            } message: {
+                Text("This room disappears from your group list. Records and points you've earned are kept.")
+            }
         } else if room.status == "cancelled" || room.status == "disbanded" {
             // 이미 끝난 방 — 정리가 아직 안 됐을 뿐이다. 벌점 액션을 보이면 안 된다.
             Button(working ? String(localized: "Leaving…") : String(localized: "Leave Room")) {

@@ -5010,17 +5010,6 @@
         }
       }
     },
-    "Leave Room (results disappear from my list)": {
-      "extractionState": "manual",
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "방 나가기 (결과가 내 목록에서 사라져요)"
-          }
-        }
-      }
-    },
     "Leave Room": {
       "extractionState": "manual",
       "localizations": {
@@ -5513,6 +5502,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "그룹 '%@' 중도 포기"
+          }
+        }
+      }
+    },
+    "This room disappears from your group list. Records and points you've earned are kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그룹 목록에서 이 방이 사라집니다. 이미 받은 기록과 점수는 유지됩니다."
           }
         }
       }
