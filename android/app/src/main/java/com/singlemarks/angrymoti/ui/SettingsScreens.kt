@@ -56,11 +56,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 object Legal {
-    const val TERMS_URL = "https://singlemark.notion.site/39f41b10f64b8026ab19cab6bf66ade2"
-    const val PRIVACY_URL = "https://singlemark.notion.site/39f41b10f64b80d2acaffcb5815106a9"
-    const val SUBSCRIPTION_DISCLOSURE =
-        "앵그리모티 멤버십은 월 단위 자동 갱신 구독입니다. 현재 결제 기간이 끝나기 전에 해지하지 않으면 " +
-        "등록된 Google 계정으로 자동 갱신·청구됩니다. 구매 후 Play 스토어 구독 설정에서 언제든 관리·해지할 수 있습니다."
+    private val isKorean get() = java.util.Locale.getDefault().language == "ko"
+
+    /** 약관·개인정보 — 기기 언어에 맞는 노션 하위 페이지로 직행 (iOS Legal.swift 1:1).
+     *  스토어 콘솔에는 두 언어를 모두 담은 허브 페이지를 등록한다 — docs/법무-문서-색인.md */
+    val TERMS_URL get() = if (isKorean)
+        "https://singlemark.notion.site/39f41b10f64b8026ab19cab6bf66ade2"
+    else
+        "https://singlemark.notion.site/Terms-of-Use-English-3be41b10f64b8016ba06e582c2a03caf"
+    val PRIVACY_URL get() = if (isKorean)
+        "https://singlemark.notion.site/39f41b10f64b80d2acaffcb5815106a9"
+    else
+        "https://singlemark.notion.site/Privacy-Policy-English-3be41b10f64b80d99cc8d8ed818fc6ec"
+
+    // 게터인 이유: const는 컴파일 타임 상수만 허용되고, 객체 초기화 시점 캡처는
+    // 로케일 전환을 못 따라간다 (Play 필수 자동 갱신 고지 — 임의 수정 금지)
+    val SUBSCRIPTION_DISCLOSURE: String
+        get() = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.subscription_disclosure)
 }
 
 /** 마이페이지 — 메뉴 허브 */
@@ -89,15 +101,15 @@ fun MyPageScreen(onBack: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 24.dp)) {
             TLCircleBack(onClick = onBack)
             Spacer(Modifier.weight(1f))
-            Text("마이페이지", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.my_page), color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f)); Spacer(Modifier.width(44.dp))
         }
         // 아이콘 메뉴 (투명 행) — iOS와 동일 구성
-        IconMenuRow(AppIcon.UserRoundCheck, "프로필 및 구독 관리") { sub = "profile" }
-        IconMenuRow(AppIcon.Headphones, "고객센터") {
+        IconMenuRow(AppIcon.UserRoundCheck, androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.profile_subscription)) { sub = "profile" }
+        IconMenuRow(AppIcon.Headphones, androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.support)) {
             context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:singlemarks@gmail.com")))
         }
-        IconMenuRow(AppIcon.Heart, "개발자 응원하기") { sub = "cheer" }
+        IconMenuRow(AppIcon.Heart, androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.support_developer)) { sub = "cheer" }
 
         androidx.compose.material3.HorizontalDivider(
             color = TL.hairline, modifier = Modifier.padding(vertical = 18.dp))
@@ -105,16 +117,25 @@ fun MyPageScreen(onBack: () -> Unit) {
         // 텍스트 메뉴 (투명 행) — 강도는 활동/그룹별로 각각 설정하므로 전역 강도 탭 제거
         // '알람 점검' — 안드로이드는 알람 실패 경로가 여럿(알림·전체화면·절전·정확알람)이라
         // 사용자가 원인을 스스로 찾을 수 없다. 한 화면에 모아 상태와 해결 버튼을 준다.
-        PlainMenuRow("알람 점검") { sub = "alarmHealth" }
-        PlainMenuRow("프라이버시") { sub = "privacy" }
-        PlainMenuRow("점수 원장") { sub = "ledger" }
-        // 영어화는 v1.1로 연기 — 무동작 행 대신 준비 중임을 알린다 (iOS '준비 중' 표기와 동일 취지)
-        PlainMenuRow("앱 언어") {
-            android.widget.Toast.makeText(context, "앱 언어 설정은 준비 중이에요",
-                android.widget.Toast.LENGTH_SHORT).show()
+        PlainMenuRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.alarm_health)) { sub = "alarmHealth" }
+        PlainMenuRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy)) { sub = "privacy" }
+        PlainMenuRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.score_ledger)) { sub = "ledger" }
+        // D1: 언어 소유권은 OS에 둔다 — 13+(API 33)는 설정 앱의 '앱 언어'로 직행,
+        // 그 미만은 앱별 언어가 없어 시스템 언어를 따른다고 안내한다 (iOS 설정 링크와 1:1)
+        PlainMenuRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.language_settings)) {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_APP_LOCALE_SETTINGS,
+                            android.net.Uri.parse("package:" + context.packageName)))
+                }
+            } else {
+                android.widget.Toast.makeText(context, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.language_follows_system),
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
-        PlainMenuRow("이용약관") { open(Legal.TERMS_URL) }
-        PlainMenuRow("개인정보처리방침") { open(Legal.PRIVACY_URL) }
+        PlainMenuRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.terms_of_use)) { open(Legal.TERMS_URL) }
+        PlainMenuRow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_policy)) { open(Legal.PRIVACY_URL) }
 
         Spacer(Modifier.height(48.dp))
         BrandSignature()
@@ -176,17 +197,17 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
     val minus = events.filter { it.points < 0 }.sumOf { it.points }
 
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
-        TLScreenHeader("프로필 및 구독 관리", onBack = onBack)
+        TLScreenHeader(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.profile_subscription), onBack = onBack)
 
         if (user?.provider == "guest") {
             // 게스트 — 로그아웃·계정 삭제·구독은 계정 기능이다. iOS guestCard처럼 로그인 유도만.
             TLCard {
-                Text("게스트 모드", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.guest_mode), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(6.dp))
-                Text("게스트 기록은 이 기기에만 저장되고 계정과는 분리됩니다. 계정을 만들면 이후의 기록이 계정에 저장돼 기기를 바꿔도 유지됩니다.",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.guest_card_body),
                     color = TL.muted, fontSize = 13.sp)
                 Spacer(Modifier.height(12.dp))
-                TLPrimaryButton("계정 만들기 · 로그인") {
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.create_account_login)) {
                     AccountStore.signOut()   // 게스트 해제 → 로그인 화면으로
                 }
             }
@@ -205,12 +226,12 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(user?.name ?: user?.email ?: "회원",
+                    Text(user?.name ?: user?.email ?: androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.member),
                         color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     user?.email?.let { Text(it, color = TL.muted, fontSize = 12.sp) }
                 }
                 TagChip(when (user?.provider) {
-                    "google" -> "Google"; "email" -> "이메일"; else -> "게스트"
+                    "google" -> "Google"; "email" -> androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.email); else -> androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.guest)
                 }, selected = false, onClick = {})
             }
             Spacer(Modifier.height(14.dp))
@@ -219,21 +240,21 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
             Row {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("+$plus", color = TL.jade, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    Text("내 상점", color = TL.muted, fontSize = 12.sp)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.my_points), color = TL.muted, fontSize = 12.sp)
                 }
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("$minus", color = TL.rec, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    Text("내 벌점", color = TL.muted, fontSize = 12.sp)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.my_penalty), color = TL.muted, fontSize = 12.sp)
                 }
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("${plus + minus}",
                         color = if (plus + minus >= 0) TL.paper else TL.rec,
                         fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    Text("총점", color = TL.muted, fontSize = 12.sp)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.total_score), color = TL.muted, fontSize = 12.sp)
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Text("로그아웃", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.log_out), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 // 오터치 한 번에 로그아웃되지 않도록 확인을 거친다 (iOS 1:1)
                 modifier = Modifier.fillMaxWidth().clickable { confirmLogout = true }.padding(6.dp))
@@ -241,16 +262,16 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
 
         // 구독 카드 — 눈썹 라벨 + 카드(멤버는 raised) + 구독하기/구매 복원 (iOS 1:1)
         Spacer(Modifier.height(18.dp))
-        TLEyebrow("구독")
+        TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.subscription))
         TLCard(raised = isPro) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(if (isPro) "앵그리모티 멤버십 사용 중" else "앵그리모티 멤버십",
+                    Text(if (isPro) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.membership_active) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.membership),
                         color = TL.paper, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(3.dp))
                     Text(
-                        if (isPro) "멤버십 혜택 적용 중 — 슬롯 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터·워터마크 제거·미친 매운맛."
-                        else "슬롯 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 · 워터마크 제거 · 미친 매운맛 즉시 해제.",
+                        if (isPro) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.membership_perks_active, SlotPolicy.MEMBER_FLOOR_SLOTS)
+                        else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.membership_perks_pitch, SlotPolicy.MEMBER_FLOOR_SLOTS),
                         color = TL.muted, fontSize = 13.sp)
                 }
                 if (isPro) {
@@ -262,15 +283,15 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
             }
             if (!isPro) {
                 Spacer(Modifier.height(12.dp))
-                TLPrimaryButton("구독하기", tint = TL.jade, onClick = openPaywall)
+                TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.subscribe), tint = TL.jade, onClick = openPaywall)
             }
             Spacer(Modifier.height(10.dp))
-            Text("구매 복원", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.restore_purchases), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().clickable {
                     SubscriptionManager.refresh { found ->
                         if (!found) profileRestoreMessage.value =
-                            "복원할 구독을 찾지 못했습니다. 구독하신 Google 계정으로 로그인되어 있는지 확인해 주세요."
+                            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.restore_not_found)
                     }
                 }.padding(4.dp))
         }
@@ -279,11 +300,11 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { profileRestoreMessage.value = null },
                 containerColor = TL.surface,
-                title = { Text("구매 복원", color = TL.paper, fontWeight = FontWeight.Black) },
+                title = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.restore_purchases), color = TL.paper, fontWeight = FontWeight.Black) },
                 text = { Text(msg, color = TL.muted) },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = { profileRestoreMessage.value = null }) {
-                        Text("확인", color = TL.rec, fontWeight = FontWeight.Black)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), color = TL.rec, fontWeight = FontWeight.Black)
                     }
                 },
             )
@@ -292,11 +313,11 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
         Text(Legal.SUBSCRIPTION_DISCLOSURE, color = TL.faint, fontSize = 11.sp)
 
         Spacer(Modifier.height(40.dp))
-        Text("계정 삭제", color = TL.rec, fontSize = 15.sp, fontWeight = FontWeight.Black,
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_account), color = TL.rec, fontSize = 15.sp, fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().background(TL.raised, TL.cornerM)
                 .clickable { confirmDelete = true }.padding(vertical = 16.dp))
-        Text("기기·서버의 모든 데이터가 즉시 완전 삭제되며 복구할 수 없습니다.",
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_account_note),
             color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         Spacer(Modifier.height(24.dp))
@@ -307,16 +328,16 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
         AlertDialog(
             onDismissRequest = { confirmLogout = false },
             containerColor = TL.surface,
-            title = { Text("로그아웃할까요?", color = TL.paper) },
-            text = { Text("기록은 계정에 남아 있고, 다시 로그인하면 그대로 이어집니다.", color = TL.muted) },
+            title = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.log_out_q), color = TL.paper) },
+            text = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.log_out_note), color = TL.muted) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmLogout = false
                     AccountStore.signOut()
-                }) { Text("로그아웃", color = TL.rec, fontWeight = FontWeight.Black) }
+                }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.log_out), color = TL.rec, fontWeight = FontWeight.Black) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmLogout = false }) { Text("취소", color = TL.muted) }
+                TextButton(onClick = { confirmLogout = false }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_short), color = TL.muted) }
             },
         )
     }
@@ -325,8 +346,8 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
         AlertDialog(
             onDismissRequest = { if (!deleting) confirmDelete = false },
             containerColor = TL.surface,
-            title = { Text("정말 삭제할까요?", color = TL.paper) },
-            text = { Text("이 기기의 예약·세션·점수·촬영본과 계정·서버 데이터가 즉시 완전 삭제되고 되돌릴 수 없어요.", color = TL.muted) },
+            title = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.really_delete_q), color = TL.paper) },
+            text = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_account_body), color = TL.muted) },
             confirmButton = {
                 TextButton(enabled = !deleting, onClick = {
                     deleting = true
@@ -348,14 +369,14 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
                         }.onFailure { e ->
                             withContext(Dispatchers.Main) {
                                 deleting = false; confirmDelete = false
-                                deleteError = e.message ?: "계정 삭제에 실패했어요 — 잠시 후 다시 시도해주세요."
+                                deleteError = e.message ?: com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.delete_failed_retry)
                             }
                         }
                     }
-                }) { Text(if (deleting) "삭제 중…" else "삭제", color = TL.rec, fontWeight = FontWeight.Black) }
+                }) { Text(if (deleting) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.deleting) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete), color = TL.rec, fontWeight = FontWeight.Black) }
             },
             dismissButton = {
-                TextButton(enabled = !deleting, onClick = { confirmDelete = false }) { Text("취소", color = TL.muted) }
+                TextButton(enabled = !deleting, onClick = { confirmDelete = false }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_short), color = TL.muted) }
             },
         )
     }
@@ -364,10 +385,10 @@ fun ProfileEditScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
         AlertDialog(
             onDismissRequest = { deleteError = null },
             containerColor = TL.surface,
-            title = { Text("계정을 삭제하지 못했어요", color = TL.paper) },
+            title = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_account_failed_title), color = TL.paper) },
             text = { Text(msg, color = TL.muted) },
             confirmButton = {
-                TextButton(onClick = { deleteError = null }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Black) }
+                TextButton(onClick = { deleteError = null }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), color = TL.rec, fontWeight = FontWeight.Black) }
             },
         )
     }
@@ -399,7 +420,7 @@ fun PaywallScreen(onBack: () -> Unit) {
             Spacer(Modifier.weight(1f))
         }
         Image(painterResource(R.drawable.moti_member), null, Modifier.size(140.dp))
-        Text("앵그리모티 멤버십", color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.membership), color = TL.paper, fontSize = 24.sp, fontWeight = FontWeight.Black)
         SubscriptionManager.freeTrialLabel?.let { trial ->
             Spacer(Modifier.height(12.dp))
             Text(trial, color = TL.jade, fontSize = 14.sp, fontWeight = FontWeight.Black,
@@ -409,38 +430,38 @@ fun PaywallScreen(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(20.dp))
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Benefit("활동 슬롯 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 시작 (무료는 2개)")
-            Benefit("타임랩스 워터마크 제거")
-            Benefit("미친 매운맛 모드 (멤버십 전용)")
-            Benefit("그룹 챌린지 — 초대코드로 모여 같은 일정으로 랭킹 대결")
-            Benefit("그 외 추가되는 멤버십 기능 모두 포함")
+            Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_slots, SlotPolicy.MEMBER_FLOOR_SLOTS))
+            Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_watermark))
+            Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_insane))
+            Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_group))
+            Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_future))
         }
         Spacer(Modifier.height(24.dp))
         if (isPro) {
-            Text("멤버십 사용 중이에요 👑", color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.membership_in_use), color = TL.jade, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         } else if (product != null) {
             val label = if (SubscriptionManager.freeTrialLabel != null)
-                "무료로 시작하기 · 이후 ${SubscriptionManager.displayPrice}/월"
-            else "${SubscriptionManager.displayPrice} / 월 구독하기"
+                com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.start_free_then, SubscriptionManager.displayPrice)
+            else com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.subscribe_per_month, SubscriptionManager.displayPrice)
             TLPrimaryButton(label, tint = TL.jade) {
                 (context as? Activity)?.let { SubscriptionManager.purchase(it) }
             }
         } else if (loadingProduct) {
-            Text("구독 상품을 불러오는 중입니다…", color = TL.faint, fontSize = 13.sp)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.loading_subscription), color = TL.faint, fontSize = 13.sp)
         } else {
             // 조회가 끝났는데 상품이 없다 — '불러오는 중'으로 두면 기다리면 될 줄 알고
             // 앱을 껐다 켜는 수밖에 없다 (iOS 1d4a01c와 동일한 정직한 실패 표시)
-            Text("구독 상품을 불러오지 못했습니다.\n네트워크 연결을 확인해 주세요.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.subscription_load_failed),
                 color = TL.faint, fontSize = 13.sp, textAlign = TextAlign.Center)
             Spacer(Modifier.height(8.dp))
-            TLGhostButton("다시 시도") { SubscriptionManager.queryProduct() }
+            TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.try_again)) { SubscriptionManager.queryProduct() }
         }
         Spacer(Modifier.height(10.dp))
-        Text("구매 복원", color = TL.muted, fontSize = 13.sp,
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.restore_purchases), color = TL.muted, fontSize = 13.sp,
             modifier = Modifier.clickable {
                 SubscriptionManager.refresh { found ->
                     if (!found) restoreMessage =
-                        "복원할 구독을 찾지 못했습니다. 구독하신 Google 계정으로 로그인되어 있는지 확인해 주세요. 구독한 적이 없다면 먼저 구독을 진행해 주세요."
+                        com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.restore_not_found_full)
                 }
             }.padding(6.dp))
 
@@ -448,11 +469,11 @@ fun PaywallScreen(onBack: () -> Unit) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { restoreMessage = null },
                 containerColor = TL.surface,
-                title = { Text("구매 복원", color = TL.paper, fontWeight = FontWeight.Black) },
+                title = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.restore_purchases), color = TL.paper, fontWeight = FontWeight.Black) },
                 text = { Text(msg, color = TL.muted) },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = { restoreMessage = null }) {
-                        Text("확인", color = TL.rec, fontWeight = FontWeight.Black)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), color = TL.rec, fontWeight = FontWeight.Black)
                     }
                 },
             )
@@ -461,10 +482,10 @@ fun PaywallScreen(onBack: () -> Unit) {
         Text(Legal.SUBSCRIPTION_DISCLOSURE, color = TL.faint, fontSize = 11.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("이용약관", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.terms_of_use), color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { open(Legal.TERMS_URL) })
             Text("·", color = TL.faint)
-            Text("개인정보처리방침", color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_policy), color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { open(Legal.PRIVACY_URL) })
         }
         Spacer(Modifier.height(24.dp))
@@ -493,35 +514,35 @@ fun CheerDeveloperScreen(onBack: () -> Unit, openPaywall: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
-        TLScreenHeader("개발자 응원하기", onBack = onBack)
+        TLScreenHeader(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.support_developer), onBack = onBack)
 
         TLCard {
-            Text("앵그리모티는 작은따옴표팀이 만들어 나가고 있어요", color = TL.paper,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cheer_title), color = TL.paper,
                 fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("누구나 마음속에 하나쯤 품고 있는 버킷리스트를 끝내 ‘해냈다’고 말할 수 있는 세상을 꿈꿉니다. 그 소중한 목표가 현실이 되는 순간까지, 앵그리모티는 필요한 기능을 계속 만들어가겠습니다.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cheer_body),
                 color = TL.muted, fontSize = 13.sp)
         }
         Spacer(Modifier.height(12.dp))
         // 별 이모지를 빼면 텍스트가 온전히 가운데로 보인다 — 이모지가 왼쪽에
         // 붙으면 무게중심이 쏠려 가운데 정렬처럼 안 보인다.
-        TLPrimaryButton("Play 스토어에 별점·후기 남기기", tint = TL.amber) { openReview() }
+        TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.rate_on_play), tint = TL.amber) { openReview() }
 
         Spacer(Modifier.height(18.dp))
         TLCard {
-            Text("더 든든하게 응원하고 싶다면", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.support_more), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("앵그리모티 멤버십을 이용하면 개발을 직접 후원하면서 슬롯·워터마크 제거·미친 매운맛 같은 혜택도 함께 받을 수 있어요.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.membership_support_pitch),
                 color = TL.muted, fontSize = 13.sp)
             Spacer(Modifier.height(10.dp))
-            Text("멤버십 보러가기", color = TL.jade, fontSize = 14.sp, fontWeight = FontWeight.Black,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.see_membership), color = TL.jade, fontSize = 14.sp, fontWeight = FontWeight.Black,
                 modifier = Modifier.clickable { openPaywall() }.padding(vertical = 4.dp))
         }
         Spacer(Modifier.height(12.dp))
         TLCard {
-            Text("문의·제안", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.contact_suggest), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("singlemarks@gmail.com 으로 메일 보내기", color = TL.jade, fontSize = 13.sp,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.email_us), color = TL.jade, fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable {
                     context.startActivity(Intent(Intent.ACTION_SENDTO,
@@ -544,12 +565,12 @@ fun LedgerScreen(onBack: () -> Unit) {
     val recent = events.take(20)
 
     Column(Modifier.fillMaxSize().background(TL.ink).padding(20.dp)) {
-        TLScreenHeader("점수 원장", onBack = onBack)
-        TLEyebrow("최근 20건")
+        TLScreenHeader(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.score_ledger), onBack = onBack)
+        TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.last_20))
         Spacer(Modifier.height(8.dp))
         if (recent.isEmpty()) {
             TLCard {
-                Text("아직 기록이 없습니다. 첫 세션을 완주하면 상점이 적립됩니다.",
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ledger_empty),
                     color = TL.muted, fontSize = 13.sp)
             }
         }
@@ -562,8 +583,7 @@ fun LedgerScreen(onBack: () -> Unit) {
                             Text(e.type.title, color = TL.paper, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             e.note?.let { Text(ScoreNote.label(it), color = TL.faint, fontSize = 12.sp) }
                             // 12시간제 + 강도 병기 (iOS 점수 원장 표기 기준)
-                            Text("${java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA)
-                                .format(java.util.Date(e.timestamp))} ${TLFormat.clock(e.timestamp)} · ${e.intensity.title}",
+                            Text("${TLFormat.monthDay(e.timestamp)} ${TLFormat.clock(e.timestamp)} · ${e.intensity.title}",
                                 color = TL.faint, fontSize = 11.sp)
                         }
                         Text(TLFormat.scoreLabel(e.points),
@@ -585,35 +605,35 @@ fun PrivacyScreen(onBack: () -> Unit) {
     var confirmDeleteAll by remember { mutableStateOf(false) }
     var deletedToast by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
-        TLScreenHeader("프라이버시", onBack = onBack)
+        TLScreenHeader(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy), onBack = onBack)
         TLCard {
-            Text("📷  촬영본은 내 기기에만", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_row1_title), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("타임랩스 영상은 서버로 전송되지 않고 이 기기에만 저장돼요. 세션 종료 화면에서 저장하지 않으면 자동으로 삭제됩니다.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_row1_body),
                 color = TL.muted, fontSize = 13.sp)
         }
         Spacer(Modifier.height(12.dp))
         TLCard {
-            Text("🧠  자리비움 감지도 기기 안에서", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_row2_title), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("사람 감지는 온디바이스 AI로만 처리되며 프레임이 외부로 나가지 않아요.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_row2_body),
                 color = TL.muted, fontSize = 13.sp)
         }
         Spacer(Modifier.height(12.dp))
         TLCard {
-            Text("🗂  수집하는 정보", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_row3_title), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("계정 기능을 위한 이메일·이름, 그리고 상점·벌점 기록뿐이에요. 자세한 내용은 개인정보처리방침을 확인하세요.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_row3_body),
                 color = TL.muted, fontSize = 13.sp)
         }
         Spacer(Modifier.height(12.dp))
         TLCard {
-            Text("🗑  기록 썸네일", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_row4_title), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("기록 썸네일은 언제든 아래에서 완전히 삭제할 수 있어요. 세션 기록과 점수 원장은 유지됩니다.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.privacy_row4_body),
                 color = TL.muted, fontSize = 13.sp)
             Spacer(Modifier.height(10.dp))
-            Text("기록 썸네일 전체 삭제", color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_all_thumbnails), color = TL.rec, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { confirmDeleteAll = true }.padding(vertical = 4.dp))
         }
     }
@@ -622,8 +642,8 @@ fun PrivacyScreen(onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
             containerColor = TL.surface,
-            title = { Text("모든 기록 썸네일을 삭제할까요?", color = TL.paper) },
-            text = { Text("삭제한 썸네일은 복구할 수 없습니다. 세션 기록과 점수 원장은 유지됩니다.", color = TL.muted) },
+            title = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_all_thumbs_q), color = TL.paper) },
+            text = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_thumbs_note), color = TL.muted) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDeleteAll = false
@@ -637,16 +657,16 @@ fun PrivacyScreen(onBack: () -> Unit) {
                         }
                         withContext(Dispatchers.Main) { deletedToast = true }
                     }
-                }) { Text("전체 삭제 (기록·점수는 유지)", color = TL.rec, fontWeight = FontWeight.Black) }
+                }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_all_keep_records), color = TL.rec, fontWeight = FontWeight.Black) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDeleteAll = false }) { Text("취소", color = TL.muted) }
+                TextButton(onClick = { confirmDeleteAll = false }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_short), color = TL.muted) }
             },
         )
     }
     if (deletedToast) {
         LaunchedEffect(Unit) {
-            android.widget.Toast.makeText(context, "기록 썸네일을 모두 삭제했어요",
+            android.widget.Toast.makeText(context, com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.thumbs_deleted),
                 android.widget.Toast.LENGTH_SHORT).show()
             deletedToast = false
         }
@@ -685,44 +705,44 @@ fun AlarmHealthScreen(onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().background(TL.ink).verticalScroll(rememberScrollState()).padding(20.dp)) {
-        TLScreenHeader("알람 점검", onBack = onBack)
+        TLScreenHeader(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.alarm_health), onBack = onBack)
 
         val allOk = notifOk && fullScreenOk && batteryOk && cameraOk && exactOk
         TLNoticeCard(
             if (allOk) AppIcon.CheckCircle else AppIcon.Bell,
-            if (allOk) "모든 항목이 정상이에요. 예약한 시각에 알람이 울립니다."
-            else "아래 항목 중 꺼져 있는 것이 있으면 알람이 울리지 않거나 잠금 화면에 뜨지 않을 수 있어요.",
+            if (allOk) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.alarm_health_ok)
+            else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.alarm_health_warn),
             tint = if (allOk) TL.jade else TL.amber,
         )
         Spacer(Modifier.height(16.dp))
 
         AlarmCheckRow(
-            title = "알림 표시",
-            detail = "꺼져 있으면 알람·예고 배너가 아예 뜨지 않아요.",
+            title = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_notif_title),
+            detail = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_notif_detail),
             ok = notifOk,
         ) { Permissions.openNotificationSettings(context) }
 
         AlarmCheckRow(
-            title = "잠금 화면 전체 알람",
-            detail = "막혀 있으면 알람 화면 대신 일반 배너로만 떠요.",
+            title = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_fullscreen_title),
+            detail = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_fullscreen_detail),
             ok = fullScreenOk,
         ) { Permissions.openFullScreenAlarmSettings(context) }
 
         AlarmCheckRow(
-            title = "배터리 최적화 제외",
-            detail = "절전에 걸리면 알람 시각에 앱이 깨어나지 못할 수 있어요.",
+            title = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_battery_title),
+            detail = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_battery_detail),
             ok = batteryOk,
         ) { Permissions.requestBatteryUnrestricted(context) }
 
         AlarmCheckRow(
-            title = "정확한 알람",
-            detail = "꺼져 있으면 알람이 예약 시각보다 늦게 울릴 수 있어요.",
+            title = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_exact_title),
+            detail = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_exact_detail),
             ok = exactOk,
         ) { com.singlemarks.angrymoti.services.AlarmScheduler.openExactAlarmSettings(context) }
 
         AlarmCheckRow(
-            title = "카메라",
-            detail = "없으면 알람을 받아도 촬영을 시작할 수 없어요.",
+            title = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.camera),
+            detail = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.check_camera_detail),
             ok = cameraOk,
         ) {
             // 여기서는 시스템 창을 띄우지 않는다 — 거부 이력이 있으면 창이 뜨지 않아
@@ -732,8 +752,7 @@ fun AlarmHealthScreen(onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(20.dp))
-        Text("삼성 갤럭시는 설정 → 배터리 → 백그라운드 사용 제한에서 '미사용 앱 절전'을 끄면 " +
-            "알람이 더 안정적으로 울려요.",
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.samsung_tip),
             color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
         Spacer(Modifier.height(40.dp))
     }
@@ -755,7 +774,7 @@ private fun AlarmCheckRow(title: String, detail: String, ok: Boolean, onFix: () 
             }
             if (!ok) {
                 Spacer(Modifier.width(10.dp))
-                TLPillButton("켜기", tint = TL.rec, onClick = onFix)
+                TLPillButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.turn_on), tint = TL.rec, onClick = onFix)
             }
         }
     }
