@@ -19,6 +19,9 @@ struct HomeShellView: View {
     /// (일정·그룹은 탭이 바뀌면서 화면이 통째로 교체돼 정상으로 보였다)
     @State private var activityPath = NavigationPath()
     @EnvironmentObject private var account: AccountStore
+    /// UI 테스트 전용 — 페이월은 게스트 플로우로 도달할 수 없어 스크린샷 캡처용 훅을 둔다.
+    /// 런치 인자가 없으면(일반 실행) 항상 false.
+    @State private var uitestPaywall = ProcessInfo.processInfo.arguments.contains("-uitestPaywall")
 
     /// 그룹 챌린지는 계정 전용 — 게스트에겐 탭 자체를 숨긴다
     private var showsGroupTab: Bool { account.isSignedIn && !account.isGuest }
@@ -39,6 +42,7 @@ struct HomeShellView: View {
         .onChange(of: showsGroupTab) {
             if !showsGroupTab, tab == .group { tab = .activity }
         }
+        .sheet(isPresented: $uitestPaywall) { PaywallView() }
     }
 
     /// 하단 알약형 토글 — 글래스모피즘(반투명 블러) + 아이콘, 애플 탭바 감성

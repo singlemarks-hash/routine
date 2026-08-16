@@ -216,6 +216,21 @@ final class L10nScreenshotTests: XCTestCase {
             sleep(1)
         }
 
+        // 11) 페이월 — 게스트 플로우로는 도달 불가라 전용 런치 인자 훅으로 재실행해 찍는다
+        //     (온보딩·게스트 상태는 이미 끝나 있어 재실행하면 홈 위에 페이월 시트가 뜬다)
+        app.terminate()
+        let paywallApp = XCUIApplication()
+        paywallApp.launchArguments += [
+            "-AppleLanguages", "(\(locale))",
+            "-AppleLocale", locale == "ko" ? "ko_KR" : "en_US",
+            "-uitestPaywall",
+        ]
+        paywallApp.launch()
+        if paywallApp.buttons["Restore Purchases"].waitForExistence(timeout: 8)
+            || paywallApp.buttons["구매 복원"].waitForExistence(timeout: 2) {
+            shoot(paywallApp, "paywall")
+        }
+
         // 항상 통과 — 수확량은 xcresult manifest로 판단한다
         XCTAssertTrue(shotIndex > 0, "스크린샷이 한 장도 찍히지 않았다")
     }
