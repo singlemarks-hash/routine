@@ -638,17 +638,29 @@ struct TagDonutView: View {
                 }
             }
 
-            // 중앙 — 총 n분
+            // 중앙 — 총 n분. 천 단위를 넘으면 한 줄로는 링 안쪽(78pt)을 넘겨 글자가
+            // 뭉개진다("Total 1,234m") → 라벨과 숫자를 두 줄로 나눈다.
             VStack(spacing: 3) {
                 Image(systemName: "clock")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TL.faint)
-                (Text("Total ").foregroundStyle(TL.muted)
-                 + Text(totalMinutesLabel).foregroundStyle(TL.jade)
-                 + Text("m").foregroundStyle(TL.muted))
-                    .font(.system(size: 14, weight: .heavy, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                VStack(spacing: 0) {
+                    if totalSeconds / 60 >= 1000 {
+                        // 'Total '의 끝 공백은 한 줄일 때 숫자와 띄우려던 것 — 줄을 나누면 군더더기다.
+                        // 같은 카탈로그 키를 쓰되 공백만 떼어 쓴다(ko "총 " → "총").
+                        Text(String(localized: "Total ").trimmingCharacters(in: .whitespaces))
+                            .foregroundStyle(TL.muted)
+                        (Text(totalMinutesLabel).foregroundStyle(TL.jade)
+                         + Text("m").foregroundStyle(TL.muted))
+                    } else {
+                        (Text("Total ").foregroundStyle(TL.muted)
+                         + Text(totalMinutesLabel).foregroundStyle(TL.jade)
+                         + Text("m").foregroundStyle(TL.muted))
+                    }
+                }
+                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             }
             .frame(width: 78)
         }
