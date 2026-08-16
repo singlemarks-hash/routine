@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 지원 로케일 선언 — Android 13+ 설정 앱의 '앱 언어'에 이 목록이 노출된다 (D1: OS에 위임) -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="ko" />
+</locale-config>

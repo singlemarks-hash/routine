@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 한국어 번역 — 키 목록은 values/strings.xml(영어)과 항상 1:1 이어야 한다 -->
+<resources>
+    <string name="app_name">앵그리모티</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 기본(영어) 문자열 — 전 세계 폴백 (D2: 영어가 소스 언어, 한국어는 values-ko/).
+     Phase 3 이식이 파일 단위로 진행되며 키가 여기에 쌓인다. 정본은 iOS Localizable.xcstrings. -->
+<resources>
+    <string name="app_name">AngryMoti</string>
+</resources>
