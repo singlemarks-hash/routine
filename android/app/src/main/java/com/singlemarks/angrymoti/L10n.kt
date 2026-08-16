@@ -10,9 +10,15 @@ import android.content.Context
  */
 object L10n {
     private lateinit var appContext: Context
+    private var testResolver: ((Int, Array<out Any>) -> String)? = null
 
     fun init(context: Context) { appContext = context.applicationContext }
 
-    fun str(id: Int, vararg args: Any): String =
-        if (args.isEmpty()) appContext.getString(id) else appContext.getString(id, *args)
+    /** JVM 단위 테스트용 — Context가 없으므로 리소스 해석기를 직접 주입한다 (G3 테스트가 values-ko XML로 채운다) */
+    fun initForTest(resolver: (Int, Array<out Any>) -> String) { testResolver = resolver }
+
+    fun str(id: Int, vararg args: Any): String {
+        testResolver?.let { return it(id, args) }
+        return if (args.isEmpty()) appContext.getString(id) else appContext.getString(id, *args)
+    }
 }

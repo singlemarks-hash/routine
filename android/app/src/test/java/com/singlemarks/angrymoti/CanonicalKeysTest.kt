@@ -16,6 +16,33 @@ import org.junit.Test
  */
 class CanonicalKeysTest {
 
+    companion object {
+        // label()이 이제 문자열 리소스를 거치므로(JVM엔 Context가 없다) values-ko XML을
+        // 직접 파싱해 주입한다 — 기대값이 리소스 원문과 바이트 동일함을 그대로 검증한다.
+        init {
+            val xml = sequenceOf(
+                java.io.File("src/main/res/values-ko/strings.xml"),
+                java.io.File("app/src/main/res/values-ko/strings.xml"),
+                java.io.File("android/app/src/main/res/values-ko/strings.xml"),
+            ).firstOrNull { it.exists() } ?: error("values-ko/strings.xml을 찾지 못함 (작업 디렉터리: ${java.io.File(".").absolutePath})")
+            val byName = HashMap<String, String>()
+            Regex("<string name=\"([^\"]+)\"[^>]*>(.*?)</string>", RegexOption.DOT_MATCHES_ALL)
+                .findAll(xml.readText()).forEach { m ->
+                    var v = m.groupValues[2]
+                    if (v.length >= 2 && v.startsWith("\"") && v.endsWith("\"")) v = v.substring(1, v.length - 1)
+                    v = v.replace("\\'", "'").replace("\\\"", "\"").replace("\\n", "\n")
+                        .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                    byName[m.groupValues[1]] = v
+                }
+            val nameById = R.string::class.java.fields.associate { it.getInt(null) to it.name }
+            L10n.initForTest { id, args ->
+                val template = byName[nameById[id] ?: error("R.string에 없는 id: $id")]
+                    ?: error("values-ko에 없는 키: ${nameById[id]}")
+                if (args.isEmpty()) template else String.format(template, *args)
+            }
+        }
+    }
+
     // ── 태그 ──
 
     @Test fun `태그 - 레거시 한글이 키로, 키가 원래 문구로 왕복`() {

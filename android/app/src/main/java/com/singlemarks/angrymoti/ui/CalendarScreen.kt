@@ -217,11 +217,11 @@ fun CalendarScreen(onBack: () -> Unit) {
                 Spacer(Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         MiniStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.total_points), "$plus", TL.jade)
                         MiniStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.completion_rate), "$completeRate%", TL.jade)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         // 벌점은 빨간색이 이미 '깎였다'를 말하므로 절대값으로 표기
                         MiniStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.total_penalty), "${kotlin.math.abs(minusSum)}", TL.rec)
                         MiniStat(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_show_rate), "$noShowRate%", if (noShowRate > 0) TL.rec else TL.muted)
@@ -251,8 +251,11 @@ fun CalendarScreen(onBack: () -> Unit) {
 /** 대시보드 우측 2×2 통계 한 칸 (iOS miniStat 1:1) */
 @Composable
 private fun MiniStat(label: String, value: String, tint: androidx.compose.ui.graphics.Color) {
-    Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(58.dp)) {
-        Text(label, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    // 'Completion Rate'처럼 긴 영어 라벨은 두 줄로 흘리고 오른쪽 정렬 (iOS 수정과 동일)
+    Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(70.dp)) {
+        Text(label, color = TL.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            lineHeight = 14.sp)
         Spacer(Modifier.height(2.dp))
         Text(value, color = tint, fontSize = 16.sp, fontWeight = FontWeight.Black, maxLines = 1)
     }
