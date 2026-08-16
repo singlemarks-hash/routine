@@ -238,13 +238,13 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TLPillButton("닫기", tint = TL.paper, onClick = onDone)
+            TLPillButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.close), tint = TL.paper, onClick = onDone)
             Spacer(Modifier.weight(1f))
-            Text(if (existing == null) "활동 예약" else "예약 편집",
+            Text(if (existing == null) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.new_activity) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.edit_activity),
                 color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.weight(1f))
             // 은퇴한 예약은 저장 버튼 자체가 없다 — 보여주기 전용 (iOS 1:1)
-            if (!isRetired) TLPillButton("저장", tint = TL.rec, enabled = !fieldLocked, onClick = save@{
+            if (!isRetired) TLPillButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.save), tint = TL.rec, enabled = !fieldLocked, onClick = save@{
                     // 검증 — 오류는 최상단에 즉시 표시
                     val finalName = name.trim()
                     // 커스텀 태그가 프리셋의 옛 한글 이름("공부" 등)과 같으면 키로 흡수 — 색·번역이 그대로 적용된다
@@ -253,24 +253,25 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     // 읽기 전용 — 편집 저장 차단(삭제만 허용). 버튼도 비활성이지만 백스톱.
                     if (editReadOnly) {
                         error = if (lockedInsane)
-                            "미친 매운맛 활동은 지금 편집할 수 없어요. 조회와 삭제만 가능합니다."
+                            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.insane_edit_locked)
                         else
-                            "슬롯 한도를 초과해 편집이 잠겼어요. 예약을 삭제해 슬롯 수 이내로 정리하면 다시 편집할 수 있어요."
+                            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.over_slot_edit_locked)
                         return@save
                     }
                     // 슬롯 검사가 활동명보다 먼저 — 슬롯이 막혀 있으면 이름을 채워도 저장이
                     // 안 되므로, 이름부터 지적하면 헛수고를 시킨다 (iOS save() 순서 1:1).
                     if (slotFull) {
                         error = buildString {
-                            append("활동 슬롯이 가득 찼습니다 (현재 연속 ${streak}일 → 최대 ${allowed}개).")
+                            append(com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.slot_full_msg, streak, allowed ?: 0))
                             SlotPolicy.nextTier(streak)?.let { (days, slots) ->
-                                append(" 연속 ${days}일을 달성하면 ${slots?.let { "${it}개" } ?: "무제한"}까지 열려요.")
+                                val cap = slots?.let { com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.slots_n, it) } ?: com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.unlimited)
+                                append(" " + com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.slot_next_tier, days, cap))
                             }
-                            append(" 이미 만든 활동은 그대로 유지됩니다.")
+                            append(" " + com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.slots_existing_kept))
                         }
                         return@save
                     }
-                    if (finalName.isEmpty()) { error = "활동명을 입력해주세요."; return@save }
+                    if (finalName.isEmpty()) { error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.enter_activity_name_error); return@save }
 
                     // 기간(시작일·종료일)은 요일 반복·매일 공통. 요일 반복 OFF면 매일(요일 전체).
                     // 잠긴 예약(이미 시작함)은 UI가 시작일을 못 바꾸게 하지만, 저장 경로에서도
@@ -287,18 +288,18 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     val isSingleDay = !noEndDate && endDayNorm == startDay
                     val isWeekly = weeklyRepeat && !isSingleDay
                     // 검증: 요일 반복이면 요일 최소 1개 (하루짜리는 요일 반복 UI가 없으므로 제외)
-                    if (isWeekly && repeatDays.isEmpty()) { error = "반복할 요일을 선택하세요."; return@save }
+                    if (isWeekly && repeatDays.isEmpty()) { error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.select_repeat_days); return@save }
                     // 검증: 시작일 상한 (신규 생성만). 기존 예약은 상한 도입 전에 만들어진 먼
                     // 시작일을 가질 수 있는데, 이름만 고치는 정상 편집까지 막으면 손댈 방법이 없다.
                     if (existing == null &&
                         startDay > com.singlemarks.angrymoti.models.ReservationPolicy.maxStartDayMillis()) {
-                        error = "시작일은 오늘부터 ${com.singlemarks.angrymoti.models.ReservationPolicy.MAX_START_LEAD_MONTHS}개월 이내로 정해주세요."
+                        error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.start_lead_error, com.singlemarks.angrymoti.models.ReservationPolicy.MAX_START_LEAD_MONTHS)
                         return@save
                     }
                     // 검증: 종료일 지정 시 — 종료일 ≥ 시작일 · 아직 안 지남 (두 모드 공통)
                     if (!noEndDate) {
-                        if (endDayNorm < startDay) { error = "종료일은 시작일 이후여야 해요."; return@save }
-                        if (endDayNorm < todayStart()) { error = "종료일이 이미 지났어요."; return@save }
+                        if (endDayNorm < startDay) { error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.end_after_start); return@save }
+                        if (endDayNorm < todayStart()) { error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.end_already_passed); return@save }
                     }
                     val resolvedDays = if (isWeekly) repeatDays else setOf(1, 2, 3, 4, 5, 6, 7)
                     val resolvedDaysCsv = resolvedDays.sorted().joinToString(",")
@@ -318,7 +319,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 .get(Calendar.DAY_OF_WEEK) in resolvedDays) { anyOccurrence = true; break }
                     }
                     if (!anyOccurrence) {
-                        error = "선택한 기간 안에 고른 요일이 없어요. 요일이나 기간을 조정해주세요."
+                        error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.no_days_in_range)
                         return@save
                     }
 
@@ -337,7 +338,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             if (day + sm * 60_000L > System.currentTimeMillis()) { futureOccurrence = true; break }
                         }
                         if (!futureOccurrence) {
-                            error = "이미 지난 시각이에요. 시작 시각이나 날짜를 조정해주세요."
+                            error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.time_already_passed)
                             return@save
                         }
                     }
@@ -354,7 +355,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             bLo, bHi, other.occupiedWeekdays(), other.startMinute, other.durationMinutes)
                     }
                     if (clashing != null) {
-                        error = "${TLFormat.timeLabel(clashing.startMinute)} '${clashing.name}' 예약과 시간이 겹칩니다."
+                        error = com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.overlap_error, clashing.name, TLFormat.timeLabel(clashing.startMinute))
                         return@save
                     }
 
@@ -400,7 +401,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     }
                 })
             else Box(Modifier.alpha(0f)) {   // 자리만 지키는 투명 필 — 타이틀 중앙 유지
-                TLPillButton("저장", enabled = false, onClick = {})
+                TLPillButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.save), enabled = false, onClick = {})
             }
         }
 
@@ -429,21 +430,21 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             if (isRetired) {
                 // 은퇴 안내 하나만 — 다른 잠금 사유는 의미 없음 (iOS retiredNotice 1:1)
                 TLNoticeCard(AppIcon.Clock,
-                    "이 활동은 삭제(종료)되어 더 이상 수정할 수 없습니다. 오늘 기록 확인용으로 자정까지만 일정에 표시되고, 이후에는 목록에서 사라집니다. 지난 기록은 기록 탭에서 계속 볼 수 있어요.")
+                    androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.retired_notice))
             }
             if (isLocked && !isRetired) {
                 TLNoticeCard(AppIcon.Lock,
-                    "시작 30분 전입니다. 다짐을 지키기 위해 이 예약은 더 이상 수정하거나 삭제할 수 없습니다.")
+                    androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.locked_30min))
             }
             if (editReadOnly && !isRetired) {
                 // 두 사유가 겹칠 수 있다. 하나만 보여주면 "멤버십을 복구하면 편집된다"고
                 // 안내해놓고 복구해도 슬롯 초과로 여전히 잠기는 상황이 된다 (iOS 1:1).
                 val reasons = listOfNotNull(
                     if (lockedInsane)
-                        "미친 매운맛으로 만든 활동이에요. 지금은 그 등급을 쓸 수 없어 조회와 삭제만 할 수 있습니다. 강도를 임의로 내리면 이미 쌓인 2배 기준이 바뀌므로 그대로 둡니다."
+                        androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.insane_view_only)
                     else null,
                     if (overSlotLimit)
-                        "활동 슬롯이 ${allowed?.let { "${it}개" } ?: "무제한"}로 줄어 보유한 예약이 한도를 넘었습니다. 예약을 슬롯 수 이내로 정리하거나 멤버십·연속 달성으로 슬롯을 늘리면 다시 편집할 수 있어요."
+                        androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.over_slot_notice, allowed?.let { androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slots_n, it) } ?: androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.unlimited))
                     else null,
                 )
                 TLNoticeCard(AppIcon.LockOpen, reasons.joinToString("\n\n"))
@@ -463,9 +464,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         tint = if (slotFull) TL.amber else TL.jade, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        Text("활동 슬롯 $used/${allowed?.toString() ?: "무제한"} · 연속 달성 ${streak}일",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slot_badge, "$used/" + (allowed?.toString() ?: androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.unlimited)), streak),
                             color = TL.paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Text("터치하면 슬롯 정책을 볼 수 있어요", color = TL.faint, fontSize = 11.sp)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.tap_slot_policy), color = TL.faint, fontSize = 11.sp)
                     }
                     Spacer(Modifier.weight(1f))
                     androidx.compose.material3.Icon(AppIcon.Info, null, tint = TL.muted,
@@ -476,19 +477,19 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             // ── 활동명 (필수, 빨간 별표) — 큰 서피스 입력 필드, 항상 테두리 (iOS 1:1)
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TLEyebrow("활동명")
+                    TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.activity_name))
                     Spacer(Modifier.width(4.dp))
                     Text("*", color = TL.rec, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 8.dp))
                 }
                 TLField(name, { name = it.take(ActivityTag.NAME_MAX_LENGTH) },
-                    "예: 기출문제 3회분", enabled = !fieldLocked,
+                    androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.name_placeholder_edit), enabled = !fieldLocked,
                     unfocusedBorderColor = TL.hairline.copy(alpha = 0.6f))
             }
 
             // ── 태그 — 프리셋 칩(직접 입력 중에도 항상 선택 가능) + '직접 입력' 필드 (iOS 1:1)
             Column {
-                TLEyebrow("태그")
+                TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.tag_label))
                 // '쓰는 중' 판정은 값뿐 아니라 커서(포커스)도 포함한다 — 빈 칸이라도 커서가
                 // 들어와 있으면 직접 입력을 쓰겠다는 뜻이라 프리셋을 흐린다 (iOS 1:1)
                 var customTagFocused by remember { mutableStateOf(false) }
@@ -509,7 +510,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 }
                 Spacer(Modifier.height(10.dp))
                 TLField(customTag, { customTag = ActivityTag.truncatedToTagWidth(it) },
-                    "직접 입력 (선택)", enabled = !fieldLocked,
+                    androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.custom_optional), enabled = !fieldLocked,
                     unfocusedBorderColor = if (customTagActive) TL.hairline.copy(alpha = 0.6f) else Color.Transparent,
                     onFocusChanged = { customTagFocused = it })
             }
@@ -518,7 +519,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             // 미친 매운맛은 멤버십 전용 — 잠금 아이콘만으로 충분히 전달되므로 별도 '멤버십
             // 전용' 표기는 하지 않는다. 무료 회원(게스트 제외)이 누르면 가입 페이지로 보낸다.
             Column {
-                TLEyebrow("강도")
+                TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.intensity_label))
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Intensity.entries.forEach { level ->
@@ -556,7 +557,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                     fontSize = 14.sp, fontWeight = FontWeight.Bold, lineHeight = 17.sp)
                             }
                             // 부제도 제목과 같은 색 — iOS는 두 줄이 같은 foregroundStyle을 쓴다
-                            Text(if (level == Intensity.SPICY) "최대 10분 긴급용무 허용" else "봐주기 없는 100% 몰입, 점수 2배",
+                            Text(if (level == Intensity.SPICY) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.spicy_short_desc) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.insane_short_desc),
                                 color = fg, fontSize = 10.sp, lineHeight = 13.sp)
                         }
                     }
@@ -565,10 +566,10 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
 
             // ── 몇시에 얼마나 진행하나요? — 시작 시각 pill(탭→인라인 피커) + 길이 드롭다운 + 완주 상점
             Column {
-                TLEyebrow("몇시에 얼마나 진행하나요?")
+                TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.when_how_long))
                 TLCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("시작 시각", color = TL.paper, fontSize = 16.sp)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_time), color = TL.paper, fontSize = 16.sp)
                         Spacer(Modifier.weight(1f))
                         Text(TLFormat.timeLabel(timeState.hour * 60 + timeState.minute),
                             color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.Bold,
@@ -611,7 +612,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             }
                         }
                         Spacer(Modifier.weight(1f))
-                        Text("완료 시 +${ScoreRules.completionBase(durationMinutes)}점",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.pts_on_completion, ScoreRules.completionBase(durationMinutes)),
                             color = TL.jade, fontSize = 13.sp, fontWeight = FontWeight.Black,
                             modifier = Modifier.background(TL.jade.copy(alpha = 0.16f), CircleShape)
                                 .padding(horizontal = 12.dp, vertical = 6.dp))
@@ -621,7 +622,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
 
             // ── 반복 — 기간(시작일·종료일) 먼저, 그 다음 요일 반복(ON=고른 요일, OFF=매일) (iOS 1:1)
             Column {
-                TLEyebrow("반복")
+                TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.repeat_label))
                 TLCard {
                     val startDayVal = oneOffDay ?: nextOneOffDay(timeState.hour * 60 + timeState.minute)
                     // 종료일을 시작일로 끌어붙이지 않고 실제 값을 그대로 보여준다 — 붙이면
@@ -633,7 +634,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
 
                     // 기간 — 시작일부터 정하고, 그 기간에 요일 반복을 적용할지 고른다.
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("시작일", color = TL.paper, fontSize = 16.sp)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_date), color = TL.paper, fontSize = 16.sp)
                         Spacer(Modifier.weight(1f))
                         if (startDateLocked) {
                             // 이미 시작한 활동은 읽기 전용 — 시작 게이트가 움직이면 지난 기록이 지워진다
@@ -648,12 +649,12 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     }
                     if (startDateLocked) {
                         Spacer(Modifier.height(6.dp))
-                        Text("이미 시작한 활동이라 시작일은 바꿀 수 없어요. 지난 기록과 점수를 지키기 위한 제한이에요.",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.start_locked_note),
                             color = TL.faint, fontSize = 12.sp, lineHeight = 17.sp)
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("종료일 없음", color = TL.paper, fontSize = 16.sp)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_end_date), color = TL.paper, fontSize = 16.sp)
                         Spacer(Modifier.weight(1f))
                         Switch(
                             checked = noEndDate,
@@ -681,7 +682,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     if (!noEndDate) {
                         Spacer(Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("종료일", color = TL.paper, fontSize = 16.sp)
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.end_date), color = TL.paper, fontSize = 16.sp)
                             Spacer(Modifier.weight(1f))
                             Text(dateLabel(endDayVal), color = TL.paper, fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
@@ -696,14 +697,14 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                     Spacer(Modifier.height(10.dp))
 
                     if (isSingleDay) {
-                        Text("하루짜리 활동이라 요일 반복 설정이 필요 없어요.",
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.one_day_no_repeat),
                             color = TL.faint, fontSize = 12.sp)
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("요일 반복", color = TL.paper, fontSize = 16.sp)
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.repeat_on_days), color = TL.paper, fontSize = 16.sp)
                             if (!weeklyRepeat) {
                                 Spacer(Modifier.width(6.dp))
-                                Text("(매일)", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.daily_paren), color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             }
                             Spacer(Modifier.weight(1f))
                             Switch(
@@ -764,7 +765,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             existing?.takeIf { !isRetired }?.let { r ->
                 // 고스트 버튼(테두리) — 채워진 박스는 저장 버튼만큼 무거워 보인다.
                 // 잠기면 흐리게 (iOS TLGhostButtonStyle + opacity 0.4)
-                Text("예약 삭제", color = TL.rec, fontSize = 17.sp, fontWeight = FontWeight.Black,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_activity), color = TL.rec, fontSize = 17.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.fillMaxWidth()
                         .alpha(if (isLocked) 0.4f else 1f)
                         .border(1.dp, TL.hairline, TL.cornerM)
@@ -783,7 +784,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showDeleteConfirm = false },
                 containerColor = TL.surface,
-                title = { Text("이 예약을 삭제할까요?", color = TL.paper, fontWeight = FontWeight.Black) },
+                title = { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete_this_activity), color = TL.paper, fontWeight = FontWeight.Black) },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
                         showDeleteConfirm = false
@@ -813,11 +814,11 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             AccountStore.mirrorReservation(deleted)
                             withContext(Dispatchers.Main) { onDone() }
                         }
-                    }) { Text("삭제", color = TL.rec, fontWeight = FontWeight.Black) }
+                    }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.delete), color = TL.rec, fontWeight = FontWeight.Black) }
                 },
                 dismissButton = {
                     androidx.compose.material3.TextButton(onClick = { showDeleteConfirm = false }) {
-                        Text("취소", color = TL.muted)
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_short), color = TL.muted)
                     }
                 },
             )
@@ -834,8 +835,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     // 어느 쪽을 고르든 화면은 닫는다. 저장을 인질로 잡지 않는다.
     if (showNotifBlocked) {
         TLSettingsDialog(
-            title = "알림이 꺼져 있어요",
-            message = "예약한 시각에 알람이 울리지 않습니다. 설정 → 알림에서 앵그리모티를 켜주세요.",
+            title = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.notif_off_title),
+            message = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.notif_off_msg),
             onConfirm = {
                 showNotifBlocked = false
                 Permissions.openNotificationSettings(context)
@@ -849,9 +850,8 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
     // 뜨지 않는다. 한 번만 안내하고, 이후에는 마이페이지 '알람 점검'에서 확인한다.
     if (showFullScreenNotice) {
         TLSettingsDialog(
-            title = "잠금 화면 알람이 막혀 있어요",
-            message = "알림은 오지만 잠금 화면 위로 알람 화면이 뜨지 않습니다. " +
-                "설정에서 '전체 화면 알림'을 허용해 주세요.",
+            title = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.fullscreen_blocked_title),
+            message = androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.fullscreen_blocked_msg),
             onConfirm = {
                 showFullScreenNotice = false
                 com.singlemarks.angrymoti.data.Prefs.fullScreenAlarmNoticeShown = true
@@ -906,11 +906,11 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                         oneOffDay = newStart
                     }
                     showDatePicker = false
-                }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
+                }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), color = TL.rec, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showDatePicker = false }) {
-                    Text("취소", color = TL.muted)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_short), color = TL.muted)
                 }
             },
         ) { androidx.compose.material3.DatePicker(state = dateState) }
@@ -934,11 +934,11 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                 androidx.compose.material3.TextButton(onClick = {
                     endState.selectedDateMillis?.let { oneOffEndDay = utcMidnightToLocal(it) }
                     showEndDatePicker = false
-                }) { Text("확인", color = TL.rec, fontWeight = FontWeight.Bold) }
+                }) { Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.ok_label), color = TL.rec, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showEndDatePicker = false }) {
-                    Text("취소", color = TL.muted)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.cancel_short), color = TL.muted)
                 }
             },
         ) { androidx.compose.material3.DatePicker(state = endState) }
@@ -1051,9 +1051,9 @@ fun SlotStatusBadge(used: Int, allowed: Int?, streak: Int, onClick: () -> Unit) 
         Text(if (full) "🔒" else "🔥", fontSize = 14.sp)
         Spacer(Modifier.width(10.dp))
         Column {
-            Text("활동 슬롯 $used/${allowed?.toString() ?: "무제한"} · 연속 달성 ${streak}일",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slot_badge, "$used/" + (allowed?.toString() ?: androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.unlimited)), streak),
                 color = TL.paper, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text("그룹도 슬롯 1개를 사용해요 · 터치하면 정책", color = TL.faint, fontSize = 11.sp)
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.group_slot_note), color = TL.faint, fontSize = 11.sp)
         }
         Spacer(Modifier.weight(1f))
         Text("ⓘ", color = TL.muted, fontSize = 15.sp)
@@ -1064,24 +1064,24 @@ fun SlotStatusBadge(used: Int, allowed: Int?, streak: Int, onClick: () -> Unit) 
 fun SlotPolicySheet(streak: Int, isPro: Boolean) {
     Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 36.dp)) {
         // 제목에 현재 연속일까지 — iOS는 네비게이션 타이틀이 "활동 슬롯 정책 · 연속 N일"이다.
-        Text("활동 슬롯 정책 · 연속 ${streak}일",
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slot_policy_title, streak),
             color = TL.paper, fontSize = 20.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(10.dp))
-        Text("한 가지에 집중하는 습관을 위해 활동 슬롯은 제한됩니다.\n연속 달성일이 늘어날수록 활동 슬롯도 함께 늘어납니다.",
+        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slot_policy_body),
             color = TL.muted, fontSize = 14.sp, lineHeight = 20.sp)
         Spacer(Modifier.height(16.dp))
 
         // 멤버십 계정은 연속과 무관하게 기본 10개가 보장되므로 사다리를 접고 '기본 10개 / 연속 30일 무제한' 2줄만.
         val rows = if (isPro)
-            listOf("기본" to "${SlotPolicy.MEMBER_FLOOR_SLOTS}개", "연속 30일" to "무제한")
+            listOf(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.base_label) to androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slots_n, SlotPolicy.MEMBER_FLOOR_SLOTS), androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.streak_n_days, 30) to androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.unlimited))
         else
-            listOf("기본" to "${SlotPolicy.BASE_SLOTS}개") + SlotPolicy.tiers.map { (d, s) ->
-                "연속 ${d}일" to (s?.let { "${it}개" } ?: "무제한")
+            listOf(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.base_label) to androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slots_n, SlotPolicy.BASE_SLOTS)) + SlotPolicy.tiers.map { (d, s) ->
+                androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.streak_n_days, d) to (s?.let { androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.slots_n, it) } ?: androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.unlimited))
             }
         val currentLabel = when {
-            streak >= 30 -> "연속 30일"
-            isPro -> "기본"   // 멤버는 30일 미만이면 항상 기본(10개) 행이 현재
-            else -> SlotPolicy.tiers.lastOrNull { it.first <= streak }?.let { "연속 ${it.first}일" } ?: "기본"
+            streak >= 30 -> androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.streak_n_days, 30)
+            isPro -> androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.base_label)   // 멤버는 30일 미만이면 항상 기본(10개) 행이 현재
+            else -> SlotPolicy.tiers.lastOrNull { it.first <= streak }?.let { androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.streak_n_days, it.first) } ?: androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.base_label)
         }
         // 단계표 — 행을 따로 떼지 않고 하나의 카드 안에 구분선으로 나눈다 (iOS 1:1).
         Column(
@@ -1090,9 +1090,9 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
                 .clip(TL.cornerM),
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Text("연속 달성일", color = TL.faint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.streak_days_col), color = TL.faint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Text("최대 활동", color = TL.faint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.max_activities), color = TL.faint, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
             rows.forEachIndexed { index, (label, slots) ->
                 val isCurrent = label == currentLabel
@@ -1107,7 +1107,7 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
                     if (isCurrent) {
                         Spacer(Modifier.width(6.dp))
                         // '현재' 배지 — 제이드 캡슐 + 잉크 글씨 (iOS 1:1)
-                        Text("현재", color = TL.ink, fontSize = 10.sp, fontWeight = FontWeight.Black,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.current_label), color = TL.ink, fontSize = 10.sp, fontWeight = FontWeight.Black,
                             modifier = Modifier
                                 .background(TL.jade, CircleShape)
                                 .padding(horizontal = 7.dp, vertical = 2.dp))
@@ -1129,8 +1129,8 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
                 modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
             Text(
-                if (isPro) "멤버십 적용 중 — 연속일과 무관하게 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개가 보장됩니다."
-                else "멤버십에 가입하면 연속일과 무관하게 최소 ${SlotPolicy.MEMBER_FLOOR_SLOTS}개부터 시작합니다.",
+                if (isPro) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.member_slots_active, SlotPolicy.MEMBER_FLOOR_SLOTS)
+                else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.member_slots_pitch, SlotPolicy.MEMBER_FLOOR_SLOTS),
                 color = TL.jade, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, lineHeight = 17.sp)
         }
         Spacer(Modifier.height(8.dp))
@@ -1138,7 +1138,7 @@ fun SlotPolicySheet(streak: Int, isPro: Boolean) {
             androidx.compose.material3.Icon(AppIcon.Shield, null, tint = TL.muted,
                 modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
-            Text("연속이 끊기면 한도가 내려가지만, 이미 만든 활동은 사라지지 않아요. 새로 추가하는 것만 제한됩니다.",
+            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.streak_break_note),
                 color = TL.muted, fontSize = 12.sp, lineHeight = 17.sp)
         }
     }
@@ -1204,14 +1204,14 @@ fun WeeklyScheduleTab(
         // 상단 — 중앙 '주간 일정' 타이틀 + 우측 '+추가' (iOS 네비게이션 바 인라인 타이틀 1:1)
         item {
             Box(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                Text("주간 일정", color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.weekly_plan), color = TL.paper, fontSize = 18.sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.align(Alignment.Center))
                 Row(verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.align(Alignment.CenterEnd)
                         .clip(CircleShape)
                         .clickable(onClick = onAdd)
                         .padding(horizontal = 10.dp, vertical = 6.dp)) {
-                    Text("+ 추가", color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.plus_add), color = TL.paper, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -1237,13 +1237,13 @@ fun WeeklyScheduleTab(
                         Text("($md)", color = TL.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         if (isToday) {
                             Spacer(Modifier.width(8.dp))
-                            Text("오늘", color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Black,
+                            Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.today), color = TL.ink, fontSize = 11.sp, fontWeight = FontWeight.Black,
                                 modifier = Modifier.background(TL.rec, CircleShape)
                                     .padding(horizontal = 8.dp, vertical = 3.dp))
                         }
                     }
                     if (dayItems.isEmpty()) {
-                        Text("일정 없음", color = TL.faint, fontSize = 12.sp,
+                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.no_schedule), color = TL.faint, fontSize = 12.sp,
                             modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 2.dp))
                     } else {
                         // 그 날 예약들을 하나의 카드로 묶고, 오늘이면 빨강 테두리 강조 (iOS 1:1)
@@ -1297,7 +1297,7 @@ fun WeeklyScheduleTab(
             }.sortedBy { it.second }
             if (laterItems.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("이후 예정", color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.coming_up), color = TL.paper, fontSize = 16.sp, fontWeight = FontWeight.Black)
                     Column(
                         Modifier.fillMaxWidth().background(TL.surface, TL.cornerL)
                             .border(1.dp, TL.hairline.copy(alpha = 0.6f), TL.cornerL)
@@ -1372,16 +1372,16 @@ private fun ScheduleRow(
     val meta = when {
         sameDay -> {
             val c = Calendar.getInstance().apply { timeInMillis = r.createdAt }
-            "${TLFormat.monthDay(c.timeInMillis)} 하루"
+            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.one_day_meta, TLFormat.monthDay(c.timeInMillis))
         }
         // 표기는 '매일' / '반복요일' 두 가지로만 — 기간이 짧으면 '매주'가 사실과 달라진다.
-        r.repeatWeekdays.size == 7 -> "매일"          // 요일 전체 = 매일(기간)
-        r.isRepeating -> "반복요일"
+        r.repeatWeekdays.size == 7 -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.daily)          // 요일 전체 = 매일(기간)
+        r.isRepeating -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.weekly_repeat_label)
         r.oneOffDayStart != null -> {
             val c = Calendar.getInstance().apply { timeInMillis = r.oneOffDayStart!! }
-            "${TLFormat.monthDay(c.timeInMillis)} 하루"
+            com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.one_day_meta, TLFormat.monthDay(c.timeInMillis))
         }
-        else -> "매일"
+        else -> com.singlemarks.angrymoti.L10n.str(com.singlemarks.angrymoti.R.string.daily)
     }
     // 지나간 일정은 통째로 흐리게 — 오늘 남은 일정과 한눈에 구분된다.
     // 결과 표시등만 원래 밝기를 유지해 성공/실패를 바로 읽을 수 있게 한다 (iOS 1:1).
