@@ -5516,6 +5516,17 @@
           }
         }
       }
+    },
+    "Change in Settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정에서 변경하기"
+          }
+        }
+      }
     }
   },
   "version": "1.2"

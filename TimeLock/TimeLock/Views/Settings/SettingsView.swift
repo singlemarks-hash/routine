@@ -522,12 +522,13 @@ struct LedgerView: View {
     }
 }
 
-// MARK: - 앱 언어 (뼈대)
+// MARK: - 앱 언어
 
 struct AppLanguageView: View {
+    @Environment(\.openURL) private var openURL
+
     /// 앱이 실제로 그려지는 언어 — 체크마크는 하드코딩이 아니라 현재 로케일을 따라간다.
     /// (예전엔 한국어에 고정 체크라 영어 기기에서 틀린 정보를 보여줬다)
-    /// 인앱 전환은 Phase 4에서 설정 딥링크로 붙는다 — 여기는 현재 상태 표시만.
     private var isKorean: Bool { TLFormat.isKorean }
 
     var body: some View {
@@ -555,6 +556,14 @@ struct AppLanguageView: View {
                 }
                 Text("Follows your device language. You can change it in Settings.")
                     .font(.system(size: 12)).foregroundStyle(TL.faint)
+
+                // iOS는 앱이 2개 이상 언어를 지원하면 설정 앱에 '기본 언어' 항목을 자동으로
+                // 만들어 준다 — 인앱 픽커를 따로 두지 않고 그리로 보낸다(D1).
+                Button("Change in Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+                .buttonStyle(TLPrimaryButtonStyle())
+                .padding(.top, 2)
             }
             .padding(20)
         }
