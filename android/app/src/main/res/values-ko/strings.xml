@@ -2,4 +2,7 @@
 <!-- 한국어 번역 — 키 목록은 values/strings.xml(영어)과 항상 1:1 이어야 한다 -->
 <resources>
     <string name="app_name">앵그리모티</string>
+    <string name="open_settings">설정 열기</string>
+    <string name="later">나중에</string>
+    <string name="back">뒤로</string>
 </resources>

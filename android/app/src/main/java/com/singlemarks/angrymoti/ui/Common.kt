@@ -76,6 +76,7 @@ import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WorkspacePremium
+import com.singlemarks.angrymoti.R
 import com.singlemarks.angrymoti.ui.theme.TL
 import kotlin.math.min
 
@@ -170,19 +171,19 @@ object TLFormat {
     fun monthDay(millis: Long): String {
         if (!isKorean) return bestFormat("MMMd", millis)
         val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
-        return "${c.get(java.util.Calendar.MONTH) + 1}월 ${c.get(java.util.Calendar.DAY_OF_MONTH)}일"
+        return "${c.get(java.util.Calendar.MONTH) + 1}월 ${c.get(java.util.Calendar.DAY_OF_MONTH)}일"   // l10n:ko-literal
     }
 
     /** "2026년 8월" / "August 2026" — 기록 캘린더 헤더 */
     fun yearMonth(millis: Long): String {
         if (!isKorean) return bestFormat("yMMMM", millis)
         val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
-        return "${c.get(java.util.Calendar.YEAR)}년 ${c.get(java.util.Calendar.MONTH) + 1}월"
+        return "${c.get(java.util.Calendar.YEAR)}년 ${c.get(java.util.Calendar.MONTH) + 1}월"   // l10n:ko-literal
     }
 
     /** "8월 14일 (목)" / "Thu, Aug 14" — 그룹 일정 표기 (iOS GroupFormat.day 1:1) */
     fun monthDayWeek(millis: Long): String =
-        if (isKorean) java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREA)
+        if (isKorean) java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREA)   // l10n:ko-literal
             .format(java.util.Date(millis))
         else bestFormat("MMMdE", millis)
 
@@ -196,9 +197,9 @@ object TLFormat {
     fun durationLabel(minutes: Int): String {
         val h = minutes / 60; val m = minutes % 60
         if (isKorean) return when {
-            h > 0 && m > 0 -> "${h}시간 ${m}분"
-            h > 0 -> "${h}시간"
-            else -> "${m}분"
+            h > 0 && m > 0 -> "${h}시간 ${m}분"   // l10n:ko-literal
+            h > 0 -> "${h}시간"   // l10n:ko-literal
+            else -> "${m}분"   // l10n:ko-literal
         }
         return when {
             h > 0 && m > 0 -> "${h}h ${m}m"
@@ -216,9 +217,9 @@ object TLFormat {
     fun timeLabel(startMinute: Int): String {
         val h = startMinute / 60; val m = startMinute % 60
         if (isKorean) {
-            val ampm = if (h < 12) "오전" else "오후"
+            val ampm = if (h < 12) "오전" else "오후"   // l10n:ko-literal
             val h12 = if (h % 12 == 0) 12 else h % 12
-            return if (m == 0) "$ampm ${h12}시" else "$ampm ${h12}:%02d".format(m)
+            return if (m == 0) "$ampm ${h12}시" else "$ampm ${h12}:%02d".format(m)   // l10n:ko-literal
         }
         val millis = java.util.Calendar.getInstance().apply {
             set(java.util.Calendar.HOUR_OF_DAY, h); set(java.util.Calendar.MINUTE, m)
@@ -233,7 +234,7 @@ object TLFormat {
         if (!isKorean) return bestFormat("jmm", epochMillis)
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
         val h = cal.get(java.util.Calendar.HOUR_OF_DAY); val m = cal.get(java.util.Calendar.MINUTE)
-        val ampm = if (h < 12) "오전" else "오후"
+        val ampm = if (h < 12) "오전" else "오후"   // l10n:ko-literal
         val h12 = if (h % 12 == 0) 12 else h % 12
         return "$ampm $h12:${"%02d".format(m)}"
     }
@@ -261,8 +262,8 @@ fun tlTimerStyle(size: TextUnit): TextStyle = TextStyle(
 fun TLSettingsDialog(
     title: String,
     message: String,
-    confirmLabel: String = "설정 열기",
-    dismissLabel: String = "나중에",
+    confirmLabel: String = androidx.compose.ui.res.stringResource(R.string.open_settings),
+    dismissLabel: String = androidx.compose.ui.res.stringResource(R.string.later),
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -367,8 +368,8 @@ fun hourMinuteParts(totalSeconds: Int): List<Pair<String, String>> {
     val h = s / 3600
     val m = (s % 3600) / 60
     val parts = mutableListOf<Pair<String, String>>()
-    val hUnit = if (TLFormat.isKorean) "시간" else "h"
-    val mUnit = if (TLFormat.isKorean) "분" else "m"
+    val hUnit = if (TLFormat.isKorean) "시간" else "h"   // l10n:ko-literal
+    val mUnit = if (TLFormat.isKorean) "분" else "m"   // l10n:ko-literal
     if (h > 0) parts.add("%,d".format(h) to hUnit)
     if (m > 0 || h == 0) parts.add("$m" to mUnit)
     return parts
@@ -491,7 +492,7 @@ fun TLCircleBack(onClick: () -> Unit) {
     ) {
         androidx.compose.material3.Icon(
             AppIcon.ChevronLeft,
-            contentDescription = "뒤로", tint = TL.paper,
+            contentDescription = androidx.compose.ui.res.stringResource(R.string.back), tint = TL.paper,
             modifier = Modifier.size(22.dp))
     }
 }
