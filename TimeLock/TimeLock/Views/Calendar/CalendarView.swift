@@ -701,12 +701,14 @@ struct DashboardSection: View {
 
                 Spacer(minLength: 12)
 
-                VStack(alignment: .trailing, spacing: 12) {
-                    HStack(spacing: 22) {
+                // Grid로 묶어야 위아래 행의 열 폭이 같아진다. HStack 두 개로 두면 행마다
+                // 폭이 따로 정해져 '완주율'과 '노쇼율'의 오른쪽 끝이 세로로 어긋난다.
+                Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 12) {
+                    GridRow {
                         miniStat(label: String(localized: "Total Points"), value: "\(totalReward)", tint: TL.jade)
                         miniStat(label: String(localized: "Completion Rate"), value: "\(completionRate)%", tint: TL.jade)
                     }
-                    HStack(spacing: 22) {
+                    GridRow {
                         // 벌점은 빨간색이 이미 '깎였다'를 말하므로 절대값으로 표기
                         miniStat(label: String(localized: "Total Penalty"), value: "\(abs(totalPenalty))", tint: TL.rec)
                         miniStat(label: String(localized: "No-show Rate"), value: "\(noShowRate)%",
@@ -721,9 +723,15 @@ struct DashboardSection: View {
 
     private func miniStat(label: String, value: String, tint: Color) -> some View {
         VStack(alignment: .trailing, spacing: 2) {
+            // 영어 라벨은 한국어보다 길다("완주율" ↔ "Completion Rate"). 폭이 모자라면
+            // SwiftUI가 단어 중간을 끊어버리므로("Completio / n Rate") 글자를 조금
+            // 줄여서라도 단어를 지키게 한다. 줄바꿈된 라벨도 값과 같이 오른쪽 정렬.
             Text(label)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(TL.muted)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
             Text(value)
                 .font(.tlTimer(16))
                 .foregroundStyle(tint)
