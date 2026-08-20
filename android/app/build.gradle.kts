@@ -38,6 +38,17 @@ android {
     }
 
     signingConfigs {
+        // debug 서명을 저장소의 공유 키스토어로 고정한다. 기본 동작(~/.android/debug.keystore)은
+        // 머신마다 지문이 달라서 — 특히 CI 러너는 매 실행 새 키를 만들어 — Firebase에 SHA-1을
+        // 등록할 수 없고, 그 빌드에서는 Google 로그인이 항상 NoCredentialException으로 죽는다.
+        // 이 키의 SHA-1(D8:3D:D2:C8:C6:52:E4:72:E1:65:C3:73:01:1A:28:91:C2:BE:16:53)을
+        // Firebase 콘솔에 1회 등록하면 CI APK·로컬 빌드 모두에서 로그인이 된다.
+        getByName("debug") {
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (keystoreProps.isNotEmpty()) {
             create("upload") {
                 storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))

@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
@@ -70,7 +72,12 @@ fun IntroFlow(onFinish: () -> Unit) {
                 )
             )
         )
-        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+        // 글로우 배경은 인셋 밖까지 풀블리드, 콘텐츠(버튼 포함)만 상태바·내비바 안쪽으로 —
+        // 갤럭시 3버튼 내비바가 '다음' 버튼을 덮던 문제 (iOS 세이프 에어리어 1:1)
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
+        ) { page ->
             when (page) {
                 0 -> ShootStep { scope.launch { pagerState.animateScrollToPage(1) } }
                 else -> RecordStep(
@@ -256,6 +263,7 @@ private fun PermissionStep(onFinish: () -> Unit) {
 
     Column(
         Modifier.fillMaxSize().background(TL.ink)
+            .statusBarsPadding().navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
     ) {

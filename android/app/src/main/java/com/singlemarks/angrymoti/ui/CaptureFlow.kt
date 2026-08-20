@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.displayCutoutPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -130,7 +131,8 @@ fun AlarmScreen(reservationId: String, fireAt: Long) {
     val r = reservation ?: return
 
     Column(
-        Modifier.fillMaxSize().background(TL.ink).padding(24.dp),
+        Modifier.fillMaxSize().background(TL.ink)
+            .statusBarsPadding().navigationBarsPadding().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(60.dp))
@@ -504,7 +506,7 @@ fun MountGuideScreen(pending: PendingSession) {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(TL.ink)) {
+    Box(Modifier.fillMaxSize().background(TL.ink).navigationBarsPadding()) {
         if (portrait) {
             // 세로 — 가로와 동일하게: 전체 화면 프리뷰 + 점선 프레임(맨 뒤) 위로 컨트롤이 덮는다.
             //  프레임이 헤더·체크·버튼 위를 가로지르지 않아 화면이 깔끔하다 (iOS 1:1).
@@ -780,7 +782,7 @@ fun SessionScreen() {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(TL.ink)) {
+    Box(Modifier.fillMaxSize().background(TL.ink).navigationBarsPadding()) {
         if (portraitSession) {
             // 세로 — 이름/다이얼/타이머/프리뷰/버튼 수직 배치 (iOS 1:1)
             Column(
@@ -1069,7 +1071,8 @@ fun SessionResultScreen() {
     var saved by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().background(TL.ink)) {
+    Column(Modifier.fillMaxSize().background(TL.ink)
+        .statusBarsPadding().navigationBarsPadding()) {
         // 스크롤 영역 — 화면이 작아도 하단 버튼은 항상 보인다
         Column(
             Modifier.weight(1f).fillMaxWidth()

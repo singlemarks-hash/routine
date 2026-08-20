@@ -10,3 +10,6 @@ captures/
 keystore.properties
 *.jks
 *.keystore
+# 공유 debug 키만 예외 — 비밀이 아니며(표준 android/android 암호), CI APK와 팀원
+# 기기의 서명 지문을 고정해 Firebase에 등록된 SHA-1로 Google 로그인이 되게 한다
+!debug.keystore
