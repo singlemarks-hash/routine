@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -57,6 +58,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -506,6 +508,7 @@ fun MountGuideScreen(pending: PendingSession) {
         }
     }
 
+    KeepScreenOn()   // 구도 확인·카운트다운 중 화면이 꺼지지 않게
     Box(Modifier.fillMaxSize().background(TL.ink).navigationBarsPadding()) {
         if (portrait) {
             // 세로 — 가로와 동일하게: 전체 화면 프리뷰 + 점선 프레임(맨 뒤) 위로 컨트롤이 덮는다.
@@ -722,7 +725,8 @@ fun SessionScreen() {
         Box(
             Modifier.fillMaxHeight()
                 .aspectRatio(aspect, matchHeightConstraintsFirst = true)
-                .clip(TL.cornerL).background(TL.surface),
+                // 라운드 22dp는 갤럭시 실기기에서 과하게 둥글다는 제보 — 절반으로
+                .clip(RoundedCornerShape(11.dp)).background(TL.surface),
         ) {
             AndroidView(
                 factory = { ctx ->
@@ -782,7 +786,9 @@ fun SessionScreen() {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(TL.ink).navigationBarsPadding()) {
+    KeepScreenOn()   // 촬영 중 화면 자동 꺼짐 방지 — 꺼지면 백그라운드 이탈로 긴급용무 모드에 빠진다
+    Box(Modifier.fillMaxSize().background(TL.ink)
+        .statusBarsPadding().navigationBarsPadding()) {
         if (portraitSession) {
             // 세로 — 이름/다이얼/타이머/프리뷰/버튼 수직 배치 (iOS 1:1)
             Column(
@@ -798,7 +804,10 @@ fun SessionScreen() {
                     Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.auto_end_1min), color = TL.jade, fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold)
                 }
-                Spacer(Modifier.weight(1f))
+                // 갤럭시 실기기 제보로 리밸런싱: 제목~다이얼·프리뷰~버튼의 유연 여백(weight)이
+                // 큰 화면에서 과하게 벌어졌다 → 고정 간격으로 바꾸고, 남는 세로 공간은 전부
+                // 프리뷰 몫(weight 1)으로 — 프리뷰가 기존(전체의 4/7)보다 ~30% 이상 커진다.
+                Spacer(Modifier.height(18.dp))
                 FocusDial(
                     remaining = ((target - recorded).toFloat() / target).coerceIn(0f, 1f),
                     totalMinutes = target / 60,
@@ -806,17 +815,16 @@ fun SessionScreen() {
                     tint = if (target - recorded <= 60) TL.jade else TL.rec,
                     modifier = Modifier.size(230.dp),
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(TLFormat.hms((target - recorded).toLong().coerceAtLeast(0)),
                     color = TL.paper, fontSize = 36.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.weight(1f))
-                // weight 4 — 프리뷰가 화면 1/3 이상을 차지하도록 유연 공간의 몫을 키움
-                Box(Modifier.weight(4f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Spacer(Modifier.height(16.dp))
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     previewCard(9f / 16f)
                 }
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(14.dp))
                 buttonsRow()
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
             }
         } else {
             // 가로 — 왼쪽 다이얼/타이머, 오른쪽 프리뷰/버튼 나란히
@@ -1304,5 +1312,20 @@ fun ConfettiBurst(count: Int = 30) {
                     .background(color, CircleShape)
             )
         }
+    }
+}
+
+
+/**
+ * 이 컴포저블이 화면에 있는 동안 기기 화면이 자동으로 꺼지지 않게 한다
+ * (iOS isIdleTimerDisabled 1:1). 촬영 준비·세션 화면에서 쓴다 — 화면이 꺼지면
+ * 앱이 백그라운드 판정을 받아 촬영 중인데도 긴급용무 모드로 빠진다(갤럭시 실기기 제보).
+ */
+@Composable
+private fun KeepScreenOn() {
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
     }
 }
