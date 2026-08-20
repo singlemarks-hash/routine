@@ -63,6 +63,15 @@ object SessionEngine {
 
     val currentSession: FocusSession? get() = session
 
+    /** G2 스크린샷 하네스 전용 — 엔진(타이머·녹화·알림차단)을 돌리지 않고 세션 화면이
+     *  그릴 상태만 주입한다. 프로덕션 경로에서는 절대 부르지 않는다. */
+    @androidx.annotation.VisibleForTesting
+    fun seedForScreenshot(s: FocusSession, recorded: Int) {
+        session = s
+        recordedSeconds.value = recorded
+        phase.value = Phase.Recording
+    }
+
     // MARK: 시작
 
     fun start(activityName: String, tag: String, intensity: Intensity,

@@ -24,6 +24,7 @@ import androidx.test.services.storage.TestStorage
 import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.ui.AlarmHealthScreen
+import com.singlemarks.angrymoti.ui.SessionScreen
 import com.singlemarks.angrymoti.ui.AuthScreen
 import com.singlemarks.angrymoti.ui.CalendarScreen
 import com.singlemarks.angrymoti.ui.GroupTab
@@ -166,4 +167,17 @@ class ScreenshotTour {
     @Test fun myPage() = shot("mypage") { MyPageScreen(onBack = {}) }
     @Test fun paywall() = shot("paywall") { PaywallScreen(onBack = {}) }
     @Test fun alarmHealth() = shot("alarm-health") { AlarmHealthScreen(onBack = {}) }
+
+    // 세션 세로 화면 — 카메라 없이 상태만 주입해 레이아웃 비율을 본다 (프리뷰는 검은 카드).
+    // 25분 목표에 7분 경과 시점: 다이얼 부채꼴·타이머가 실사용 모습으로 찍힌다.
+    @Test fun session() {
+        com.singlemarks.angrymoti.services.SessionEngine.seedForScreenshot(
+            com.singlemarks.angrymoti.data.FocusSession(
+                activityName = "아침 독서", tag = "독서",
+                intensityRaw = "spicy", targetSeconds = 25 * 60,
+            ),
+            recorded = 7 * 60,
+        )
+        shot("session") { SessionScreen() }
+    }
 }
