@@ -47,7 +47,7 @@ jobs:
           xcodebuild build-for-testing \
             -project TimeLock/TimeLock.xcodeproj \
             -scheme TimeLock \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             IPHONEOS_DEPLOYMENT_TARGET=17.0
@@ -67,7 +67,7 @@ jobs:
               -project TimeLock/TimeLock.xcodeproj \
               -scheme TimeLock \
               -only-testing:TimeLockUITests/L10nScreenshotTests \
-              -destination 'platform=iOS Simulator,name=iPhone 16' \
+              -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max' \
               -resultBundlePath "result-$loc.xcresult" \
               CODE_SIGNING_ALLOWED=NO \
               IPHONEOS_DEPLOYMENT_TARGET=17.0 || echo "테스트 비정상 종료($loc) — 찍힌 장면까지는 추출한다"
