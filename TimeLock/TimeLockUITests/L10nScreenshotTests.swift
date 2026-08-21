@@ -106,7 +106,15 @@ final class L10nScreenshotTests: XCTestCase {
         // 2) 인증 — 게스트 진입. 탭 후 화면이 안 바뀌면 좌표 탭으로 1회 재시도.
         //    (2차 실행에서 ko만 게스트 탭이 무시되어 이후 장면이 전부 인증 화면으로 찍혔다)
         let guestLabels = ["Continue as Guest", "게스트로 시작"]
+        // 6.9" 1차 실측: Pro Max 첫 부팅이 느려 두 번째 '다음'이 씹힌 채 인트로에 머물렀고,
+        // 이후 장면 전부가 로그인 화면으로 찍혔다. 인증 도달을 확인하며 '다음'을 재시도한다.
+        for _ in 0..<4 {
+            if guestLabels.contains(where: { app.buttons[$0].exists || app.staticTexts[$0].exists }) { break }
+            tapAny(app, ["Next", "다음"], timeout: 3)
+            sleep(2)
+        }
         if app.buttons[guestLabels[0]].waitForExistence(timeout: 8)
+            || app.staticTexts[guestLabels[0]].waitForExistence(timeout: 2)
             || app.buttons[guestLabels[1]].waitForExistence(timeout: 2)
             || app.staticTexts[guestLabels[1]].waitForExistence(timeout: 2) {
             shoot(app, "auth")
@@ -235,8 +243,9 @@ final class L10nScreenshotTests: XCTestCase {
             "-uitestPaywall",
         ]
         app.launch()
-        if app.buttons["Restore Purchases"].waitForExistence(timeout: 10)
-            || app.buttons["구매 복원"].waitForExistence(timeout: 2) {
+        // Pro Max 첫 부팅에서 10초로는 페이월 로드 전에 지나쳐 첨부 0장이 났다 (6.9" 1차)
+        if app.buttons["Restore Purchases"].waitForExistence(timeout: 25)
+            || app.buttons["구매 복원"].waitForExistence(timeout: 3) {
             shotIndex = 90   // 투어 번호와 겹치지 않게
             shoot(app, "paywall")
         }
