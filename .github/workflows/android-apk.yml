@@ -29,6 +29,40 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
+      # 16KB 페이지 정렬 진단 — Play 오류('앱이 16KB 메모리 페이지 크기를 지원하지 않습니다')의
+      # 범인 .so를 특정한다. LOAD 세그먼트 p_align < 16384 인 네이티브 라이브러리가 원인.
+      - name: 16KB ELF 정렬 검사
+        run: |
+          python3 - android/app/build/outputs/apk/debug/app-debug.apk <<'PY'
+          import zipfile, struct, sys
+          z = zipfile.ZipFile(sys.argv[1])
+          rows = []
+          for n in sorted(z.namelist()):
+              if not n.endswith('.so'): continue
+              d = z.read(n)
+              if d[:4] != b'\x7fELF': continue
+              is64 = d[4] == 2
+              if is64:
+                  phoff = struct.unpack_from('<Q', d, 0x20)[0]
+                  phentsize = struct.unpack_from('<H', d, 0x36)[0]
+                  phnum = struct.unpack_from('<H', d, 0x38)[0]
+              else:
+                  phoff = struct.unpack_from('<I', d, 0x1c)[0]
+                  phentsize = struct.unpack_from('<H', d, 0x2a)[0]
+                  phnum = struct.unpack_from('<H', d, 0x2c)[0]
+              worst = None
+              for i in range(phnum):
+                  off = phoff + i * phentsize
+                  ptype = struct.unpack_from('<I', d, off)[0]
+                  if ptype == 1:
+                      a = struct.unpack_from('<Q', d, off + 0x30)[0] if is64 else struct.unpack_from('<I', d, off + 0x1c)[0]
+                      worst = a if worst is None else min(worst, a)
+              rows.append(('OK ' if (worst or 0) >= 16384 else 'BAD', worst, n))
+          for st, a, n in rows: print(st, str(a).rjust(6), n)
+          bad = [r for r in rows if r[0] == 'BAD']
+          print(f"\n{len(bad)} misaligned .so / {len(rows)} total")
+          PY
+
       - name: APK 업로드
         uses: actions/upload-artifact@v4
         with:
