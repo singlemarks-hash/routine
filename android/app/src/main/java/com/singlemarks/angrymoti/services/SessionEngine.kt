@@ -72,6 +72,14 @@ object SessionEngine {
         phase.value = Phase.Recording
     }
 
+    /** seedForScreenshot 원복 — 싱글턴 상태가 같은 프로세스의 다음 테스트로 새지 않게 */
+    @androidx.annotation.VisibleForTesting
+    fun resetForScreenshot() {
+        session = null
+        recordedSeconds.value = 0
+        phase.value = Phase.Idle
+    }
+
     // MARK: 시작
 
     fun start(activityName: String, tag: String, intensity: Intensity,

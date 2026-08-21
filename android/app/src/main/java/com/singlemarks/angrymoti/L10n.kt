@@ -15,6 +15,7 @@ object L10n {
     fun init(context: Context) { appContext = context.applicationContext }
 
     /** JVM 단위 테스트용 — Context가 없으므로 리소스 해석기를 직접 주입한다 (G3 테스트가 values-ko XML로 채운다) */
+    @androidx.annotation.VisibleForTesting
     fun initForTest(resolver: (Int, Array<out Any>) -> String) { testResolver = resolver }
 
     fun str(id: Int, vararg args: Any): String {

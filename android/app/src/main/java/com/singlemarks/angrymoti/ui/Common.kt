@@ -167,6 +167,13 @@ object TLFormat {
             .format(java.util.Date(millis))
     }
 
+    /** "2026. 8. 16." / "Aug 16, 2026" — 예약 편집 시작일·종료일 칩 */
+    fun fullDate(millis: Long): String {
+        if (!isKorean) return bestFormat("yMMMd", millis)
+        val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+        return "${c.get(java.util.Calendar.YEAR)}. ${c.get(java.util.Calendar.MONTH) + 1}. ${c.get(java.util.Calendar.DAY_OF_MONTH)}."   // l10n:ko-literal
+    }
+
     /** "8월 14일" / "Aug 14" */
     fun monthDay(millis: Long): String {
         if (!isKorean) return bestFormat("MMMd", millis)

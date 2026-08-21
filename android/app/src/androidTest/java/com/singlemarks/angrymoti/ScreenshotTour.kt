@@ -36,6 +36,7 @@ import com.singlemarks.angrymoti.ui.PaywallScreen
 import com.singlemarks.angrymoti.ui.ReservationEditScreen
 import com.singlemarks.angrymoti.ui.theme.AngryMotiTheme
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -102,6 +103,14 @@ class ScreenshotTour {
                 oneOffDayStart = today,
             ))
         }
+    }
+
+    @After
+    fun resetEngine() {
+        // session 테스트가 주입한 싱글턴 상태 원복 — JUnit4 실행 순서는 이름 해시 기반이라
+        // session이 home보다 먼저 돌 수 있고, 홈에 '진행 중 세션' 표시가 생기는 순간
+        // 유령 세션이 낀 캡처가 나온다.
+        com.singlemarks.angrymoti.services.SessionEngine.resetForScreenshot()
     }
 
     /** 로케일 오버라이드 컨텍스트로 감싼 렌더 → 안정화 대기 → 캡처 저장 */
