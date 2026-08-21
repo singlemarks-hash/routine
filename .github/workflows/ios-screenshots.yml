@@ -15,7 +15,7 @@ jobs:
   capture:
     name: 시뮬레이터 캡처 (${{ inputs.locales }})
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 100
     # shots-ios 브랜치 강제 푸시용 (Claude 샌드박스가 아티팩트 CDN에 접근 불가 → git 경유 회수)
     permissions:
       contents: write
