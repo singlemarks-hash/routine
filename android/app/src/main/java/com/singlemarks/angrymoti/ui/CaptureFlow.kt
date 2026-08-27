@@ -686,8 +686,12 @@ private fun SessionSquareButton(
         androidx.compose.material3.Icon(icon, null,
             tint = if (active) TL.ink else TL.paper, modifier = Modifier.size(23.dp))
         Spacer(Modifier.height(6.dp))
+        // en 'Emergency Break'는 두 줄 — 중앙 정렬 + 라벨 영역 고정(두 줄 기준)으로
+        // 옆 버튼과 아이콘 높이를 맞춘다 (한 줄 라벨도 같은 자리에서 시작)
         Text(label, color = if (active) TL.ink else TL.muted,
-            fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            fontSize = 11.sp, fontWeight = FontWeight.Bold, lineHeight = 13.sp,
+            maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
 

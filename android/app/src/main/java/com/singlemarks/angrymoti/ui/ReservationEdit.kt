@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -521,12 +522,14 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
             Column {
                 TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.intensity_label))
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // IntrinsicSize.Min — en 부제 줄 수가 달라도 두 카드 높이를 맞춘다
+                Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Intensity.entries.forEach { level ->
                         val selected = intensity == level
                         val locked = level == Intensity.INSANE && !insaneUnlocked
                         Column(
-                            Modifier.weight(1f)
+                            Modifier.weight(1f).fillMaxHeight()
                                 .background(if (selected) TL.paper else TL.surface, TL.cornerM)
                                 // 잠긴 카드는 흐린 대신 헤어라인으로 윤곽을 남긴다 (iOS 1:1)
                                 .border(1.dp, if (locked) TL.hairline.copy(alpha = 0.5f) else Color.Transparent, TL.cornerM)
@@ -544,7 +547,7 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                                 }
                                 .padding(vertical = 10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
                         ) {
                             // 자물쇠는 이모지가 아니라 아이콘 — 이모지는 줄 높이를 키워
                             // 카드가 iOS보다 두꺼워지고, 색도 제어할 수 없다 (iOS 1:1).
@@ -558,7 +561,9 @@ fun ReservationEditScreen(reservationId: String?, onDone: () -> Unit) {
                             }
                             // 부제도 제목과 같은 색 — iOS는 두 줄이 같은 foregroundStyle을 쓴다
                             Text(if (level == Intensity.SPICY) androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.spicy_short_desc) else androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.insane_short_desc),
-                                color = fg, fontSize = 10.sp, lineHeight = 13.sp)
+                                color = fg, fontSize = 10.sp, lineHeight = 13.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 8.dp))
                         }
                     }
                 }
