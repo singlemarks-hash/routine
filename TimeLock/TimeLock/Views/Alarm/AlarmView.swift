@@ -669,6 +669,10 @@ struct MountGuideView: View {
                 } label: {
                     Label(orientation.title, systemImage: orientation.icon)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
+                        // en 'Landscape'가 좁은 폭에서 두 줄로 꺾여 캡슐 높이가 커지는 것 방지 —
+                        // 줄바꿈 대신 글자를 살짝 줄인다 (갤럭시 제보와 동일 계열, iOS 선제 적용)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                         .foregroundStyle(selected ? TL.ink : TL.paper)
                         .padding(.horizontal, 14).padding(.vertical, 9)
                         .background(Capsule().fill(selected ? TL.paper : .clear))

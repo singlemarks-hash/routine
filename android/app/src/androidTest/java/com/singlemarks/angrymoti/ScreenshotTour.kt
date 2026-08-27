@@ -177,6 +177,16 @@ class ScreenshotTour {
     @Test fun paywall() = shot("paywall") { PaywallScreen(onBack = {}) }
     @Test fun alarmHealth() = shot("alarm-health") { AlarmHealthScreen(onBack = {}) }
 
+    // 거치 가이드(촬영 준비) — 방향 토글 알약의 en 라벨 줄바꿈 검증용 (프리뷰는 검은 화면).
+    // '지금 바로 시작' 경로: 마감 카운트다운 없음(scheduledAt = null).
+    @Test fun mountGuide() = shot("mount-guide") {
+        com.singlemarks.angrymoti.ui.MountGuideScreen(
+            com.singlemarks.angrymoti.PendingSession(
+                activityName = "아침 독서", tag = "독서", targetSeconds = 30 * 60,
+            )
+        )
+    }
+
     // 세션 세로 화면 — 카메라 없이 상태만 주입해 레이아웃 비율을 본다 (프리뷰는 검은 카드).
     // 25분 목표에 7분 경과 시점: 다이얼 부채꼴·타이머가 실사용 모습으로 찍힌다.
     @Test fun session() {

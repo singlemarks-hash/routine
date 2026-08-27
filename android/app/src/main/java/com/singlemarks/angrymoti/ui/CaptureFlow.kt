@@ -435,15 +435,18 @@ fun MountGuideScreen(pending: PendingSession) {
                         modifier = Modifier
                             .background(if (selected) TL.paper else Color.Transparent, CircleShape)
                             .clickable { if (countdown == null) portrait = isPortrait }
-                            .padding(horizontal = 20.dp, vertical = 11.dp),
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
                     ) {
                         androidx.compose.material3.Icon(
                             if (isPortrait) AppIcon.Smartphone else AppIcon.Tablet, null,
                             tint = if (selected) TL.ink else TL.paper,
                             modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
+                        // en 'Landscape'가 좁은 폭(디스플레이 크기 확대 포함)에서 줄바꿈되며
+                        // 알약 높이가 커지는 것 방지 — 한 줄 고정, 여백은 20→14로 양보
                         Text(label, color = if (selected) TL.ink else TL.paper,
-                            fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, softWrap = false)
                     }
                 }
             }
