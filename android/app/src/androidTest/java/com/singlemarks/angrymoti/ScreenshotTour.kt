@@ -187,6 +187,27 @@ class ScreenshotTour {
         )
     }
 
+    // 거치 가이드 가로 상태 — 에뮬레이터를 실제로 눕혀서 가로 레이아웃 그대로 찍는다
+    @Test fun mountGuideLandscape() {
+        val device = androidx.test.uiautomator.UiDevice
+            .getInstance(InstrumentationRegistry.getInstrumentation())
+        device.setOrientationLeft()
+        device.waitForIdle()
+        try {
+            shot("mount-guide-landscape") {
+                com.singlemarks.angrymoti.ui.MountGuideScreen(
+                    com.singlemarks.angrymoti.PendingSession(
+                        activityName = "아침 독서", tag = "독서", targetSeconds = 30 * 60,
+                    ),
+                    initialPortrait = false,
+                )
+            }
+        } finally {
+            device.setOrientationNatural()
+            device.unfreezeRotation()
+        }
+    }
+
     // 세션 세로 화면 — 카메라 없이 상태만 주입해 레이아웃 비율을 본다 (프리뷰는 검은 카드).
     // 25분 목표에 7분 경과 시점: 다이얼 부채꼴·타이머가 실사용 모습으로 찍힌다.
     @Test fun session() {

@@ -143,6 +143,7 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.6.2")
     // TestStorage API(캡처 저장) + 기기에 설치되는 서비스 APK(androidTestUtil)
     androidTestImplementation("androidx.test.services:storage:1.5.0")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")   // 가로 캡처용 화면 회전
     androidTestUtil("androidx.test.services:test-services:1.5.0")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

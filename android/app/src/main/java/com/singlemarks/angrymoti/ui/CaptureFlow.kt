@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -256,11 +257,11 @@ private fun CancelReasonRow(reason: String, selected: Boolean, onClick: () -> Un
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MountGuideScreen(pending: PendingSession) {
+fun MountGuideScreen(pending: PendingSession, initialPortrait: Boolean = true) {
     val context = LocalContext.current
     // 뒤로가기 차단 — 취소는 화면의 '취소하기' 버튼(정리 파이프라인 포함)으로만 (iOS 1:1)
     androidx.activity.compose.BackHandler { }
-    var portrait by remember { mutableStateOf(true) }
+    var portrait by remember { mutableStateOf(initialPortrait) }
     var check1 by remember { mutableStateOf(false) }   // 거치대에 폰 고정
     var check2 by remember { mutableStateOf(false) }   // 구도 안에 내가 보임
     // rememberSaveable — 카운트다운 중 다크모드 전환 등으로 재생성되면 remember는 null로
@@ -437,10 +438,13 @@ fun MountGuideScreen(pending: PendingSession) {
                             .clickable { if (countdown == null) portrait = isPortrait }
                             .padding(horizontal = 14.dp, vertical = 11.dp),
                     ) {
+                        // 가로도 같은 폰 아이콘을 90° 눕혀 쓴다 — 태블릿 아이콘은 딴 기기로 보였다
+                        // (iOS 'iphone.landscape' 1:1)
                         androidx.compose.material3.Icon(
-                            if (isPortrait) AppIcon.Smartphone else AppIcon.Tablet, null,
+                            AppIcon.Smartphone, null,
                             tint = if (selected) TL.ink else TL.paper,
-                            modifier = Modifier.size(16.dp))
+                            modifier = Modifier.size(16.dp)
+                                .then(if (isPortrait) Modifier else Modifier.rotate(90f)))
                         Spacer(Modifier.width(6.dp))
                         // en 'Landscape'가 좁은 폭(디스플레이 크기 확대 포함)에서 줄바꿈되며
                         // 알약 높이가 커지는 것 방지 — 한 줄 고정, 여백은 20→14로 양보
