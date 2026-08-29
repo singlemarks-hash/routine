@@ -27,8 +27,8 @@ android {
         applicationId = "com.selfer.angrymoti"
         minSdk = 26
         targetSdk = 36
-        versionCode = 22
-        versionName = "1.3.0"
+        versionCode = 23
+        versionName = "1.3.1"
         // G2 스크린샷 하네스 (docs/영어화-설계도.md §2) — androidTest 캡처 실행용.
         // useTestStorageService: 캡처 PNG를 TestStorage로 저장하면 AGP가 테스트 종료(=앱
         // 언인스톨) 전에 build/outputs/connected_android_test_additional_output/으로 자동
