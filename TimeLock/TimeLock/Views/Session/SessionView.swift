@@ -472,6 +472,9 @@ struct SessionResultView: View {
 
                 Button("Done") { app.dismissResult() }
                     .buttonStyle(TLPrimaryButtonStyle(tint: tint))
+                    // 저장(워터마크 재인코딩)이 도는 중의 Done은 원본을 삭제해 저장을
+                    // 실패시킨다 — "저장 눌렀는데 영상이 사라짐". 끝날 때까지 잠근다.
+                    .disabled(saving)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
             }

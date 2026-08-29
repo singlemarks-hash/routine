@@ -516,10 +516,13 @@ object AccountStore {
             SubscriptionManager.applyCloudPro(0L)
             return
         }
+        // 조회 '실패'와 '기록 없음'을 구분한다 — 실패를 0으로 적용하면 iOS에서 구독한
+        // 사용자의 Android Pro가 일시 네트워크 오류 한 번에 풀린다. 실패면 기존 값 유지
+        // 후 다음 동기화에서 재시도. (iOS syncMembershipFromCloud와 동일한 방어)
         val doc = runCatching {
             FirebaseFirestore.getInstance().collection("users").document(uid).get().await()
-        }.getOrNull()
-        SubscriptionManager.applyCloudPro(doc?.getLong("proExpiresAt") ?: 0L)
+        }.getOrNull() ?: return
+        SubscriptionManager.applyCloudPro(doc.getLong("proExpiresAt") ?: 0L)
     }
 
     /** 클라우드 원장 내려받기 — 다른 기기(iOS 포함)에서 쌓인 점수 이벤트를 로컬 Room에 병합한다.

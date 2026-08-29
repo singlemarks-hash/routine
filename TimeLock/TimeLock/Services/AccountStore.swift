@@ -971,6 +971,20 @@ final class AccountStore: ObservableObject {
         #endif
     }
 
+    /// 환불 말소 가드용 — 클라우드 멤버십의 구매 플랫폼.
+    /// 반환 규약: 조회 실패 = nil(아무것도 하지 말 것, 다음 갱신에서 재시도),
+    /// 문서/필드 없음 = "none"(말소해도 잃을 것이 없음), 그 외 = 기록된 플랫폼.
+    func cloudMembershipPlatform() async -> String? {
+        #if canImport(FirebaseFirestore)
+        guard backendActive, let user = currentUser, user.provider != .guest else { return "none" }
+        guard let doc = try? await Firestore.firestore()
+            .collection("users").document(user.id).getDocument() else { return nil }
+        return (doc.data()?["proPlatform"] as? String) ?? "none"
+        #else
+        return "none"
+        #endif
+    }
+
     /// 클라우드 구독 상태 읽기 → SubscriptionManager에 반영 (스토어 구독 ∨ 클라우드 유효 = Pro)
     private func syncMembershipFromCloud() async {
         #if canImport(FirebaseFirestore)

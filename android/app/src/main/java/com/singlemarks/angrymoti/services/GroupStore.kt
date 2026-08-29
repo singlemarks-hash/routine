@@ -662,8 +662,13 @@ object GroupStore {
         applyScore(room.id, ScoreRules.GROUP_QUIT_PENALTY,
             quitOccurrenceKey(room.id), SCORE_RANK_NORMAL)
         memberRef.update("quit", true).await()
-        // 개인 누적에도 동일 벌점 기록
+        // 개인 누적에도 동일 벌점 기록.
+        // 결정적 ID — 아래 removeMembershipRef가 실패해 사용자가 재시도하면 이 블록이
+        // 다시 실행되는데, 무작위 ID면 -50이 회수 불가능하게 두 번 쌓인다. 그룹 점수
+        // 도장과 같은 키라 재시도해도 로컬(REPLACE)·클라우드(같은 문서) 한 건으로
+        // 수렴한다. (iOS GroupStore.quitAfterStart와 동일 키 — 크로스 기기도 한 건)
         val event = ScoreEvent(
+            id = md5Uuid("groupquit|${quitOccurrenceKey(room.id)}"),
             ownerUserID = uid, typeRaw = ScoreEventType.GROUP_QUIT.raw,
             points = ScoreRules.GROUP_QUIT_PENALTY, sessionID = null,
             intensityRaw = room.intensityRaw, note = ScoreNote.groupGiveup(room.name))
