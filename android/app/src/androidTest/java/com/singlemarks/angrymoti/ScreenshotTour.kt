@@ -163,6 +163,7 @@ class ScreenshotTour {
     // ── 화면 목록 (설계도 §5의 하네스 대상 부분집합) ─────────────────────────
 
     @Test fun intro() = shot("intro") { IntroFlow(onFinish = {}) }
+    @Test fun intro2() = shot("intro-2") { IntroFlow(onFinish = {}, initialPage = 1) }
     @Test fun auth() = shot("auth") { AuthScreen() }
     @Test fun permissions() = shot("permissions") { OnboardingFlow() }
     @Test fun home() = shot("home") { HomeShell() }

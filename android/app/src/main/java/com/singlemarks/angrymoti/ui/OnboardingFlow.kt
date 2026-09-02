@@ -56,8 +56,9 @@ import kotlinx.coroutines.launch
 
 /** 로그인 이전, 기기 최초 1회만 보여주는 인트로 2페이지. 스와이프로 앞뒤 이동 가능. */
 @Composable
-fun IntroFlow(onFinish: () -> Unit) {
-    val pagerState = rememberPagerState(pageCount = { 2 })
+fun IntroFlow(onFinish: () -> Unit, initialPage: Int = 0) {
+    // initialPage는 스크린샷 하네스가 2페이지(기록관리)를 바로 찍기 위한 진입점 — 앱은 항상 0.
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { 2 })
     val scope = rememberCoroutineScope()
 
     Box(Modifier.fillMaxSize().background(TL.ink)) {
