@@ -13,6 +13,7 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
+import com.singlemarks.angrymoti.data.Prefs
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -35,19 +36,38 @@ object SubscriptionManager : PurchasesUpdatedListener {
      *  Pro 판정 = 이 기기 스토어 구독 ∨ 클라우드 기록이 아직 유효. */
     @Volatile private var cloudProUntil = 0L
     @Volatile private var storePro = false
+    /** 이 기기 스토어 구독의 (만료 추정+유예) 시각 — 캐시 기록용. storePro가 false면 의미 없다. */
+    @Volatile private var storeProUntil = 0L
+    /** 시작 시 캐시에서 읽은 '마지막으로 확인된 Pro 만료 시각'. 스토어·클라우드 양쪽이
+     *  답하기 전까지만 판정에 쓰고, 양쪽이 확정되면 캐시를 갱신하고 손을 뗀다. */
+    @Volatile private var cachedProUntil = 0L
+    @Volatile private var storeResolved = false
+    @Volatile private var cloudResolved = false
 
     fun applyCloudPro(untilMillis: Long) {
         cloudProUntil = untilMillis
+        cloudResolved = true
         recomputeIsPro()
     }
 
     private fun recomputeIsPro() {
-        isPro.value = storePro || cloudProUntil > System.currentTimeMillis()
+        val now = System.currentTimeMillis()
+        val resolved = storeResolved && cloudResolved
+        // 앱 시작 직후엔 스토어·클라우드 응답 전이라 storePro=false·cloudProUntil=0이다 —
+        // 이때 false로 그리면 유료 사용자 홈에 가입 버튼이 잠깐 떴다 사라진다(실기기 제보).
+        // 양쪽이 확정되기 전까지는 마지막으로 확인된 만료 시각(캐시)으로 판정하고, 확정된
+        // 뒤에만 캐시를 갱신한다 — 해지된 사용자는 캐시의 만료 시각에 자연히 걷힌다.
+        val cachedValid = !resolved && cachedProUntil > now
+        isPro.value = storePro || cloudProUntil > now || cachedValid
+        if (resolved) Prefs.setCachedProUntil(maxOf(if (storePro) storeProUntil else 0L, cloudProUntil))
     }
 
     private var client: BillingClient? = null
 
     fun init(context: Context) {
+        // 캐시로 먼저 그린다 — Billing 연결·클라우드 동기화가 끝나기 전 창을 메운다
+        cachedProUntil = Prefs.cachedProUntil()
+        recomputeIsPro()
         val c = BillingClient.newBuilder(context)
             .setListener(this)
             .enablePendingPurchases(
@@ -119,8 +139,6 @@ object SubscriptionManager : PurchasesUpdatedListener {
                     it.purchaseState == Purchase.PurchaseState.PURCHASED &&
                         it.products.contains(PRODUCT_ID)
                 }
-                storePro = active
-                recomputeIsPro()
                 // 클라우드에 기록해 iOS 기기에서도 멤버십이 인정되게 한다.
                 // Play Billing은 클라이언트에서 만료일을 못 얻는다 — 대신 isAutoRenewing으로
                 // '해지 예약' 여부는 안다. 갱신 유지 중엔 월 구독+여유 35일(앱을 열 때마다
@@ -129,15 +147,17 @@ object SubscriptionManager : PurchasesUpdatedListener {
                 // 사용자의 '정당하게 결제된 남은 기간'에 반대 플랫폼 Pro가 끊긴다 — 잔존
                 // 축소보다 유료 기간 보장이 우선이다. 만료일 기반 정밀 축소는 서버(RTDN,
                 // D6) 없이는 불가능해 그쪽 과제로 남긴다.
-                if (active) {
-                    val autoRenewing = purchases.any {
-                        it.purchaseState == Purchase.PurchaseState.PURCHASED &&
-                            it.products.contains(PRODUCT_ID) && it.isAutoRenewing
-                    }
-                    val horizonDays = if (autoRenewing) 35L else 31L
-                    AccountStore.mirrorMembership(
-                        System.currentTimeMillis() + horizonDays * 86_400_000L, "google")
+                val autoRenewing = purchases.any {
+                    it.purchaseState == Purchase.PurchaseState.PURCHASED &&
+                        it.products.contains(PRODUCT_ID) && it.isAutoRenewing
                 }
+                val horizonDays = if (autoRenewing) 35L else 31L
+                val until = System.currentTimeMillis() + horizonDays * 86_400_000L
+                storeProUntil = if (active) until else 0L   // 캐시용 — 미러와 같은 지평
+                storeResolved = true
+                storePro = active
+                recomputeIsPro()
+                if (active) AccountStore.mirrorMembership(until, "google")
                 purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }
                     .forEach(::acknowledge)
                 lastRefreshFoundActive = active
@@ -179,12 +199,14 @@ object SubscriptionManager : PurchasesUpdatedListener {
                 .forEach { p ->
                     if (!p.isAcknowledged) acknowledge(p)
                     if (p.products.contains(PRODUCT_ID)) {
+                        // 방금 결제된 구독 — refresh()와 같은 규칙 (갱신 유지 35일 / 해지 예약 31일)
+                        val until = System.currentTimeMillis() +
+                            (if (p.isAutoRenewing) 35L else 31L) * 86_400_000L
+                        storeProUntil = until
+                        storeResolved = true
                         storePro = true
                         recomputeIsPro()
-                        // 방금 결제된 구독 — refresh()와 같은 규칙 (갱신 유지 35일 / 해지 예약 31일)
-                        AccountStore.mirrorMembership(
-                            System.currentTimeMillis() +
-                                (if (p.isAutoRenewing) 35L else 31L) * 86_400_000L, "google")
+                        AccountStore.mirrorMembership(until, "google")
                     }
                 }
         }

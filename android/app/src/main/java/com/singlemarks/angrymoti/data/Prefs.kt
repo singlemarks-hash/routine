@@ -26,6 +26,10 @@ object Prefs {
 
     /** 강도는 계정별(#19) — 공유 기기에서 A의 미친맛 설정이 B에게 새지 않도록 owner로 분리 */
     // L10n 키 스윕(1회) 완료 표식 — 저장 성공 시에만 세운다 (docs/영어화-설계도.md D3)
+    /** 마지막으로 확인된 Pro 만료 시각(millis) — 시작 직후 스토어·클라우드 응답 전 판정용 (iOS 동일 키) */
+    fun cachedProUntil(): Long = sp.getLong("subscription.cachedProUntil", 0L)
+    fun setCachedProUntil(v: Long) = sp.edit().putLong("subscription.cachedProUntil", v).apply()
+
     fun l10nKeySweepDone(): Boolean = sp.getBoolean("l10n.keySweep.v1", false)
     fun setL10nKeySweepDone() = sp.edit().putBoolean("l10n.keySweep.v1", true).apply()
 

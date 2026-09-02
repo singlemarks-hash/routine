@@ -147,8 +147,16 @@ final class SubscriptionManager: ObservableObject {
 
     /// 반대 플랫폼(안드로이드)에서 구독한 경우의 만료 시각 — AccountStore 동기화가 채워준다.
     /// Pro 판정 = 이 기기 스토어 구독 ∨ 클라우드 기록이 아직 유효.
-    var cloudProUntil: Date? { didSet { recomputeIsPro() } }
+    var cloudProUntil: Date? { didSet { cloudResolved = true; recomputeIsPro() } }
     private var storePro = false
+    /// 이 기기 스토어 구독의 (만료+유예) 시각 — 캐시 기록용. storePro가 false면 의미 없다.
+    private var storeProUntil: Date?
+    /// 시작 시 캐시에서 읽은 '마지막으로 확인된 Pro 만료 시각'. 스토어·클라우드 양쪽이
+    /// 답하기 전까지만 판정에 쓰고, 양쪽이 확정되면 캐시를 갱신하고 손을 뗀다.
+    private let cachedProUntil: Date?
+    private var storeResolved = false
+    private var cloudResolved = false
+    private static let cachedProUntilKey = "subscription.cachedProUntil"
 
     /// 스토어 콘솔에 무료 체험(인트로 오퍼)이 설정돼 있고, 이 계정이 아직 자격이 있으면 문구를 노출한다.
     /// (App Store Connect에서 인트로 오퍼를 등록하지 않으면 nil → 기존 문구로 자연 폴백)
@@ -167,17 +175,32 @@ final class SubscriptionManager: ObservableObject {
     }
 
     private func recomputeIsPro() {
-        isPro = storePro || (cloudProUntil ?? .distantPast) > .now
+        let cloudValid = (cloudProUntil ?? .distantPast) > .now
+        let resolved = storeResolved && cloudResolved
+        // 앱 시작 직후엔 스토어·클라우드 응답 전이라 storePro=false·cloudProUntil=nil이다 —
+        // 이때 false로 그리면 유료 사용자 홈에 가입 버튼이 잠깐 떴다 사라진다(실기기 제보).
+        // 양쪽이 확정되기 전까지는 마지막으로 확인된 만료 시각(캐시)으로 판정하고, 확정된
+        // 뒤에만 캐시를 갱신한다 — 해지된 사용자는 캐시의 실제 만료 시각에 자연히 걷힌다.
+        let cachedValid = !resolved && (cachedProUntil ?? .distantPast) > .now
+        isPro = storePro || cloudValid || cachedValid
+        if resolved {
+            let until = max(storePro ? (storeProUntil ?? .distantPast) : .distantPast,
+                            cloudProUntil ?? .distantPast)
+            UserDefaults.standard.set(until.timeIntervalSince1970, forKey: Self.cachedProUntilKey)
+        }
     }
 
     private var updatesTask: Task<Void, Never>?
 
     init() {
+        let cached = UserDefaults.standard.double(forKey: Self.cachedProUntilKey)
+        cachedProUntil = cached > 0 ? Date(timeIntervalSince1970: cached) : nil
+        isPro = (cachedProUntil ?? .distantPast) > .now
         updatesTask = Task { await listenForTransactions() }
-        Task {
-            await loadProduct()
-            await refreshEntitlement()
-        }
+        // 자격 확인을 상품 조회와 분리해 먼저 돌린다 — 예전엔 상품 조회(네트워크)가 끝나야
+        // 자격을 봤다. currentEntitlements는 로컬 캐시라 빠르고, 둘은 서로 의존하지 않는다.
+        Task { await refreshEntitlement() }
+        Task { await loadProduct() }
     }
 
     /// 상품 조회는 실패할 수 있다 — 네트워크가 끊겼거나, 스토어 콘솔에서 상품이
@@ -209,6 +232,11 @@ final class SubscriptionManager: ObservableObject {
                 if let e = transaction.expirationDate, e > (expires ?? .distantPast) { expires = e }
             }
         }
+        // 캐시용 만료 시각 — 아래 클라우드 미러와 같은 지평(실만료+3일 유예, 없으면 35일)
+        storeProUntil = pro
+            ? (expires.map { $0.addingTimeInterval(3 * 86_400) } ?? Date(timeIntervalSinceNow: 35 * 86_400))
+            : nil
+        storeResolved = true
         storePro = pro
         recomputeIsPro()
         // 클라우드에 기록해 안드로이드 기기에서도 멤버십이 인정되게 한다.
