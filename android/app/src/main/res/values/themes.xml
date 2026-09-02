@@ -6,4 +6,14 @@
         <item name="android:navigationBarColor">@color/ink</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <!-- 시작 스플래시 (Android 12+ SplashScreen API, 이전 버전은 core-splashscreen이 흉내).
+         배경 잉크색 위에 캐릭터 아이콘만 — 12+ 시스템 규격: 288dp 캔버스 중 가운데 192dp 원 안에
+         그려야 잘리지 않는다(splash_icon.png = 288dp 캔버스에 캐릭터 160dp). 시스템 스플래시가
+         걷히면 MainActivity Root의 SplashHoldScreen이 같은 자리에 캐릭터+워드마크를 이어 그린다. -->
+    <style name="Theme.AngryMoti.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/ink</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="postSplashScreenTheme">@style/Theme.AngryMoti</item>
+    </style>
 </resources>

@@ -9,6 +9,7 @@ struct RootView: View {
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var engine: SessionEngine
     @EnvironmentObject private var account: AccountStore
+    @EnvironmentObject private var subscription: SubscriptionManager
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -17,7 +18,11 @@ struct RootView: View {
             // 인트로를 로그인보다 앞에 두는 이유 — 무엇을 하는 앱인지 먼저 보여줘야
             // 로그인 장벽이 낮아진다. 계정·벌점은 여전히 계정 단위이므로 인트로 다음엔
             // 반드시 계정부터 정한다.
-            if !app.introSeen {
+            if subscription.holdSplash {
+                // 런치 스크린과 픽셀 단위로 같은 화면 — 시스템 스플래시가 걷힌 뒤에도 잠시 이어
+                // 그려 멤버십 확인 시간을 번다 (SubscriptionManager.holdSplash 주석 참고).
+                SplashHoldView()
+            } else if !app.introSeen {
                 IntroFlow { app.introSeen = true }
             } else if !account.isSignedIn {
                 AuthView()
@@ -63,6 +68,17 @@ struct RootView: View {
             default: break
             }
         })
+    }
+}
+
+/// 런치 스크린(Info.plist UILaunchScreen: LaunchBackground + SplashMark)과 같은 구성.
+/// 이미지 자체가 위쪽에 워드마크 높이만큼 여백을 품고 있어 캐릭터가 화면 정중앙에 온다.
+private struct SplashHoldView: View {
+    var body: some View {
+        ZStack {
+            Color("LaunchBackground").ignoresSafeArea()
+            Image("SplashMark")
+        }
     }
 }
 

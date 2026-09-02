@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.singlemarks.angrymoti.data.Prefs
 import com.singlemarks.angrymoti.models.SessionOutcome
@@ -28,6 +29,8 @@ import com.singlemarks.angrymoti.ui.MountGuideScreen
 import com.singlemarks.angrymoti.ui.OnboardingFlow
 import com.singlemarks.angrymoti.ui.SessionResultScreen
 import com.singlemarks.angrymoti.ui.SessionScreen
+import com.singlemarks.angrymoti.ui.SplashHoldScreen
+import com.singlemarks.angrymoti.services.SubscriptionManager
 import androidx.compose.ui.Modifier
 import com.singlemarks.angrymoti.ui.theme.AngryMotiTheme
 import com.singlemarks.angrymoti.ui.theme.TL
@@ -38,6 +41,9 @@ import androidx.lifecycle.lifecycleScope
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 시스템 스플래시(Theme.AngryMoti.Starting) → 앱 테마 전환. super.onCreate보다 먼저 불러야 한다.
+        // keepOnScreenCondition은 쓰지 않는다 — 붙잡기는 Root의 SplashHoldScreen이 같은 그림으로 잇는다.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         // 잠금 화면 위에 표시 + 화면 켜기 (매니페스트 플래그의 코드 버전 — 더 신뢰성 높음)
         if (android.os.Build.VERSION.SDK_INT >= 27) {
@@ -205,6 +211,7 @@ private fun Root() {
     val onboarded by AppState.onboarded.collectAsStateWithLifecycle()
     val introSeen by AppState.introSeen.collectAsStateWithLifecycle()
     val user by AccountStore.user.collectAsState()
+    val holdSplash by SubscriptionManager.holdSplash.collectAsStateWithLifecycle()
     val phase by SessionEngine.phase.collectAsStateWithLifecycle()
 
     // 계정 전환 시 그 계정의 강도·하향예약을 다시 불러온다 (#19 — 강도가 계정별이라 공유 기기 누수 차단)
@@ -229,6 +236,9 @@ private fun Root() {
         // 첫 실행 순서: 인트로(촬영하기·기록관리) → 로그인(또는 게스트) → 권한 설정 → 홈.
         // 인트로를 로그인보다 앞에 두는 이유 — 무엇을 하는 앱인지 먼저 보여줘야
         // 로그인 장벽이 낮아진다 (iOS RootView 1:1).
+        // 시스템 스플래시와 같은 그림을 잠시 이어 그려 멤버십 확인 시간을 번다
+        // (SubscriptionManager.holdSplash 주석 참고).
+        holdSplash -> SplashHoldScreen()
         !introSeen -> IntroFlow(onFinish = { AppState.completeIntro() })
         user == null -> AuthScreen()
         !onboarded -> OnboardingFlow()

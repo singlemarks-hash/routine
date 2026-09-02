@@ -145,6 +145,12 @@ final class SubscriptionManager: ObservableObject {
     /// 이미 한 번 쓴 계정이면 false가 되어 체험 문구를 숨긴다.
     @Published var isEligibleForIntro = false
 
+    /// 스플래시 유지 — 런치 스크린과 같은 그림(캐릭터+워드마크)을 RootView가 잠시 더 그린다.
+    /// 캐시가 없어(첫 실행·재설치·로그아웃 후) isPro를 캐시로 시드하지 못한 경우에만 켜고,
+    /// 스토어 자격 확인이 끝나거나 1.5초가 지나면 내린다 — 홈이 무료 상태로 먼저 그려졌다가
+    /// 유료로 바뀌는 깜빡임을 막되, 스토어가 늦어도 사용자를 붙잡아 두지는 않는다.
+    @Published var holdSplash = false
+
     /// 반대 플랫폼(안드로이드)에서 구독한 경우의 만료 시각 — AccountStore 동기화가 채워준다.
     /// Pro 판정 = 이 기기 스토어 구독 ∨ 클라우드 기록이 아직 유효.
     var cloudProUntil: Date? { didSet { cloudResolved = true; recomputeIsPro() } }
@@ -196,6 +202,13 @@ final class SubscriptionManager: ObservableObject {
         let cached = UserDefaults.standard.double(forKey: Self.cachedProUntilKey)
         cachedProUntil = cached > 0 ? Date(timeIntervalSince1970: cached) : nil
         isPro = (cachedProUntil ?? .distantPast) > .now
+        if cachedProUntil == nil {
+            holdSplash = true
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                self?.holdSplash = false
+            }
+        }
         updatesTask = Task { await listenForTransactions() }
         // 자격 확인을 상품 조회와 분리해 먼저 돌린다 — 예전엔 상품 조회(네트워크)가 끝나야
         // 자격을 봤다. currentEntitlements는 로컬 캐시라 빠르고, 둘은 서로 의존하지 않는다.
@@ -239,6 +252,7 @@ final class SubscriptionManager: ObservableObject {
         storeResolved = true
         storePro = pro
         recomputeIsPro()
+        holdSplash = false
         // 클라우드에 기록해 안드로이드 기기에서도 멤버십이 인정되게 한다.
         // 실제 만료 시각 + 3일 유예 — 유예가 없으면 자동 갱신 직후 iOS 앱을 아직 안 연
         // 동안 반대 플랫폼이 만료 시각을 지나 Pro가 잠깐 풀린다(갱신-미러 공백).

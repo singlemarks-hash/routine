@@ -25,6 +25,7 @@ import com.singlemarks.angrymoti.data.AppDb
 import com.singlemarks.angrymoti.data.Reservation
 import com.singlemarks.angrymoti.ui.AlarmHealthScreen
 import com.singlemarks.angrymoti.ui.SessionScreen
+import com.singlemarks.angrymoti.ui.SplashHoldScreen
 import com.singlemarks.angrymoti.ui.AuthScreen
 import com.singlemarks.angrymoti.ui.CalendarScreen
 import com.singlemarks.angrymoti.ui.GroupTab
@@ -219,5 +220,10 @@ class ScreenshotTour {
             recorded = 7 * 60,
         )
         shot("session") { SessionScreen() }
+    }
+
+    // 시작 스플래시 붙잡기 화면 — 시스템 스플래시 뒤에 이어 그려지는 캐릭터+워드마크.
+    @Test fun splashHold() {
+        shot("splash") { SplashHoldScreen() }
     }
 }

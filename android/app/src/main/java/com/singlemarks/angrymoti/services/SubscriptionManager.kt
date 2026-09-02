@@ -13,6 +13,8 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
+import android.os.Handler
+import android.os.Looper
 import com.singlemarks.angrymoti.data.Prefs
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -28,6 +30,11 @@ object SubscriptionManager : PurchasesUpdatedListener {
     /** 상품 조회가 진행 중인지 — '조회 중'과 '조회했지만 실패'를 화면이 구분해야
      *  무한 로딩으로 거짓말하지 않는다 (iOS 1d4a01c와 동일). */
     val loadingProduct = MutableStateFlow(false)
+    /** 스플래시 유지 — 시스템 스플래시와 같은 그림을 Root가 잠시 더 그린다. 캐시가 없어(첫 실행·
+     *  재설치·로그아웃 후) isPro를 캐시로 시드하지 못한 경우에만 켜고, 스토어 조회가 답하거나
+     *  1.5초가 지나면 내린다 — 홈이 무료로 먼저 그려졌다 유료로 바뀌는 깜빡임을 막되,
+     *  Billing 연결이 늦어도 사용자를 붙잡아 두지는 않는다 (iOS SubscriptionManager 1:1). */
+    val holdSplash = MutableStateFlow(false)
     /** 구매 복원(refresh) 결과 콜백용 — 마지막 갱신에서 활성 구독을 찾았는가 */
     @Volatile var lastRefreshFoundActive: Boolean? = null
         private set
@@ -68,6 +75,10 @@ object SubscriptionManager : PurchasesUpdatedListener {
         // 캐시로 먼저 그린다 — Billing 연결·클라우드 동기화가 끝나기 전 창을 메운다
         cachedProUntil = Prefs.cachedProUntil()
         recomputeIsPro()
+        if (cachedProUntil == 0L) {
+            holdSplash.value = true
+            Handler(Looper.getMainLooper()).postDelayed({ holdSplash.value = false }, 1_500L)
+        }
         val c = BillingClient.newBuilder(context)
             .setListener(this)
             .enablePendingPurchases(
@@ -134,6 +145,7 @@ object SubscriptionManager : PurchasesUpdatedListener {
         val c = client
         if (c == null || !c.isReady) { lastRefreshFoundActive = null; onResult?.invoke(false); return }
         c.queryPurchasesAsync(params) { result, purchases ->
+            holdSplash.value = false   // 성공이든 실패든 스토어가 답했으면 더 붙잡을 이유가 없다
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                 val active = purchases.any {
                     it.purchaseState == Purchase.PurchaseState.PURCHASED &&

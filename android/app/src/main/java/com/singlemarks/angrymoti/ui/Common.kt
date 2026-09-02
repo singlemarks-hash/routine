@@ -1,6 +1,9 @@
 package com.singlemarks.angrymoti.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -614,5 +617,25 @@ fun RECRing(progress: Float, modifier: Modifier = Modifier, tint: Color = TL.rec
             useCenter = false,
             topLeft = Offset(c.x - r, c.y - r), size = Size(r * 2, r * 2),
             style = Stroke(stroke, cap = StrokeCap.Round))
+    }
+}
+
+
+/**
+ * 시작 스플래시 붙잡기 화면 — 시스템 스플래시(Theme.AngryMoti.Starting: 잉크 배경 + 캐릭터 아이콘)와
+ * 같은 자리에 캐릭터+워드마크를 그린다. splash_mark 이미지는 위쪽에 워드마크 높이만큼 여백을
+ * 품고 있어(200×232dp) 캐릭터가 화면 정중앙에 온다 (iOS SplashHoldView 1:1).
+ */
+@Composable
+fun SplashHoldScreen() {
+    Box(
+        Modifier.fillMaxSize().background(TL.ink),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.splash_mark),
+            contentDescription = null,
+            modifier = Modifier.size(200.dp, 232.dp),
+        )
     }
 }
