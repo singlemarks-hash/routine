@@ -4040,17 +4040,6 @@
         }
       }
     },
-    "Group Challenge — gather with an invite code and compete on the same schedule": {
-      "extractionState": "manual",
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "그룹 챌린지 — 초대 코드로 모여 같은 일정으로 경쟁"
-          }
-        }
-      }
-    },
     "Includes all future membership features too": {
       "extractionState": "manual",
       "localizations": {
@@ -4168,28 +4157,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "참여 중인 그룹 활동이 있는데 방 목록을 읽지 못했어요. 네트워크를 확인하고 다시 시도해 주세요."
-          }
-        }
-      }
-    },
-    "New groups are members-only": {
-      "extractionState": "manual",
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 그룹은 멤버십 전용이에요"
-          }
-        }
-      }
-    },
-    "You can still view and manage rooms you've joined. A membership is required to create a new room or join with an invite code.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "참여 중인 방은 그대로 보고 관리할 수 있어요. 방을 새로 만들거나 초대코드로 참여하려면 멤버십이 필요합니다."
           }
         }
       }

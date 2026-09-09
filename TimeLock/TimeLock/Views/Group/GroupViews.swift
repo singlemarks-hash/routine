@@ -5,6 +5,8 @@
 //  그룹 챌린지 탭 — 초대코드로 모인 사람들이 같은 일정으로 대결한다.
 //  방 목록 → 방 만들기(방장·초대코드) / 참여하기(코드+닉네임) → 랭킹 → 최종 결과.
 //  게스트에게는 이 탭 자체가 보이지 않는다 (HomeShellView가 숨김).
+//  그룹 챌린지는 무료 기능이다 (1.3.2에서 멤버십 잠금 해제). 슬롯 정책은 그대로라
+//  무료 사용자는 활동+그룹 합쳐 2슬롯 안에서만 만들고 참여할 수 있다 — 더 하려면 멤버십.
 //
 
 import SwiftUI
@@ -14,15 +16,9 @@ import SwiftData
 
 struct GroupTabView: View {
     @EnvironmentObject private var account: AccountStore
-    @EnvironmentObject private var subscription: SubscriptionManager
     @StateObject private var store = GroupStore.shared
     @State private var showCreate = false
     @State private var showJoin = false
-    @State private var showPaywall = false
-
-    /// 그룹 챌린지는 멤버십 전용. 단, 구독 중 참여한 방이 남아 있으면
-    /// (구독이 끝나도 노쇼 벌점은 계속 쌓이므로) 기존 방 열람·관리는 막지 않는다.
-    private var locked: Bool { !subscription.isPro }
 
     @Query private var everyReservation: [Reservation]
 
@@ -40,24 +36,16 @@ struct GroupTabView: View {
                     header
                         .padding(.top, 6)
 
-                    // 탭은 누구에게나 열어둔다. 참여 중인 방은 구독이 끊겨도 계속 굴러가고
-                    // (노쇼 벌점도 계속 쌓인다) 나가려면 그 방에 들어갈 수 있어야 한다.
-                    // 결제는 '새로 시작하는 행동'에서만 요구한다.
                     notices
 
                     loadFailureNotice
 
-                    if locked { membershipPromo }
+                    // 슬롯 만석 여부는 만들기·참여 화면 안에서 검사한다 (SlotPolicy).
+                    Button("Create a Group Room") { showCreate = true }
+                        .buttonStyle(TLPrimaryButtonStyle())
 
-                    Button("Create a Group Room") {
-                        if locked { showPaywall = true } else { showCreate = true }
-                    }
-                    .buttonStyle(TLPrimaryButtonStyle())
-
-                    Button("Join with an Invite Code") {
-                        if locked { showPaywall = true } else { showJoin = true }
-                    }
-                    .buttonStyle(TLGhostButtonStyle())
+                    Button("Join with an Invite Code") { showJoin = true }
+                        .buttonStyle(TLGhostButtonStyle())
 
                     roomList
                         .padding(.top, 8)
@@ -71,7 +59,6 @@ struct GroupTabView: View {
             .task { await store.refresh() }
             .sheet(isPresented: $showCreate) { GroupCreateView() }
             .sheet(isPresented: $showJoin) { GroupJoinView() }
-            .sheet(isPresented: $showPaywall) { PaywallView() }
         }
     }
 
@@ -95,26 +82,6 @@ struct GroupTabView: View {
             .background(TL.raised, in: RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(TL.hairline, lineWidth: 1))
         }
-    }
-
-    // MARK: 비구독자 안내 — 잠금이 아니라 안내다
-
-    /// 탭을 막지 않는 대신, 왜 만들기·참여하기가 결제로 이어지는지 여기서 알린다.
-    private var membershipPromo: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 13)).foregroundStyle(TL.amber)
-                Text("New groups are members-only")
-                    .font(.tlTitle(15)).foregroundStyle(TL.paper)
-            }
-            Text("You can still view and manage rooms you've joined. A membership is required to create a new room or join with an invite code.")
-                .font(.system(size: 13)).foregroundStyle(TL.muted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(TL.raised, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(TL.hairline, lineWidth: 1))
     }
 
     private var header: some View {

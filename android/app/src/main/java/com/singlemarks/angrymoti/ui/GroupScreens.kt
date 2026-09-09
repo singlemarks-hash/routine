@@ -61,7 +61,7 @@ import com.singlemarks.angrymoti.ui.theme.TL
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-// MARK: 그룹 챌린지 탭 — iOS GroupTabView 1:1 (멤버십 전용, 게스트는 탭 자체가 숨겨짐)
+// MARK: 그룹 챌린지 탭 — iOS GroupTabView 1:1 (무료 기능, 게스트는 탭 자체가 숨겨짐)
 
 private object GroupFormat {
     private val weekdayNames: List<String> get() = listOf("") + TLFormat.weekdaySymbols
@@ -120,7 +120,6 @@ private sealed class GroupNav {
     data object Create : GroupNav()
     data object Join : GroupNav()
     data class Detail(val roomId: String) : GroupNav()
-    data object Paywall : GroupNav()
 }
 
 @Composable
@@ -130,7 +129,6 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
     val cancelled by GroupStore.cancelledNotices.collectAsState()
     val disbanded by GroupStore.disbandedNotices.collectAsState()
     val refreshing by GroupStore.isRefreshing.collectAsState()
-    val isPro by SubscriptionManager.isPro.collectAsState()
     var nav by remember { mutableStateOf<GroupNav>(GroupNav.List) }
     val scope = rememberCoroutineScope()
 
@@ -149,15 +147,11 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
         }
     }
 
-    // 기존 방은 구독이 끊겨도 계속 볼 수 있다 — 새 생성·참여만 잠금 (iOS 동일)
-    val locked = !isPro
-
-    // 뒤로가기: 그룹 내부 화면(생성/참여/상세/페이월)에서는 목록으로 복귀.
+    // 뒤로가기: 그룹 내부 화면(생성/참여/상세)에서는 목록으로 복귀.
     // 목록에서는 여기서 가로채지 않아 HomeShell의 BackHandler(홈으로 복귀)로 넘어간다.
     androidx.activity.compose.BackHandler(enabled = nav != GroupNav.List) { nav = GroupNav.List }
 
     when (val n = nav) {
-        GroupNav.Paywall -> { PaywallScreen(onBack = { nav = GroupNav.List }); return }
         GroupNav.Create -> { GroupCreateScreen(onDone = { nav = GroupNav.List }); return }
         GroupNav.Join -> { GroupJoinScreen(onDone = { nav = GroupNav.List }); return }
         is GroupNav.Detail -> {
@@ -203,9 +197,9 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
             Spacer(Modifier.height(10.dp))
         }
 
-        // 탭은 누구에게나 열어둔다 (iOS 3ae6c2a). 참여 중인 방은 구독이 끊겨도 계속
-        // 굴러가고 노쇼 벌점도 쌓인다 — 나가려면 그 방에 들어갈 수 있어야 한다.
-        // 결제는 '새로 시작하는 행동'(만들기·참여하기)에서만 요구한다.
+        // 그룹 챌린지는 무료 기능이다 (1.3.2에서 멤버십 잠금 해제). 슬롯 정책은 그대로라
+        // 무료 사용자는 활동+그룹 합쳐 2슬롯 안에서만 만들고 참여한다 — 만석 검사는
+        // 만들기·참여 화면 안(SlotPolicy)에서 한다.
 
         // 조회 실패 안내 — 그룹 활동은 로컬에 있는데 방 목록이 비어 있으면 조회가 실패한
         // 것이다(성공했다면 고아 정리가 사라진 방의 활동까지 정리했을 것). 빈 화면만
@@ -234,32 +228,13 @@ fun GroupTab(openRoomId: String? = null, onRoomOpened: () -> Unit = {}) {
             Spacer(Modifier.height(10.dp))
         }
 
-        if (locked) {
-            // 비구독 안내 — 잠금이 아니라 안내다 (iOS membershipPromo 1:1)
-            TLCard {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        androidx.compose.material3.Icon(AppIcon.Lock, null,
-                            tint = TL.amber, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.groups_members_only), color = TL.paper,
-                            fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.groups_members_only_body),
-                        color = TL.muted, fontSize = 13.sp, lineHeight = 19.sp)
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-        }
-
         // iOS 1:1 — 버튼 세로 스택 (그룹방 만들기 rec / 초대코드로 참여하기 ghost)
         TLPrimaryButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.create_group_room)) {
-            if (locked) nav = GroupNav.Paywall else nav = GroupNav.Create
+            nav = GroupNav.Create
         }
         Spacer(Modifier.height(10.dp))
         TLGhostButton(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.join_with_code)) {
-            if (locked) nav = GroupNav.Paywall else nav = GroupNav.Join
+            nav = GroupNav.Join
         }
         Spacer(Modifier.height(22.dp))
 
@@ -500,7 +475,7 @@ private fun GroupCreateScreen(onDone: () -> Unit) {
                 androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.nickname_placeholder, GroupPolicy.NICKNAME_MAX_LENGTH))
             Spacer(Modifier.height(14.dp))
 
-            // 강도 — 활동 예약과 동일한 2카드 구성(iOS 1:1). 이 화면은 이미 멤버십 계정만
+            // 강도 — 활동 예약과 동일한 2카드 구성(iOS 1:1). 미친맛 선택은 멤버십 전용
             // 들어올 수 있어 잠금이 실제로 걸릴 일은 없지만, 구조는 통일해 둔다.
             TLCard {
                 TLEyebrow(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.intensity_label))

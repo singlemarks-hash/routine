@@ -365,7 +365,6 @@
     <string name="benefit_slots">Start with at least %1$d activity slots (free is 2)</string>
     <string name="benefit_watermark">No timelapse watermark</string>
     <string name="benefit_insane">Insane mode (members only)</string>
-    <string name="benefit_group">Group Challenge — gather with an invite code and compete on the same schedule</string>
     <string name="benefit_future">Includes all future membership features too</string>
     <string name="membership_in_use">Membership active 👑</string>
     <string name="start_free_then">Start Free · Then %1$s/mo</string>
@@ -413,8 +412,6 @@
     <string name="group_sub">Gather with an invite code and compete on the same schedule.\nGroup scores start from 0 and also count toward your personal total.</string>
     <string name="rooms_load_failed_title">Couldn\'t load room info</string>
     <string name="rooms_load_failed_body">You have group activities in progress, but the room list couldn\'t be loaded. Check your network and try again.</string>
-    <string name="groups_members_only">New groups are members-only</string>
-    <string name="groups_members_only_body">You can still view and manage rooms you\'ve joined. A membership is required to create a new room or join with an invite code.</string>
     <string name="create_group_room">Create a Group Room</string>
     <string name="join_with_code">Join with an Invite Code</string>
     <string name="my_groups">My Groups</string>

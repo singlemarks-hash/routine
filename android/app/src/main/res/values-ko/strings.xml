@@ -364,7 +364,6 @@
     <string name="benefit_slots">활동 슬롯 최소 %1$d개부터 시작 (무료는 2개)</string>
     <string name="benefit_watermark">타임랩스 워터마크 제거</string>
     <string name="benefit_insane">미친 매운맛 모드 (멤버십 전용)</string>
-    <string name="benefit_group">그룹 챌린지 — 초대코드로 모여 같은 일정으로 랭킹 대결</string>
     <string name="benefit_future">그 외 추가되는 멤버십 기능 모두 포함</string>
     <string name="membership_in_use">멤버십 사용 중이에요 👑</string>
     <string name="start_free_then">무료로 시작하기 · 이후 %1$s/월</string>
@@ -412,8 +411,6 @@
     <string name="group_sub">초대코드로 모여 같은 일정으로 대결해요.\n그룹 점수는 0점부터, 개인 누적에도 그대로 쌓입니다.</string>
     <string name="rooms_load_failed_title">방 정보를 불러오지 못했습니다</string>
     <string name="rooms_load_failed_body">참여 중인 그룹 활동이 있는데 방 목록을 읽지 못했어요. 네트워크를 확인하고 다시 시도해 주세요.</string>
-    <string name="groups_members_only">새 그룹은 멤버십 전용이에요</string>
-    <string name="groups_members_only_body">참여 중인 방은 그대로 보고 관리할 수 있어요. 방을 새로 만들거나 초대코드로 참여하려면 멤버십이 필요합니다.</string>
     <string name="create_group_room">그룹방 만들기</string>
     <string name="join_with_code">초대코드로 참여하기</string>
     <string name="my_groups">내 그룹</string>

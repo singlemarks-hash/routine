@@ -565,7 +565,6 @@ struct PaywallView: View {
                     benefit(String(format: String(localized: "Start with at least %ld activity slots (free is 2)"), SlotPolicy.memberFloorSlots))
                     benefit(String(localized: "No timelapse watermark"))
                     benefit(String(localized: "Insane mode (members only)"))
-                    benefit(String(localized: "Group Challenge — gather with an invite code and compete on the same schedule"))
                     benefit(String(localized: "Includes all future membership features too"))
                 }
                 .padding(.top, 24)

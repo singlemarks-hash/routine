@@ -433,7 +433,6 @@ fun PaywallScreen(onBack: () -> Unit) {
             Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_slots, SlotPolicy.MEMBER_FLOOR_SLOTS))
             Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_watermark))
             Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_insane))
-            Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_group))
             Benefit(androidx.compose.ui.res.stringResource(com.singlemarks.angrymoti.R.string.benefit_future))
         }
         Spacer(Modifier.height(24.dp))

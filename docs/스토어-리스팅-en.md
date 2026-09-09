@@ -42,7 +42,7 @@ No snooze. No swipe. You either show up, or it goes on your record.
 • Timelapse your session — the whole session becomes a short video, stored only on your device
 • Points and penalties — finishing earns points, quitting costs them, all on one calendar
 • Streaks — keep showing up and you unlock more activity slots
-• Group Challenge (Membership) — gather with an invite code and compete on the same schedule
+• Group Challenge — gather with an invite code and compete on the same schedule
 
 YOUR RECORDINGS STAY YOURS
 Timelapse videos never leave your device. If you don't save one on the results screen, it's deleted automatically. We use on-device face and body detection only to tell whether you're still in front of the camera — frames are processed in memory and discarded immediately, and no facial data is ever stored or transmitted.
@@ -52,7 +52,6 @@ AngryMoti Membership is $2.99/month and includes:
 • At least 10 activity slots (free accounts start with 2)
 • No timelapse watermark
 • Insane mode — no exceptions, 100% focus, 2x points
-• Group Challenge
 • Every Membership feature we add in the future
 
 Payment is charged to your Apple account. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store account settings.
