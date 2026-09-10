@@ -256,6 +256,7 @@ final class SessionEngine: NSObject, ObservableObject {
             && result?.thumbnailFileName != nil
             && capturedSeconds >= s.targetSeconds / 2
         if recordedEnough {
+            AlarmScheduler.shared.playCompletion()
             finalize(session: s, outcome: .completed, note: nil)
         } else {
             #if DEBUG

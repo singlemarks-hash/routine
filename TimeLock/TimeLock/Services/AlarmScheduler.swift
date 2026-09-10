@@ -489,6 +489,19 @@ final class AlarmScheduler: NSObject, ObservableObject {
         } catch { }
     }
     private var chimePlayer: AVAudioPlayer?
+
+    /// 촬영 완주음 — 세션이 '완료'로 확정된 순간 한 번. 경고용 띵동(chime)과 구분되는
+    /// 두 음 상행(솔→도) 벨. 실패·포기·안전종료에는 울리지 않는다.
+    func playCompletion() {
+        guard let url = Bundle.main.url(forResource: "complete", withExtension: "wav") else { return }
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.volume = 0.9
+            player.play()
+            completionPlayer = player
+        } catch { }
+    }
+    private var completionPlayer: AVAudioPlayer?
 }
 
 #if ENABLE_ALARMKIT

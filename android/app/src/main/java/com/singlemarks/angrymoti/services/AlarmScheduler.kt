@@ -412,6 +412,31 @@ object AlarmScheduler {
     /** 앱 자체 경고음(1분 전 예고·자리비움) — iOS의 '띵동'과 동일한 의도적 알림 사운드.
      *  sessionMuted/시스템 DND는 '외부 알림'을 막는 기능이지 앱 자체 경고까지 막는 게 아니므로,
      *  USAGE_ALARM으로 재생해 방해 금지 상태에서도 반드시 들리게 한다. */
+    /** 촬영 완주음 — 세션이 '완료'로 확정된 순간 한 번 (iOS playCompletion 1:1, 같은 wav).
+     *  경고용 띵동과 달리 번들 파일을 쓰므로 양 플랫폼에서 같은 소리가 난다. */
+    fun playCompletion(context: Context) {
+        completionPlayer?.release()
+        runCatching {
+            completionPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+                )
+                context.resources.openRawResourceFd(com.singlemarks.angrymoti.R.raw.complete).use { fd ->
+                    setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
+                }
+                setOnCompletionListener { it.release(); if (completionPlayer == it) completionPlayer = null }
+                prepare(); start()
+            }
+        }.onFailure {
+            android.util.Log.e("AngryMoti", "playCompletion failed", it)
+            runCatching { completionPlayer?.release() }
+            completionPlayer = null
+        }
+    }
+    private var completionPlayer: MediaPlayer? = null
+
     fun playChime(context: Context) {
         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) ?: return

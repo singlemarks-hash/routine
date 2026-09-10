@@ -216,6 +216,7 @@ object SessionEngine {
                 result.thumbnailFileName != null &&
                 capturedSeconds >= s.targetSeconds / 2
             if (recordedEnough) {
+                AlarmScheduler.playCompletion(appContext)
                 finalize(applyRecording(s, result), SessionOutcome.COMPLETED, null)
             } else {
                 android.util.Log.e("AngryMoti",
