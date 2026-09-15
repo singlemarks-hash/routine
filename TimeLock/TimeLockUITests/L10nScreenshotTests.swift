@@ -250,4 +250,27 @@ final class L10nScreenshotTests: XCTestCase {
             shoot(app, "paywall")
         }
     }
+
+    // MARK: - 그룹 탭 (별도 테스트)
+    // 그룹 탭은 로그인 계정에서만 보이고 투어는 게스트로 도는다 → 전용 런치 인자 훅으로 연다.
+    // 알파벳 순서상 testCaptureMainSurfaces 뒤에 돌아 온보딩이 이미 끝나 있다.
+
+    @MainActor
+    func testZ_CaptureGroupTab() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-AppleLanguages", "(\(locale))",
+            "-AppleLocale", locale == "ko" ? "ko_KR" : "en_US",
+            "-uitestGroup",
+        ]
+        app.launch()
+        let createLabels = ["Create a Group Room", "그룹방 만들기"]
+        let reached = createLabels.contains {
+            app.buttons[$0].waitForExistence(timeout: 12) || app.staticTexts[$0].exists
+        }
+        if reached {
+            shotIndex = 92
+            shoot(app, "groups")
+        }
+    }
 }

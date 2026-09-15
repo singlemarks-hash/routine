@@ -9,11 +9,16 @@
 import SwiftUI
 import SwiftData
 
+/// UI 테스트 전용 런치 인자 — 그룹 탭은 로그인 계정에서만 보여 게스트 캡처 투어로는
+/// 닿지 않는다. 스크린샷 하네스가 이 인자로 그룹 탭을 열어 찍는다.
+/// 일반 실행에는 이 인자가 없으므로 항상 false다 (페이월 훅과 같은 방식).
+private let uitestGroupTab = ProcessInfo.processInfo.arguments.contains("-uitestGroup")
+
 // MARK: - 쉘: 활동 | 기록 토글
 
 struct HomeShellView: View {
     enum Tab { case activity, schedule, group }
-    @State private var tab: Tab = .activity
+    @State private var tab: Tab = uitestGroupTab ? .group : .activity
     /// 활동 탭의 내비게이션 경로를 쉘이 들고 있는다. 마이페이지처럼 활동 탭 위에 쌓인
     /// 화면은 탭을 다시 눌러도 '이미 활동 탭'이라 아무 일도 안 일어나 빠져나올 수 없었다.
     /// (일정·그룹은 탭이 바뀌면서 화면이 통째로 교체돼 정상으로 보였다)
@@ -24,7 +29,7 @@ struct HomeShellView: View {
     @State private var uitestPaywall = ProcessInfo.processInfo.arguments.contains("-uitestPaywall")
 
     /// 그룹 챌린지는 계정 전용 — 게스트에겐 탭 자체를 숨긴다
-    private var showsGroupTab: Bool { account.isSignedIn && !account.isGuest }
+    private var showsGroupTab: Bool { uitestGroupTab || (account.isSignedIn && !account.isGuest) }
 
     var body: some View {
         ZStack(alignment: .bottom) {
